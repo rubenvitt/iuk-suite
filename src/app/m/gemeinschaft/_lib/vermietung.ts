@@ -97,13 +97,18 @@ function kollisionsSatz(k: Eintrag): string {
 }
 
 /** Legt eine Anfrage an, wenn der Zeitraum frei ist (Prüfung und Schreiben in einer Transaktion). Gibt den Code zurück. */
-export function legeAnfrageAn(db: GemeinschaftDb, w: AnfrageWert, mitglied: boolean, jetzt: number): string {
+export function legeAnfrageAn(db: GemeinschaftDb, w: AnfrageWert, mitglied: boolean, jetzt: number, sendung?: string): string {
   return db.transaction((tx) => {
+    // IDA-358: dieselbe Sendung schon angelegt (nur die Antwort ging verloren) — derselbe Statuslink wie damals.
+    if (sendung) {
+      const frueher = tx.select({ code: anfrage.code }).from(anfrage).where(eq(anfrage.id, sendung)).get();
+      if (frueher) return frueher.code;
+    }
     const [k] = harteKonflikte(w, ladeBelegendeEintraege(tx, w.von));
     if (k) throw new Abgelehnt(kollisionsSatz(k));
     const code = neuerLinkCode();
     tx.insert(anfrage).values({
-      id: neueId(), raum: RAUM, status: "angefragt", code, von: w.von, bis: w.bis, anlass: w.anlass, personen: w.personen,
+      id: sendung ?? neueId(), raum: RAUM, status: "angefragt", code, von: w.von, bis: w.bis, anlass: w.anlass, personen: w.personen,
       person: w.person, kontakt: w.kontakt, hinweis: w.hinweis, mitglied, eingegangenAm: jetzt,
     }).run();
     return code;

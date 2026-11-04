@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App, Button, Segmented } from "antd";
+import { loescheEntwurf } from "@/core/entwurf/ablage";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachRang, nachText } from "@/core/tabelle";
@@ -16,6 +17,9 @@ import { GruppenFilter } from "./GruppenFilter";
 import { NICHT_GESPEICHERT } from "./useAktion";
 import { FristChip, OrtText, stundenText, ZustandChip } from "./teile";
 import s from "./wartung.module.css";
+
+/** IDA-358: der Entwurf „Gerät anlegen" (`GeraetFormular.tsx`). */
+const NEU = "wartung:geraet:neu";
 
 const KURZ: Record<Zustand, string> = { ok: "Einsatzbereit", mangel: "Mit Mangel", defekt: "Nicht einsatzbereit" };
 const STUFEN = (Object.keys(RANG) as Stufe[]).sort((a, b) => RANG[a] - RANG[b]);
@@ -55,6 +59,7 @@ export function GeraeteListe({
       try {
         const r: Ergebnis = await geraetAnlegenAction(w);
         if (r.ok) {
+          loescheEntwurf(NEU);
           message.success("Gerät angelegt.");
           setAnlegen(false);
           if (r.id) router.push(`/geraete/${r.id}`);
@@ -134,6 +139,7 @@ export function GeraeteListe({
       />
       {verwalter && anlegen && (
         <GeraetFormular
+          entwurfSchluessel={NEU}
           offen={anlegen}
           titel="Gerät anlegen"
           start={start}

@@ -2,6 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { AutoComplete, Form, Input, InputNumber, Modal, Radio, Select } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { KURZ_MAX, NAME_MAX, NOTIZ_MAX, type GeraetEingabe } from "../_lib/eingabe";
 import { passt, wahlZuName, type FahrzeugWahl } from "../_lib/fahrzeugsuche";
 import type { BekannteOrte } from "../_lib/typen";
@@ -12,10 +14,16 @@ export type GeraetWerte = GeraetEingabe;
  * Anlegen und Ändern eines Geräts. Die Gruppe wählt nur, wer mehr als eine verwaltet; die Action prüft sie
  * trotzdem gegen die Datenbank. Der Aufrufer rendert es nur, solange es offen ist: so beginnt jedes Öffnen
  * mit `start`.
+ *
+ * IDA-358: die Eingaben liegen unter `entwurfSchluessel` auf dem Gerät — Abbrechen, Neuladen oder ein
+ * gescheitertes Speichern kosten sie nicht; das nächste Öffnen stellt sie wieder her. Nach bestätigtem Erfolg
+ * löscht der Aufrufer den Entwurf (`loescheEntwurf`).
  */
 export function GeraetFormular({
-  offen, titel, start, gruppen, arten, orte, fahrzeuge, laeuft, feldFehler, onAbbrechen, onSpeichern,
+  entwurfSchluessel, offen, titel, start, gruppen, arten, orte, fahrzeuge, laeuft, feldFehler, onAbbrechen, onSpeichern,
 }: {
+  /** `wartung:geraet:neu` bzw. `wartung:geraet:<id>`. */
+  entwurfSchluessel: string;
   offen: boolean;
   titel: string;
   start: GeraetWerte;
@@ -30,6 +38,7 @@ export function GeraetFormular({
   onSpeichern: (w: GeraetWerte) => void;
 }) {
   const [w, setW] = useState<GeraetWerte>(start);
+  const entwurf = useEntwurf<GeraetWerte>({ schluessel: entwurfSchluessel, stand: w, wiederherstellen: setW });
   const setze = (teil: Partial<GeraetWerte>) => setW((alt) => ({ ...alt, ...teil }));
   const verknuepft = w.ortArt === "fahrzeug" ? fahrzeuge.find((f) => f.id === w.fahrzeugId) ?? null : null;
   // Ein Vorschlag trägt die ID des Fahrzeugs als Wert (gleiche Namen, IDA-342); ein unveränderter Name behält
@@ -55,6 +64,7 @@ export function GeraetFormular({
       destroyOnHidden
     >
       <Form layout="vertical" component="div">
+        <EntwurfHinweis entwurf={entwurf} />
         {gruppen.length > 1 && (
           <Form.Item label="Gruppe" {...fehler("gruppeId")}>
             <Radio.Group value={w.gruppeId} onChange={(e) => setze({ gruppeId: e.target.value })} options={gruppen.map((g) => ({ value: g.id, label: g.name }))} />

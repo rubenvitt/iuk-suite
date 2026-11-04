@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   mount, unmount, query, queryAll, exists, click, clickElement, fill,
@@ -25,6 +25,7 @@ vi.mock("../_actions/buchung", () => ({
 }));
 
 import { Auffuellen, type AuffuellDetail, type AuffuellZiel } from "./Auffuellen";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 
 const QUELLE = "src/app/m/lagerbuch/_ui/Auffuellen.tsx";
 
@@ -120,6 +121,13 @@ function ok(gebucht: number, ziel: string, chargeId = "ch-neu") {
 afterEach(async () => {
   await unmount();
   vi.clearAllMocks();
+});
+
+// IDA-358: die Insel legt ihre Eingaben auf dem Geraet ab — ohne das stellte
+// der naechste Fall den Stand des vorigen wieder her.
+beforeEach(() => {
+  localStorage.clear();
+  vergissFluechtig();
 });
 
 /**
@@ -218,6 +226,8 @@ describe("Auffuellen — die Charge", () => {
       menge: 1,
       zielLagerortId: "handlager",
       charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" },
+      // IDA-358: der Wiederholungsschutz reist mit (`_lib/schreibpfade/sendung.ts`).
+      sendungId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
   });
 
@@ -342,14 +352,56 @@ describe("Auffuellen — der Beleg (AK3)", () => {
       .toBe("Dieser Schrank ist stillgelegt.");
   });
 
-  it("ein Wurf wird zu „keine Verbindung“ — `netz` entsteht nur hier", async () => {
+  it("IDA-358 — ein Wurf laesst die Buchung liegen: ‚Nicht gesendet', die Eingaben bleiben", async () => {
+    // Bis IDA-358 stand hier „Keine Verbindung. Die Buchung wurde nicht
+    // gespeichert." — und nach einem Neuladen war die abgetippte Charge weg.
     buchenSpion.mockRejectedValue(new Error("offline"));
     await mount(<Auffuellen detail={DETAIL} ziele={[ZIELE[0]!]} />);
     await fill('[data-rolle="chargennummer"]', "L-NEU");
     await fill('[data-rolle="verfallsmonat"]', "2028-01");
     await click('[data-rolle="auffuellen-buchen"]');
+    const r = query('[data-rolle="auffuellen-ergebnis"]');
+    expect(r.dataset.art).toBe("nicht-gesendet");
+    expect(r.textContent).toMatch(/^Nicht gesendet\./);
+    expect(query<HTMLInputElement>('[data-rolle="chargennummer"]').value).toBe("L-NEU");
+    expect(query<HTMLButtonElement>('[data-rolle="auffuellen-buchen"]').disabled).toBe(true);
+  });
+
+  it("IDA-358 — nach dem Neuladen geht die liegende Buchung mit DERSELBEN Sendungs-ID raus", async () => {
+    buchenSpion.mockRejectedValue(new Error("502"));
+    await mount(<Auffuellen detail={DETAIL} ziele={[ZIELE[0]!]} />);
+    await fill('[data-rolle="chargennummer"]', "L-NEU");
+    await fill('[data-rolle="verfallsmonat"]', "2028-01");
+    await click('[data-rolle="auffuellen-buchen"]');
+    const erste = buchenSpion.mock.calls[0]![0] as { sendungId?: string };
+    expect(erste.sendungId).toMatch(/^[0-9a-f-]{36}$/);
+    await unmount();
+
+    ok(1, "Handlager (ohne Schrank)");
+    await mount(<Auffuellen detail={DETAIL} ziele={[ZIELE[0]!]} />);
+    const zweite = buchenSpion.mock.calls[1]![0] as { sendungId?: string; charge: unknown };
+    expect(zweite.sendungId).toBe(erste.sendungId);
+    expect(zweite.charge).toEqual({ art: "neu", chargenNr: "L-NEU", verfall: "2028-01" });
     expect(query('[data-rolle="auffuellen-ergebnis"]').textContent)
-      .toContain("Keine Verbindung");
+      .toBe(`Aufgefüllt: 1 × ${DETAIL.name} → Handlager (ohne Schrank)`);
+  });
+
+  it("IDA-358 — abgetippte Charge, Menge und Schrank stehen nach dem Neuladen wieder da", async () => {
+    await zeige();
+    await fill('[data-rolle="chargennummer"]', "L-77");
+    await fill('[data-rolle="verfallsmonat"]', "2029-03");
+    await clickElement(zielKnoepfe()[1]!);
+    await click("button[aria-label='Menge erhöhen']");
+    await unmount();
+    await zeige();
+    expect(query<HTMLInputElement>('[data-rolle="chargennummer"]').value).toBe("L-77");
+    expect(query<HTMLInputElement>('[data-rolle="verfallsmonat"]').value).toBe("2029-03");
+    expect(zielKnoepfe()[1]!.checked).toBe(true);
+    expect(query<HTMLInputElement>("input[aria-label='Menge']").value).toBe("2");
+    expect(query('[data-rolle="auffuellen-ergebnis"]').dataset.art).toBe("wiederhergestellt");
+    await click('[data-rolle="entwurf-verwerfen"]');
+    expect(query<HTMLInputElement>('[data-rolle="chargennummer"]').value).toBe("");
+    expect(exists('[data-rolle="auffuellen-ergebnis"]')).toBe(false);
   });
 });
 

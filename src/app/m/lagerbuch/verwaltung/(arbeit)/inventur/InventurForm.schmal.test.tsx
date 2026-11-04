@@ -21,12 +21,20 @@
  * an.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clickElement, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { zaehlOrtWert, type ZaehlOrt } from "../../../_lib/inventurOrt";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
 import { InventurForm } from "./InventurForm";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
+
+// IDA-358: die Abschlussleiste legt den Zaehlstand auf dem Geraet ab — ohne das
+// stellte der naechste Fall den Stand des vorigen wieder her.
+beforeEach(() => {
+  localStorage.clear();
+  vergissFluechtig();
+});
 
 vi.mock("../../../_actions/inventur", () => ({ inventurKorrektur: vi.fn() }));
 vi.mock("../../../_ui/useUrlFilter", () => ({ useUrlFilter: () => vi.fn() }));

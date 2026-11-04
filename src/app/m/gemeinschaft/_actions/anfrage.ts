@@ -40,6 +40,15 @@ function neuLaden(): void {
 }
 
 /** Schickt eine Anfrage ab. Angemeldet (egal welche Gruppe) wird sie als Anfrage eines Mitglieds gespeichert. */
+/**
+ * IDA-358: die Sendungs-ID des Formulars (`core/entwurf`) — sie wird die ID der Anfrage, eine Wiederholung derselben
+ * Sendung bekommt den Statuslink von damals. Nur eine UUID zählt; ohne (offene alte Seite) wie bisher.
+ */
+function sendungAus(eingabe: unknown): string | undefined {
+  const s = (eingabe as { sendung?: unknown } | null)?.sendung;
+  return typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ? s : undefined;
+}
+
 export async function anfrageSendenAction(eingabe: unknown): Promise<Ergebnis<{ code: string }>> {
   await requireGemeinschaftHostAktion();
   // Ein unlesbares Sitzungs-Cookie ist „nicht angemeldet“, kein Fehler (wie `app/login/page.tsx`).
@@ -53,7 +62,7 @@ export async function anfrageSendenAction(eingabe: unknown): Promise<Ergebnis<{ 
     const db = getDb();
     if (anfragenSeit(db, jetzt - 3_600_000) >= ANFRAGEN_JE_STUNDE) return { ok: false, fehler: ZU_VIELE };
     try {
-      const code = legeAnfrageAn(db, p.wert, viewer !== null, jetzt);
+      const code = legeAnfrageAn(db, p.wert, viewer !== null, jetzt, sendungAus(eingabe));
       neuLaden();
       return { ok: true, wert: { code } };
     } catch (e) {

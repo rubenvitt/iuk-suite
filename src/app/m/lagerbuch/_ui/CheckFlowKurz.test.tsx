@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 import {
   mount, unmount, query, queryAll, exists, click, clickElement, fill,
 } from "@/app/m/qr/_lib/test-dom";
@@ -35,6 +36,9 @@ const WERT = {
 };
 
 beforeEach(() => {
+  // IDA-358: der Check legt seinen Stand auf dem Geraet ab — jeder Fall beginnt leer.
+  localStorage.clear();
+  vergissFluechtig();
   abschluss.mockReset();
   abschluss.mockResolvedValue({ ok: true, wert: WERT });
 });

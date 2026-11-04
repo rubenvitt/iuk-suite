@@ -7,8 +7,17 @@
  * Telefonbild hat 3–8 MB, und am Fahrzeug ist das Netz oft schwach. Kann der Browser ein Bild nicht
  * selbst lesen (z. B. HEIC in Chrome), geht das Original hoch und der Server entscheidet. Verlassen kann
  * man sich darauf nicht — der Server rechnet jedes Bild ohnehin neu (`_lib/maengel/fotos.ts`).
+ *
+ * IDA-358: Punkte, Beschreibung und Name liegen auf dem Gerät (`core/entwurf`), die Meldung bis zur
+ * Bestätigung auch; ein Wurf oder eine Antwort ohne JSON (Rollout: 502, 404) wird wiederholt, mit
+ * derselben Sendungs-ID — die Route macht daraus die ID des Mangels und legt ihn nicht zweimal an.
+ * ⚠️ DIE FOTOS NICHT: eine Datei ist nicht ablegbar (`core/entwurf/ablage.ts`). Sie gehen mit, solange
+ * die Seite steht; nach einem Neuladen geht die liegende Meldung ohne sie raus — lieber der Mangel ohne
+ * Bild als gar keiner.
  */
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { SendeStatus } from "./SendeStatus";
 import Link from "next/link";
 import { Ikone } from "./ikonen";
 import { BESCHREIBUNG_MAX, NAME_MAX, type MeldeAntwort } from "../_lib/maengel/meldung";
@@ -17,7 +26,6 @@ import m from "./mangel.module.css";
 
 const KANTE_CLIENT = 1600;
 const MAX_FOTOS_CLIENT = 3;
-const NETZ_TEXT = "Keine Verbindung. Deine Angaben sind noch da — bitte gleich noch einmal senden.";
 
 type Foto = { id: number; datei: File; vorschau: string };
 
@@ -56,15 +64,51 @@ export function MangelFormular({
   const [name, setName] = useState("");
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [laeuft, setLaeuft] = useState(false);
   const [fertig, setFertig] = useState(false);
   const zaehler = useRef(0);
   const fotoFeld = useRef<HTMLInputElement>(null);
   const vorschauen = useRef<string[]>([]);
+  // Die Fotos des Augenblicks fuer `senden` — eine Wiederholung nimmt, was gerade dasteht.
+  const fotosJetzt = useRef<Foto[]>([]);
 
   useEffect(() => {
     vorschauen.current = fotos.map((f) => f.vorschau);
+    fotosJetzt.current = fotos;
   }, [fotos]);
+
+  type Nutzlast = { punkte: string[]; beschreibung: string; name: string };
+  const entwurf = useEntwurf<Nutzlast, Nutzlast, MeldeAntwort>({
+    schluessel: `lagerbuch:mangel:${ortId}`,
+    stand: { punkte: gewaehlt, beschreibung, name },
+    wiederherstellen: (w) => {
+      setGewaehlt(w.punkte);
+      setBeschreibung(w.beschreibung);
+      setName(w.name);
+    },
+    senden: async (n, sendungId) => {
+      const daten = new FormData();
+      daten.set("ort", ortId);
+      daten.set("sendung", sendungId);
+      for (const p of n.punkte) daten.append("punkt", p);
+      daten.set("beschreibung", n.beschreibung);
+      daten.set("name", n.name);
+      for (const [i, f] of fotosJetzt.current.entries()) daten.append("foto", await verkleinere(f.datei), `foto-${i}.jpg`);
+      const r = await fetch("/helfer/mangel/melden", { method: "POST", body: daten });
+      const antwort = (await r.json().catch(() => null)) as MeldeAntwort | null;
+      // Ohne Antwort der Route (Rollout: 502, 404 als HTML) ist nichts entschieden — ein Wurf, also wiederholen.
+      if (!antwort || typeof antwort.ok !== "boolean") throw new Error(`Meldung ohne Antwort (HTTP ${r.status})`);
+      return antwort;
+    },
+    antwort: (a) => {
+      if (a.ok) {
+        setFertig(true);
+        return true;
+      }
+      setFehler(a.fehler);
+      return false;
+    },
+  });
+  const laeuft = entwurf.zustand !== "ruhe";
   useEffect(() => () => vorschauen.current.forEach((u) => URL.revokeObjectURL(u)), []);
 
   function umschalten(punkt: string): void {
@@ -91,7 +135,7 @@ export function MangelFormular({
     });
   }
 
-  async function senden(e: FormEvent<HTMLFormElement>): Promise<void> {
+  function senden(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault();
     if (laeuft) return;
     if (gewaehlt.length === 0 && beschreibung.trim() === "") {
@@ -99,26 +143,7 @@ export function MangelFormular({
       return;
     }
     setFehler(null);
-    setLaeuft(true);
-    try {
-      const daten = new FormData();
-      daten.set("ort", ortId);
-      for (const p of gewaehlt) daten.append("punkt", p);
-      daten.set("beschreibung", beschreibung);
-      daten.set("name", name);
-      for (const [i, f] of fotos.entries()) daten.append("foto", await verkleinere(f.datei), `foto-${i}.jpg`);
-      const r = await fetch("/helfer/mangel/melden", { method: "POST", body: daten });
-      const antwort = (await r.json().catch(() => null)) as MeldeAntwort | null;
-      if (antwort?.ok) {
-        setFertig(true);
-        return;
-      }
-      setFehler(antwort && !antwort.ok ? antwort.fehler : "Die Meldung ging nicht durch. Bitte noch einmal senden.");
-    } catch {
-      setFehler(NETZ_TEXT);
-    } finally {
-      setLaeuft(false);
-    }
+    entwurf.sende({ punkte: gewaehlt, beschreibung, name });
   }
 
   function nochEiner(): void {
@@ -243,6 +268,7 @@ export function MangelFormular({
       </div>
 
       {fehler && <p className={m.fehler} role="alert" data-rolle="mangel-fehler">{fehler}</p>}
+      <SendeStatus entwurf={entwurf} rolle="mangel-status" verwerfbar />
 
       <button
         type="submit"
@@ -251,7 +277,7 @@ export function MangelFormular({
         disabled={laeuft}
         data-rolle="mangel-senden"
       >
-        {laeuft ? "Wird gesendet …" : "Mangel melden"}
+        {entwurf.zustand === "sendet" ? "Wird gesendet …" : "Mangel melden"}
       </button>
     </form>
   );

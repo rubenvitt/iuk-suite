@@ -13,6 +13,7 @@ import { journalQuelle, zugangsAkteur, zugangsKennung } from "../_lib/zugangHerk
 import { fefoAbbuchungAnOrt, fefoAbbuchungImBereich } from "../_lib/schreibpfade/abbuchung";
 import { zugangBuchen } from "../_lib/schreibpfade/zugang";
 import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
+import { abgangDerSendung, sendungsIds, zeilenDerSendung } from "../_lib/schreibpfade/sendung";
 import { aktiverSchrank, handlagerOrte, ortStamm, zugangsZiele } from "../_lib/lesepfade/orte";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { revalidiereBestand } from "../_lib/revalidierung";
@@ -479,6 +480,8 @@ const HelferEntnahmeSchema = z.object({
    * ihn bucht die Entnahme FEFO ueber den ganzen Handlager wie bisher.
    */
   ortId: z.string().min(1).nullish(),
+  /** IDA-358: Wiederholungsschutz (`_lib/schreibpfade/sendung.ts`). Optional für offene alte Seiten. */
+  sendungId: z.string().uuid().optional(),
 });
 
 /**
@@ -554,6 +557,22 @@ export async function bucheEntnahmeHelfer(
     const v = geparst.data;
 
     /*
+     * IDA-358 — DIE WIEDERHOLUNG EINER SCHON GEBUCHTEN ENTNAHME, VOR jeder
+     * fachlichen Pruefung: nach der ersten Buchung hat sich der Bestand bewegt
+     * (und das Ziel-Cookie vielleicht auch), eine Pruefung weiter unten wiese
+     * die Wiederholung ab, obwohl die Entnahme laengst im Journal steht.
+     */
+    if (v.sendungId) {
+      const frueher = zeilenDerSendung(db, v.sendungId);
+      if (frueher.length > 0) {
+        if (frueher.some((z) => z.artikelId !== v.artikelId)) {
+          return { ok: false, grund: "eingabe", text: "Diese Buchung passt nicht zu diesem Artikel." };
+        }
+        return { ok: true, wert: { gebucht: abgangDerSendung(frueher) } };
+      }
+    }
+
+    /*
      * ⚠️ KEIN try/catch um die Transaktion, und das ist der Unterschied zu den
      * beiden Verwaltungs-Actions oben. Der Plan druckt hier
      * `catch { return { grund: "netz", … } }` ab — das erzeugte `"netz"`
@@ -623,6 +642,8 @@ export async function bucheEntnahmeHelfer(
     let gebucht = 0;
     db.transaction((tx) => {
       const quelle = journalQuelle(riegel.zugang);
+      // EINE Quelle fuer beide Durchgaenge (Schrank, dann Rest): die Nummern laufen weiter.
+      const neueId = sendungsIds(v.sendungId);
       const buche = (menge: number, schrank: string | null): number =>
         ziel.art === "fahrzeug"
           ? /*
@@ -636,7 +657,7 @@ export async function bucheEntnahmeHelfer(
               ? umlagerungVonOrt(tx, {
                   artikelId: v.artikelId, menge, vonOrt: schrank,
                   nachLagerortId: ziel.lagerortId, quelle, kommentar: null,
-                  referenz: `entnahme-ziel:${ziel.lagerortId}`,
+                  referenz: `entnahme-ziel:${ziel.lagerortId}`, neueId,
                   ...(v.chargeId ? { chargeId: v.chargeId } : {}),
                 })
               : umlagerungAusBereich(tx, {
@@ -646,7 +667,7 @@ export async function bucheEntnahmeHelfer(
               nachLagerortId: ziel.lagerortId,
               quelle,
               kommentar: null,
-              referenz: `entnahme-ziel:${ziel.lagerortId}`,
+              referenz: `entnahme-ziel:${ziel.lagerortId}`, neueId,
               /*
                * DRK-418 — DIE WAHL GILT IN BEIDEN ZWEIGEN, und der hier ist
                * der, den man vergisst. Beim Ziel-Fahrzeug wandert die Charge
@@ -659,7 +680,7 @@ export async function bucheEntnahmeHelfer(
           : (schrank
             ? fefoAbbuchungAnOrt(tx, {
                 artikelId: v.artikelId, menge, ort: schrank, quelle,
-                kommentar: null, referenz: null,
+                kommentar: null, referenz: null, neueId,
                 ...(v.chargeId ? { chargeId: v.chargeId } : {}),
               })
             : fefoAbbuchungImBereich(tx, {
@@ -668,6 +689,7 @@ export async function bucheEntnahmeHelfer(
               quelle,
               kommentar: null,
               referenz: null,
+              neueId,
               /*
                * ⚠️ NUR SETZEN, WENN GEWAEHLT. `AbbuchungArgs.chargeId` ist
                * `string | undefined`; ein durchgereichtes `null` waere ein
@@ -759,6 +781,8 @@ const AuffuellSchema = z.object({
       verfall: z.string().regex(MONAT_REGEX),
     }),
   ]),
+  /** IDA-358: Wiederholungsschutz (`_lib/schreibpfade/sendung.ts`). */
+  sendungId: z.string().uuid().optional(),
 });
 
 export async function bucheAuffuellung(
@@ -780,6 +804,20 @@ export async function bucheAuffuellung(
         };
       }
       const v = geparst.data;
+
+      // IDA-358: eine schon gebuchte Sendung antwortet mit damals — VOR den
+      // Pruefungen unten (der Artikel koennte inzwischen deaktiviert sein).
+      if (v.sendungId) {
+        const frueher = zeilenDerSendung(db, v.sendungId)[0];
+        if (frueher) {
+          if (frueher.artikelId !== v.artikelId) {
+            return { ok: false, grund: "eingabe", text: "Diese Buchung passt nicht zu diesem Artikel." };
+          }
+          const name = zugangsZiele(db).find((o) => o.id === frueher.lagerortId)?.name
+            ?? ortStamm(db).get(frueher.lagerortId)?.name ?? "";
+          return { ok: true, wert: { gebucht: frueher.menge, ziel: name, chargeId: frueher.chargeId } };
+        }
+      }
 
       /*
        * ⚠️ DIE DREI ERWARTBAREN LAGEN WERDEN VOR DER TRANSAKTION GEPRUEFT und
@@ -906,6 +944,7 @@ export async function bucheAuffuellung(
           quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
           kommentar: null,
           referenz: null,
+          ...(v.sendungId ? { id: sendungsIds(v.sendungId)() } : {}),
         }).chargeId;
       });
 

@@ -4,7 +4,7 @@ import { withAuditContext, auditActor } from "@/core/audit/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
-import { artikel, buchungen, chargen, lagerorte, lagerortVerfall, newId } from "../_db/schema";
+import { artikel, buchungen, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import { bereichsAbweisung } from "../_lib/helferBereich";
@@ -24,6 +24,9 @@ import {
   raeumeVerfallAmLeerenOrt, verfallFolgtDemMaterial,
 } from "../_lib/schreibpfade/lagerortVerfall";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
+import {
+  abgangDerSendung, sendungsIds, zeilenDerSendung, type SendungsZeile,
+} from "../_lib/schreibpfade/sendung";
 import {
   AUSSONDERN_PRAEFIX, EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX,
 } from "../_lib/vorgang";
@@ -109,6 +112,8 @@ const BoxSchema = z.object({
    * verlangte hier eine Genauigkeit, die die Daten nicht hergeben.
    */
   chargeId: z.string().min(1).nullish(),
+  /** IDA-358: Wiederholungsschutz (`_lib/schreibpfade/sendung.ts`). Optional für offene alte Seiten. */
+  sendungId: z.string().uuid().optional(),
 });
 
 export async function bucheInEntnahmebox(
@@ -150,6 +155,18 @@ export async function bucheInEntnahmebox(
     };
   }
   const v = geparst.data;
+
+  // IDA-358: eine schon gebuchte Sendung antwortet mit damals — VOR den Riegeln
+  // unten, die nach der ersten Buchung den bewegten Bestand saehen.
+  if (v.sendungId) {
+    const frueher = zeilenDerSendung(db, v.sendungId);
+    if (frueher.length > 0) {
+      if (frueher.some((z) => z.artikelId !== v.artikelId)) {
+        return { ok: false, grund: "eingabe", text: "Diese Buchung passt nicht zu diesem Artikel." };
+      }
+      return { ok: true, wert: { gebucht: abgangDerSendung(frueher) } };
+    }
+  }
 
   /*
    * ── DER VORABBLICK AUF DIE QUELLE ─────────────────────────────────────────
@@ -404,6 +421,7 @@ export async function bucheInEntnahmebox(
             // `vorgang.test.ts` scannt dafuer den Quelltext; kein anderes Tor
             // sieht es.
             referenz: `${ENTNAHMEBOX_PRAEFIX}${v.fahrzeugId}`,
+            neueId: sendungsIds(v.sendungId),
           });
 
           if (ergebnis.umgelagert < v.menge) {
@@ -624,6 +642,8 @@ const EinraeumenSchema = z.object({
    */
   verfall: z.string().regex(MONAT_REGEX)
     .refine((m) => !istOhneVerfall(m)).optional(),
+  /** IDA-358: Wiederholungsschutz (`_lib/schreibpfade/sendung.ts`). Optional für offene alte Seiten. */
+  sendungId: z.string().uuid().optional(),
 });
 
 export type EinraeumWert = {
@@ -654,6 +674,12 @@ export async function raeumeAusEntnahmebox(
         };
       }
       const v = geparst.data;
+
+      // IDA-358: eine schon gebuchte Sendung antwortet mit damals, VOR den Pruefungen.
+      if (v.sendungId) {
+        const frueher = zeilenDerSendung(db, v.sendungId);
+        if (frueher.length > 0) return frueherEingeraeumt(db, frueher, v.artikelId);
+      }
 
       /*
        * ⚠️ DAS ZIEL WIRD VOR DER TRANSAKTION GEPRUEFT UND ALS SATZ BEANTWORTET
@@ -849,6 +875,7 @@ export async function raeumeAusEntnahmebox(
             // ABGESCHRIEBEN — es ist die einzige Klammer zwischen den beiden
             // Legs, und zwei Literale liefen still auseinander.
             referenz: `${EINRAEUMEN_PRAEFIX}${v.zielLagerortId}`,
+            neueId: sendungsIds(v.sendungId),
           });
 
           if (ergebnis.umgelagert < v.menge) {
@@ -974,6 +1001,8 @@ const AussondernBoxSchema = z.object({
    * die Frage fuer jeden Fall gleich und damit fuer keinen.
    */
   kommentar: z.string().trim().min(1, "Grund erforderlich"),
+  /** IDA-358: Wiederholungsschutz (`_lib/schreibpfade/sendung.ts`). Optional für offene alte Seiten. */
+  sendungId: z.string().uuid().optional(),
 });
 
 export async function aussondernAusEntnahmebox(
@@ -997,6 +1026,17 @@ export async function aussondernAusEntnahmebox(
         };
       }
       const v = geparst.data;
+
+      // IDA-358: eine schon gebuchte Sendung antwortet mit damals, VOR den Pruefungen.
+      if (v.sendungId) {
+        const frueher = zeilenDerSendung(db, v.sendungId);
+        if (frueher.length > 0) {
+          if (frueher.some((z) => z.artikelId !== v.artikelId)) {
+            return { ok: false, grund: "eingabe", text: "Diese Buchung passt nicht zu diesem Artikel." };
+          }
+          return { ok: true, wert: { ausgesondert: abgangDerSendung(frueher) } };
+        }
+      }
 
       let ausgesondert = 0;
       let fachFehler: string | null;
@@ -1036,7 +1076,7 @@ export async function aussondernAusEntnahmebox(
 
           tx.insert(buchungen)
             .values({
-              id: newId(),
+              id: sendungsIds(v.sendungId)(),
               ts: new Date(),
               typ: "korrektur",
               artikelId: v.artikelId,
@@ -1079,4 +1119,31 @@ export async function aussondernAusEntnahmebox(
       return { ok: true, wert: { ausgesondert } };
     },
   );
+}
+
+/**
+ * IDA-358: die Rueckmeldung einer schon gebuchten Einraeum-Sendung, aus ihren
+ * Journalzeilen. Traegt das Ziel-Leg eine andere Charge als das Quell-Leg, war
+ * es eine Umbuchung auf das abgelesene Datum (DRK-404).
+ */
+function frueherEingeraeumt(
+  db: DB, zeilen: readonly SendungsZeile[], artikelId: string,
+): HelferErgebnis<EinraeumWert> {
+  if (zeilen.some((z) => z.artikelId !== artikelId)) {
+    return { ok: false, grund: "eingabe", text: "Diese Buchung passt nicht zu diesem Artikel." };
+  }
+  const ab = zeilen.find((z) => z.menge < 0);
+  const zu = zeilen.find((z) => z.menge > 0);
+  const ziel = zu
+    ? (zugangsZiele(db).find((o) => o.id === zu.lagerortId)?.name
+      ?? db.select({ name: lagerorte.name }).from(lagerorte).where(eq(lagerorte.id, zu.lagerortId)).get()?.name
+      ?? "")
+    : "";
+  const abgelesen = ab && zu && ab.chargeId !== zu.chargeId
+    ? db.select({ verfall: chargen.verfall }).from(chargen).where(eq(chargen.id, zu.chargeId)).get()?.verfall
+    : undefined;
+  return {
+    ok: true,
+    wert: { eingeraeumt: abgangDerSendung(zeilen), ziel, ...(abgelesen ? { abgelesen } : {}) },
+  };
 }

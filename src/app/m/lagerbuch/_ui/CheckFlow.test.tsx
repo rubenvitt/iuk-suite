@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, onTestFinished, vi } from "vitest";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 import { readFileSync } from "node:fs";
 import { act } from "react";
 import {
@@ -212,6 +213,9 @@ const VOLL: {
 } = { art: "voll", stichprobe: null, versiegelt: {}, plomben: [], entnahmebox: null };
 
 beforeEach(() => {
+  // IDA-358: der Check legt seinen Stand auf dem Geraet ab — jeder Fall beginnt leer.
+  localStorage.clear();
+  vergissFluechtig();
   abschluss.mockReset();
   erneuere.mockReset();
   abschluss.mockResolvedValue({ ok: true, wert: WERT_NULL });
@@ -1362,6 +1366,8 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     expect(abschluss).toHaveBeenCalledTimes(1);
     expect(abschluss.mock.calls[0][0]).toStrictEqual({
       fahrzeugId: "fz-1",
+      // IDA-358: die Sendungs-ID des Geraets — der Server erkennt daran eine Wiederholung.
+      sendungId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       positionen: [{ sollPositionId: "sp-1", ist: 3, nachfuellMenge: 2, boxMenge: 0 }],
       geraete: [{ geraetId: "g-1", vorhanden: false, zustand: "In Ordnung" }],
       flaschen: [{ flascheId: "o-1", druckBar: 199 }],
@@ -2017,7 +2023,7 @@ async function alleSechsSetzen(flaeche = VOLLES_FAHRZEUG): Promise<void> {
   // 6 `phase` steht auf „sauerstoff".
 }
 
-async function pruefeAlleSechs(): Promise<void> {
+async function pruefeAlleSechs(neuGeladen = false): Promise<void> {
   // 6 — die Phase: der Sauerstoffschritt steht noch, es wurde nicht auf
   // „zaehlen" zurueckgesprungen.
   expect(exists("[data-rolle='o2-liste']")).toBe(true);
@@ -2034,6 +2040,8 @@ async function pruefeAlleSechs(): Promise<void> {
   expect(zahlfelder()[0].value).toBe("3");
   // 2 — der gemeldete Verfall, im Feld UND im Chip. Das Feld steht noch offen:
   // das Aufklappen ist Anzeige im selben Baum und ueberlebt den Schrittwechsel.
+  // Ein Neuladen (IDA-358) ueberlebt es nicht — Anzeige liegt nicht im Entwurf.
+  if (neuGeladen) await verfallAufklappen();
   expect(
     query<HTMLInputElement>("[data-rolle='zaehlliste'] input[type='month']").value,
   ).toBe("2027-03");
@@ -2254,10 +2262,9 @@ describe("CheckFlow — Netz (Falle 62, Falle 66)", () => {
     );
     await click(ABSCHLIESSEN);
     const t = query("[data-rolle='check-fehler']").textContent ?? "";
-    expect(t).toBe(
-      "Keine Verbindung. Der Check wurde nicht gespeichert — nichts ist verloren, " +
-        "bitte erneut auf Abschließen tippen.",
-    );
+    // IDA-358: die Statuszeile aus `core/entwurf` — die Sendung liegt auf dem
+    // Geraet und wird von selbst erneut versucht.
+    expect(t).toMatch(/^Nicht gesendet\. Neuer Versuch in \d+ s\.$/);
     expect(t).not.toContain("fetch failed");
     // `"netz"` erlaubt keine Erneuerung — die Sitzung ist ja in Ordnung.
     expect(exists("[data-rolle='erneuern']")).toBe(false);
@@ -2270,8 +2277,49 @@ describe("CheckFlow — Netz (Falle 62, Falle 66)", () => {
     abschluss.mockRejectedValue(new Error("offline"));
     await alleSechsSetzen();
     await click(ABSCHLIESSEN);
-    expect(query("[data-rolle='check-fehler']").textContent).toContain("Keine Verbindung");
+    expect(query("[data-rolle='check-fehler']").textContent).toContain("Nicht gesendet");
     await pruefeAlleSechs();
+  });
+
+  /*
+   * IDA-358 — DER VORFALL VOM 04.11.2026: Abschluss waehrend eines Rollouts
+   * gescheitert, Seite neu geladen, Check weg. „Neu geladen" ist hier Abbau und
+   * Neuaufbau; der Speicher (`localStorage`) ist derselbe wie im Browser.
+   */
+  it("IDA-358: alle sechs Zustaende ueberstehen ein Neuladen, die Sendung geht von selbst raus", async () => {
+    abschluss.mockRejectedValue(new Error("offline"));
+    await alleSechsSetzen();
+    await click(ABSCHLIESSEN);
+    const ersteId = (abschluss.mock.calls[0][0] as { sendungId: string }).sendungId;
+    await unmount();
+
+    abschluss.mockReset();
+    abschluss.mockResolvedValue({ ok: true, wert: WERT_NULL });
+    await mount(VOLLES_FAHRZEUG);
+    expect(abschluss).toHaveBeenCalledTimes(1);
+    expect((abschluss.mock.calls[0][0] as { sendungId: string }).sendungId).toBe(ersteId);
+    expect(exists("[data-rolle='check-ergebnis']")).toBe(true);
+    expect(Object.keys(localStorage).filter((k) => k.startsWith("iuk-entwurf:"))).toEqual([]);
+  });
+
+  it("IDA-358: ein Neuladen mitten im Zaehlen stellt den Stand wieder her", async () => {
+    await alleSechsSetzen();
+    await unmount();
+    await mount(VOLLES_FAHRZEUG);
+    expect(query("[data-rolle='entwurf-hinweis']").textContent).toBe("Eingaben wiederhergestellt.");
+    await pruefeAlleSechs(true);
+    expect(abschluss).not.toHaveBeenCalled();
+  });
+
+  it("IDA-358: eine Ablehnung des Servers behaelt den Entwurf, ohne ihn zu wiederholen", async () => {
+    abschluss.mockResolvedValue({ ok: false, grund: "eingabe", text: "Abgelehnt." });
+    await alleSechsSetzen();
+    await click(ABSCHLIESSEN);
+    expect(query("[data-rolle='check-fehler']").textContent).toBe("Abgelehnt.");
+    await unmount();
+    await mount(VOLLES_FAHRZEUG);
+    expect(abschluss).toHaveBeenCalledTimes(1);
+    await pruefeAlleSechs(true);
   });
 });
 

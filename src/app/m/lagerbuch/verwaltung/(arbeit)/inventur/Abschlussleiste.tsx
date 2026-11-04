@@ -31,7 +31,10 @@
  */
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
 import { Alert, Button, Flex, Input } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { inventurKorrektur, type InventurNutzlast } from "../../../_actions/inventur";
@@ -94,14 +97,86 @@ export function Abschlussleiste({
   const stand = useZaehlstand(speicher);
   const [kommentar, setKommentar] = useState("");
   const [ergebnis, setErgebnis] = useState<Ergebnis | null>(null);
-  const [absendetGerade, startTransition] = useTransition();
-  const absendenLaeuft = useRef(false);
+
+  /*
+   * IDA-358 — DIE ZAEHLUNG LIEGT AUF DEM GERAET, NICHT NUR IM SPEICHER NEBEN
+   * REACT. Eine Inventur ist eine Stunde Zaehlen mit dem Tablet am Regal; ein
+   * Neuladen oder ein Rollout mitten im Abschliessen kostete sie bis hierher
+   * ganz. `useEntwurf` legt Zaehlstand und Kommentar je Zaehlort ab, stellt sie
+   * wieder her und haelt den Abschluss fest, bis der Server ihn bestaetigt —
+   * samt erneuten Versuchen; die Sendungs-ID wird die ID des Laufs, eine
+   * Wiederholung bucht nicht doppelt (`_actions/inventur.ts`). Deshalb Modus
+   * „senden" und nicht nur Wiederherstellen: die Zaehlung ist eine Pruefung im
+   * Feld, keine Schreibtischeingabe.
+   *
+   * ⚠️ DER HOOK STEHT HIER UND NICHT IM FORMULAR: nur diese Leiste horcht ohnehin
+   * auf den ganzen Stand (`useZaehlstand`), das Formular darf er nicht wecken
+   * (DRK-421, Kopf von `zaehlspeicher.ts`).
+   *
+   * ⚠️ SOLANGE EIN ABSCHLUSS LIEGT, IST DIE SEITE GESPERRT: wer weiterzaehlte und
+   * erneut abschloesse, schickte unter derselben ID einen anderen Stand — kam
+   * der erste an, antwortete der Server mit ihm, und die Nachtraege waeren weg.
+   */
+  const entwurf = useEntwurf<
+    { zaehlung: ZaehlStand; kommentar: string },
+    InventurNutzlast,
+    Awaited<ReturnType<typeof inventurKorrektur>>
+  >({
+    schluessel: `lagerbuch:inventur:${ortId ?? "alle"}`,
+    stand: { zaehlung: stand, kommentar },
+    wiederherstellen: (w) => {
+      speicher.aendere(() => w.zaehlung);
+      setKommentar(w.kommentar);
+    },
+    senden: (nutzlast, sendungId) => inventurKorrektur({ ...nutzlast, sendungId }),
+    antwort: (antwort) => {
+      if (!antwort.ok) {
+        const text = INVENTUR_ABWEISUNGEN.has(antwort.fehler)
+          ? antwort.fehler
+          : INVENTUR_TEXTE.buchungsFehler;
+        // Der Stand bleibt stehen (nichts wurde gebucht), also gilt die
+        // Warnung fuer genau ihn — und verschwindet beim naechsten Eingriff.
+        setErgebnis({
+          stand: speicher.lies(),
+          kommentar,
+          inhalt: <Alert type="warning" showIcon={false} title={text} />,
+        });
+        return false;
+      }
+      const { korrigiert, inventurId } = antwort.wert;
+      // ⚠️ ERST LEEREN, DANN MERKEN. Das Ergebnis gilt fuer den Stand DANACH
+      // — also den leeren, mit leerem Kommentar. Umgekehrt zeigte die Meldung
+      // sich gar nicht erst, weil sie zum Stand von vorher gehoerte.
+      speicher.leeren();
+      setKommentar("");
+      setErgebnis({
+        stand: speicher.lies(),
+        kommentar: "",
+        inhalt: (
+          <Alert
+            type="success"
+            showIcon={false}
+            title={
+              <>
+                {`Inventur gebucht — ${korrigiert} ${korrigiert === 1 ? "Position" : "Positionen"} korrigiert. `}
+                <Link href={verwaltungDetailPfad("inventur/verlauf", inventurId)}>Im Verlauf ansehen</Link>
+              </>
+            }
+          />
+        ),
+      });
+      return true;
+    },
+  });
+  const absendetGerade = entwurf.zustand === "sendet";
+  const sendungLiegt = entwurf.zustand !== "ruhe";
+  const entwurfZeile = useEntwurfMeldung(entwurf) !== null;
 
   // Die Sperre gilt fuer die ganze Seite (Zellen, Ortsauswahl), nicht nur fuer
   // diese Leiste — sie muss also hinauf. `useEffect` und nicht der Aufruf im
   // Rumpf: ein `setState` im Elternteil waehrend des eigenen Renderns ist in
   // React ein Fehler.
-  useEffect(() => { onAbsenden(absendetGerade); }, [absendetGerade, onAbsenden]);
+  useEffect(() => { onAbsenden(sendungLiegt); }, [sendungLiegt, onAbsenden]);
 
   const leiste = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -119,14 +194,13 @@ export function Abschlussleiste({
   const abweichungen = abweichungenIn(zeilen, stand);
   const ausgeblendet = ausgeblendetGezaehlt(zeilen, stand, filter);
   const { erfasst, gesamt } = fortschritt(zeilen, stand, filter);
-  const laeuft = absendetGerade || gesperrt;
+  const laeuft = sendungLiegt || gesperrt;
   const meldung = gilt(ergebnis, stand, kommentar);
 
   function abschliessen(): void {
     // `gesperrt` steht hier noch einmal, nicht nur am Knopf: ein Absenden
     // waehrend der Navigation buchte gegen den verlassenen Ort.
-    if (absendenLaeuft.current || gesperrt || !kommentar.trim() || positionen.length === 0) return;
-    absendenLaeuft.current = true;
+    if (sendungLiegt || gesperrt || !kommentar.trim() || positionen.length === 0) return;
     const nutzlast: InventurNutzlast = {
       kommentar: kommentar.trim(),
       // DRK-337 — die KENNUNG, nicht der Name: den Namen fuer den Verlauf holt
@@ -142,60 +216,16 @@ export function Abschlussleiste({
           },
       positionen,
     };
-    startTransition(async () => {
-      try {
-        const antwort = await inventurKorrektur(nutzlast);
-        if (!antwort.ok) {
-          const text = INVENTUR_ABWEISUNGEN.has(antwort.fehler)
-            ? antwort.fehler
-            : INVENTUR_TEXTE.buchungsFehler;
-          // Der Stand bleibt stehen (nichts wurde gebucht), also gilt die
-          // Warnung fuer genau ihn — und verschwindet beim naechsten Eingriff.
-          setErgebnis({
-            stand: speicher.lies(),
-            kommentar,
-            inhalt: <Alert type="warning" showIcon={false} title={text} />,
-          });
-          return;
-        }
-        const { korrigiert, inventurId } = antwort.wert;
-        // ⚠️ ERST LEEREN, DANN MERKEN. Das Ergebnis gilt fuer den Stand DANACH
-        // — also den leeren, mit leerem Kommentar. Umgekehrt zeigte die Meldung
-        // sich gar nicht erst, weil sie zum Stand von vorher gehoerte.
-        speicher.leeren();
-        setKommentar("");
-        setErgebnis({
-          stand: speicher.lies(),
-          kommentar: "",
-          inhalt: (
-            <Alert
-              type="success"
-              showIcon={false}
-              title={
-                <>
-                  {`Inventur gebucht — ${korrigiert} ${korrigiert === 1 ? "Position" : "Positionen"} korrigiert. `}
-                  <Link href={verwaltungDetailPfad("inventur/verlauf", inventurId)}>Im Verlauf ansehen</Link>
-                </>
-              }
-            />
-          ),
-        });
-      } catch {
-        setErgebnis({
-          stand: speicher.lies(),
-          kommentar,
-          inhalt: <Alert type="warning" showIcon={false} title={INVENTUR_TEXTE.buchungsFehler} />,
-        });
-      } finally {
-        absendenLaeuft.current = false;
-      }
-    });
+    // Einen Wurf (Netz, Rollout) faengt `useEntwurf`; die Statuszeile ueber der
+    // Leiste sagt „Nicht gesendet" und bietet „Jetzt senden".
+    entwurf.sende(nutzlast);
   }
 
   return (
     <div ref={leiste} className={k.abschluss} data-rolle="abschlussleiste">
-      {ausgeblendet > 0 || meldung ? (
+      {ausgeblendet > 0 || meldung || entwurfZeile ? (
         <Flex vertical gap={SPACE.sm}>
+          {entwurfZeile ? <EntwurfHinweis entwurf={entwurf} /> : null}
           {ausgeblendet > 0 ? (
             // Der Filter blendet aus, er verwirft nicht (Spec §A): ohne diesen
             // Hinweis buchte der Knopf etwas, das man nicht sieht.

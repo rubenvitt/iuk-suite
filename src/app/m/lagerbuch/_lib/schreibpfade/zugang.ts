@@ -80,6 +80,8 @@ export function zugangBuchen(
     quelle: Quelle;
     kommentar: string | null;
     referenz: string | null;
+    /** IDA-358: die ID der Journalzeile, wenn eine Sendung sie vorgibt (`sendung.ts`). */
+    id?: string;
   },
 ): { chargeId: string } {
   const { artikelId, menge, lagerortId, charge, quelle, kommentar, referenz } = args;
@@ -121,7 +123,7 @@ export function zugangBuchen(
 
   tx.insert(buchungen)
     .values({
-      id: newId(),
+      id: args.id ?? newId(),
       ts: new Date(),
       typ: "zugang",
       artikelId,

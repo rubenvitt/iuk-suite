@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
 import { anfrageSendenAction } from "../../_actions/anfrage";
 import { tagesstuecke, type Belegt } from "../../_lib/belegung";
 import { tagText } from "../../_lib/vermietungText";
@@ -26,9 +28,29 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
   const [f, setF] = useState<Felder>(leer);
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<Record<string, string>>({});
-  const [sendet, setSendet] = useState(false);
   const [code, setCode] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * IDA-358 — DIE ANFRAGE LIEGT AUF DEM GERÄT, bis der Server sie bestätigt (`core/entwurf`): ein Neuladen oder
+   * ein gescheitertes Absenden (Netz, Rollout) kostet die Eingaben nicht mehr, und die Sendung wird von selbst
+   * wiederholt. Die Sendungs-ID wird die ID der Anfrage (`_lib/vermietung.ts`, `legeAnfrageAn`) — eine
+   * Wiederholung bekommt denselben Statuslink, statt eine zweite Anfrage anzulegen.
+   */
+  const entwurf = useEntwurf<{ f: Felder; formOffen: boolean }, Felder, Awaited<ReturnType<typeof anfrageSendenAction>>>({
+    schluessel: "gemeinschaft:bar-anfrage:neu",
+    stand: { f, formOffen },
+    wiederherstellen: (w) => { setF(w.f); setFormOffen(w.formOffen); },
+    senden: (felder, sendung) => anfrageSendenAction({ ...felder, sendung }),
+    antwort: (r) => {
+      if (r.ok) { setCode(r.wert.code); window.scrollTo(0, 0); return true; }
+      setFehler(r.fehler);
+      setFeldFehler(r.feldFehler ?? {});
+      return false;
+    },
+  });
+  const meldung = useEntwurfMeldung(entwurf);
+  const sendet = entwurf.zustand === "sendet";
 
   const setFeld = (k: keyof Felder) => (ev: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((alt) => ({ ...alt, [k]: ev.target.value }));
 
@@ -38,21 +60,12 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
     setTimeout(() => formRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 30);
   }
 
-  async function absenden(ev: FormEvent) {
+  function absenden(ev: FormEvent) {
     ev.preventDefault();
+    if (sendet) return;
     setFehler(null);
     setFeldFehler({});
-    setSendet(true);
-    try {
-      const r = await anfrageSendenAction(f);
-      if (r.ok) { setCode(r.wert.code); window.scrollTo(0, 0); return; }
-      setFehler(r.fehler);
-      setFeldFehler(r.feldFehler ?? {});
-    } catch {
-      setFehler("Das hat gerade nicht geklappt. Prüf bitte die Verbindung und versuch es noch einmal.");
-    } finally {
-      setSendet(false);
-    }
+    entwurf.sende(f);
   }
 
   if (code) return <Danke code={code} nochmal={() => { setCode(null); setFormOffen(false); setF(leer); }} />;
@@ -151,6 +164,9 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
             </fieldset>
 
             {fehler ? <p className="go-fehler" role="alert">{fehler}</p> : null}
+            {!fehler && meldung && meldung.art !== "wiederhergestellt" ? (
+              <p className="go-meta" role="status" data-rolle="entwurf-hinweis">{meldung.text}</p>
+            ) : null}
             <button className={`go-knopf ${s.voll}`} type="submit" disabled={sendet}>{sendet ? "Wird gesendet …" : "Anfrage senden"}</button>
           </form>
         </section>

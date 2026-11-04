@@ -4,6 +4,8 @@ import { useRef, useState, useTransition } from "react";
 import { Alert, Button, Form, Input, InputNumber } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { messungErfassen } from "../../../../_actions/sauerstoff";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
+import { EntwurfZeile } from "../../../../_ui/EntwurfZeile";
 
 const MESSUNG_FEHLER = "Messung konnte nicht gespeichert werden.";
 
@@ -24,6 +26,9 @@ export function MessungForm({ flascheId }: { flascheId: string }) {
   const [meldung, setMeldung] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
   const laufendRef = useRef(false);
+  // IDA-358: Druck und Kommentar ueberstehen ein Neuladen; geloescht wird der
+  // Entwurf erst nach bestaetigtem Erfolg (`verwerfen` setzt dabei zurueck).
+  const entwurf = useFormEntwurf(form, `lagerbuch:o2-messung:${flascheId}`);
 
   function absenden(werte: MessungWerte): void {
     if (laufendRef.current) return;
@@ -47,7 +52,7 @@ export function MessungForm({ flascheId }: { flascheId: string }) {
           setFehler(MESSUNG_FEHLER);
           return;
         }
-        form.resetFields();
+        entwurf.verwerfen();
         setMeldung("Messung erfasst.");
       } catch {
         setFehler(MESSUNG_FEHLER);
@@ -58,49 +63,53 @@ export function MessungForm({ flascheId }: { flascheId: string }) {
   }
 
   return (
-    <Form<MessungWerte>
-      form={form}
-      layout="inline"
-      disabled={laeuft}
-      onFinish={absenden}
-    >
-      <Form.Item
-        name="druckBar"
-        label="Druck (bar)"
-        rules={[{ required: true, message: "Druck erforderlich" }]}
+    <>
+      <EntwurfZeile entwurf={entwurf} />
+      <Form<MessungWerte>
+        form={form}
+        layout="inline"
+        disabled={laeuft}
+        onFinish={absenden}
+        onValuesChange={entwurf.onValuesChange}
       >
-        <InputNumber<number>
-          min={0}
-          precision={0}
-          aria-label="Druck (bar)"
-        />
-      </Form.Item>
-      <Form.Item name="kommentar" label="Kommentar">
-        <Input
-          aria-label="Kommentar"
-          placeholder="optional"
-          style={{ minWidth: 220 }}
-        />
-      </Form.Item>
-      <Button type="primary" htmlType="submit" loading={laeuft}>
-        Messung speichern
-      </Button>
-      {meldung ? (
-        <Alert
-          type="success"
-          showIcon={false}
-          title={meldung}
-          style={{ marginInlineStart: SPACE.md }}
-        />
-      ) : null}
-      {fehler ? (
-        <Alert
-          type="warning"
-          showIcon={false}
-          title={fehler}
-          style={{ marginInlineStart: SPACE.md }}
-        />
-      ) : null}
-    </Form>
+        <Form.Item
+          name="druckBar"
+          label="Druck (bar)"
+          rules={[{ required: true, message: "Druck erforderlich" }]}
+        >
+          <InputNumber<number>
+            min={0}
+            precision={0}
+            aria-label="Druck (bar)"
+          />
+        </Form.Item>
+        <Form.Item name="kommentar" label="Kommentar">
+          <Input
+            aria-label="Kommentar"
+            placeholder="optional"
+            style={{ minWidth: 220 }}
+          />
+        </Form.Item>
+        <Button type="primary" htmlType="submit" loading={laeuft}>
+          Messung speichern
+        </Button>
+        {meldung ? (
+          <Alert
+            type="success"
+            showIcon={false}
+            title={meldung}
+            style={{ marginInlineStart: SPACE.md }}
+          />
+        ) : null}
+        {fehler ? (
+          <Alert
+            type="warning"
+            showIcon={false}
+            title={fehler}
+            style={{ marginInlineStart: SPACE.md }}
+          />
+        ) : null}
+      </Form>
+    </>
   );
 }

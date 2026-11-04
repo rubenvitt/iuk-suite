@@ -132,6 +132,9 @@ a.zeile:hover { background: var(--iuk-flaeche-aktiv); }
   position: sticky; bottom: 0; margin-inline: -4px; padding: 12px 4px calc(12px + env(safe-area-inset-bottom));
   background: var(--gw-karte); border-top: 1px solid var(--iuk-linie);
 }
+/* IDA-358: Statuszeile des Entwurfs über dem Absenden; ohne Meldung kein Abstand. */
+.entwurf { margin-bottom: 8px; }
+.entwurf:empty { display: none; }
 .fotoknopf { display: inline-flex; align-items: center; gap: 8px; min-height: 56px; padding-inline: 16px; border: 1px dashed var(--iuk-linie); border-radius: 8px; cursor: pointer; }
 .fotoknopf input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .fotoknopf:has(input:focus-visible) { outline: 2px solid currentColor; outline-offset: 2px; }

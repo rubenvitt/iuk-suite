@@ -221,13 +221,22 @@ export function erledigtEintragen(db: WartungDb, geraetId: string, e: ErledigtEi
   });
 }
 
-export function stundenEintragen(db: WartungDb, geraetId: string, stunden: number, k: Kontext): void {
+export function stundenEintragen(db: WartungDb, geraetId: string, stunden: number, k: Kontext, sendung?: string): void {
   db.transaction((tx) => {
+    // IDA-358: dieselbe Sendung schon gebucht (nur die Antwort ging verloren) — VOR `pruefeStunden`, das sonst
+    // nichts sähe, was die Wiederholung abweist; eine fremde ID ist ein Eingabefehler.
+    if (sendung) {
+      const schon = tx.select({ geraetId: eintrag.geraetId, typ: eintrag.typ }).from(eintrag).where(eq(eintrag.id, sendung)).get();
+      if (schon) {
+        if (schon.geraetId === geraetId && schon.typ === "stunden") return;
+        throw new Abgelehnt("Die Angabe kam nicht vollständig an. Bitte noch einmal senden.");
+      }
+    }
     const g = aktivesGeraet(tx, geraetId);
     pruefeStunden(stunden, g.stunden);
     tx.update(geraet).set({ stunden, aktualisiertAm: k.jetzt }).where(eq(geraet.id, geraetId)).run();
     tx.insert(eintrag).values({
-      id: neueId(), geraetId, typ: "stunden", titel: "Betriebsstunden abgelesen", am: k.heute, stunden, wer: k.wer, angelegtAm: k.jetzt,
+      id: sendung ?? neueId(), geraetId, typ: "stunden", titel: "Betriebsstunden abgelesen", am: k.heute, stunden, wer: k.wer, angelegtAm: k.jetzt,
     }).run();
   });
 }

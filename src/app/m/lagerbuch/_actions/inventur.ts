@@ -105,6 +105,12 @@ const InventurSchema = z.object({
     .min(1, "Keine Zählung erfasst")
     .refine((ps) => new Set(ps.map((p) => p.artikelId)).size === ps.length,
       { message: "Artikel doppelt gezählt" }),
+  /*
+   * IDA-358: die Sendungs-ID des Geraets (`core/entwurf`), die ID des Laufs —
+   * eine Wiederholung nach verlorener Antwort findet ihn vor und bucht die
+   * Korrekturen nicht ein zweites Mal. Optional fuer offene alte Seiten.
+   */
+  sendungId: z.string().uuid().optional(),
 });
 
 type ArtikelPositionT = z.infer<typeof ArtikelPosition>;
@@ -411,7 +417,24 @@ export async function inventurKorrektur(
     }
     const v = geparst.data;
     const ortId = v.ortId ?? null;
-    const inventurId = newId();
+
+    /*
+     * IDA-358 — DIE WIEDERHOLUNG EINES SCHON GEBUCHTEN LAUFS, vor jeder
+     * Pruefung: geantwortet wird mit damals. `korrigiert` steht nicht im Lauf,
+     * es folgt aber aus den Positionen — abweichend ist, was anders gezaehlt
+     * als erwartet wurde (`artikelPosition`: `diff`, `chargenPosition`:
+     * `u.abweichung`, beide `gezaehlt - erwartet`).
+     */
+    if (v.sendungId) {
+      const frueher = db.select({ id: inventuren.id }).from(inventuren).where(eq(inventuren.id, v.sendungId)).get();
+      if (frueher) {
+        const pos = db.select({ erwartet: inventurPositionen.erwartet, gezaehlt: inventurPositionen.gezaehlt })
+          .from(inventurPositionen).where(eq(inventurPositionen.inventurId, frueher.id)).all();
+        return { ok: true, wert: { korrigiert: pos.filter((p) => p.gezaehlt !== p.erwartet).length, inventurId: frueher.id } };
+      }
+    }
+
+    const inventurId = v.sendungId ?? newId();
     const lauf: Lauf = {
       inventurId,
       referenz: `${INVENTUR_PRAEFIX}${inventurId}`,

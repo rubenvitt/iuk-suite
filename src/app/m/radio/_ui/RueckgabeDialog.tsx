@@ -1,16 +1,18 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Button, Input, Modal } from "antd";
 import { rueckgabeBuchen } from "../_actions/ausleihe";
 import { rueckgabeText, ZUSTANDSNOTIZ_MAX, type RueckgabeErgebnis } from "../_lib/meldungen";
 import { SitzungErneuern } from "./SitzungErneuern";
 import s from "./ausleihe.module.css";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
 
 /**
  * DER RUECKGABEDIALOG (Spec 1 §4.4, `:3554-3594`).
  *
- * ⛔ `"use client"`, und die Gruende sind aufzaehlbar: `useActionState` auf
+ * ⛔ `"use client"`, und die Gruende sind aufzaehlbar: der Entwurf (`useEntwurf`) um
  * `rueckgabeBuchen`, der Zustand des Notizfeldes, und `Input.TextArea` — ein
  * COMPOUND-ZUGRIFF, der in einer Server Component HTTP 500 ist (Falle 1, `CLAUDE.md`).
  * Die antd-Zuordnung schreibt fuer ihn ausdruecklich „nur Client" (`briefs/KOPF.md`).
@@ -74,32 +76,30 @@ const HINWEIS = "Optional: Zustandsnotiz hinterlassen";
 const PLATZHALTER = "z. B. Akku schwach, Kratzer am Gehäuse …";
 
 /**
- * ⚠️ WARUM EIN OERTLICHER UMSCHLAG UM DIE ACTION UND KEIN DIREKTES
- * `useActionState(rueckgabeBuchen, null)` — zeichengleich zu `_ui/AusleihVorgang.tsx:123-153`
- * und `_ui/GateFormular.tsx:32-62`:
+ * ⚠️ DER UMSCHLAG UM DIE ACTION, seit IDA-358 unter `useEntwurf` (`core/entwurf`) statt
+ * `useActionState` — wie in `_ui/AusleihVorgang.tsx` (`sendeAusleihe`):
+ *   1. EIN WURF IST „NICHT ANGEKOMMEN", NICHT MEHR `grund: "unbekannt"` (Netz, 502, nach dem
+ *      Rollout unbekannte Action-ID): Rueckgabe und Notiz liegen auf dem Geraet, werden erneut
+ *      versucht, und nach dem Neuladen steht die Notiz wieder im Dialog derselben Ausleihe.
+ *   2. DER ERFOLG WIRD IN `antwort` GEMELDET, NICHT IN EINEM `useEffect` auf `zustand.ok`: der
+ *      feuerte erneut, sobald derselbe Dialog fuer die naechste Ausleihe benutzt wird.
  *
- *   1. DAS `catch` FAENGT DREI LAGEN MIT EINEM SATZ: Verbindungsabbruch beim Absenden, den
- *      Wurf von `requireRadioHost` in der Riegelkette und jede echte Serverausnahme. Ohne
- *      das `catch` stiege der Wurf in den Absendeweg hoch, und die Person saehe eine
- *      technische Fehlerseite statt eines Satzes an ihrem Formular — mitsamt der getippten
- *      Notiz, um deren Erhalt es in dieser ganzen Aufgabe geht.
- *   2. DER ERFOLG WIRD HIER GEMELDET UND NICHT IN EINEM `useEffect` auf `zustand.ok`: der
- *      Zustand aus `useActionState` BLEIBT stehen, und ein Effekt darauf feuerte erneut,
- *      sobald derselbe Dialog fuer die naechste Ausleihe benutzt wird. Der Umschlag laeuft
- *      genau einmal je Absendung.
- *
- * ⛔ KEIN `?? null` HINTER DEM AUFRUF, anders als bei `ausleiheAnlegen`
- * (`_ui/AusleihVorgang.tsx:149`): dort ist es der Erfolgspfad, weil die Action mit
- * `redirect()` endet und der Client-Aufruf mit `undefined` aufloest. `rueckgabeBuchen`
- * leitet ausdruecklich NICHT um (`_actions/ausleihe.ts:222-229`) und gibt immer ein
- * Ergebnis zurueck — ein Rueckfall hier waere eine Behauptung ueber einen Ausgang, den es
- * nicht gibt.
- *
- * ⛔ DER SATZ IM `catch` WIRD NICHT NEU ERFUNDEN: `rueckgabeText({ grund: "unbekannt" })`
- * liefert genau den, den auch der Server fuer diesen Ausgang schickt (`_lib/meldungen.ts`).
- * Ein zweiter Wortlaut fuer dieselbe Lage waere die Fehlerform, gegen die
- * `_lib/bauform.test.ts:546-583` modulweit steht.
+ * ⚠️ DOPPELT GEBUCHT WIRD OHNE SENDUNGS-ID NICHTS: kam ein Versuch an und nur die Antwort ging
+ * verloren, ist die Ausleihe schon zurueckgegeben, und `bucheRueckgabe` lehnt die Wiederholung ab —
+ * die Notiz bleibt dann im Dialog stehen (Feinheit 1).
+ * ⛔ KEIN `?? null` HINTER DEM AUFRUF, anders als bei `ausleiheAnlegen` (`sendeAusleihe`): dort
+ * endet die Action mit `redirect()`, `rueckgabeBuchen` leitet NICHT um (`_actions/ausleihe.ts:222-229`)
+ * und gibt immer ein Ergebnis zurueck. Die Saetze zu `ok: false` kommen aus `_lib/meldungen.ts`;
+ * gegen einen zweiten Wortlaut steht `_lib/bauform.test.ts:546-583` modulweit.
  */
+/** Die Feldnamen der Action (`_actions/ausleihe.ts`, `FELD_AUSLEIHE_ID`/`FELD_ZUSTANDSNOTIZ`). */
+function formularAus(n: { ausleiheId: string; notiz: string }): FormData {
+  const formular = new FormData();
+  formular.set("ausleiheId", n.ausleiheId);
+  formular.set("zustandsnotiz", n.notiz);
+  return formular;
+}
+
 export function RueckgabeDialog({
   ausleihe,
   offen,
@@ -115,9 +115,9 @@ export function RueckgabeDialog({
   const [notiz, setNotiz] = useState("");
   const [zuletzt, setZuletzt] = useState(ausleihe.id);
   /*
-   * ⛔ DER TORWAECHTER UEBER DEM ERGEBNISBEREICH, und er ist noetig, weil `useActionState`
-   * seinen Zustand NICHT zuruecksetzt — dieselbe Eigenschaft, wegen der der Erfolg im
-   * Umschlag gemeldet wird und nicht in einem Effekt. Ohne ihn ueberlebte der Fehlersatz
+   * ⛔ DER TORWAECHTER UEBER DEM ERGEBNISBEREICH, und er ist noetig, weil `zustand` (frueher
+   * `useActionState`) seinen Zustand NICHT zuruecksetzt — dieselbe Eigenschaft, wegen der der Erfolg in
+   * `antwort` gemeldet wird und nicht in einem Effekt. Ohne ihn ueberlebte der Fehlersatz
    * einer Ausleihe den Wechsel auf die naechste: die Kopfzeile nennte 41/13, der Satz
    * darunter 41/12 — eine falsche Aussage ueber ein anderes Geraet. Bei
    * `grund === "sitzung"` bliebe zusaetzlich die Erneuerungs-Insel samt ihrem eigenen
@@ -157,38 +157,38 @@ export function RueckgabeDialog({
     setZeigeErgebnis(false);
   }
 
-  async function amFormular(
-    vorher: RueckgabeErgebnis | null,
-    formular: FormData,
-  ): Promise<RueckgabeErgebnis | null> {
-    /*
-     * ⛔ DIE PRUEFUNG BEIM BESTAETIGEN — die zweite Haelfte von Feinheit 2 (Spec:3583-3585),
-     * 1:1 aus `ReturnDialog.tsx:52-55` („M6: Defensive validation … return;"). ⛔ SIE IST
-     * NICHT DASSELBE WIE DER DEAKTIVIERTE KNOPF: ein Formular laesst sich auch ohne seinen
-     * Absendeknopf abschicken (die Eingabetaste, ein Skript, ein Test), und dann waere der
-     * Knopfzustand eine Zusage, die niemand haelt.
-     * ⛔ SIE KEHRT WORTLOS UM, WIE DER BESTAND — der Satz steht bereits am Feld
-     * (`data-rolle="radio-notiz-fehler"`, unten), und ihn zusaetzlich in den Zustand zu
-     * schreiben zeigte ihn zweimal. Zurueckgegeben wird deshalb der VORZUSTAND, unveraendert.
-     * ⛔ GEMESSEN WIRD `notiz`, ALSO DER WERT DES GESTEUERTEN FELDES — genau der, den das
-     * `FormData` traegt; und ungetrimmt, wie `_db/leihen.ts:653` misst.
-     */
-    if (notiz.length > ZUSTANDSNOTIZ_MAX) return vorher;
-
-    setZeigeErgebnis(true);
-    try {
-      const ergebnis = await rueckgabeBuchen(vorher, formular);
+  /*
+   * IDA-358 — NOTIZ UND RUECKGABE LIEGEN AUF DEM GERAET, je Ausleihe ein Entwurf. Wechselt `ausleihe.id`,
+   * wechselt der Schluessel mit, und der Entwurf der neuen Ausleihe (oder das leere Feld) kommt herein.
+   */
+  const [zustand, setZustand] = useState<RueckgabeErgebnis | null>(null);
+  const entwurf = useEntwurf<{ notiz: string }, { ausleiheId: string; notiz: string }, RueckgabeErgebnis>({
+    schluessel: `radio:rueckgabe:${ausleihe.id}`,
+    stand: { notiz },
+    wiederherstellen: (w) => setNotiz(w.notiz),
+    senden: (n) => rueckgabeBuchen(null, formularAus(n)),
+    antwort: (ergebnis) => {
+      setZustand(ergebnis);
+      setZeigeErgebnis(true);
       if (ergebnis.ok) onErledigt(ergebnis.rufname);
-      return ergebnis;
-    } catch {
-      return { ok: false, grund: "unbekannt", text: rueckgabeText({ grund: "unbekannt" }) };
-    }
-  }
+      return ergebnis.ok;
+    },
+  });
+  const meldung = useEntwurfMeldung(entwurf);
+  const laeuft = entwurf.zustand === "sendet";
 
-  const [zustand, formAction, laeuft] = useActionState<RueckgabeErgebnis | null, FormData>(
-    amFormular,
-    null,
-  );
+  /*
+   * ⛔ DIE PRUEFUNG BEIM BESTAETIGEN — die zweite Haelfte von Feinheit 2 (Spec:3583-3585),
+   * 1:1 aus `ReturnDialog.tsx:52-55`: ein Formular laesst sich auch ohne seinen Absendeknopf
+   * abschicken (Eingabetaste, Skript, Test). Sie kehrt WORTLOS um — der Satz steht schon am
+   * Feld; gemessen wird ungetrimmt, wie `_db/leihen.ts:653`.
+   */
+  function abschicken(e: FormEvent): void {
+    e.preventDefault();
+    if (notiz.length > ZUSTANDSNOTIZ_MAX || laeuft) return;
+    setZeigeErgebnis(true);
+    entwurf.sende({ ausleiheId: ausleihe.id, notiz });
+  }
 
   /*
    * Feinheit 2 (Spec:3583-3585, `ReturnDialog.tsx:52-55`). ⛔ SIE IST BEWUSST DEFENSIV — der
@@ -213,7 +213,7 @@ export function RueckgabeDialog({
    * `Modal` fuehrt alle drei Wege auf `onCancel` zusammen; im Bestand sind es zwei Handler.
    */
   function abbrechen(): void {
-    setNotiz("");
+    entwurf.verwerfen();
     setZeigeErgebnis(false);
     onSchliessen();
   }
@@ -246,7 +246,7 @@ export function RueckgabeDialog({
       keyboard={!laeuft}
       data-rolle="radio-rueckgabedialog"
     >
-      <form className={s.dialogForm} action={formAction} data-rolle="radio-rueckgabeform">
+      <form className={s.dialogForm} onSubmit={abschicken} data-rolle="radio-rueckgabeform">
         {/*
           ⛔ DIE ZWEI FELDNAMEN SIND DIE DER ACTION (`_actions/ausleihe.ts:91-93`:
           `FELD_AUSLEIHE_ID = "ausleiheId"`, `FELD_ZUSTANDSNOTIZ = "zustandsnotiz"`, beide
@@ -336,6 +336,10 @@ export function RueckgabeDialog({
             */}
             <SitzungErneuern grund={zustand.grund} />
           </>
+        )}
+        {meldung && meldung.art !== "wiederhergestellt" && (
+          // IDA-358: die Statuszeile des Entwurfs am Ort des Fehlersatzes; „Zurückgeben" zieht den Versuch vor.
+          <p className={s.dialogFehler} role="status" data-rolle="entwurf-hinweis" data-art={meldung.art}>{meldung.text}</p>
         )}
 
         {/*

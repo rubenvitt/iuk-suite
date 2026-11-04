@@ -574,11 +574,13 @@ export function rangGrenzen(
  */
 export function erstelleNachweis(
   db: DB,
-  werte: { aufgabeId: string; art: NachweisArt; text: string | null; dateiId?: string | null; erstelltVon: string },
+  werte: { id?: string; aufgabeId: string; art: NachweisArt; text: string | null; dateiId?: string | null; erstelltVon: string },
 ): NachweisRow {
   return db
     .insert(nachweise)
     .values({
+      // IDA-358: die Sendungs-ID des Formulars, sonst `newId` (`$defaultFn` im Schema).
+      ...(werte.id ? { id: werte.id } : {}),
       aufgabeId: werte.aufgabeId,
       art: werte.art,
       text: werte.text,

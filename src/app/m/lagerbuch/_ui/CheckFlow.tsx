@@ -28,6 +28,8 @@ import {
   ANMELDUNG_TEXT, NETZ_TEXT_CHECK, darfKaertchenErneuern, type HelferGrund,
 } from "../_lib/actionTypen";
 import { plombenNummerNorm } from "../_lib/plombe";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
 import s from "./helfer.module.css";
 
 /**
@@ -388,7 +390,60 @@ export function CheckFlow({
   const [fehler, setFehler] = useState<{ text: string; grund: HelferGrund } | null>(null);
   const [erneuerungsCode, setErneuerungsCode] = useState("");
   const [erneuerungsFehler, setErneuerungsFehler] = useState<string | null>(null);
-  const [laeuft, start] = useTransition();
+  const [erneuertGerade, start] = useTransition();
+
+  /*
+   * IDA-358 — DER ZAEHLSTAND LIEGT AUF DEM GERAET, NICHT NUR IN `useState`.
+   * Am 04.11.2026 scheiterte ein Abschluss waehrend eines Rollouts, und nach dem
+   * Neuladen war der ganze Check weg. Seitdem legt `useEntwurf` jede Eingabe ab,
+   * stellt sie beim naechsten Aufbau derselben Einheit wieder her und haelt den
+   * Abschluss fest, bis der Server ihn bestaetigt hat — samt erneuten Versuchen
+   * und einem Neuladen, wenn der Rollout die Action-IDs getauscht hat.
+   *
+   * ⚠️ NUR EINGABEN, KEINE ANZEIGE: `verfallAuf`, `fehler` und `ergebnis` gehoeren
+   * nicht in den Entwurf. Der Schritt (`phase`) schon — wer nach dem Neuladen bei
+   * den Plomben wieder anfaengt, sucht seine Zaehlung.
+   */
+  const entwurf = useEntwurf<
+    {
+      phase: Phase; ist: typeof ist; nachfuell: typeof nachfuell; box: typeof box;
+      geraete: typeof geraeteState; druck: typeof druck; verfall: typeof verfallState;
+      plombenWert: typeof plombenWert; plombeFehlt: typeof plombeFehlt;
+    },
+    Parameters<typeof checkAbschluss>[0] & object,
+    Awaited<ReturnType<typeof checkAbschluss>>
+  >({
+    schluessel: `lagerbuch:check:${fahrzeug.id}:${art}`,
+    stand: {
+      phase, ist, nachfuell, box, geraete: geraeteState, druck, verfall: verfallState,
+      plombenWert, plombeFehlt,
+    },
+    wiederherstellen: (w) => {
+      setPhase(w.phase); setIst(w.ist); setNachfuell(w.nachfuell); setBox(w.box);
+      setGeraeteState(w.geraete); setDruck(w.druck); setVerfallState(w.verfall);
+      setPlombenWert(w.plombenWert); setPlombeFehlt(w.plombeFehlt);
+    },
+    senden: (nutzlast, sendungId) => checkAbschluss({ ...nutzlast, sendungId }),
+    antwort: (r) => {
+      if (!r.ok) {
+        // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
+        // Das gilt auch fuer den fuenften Grund `"eingabe"`
+        // (Betreiberentscheidung B4): er traegt seine Botschaft im `text`,
+        // und weil `darfErneuern("eingabe")` false ist, erscheint das
+        // Erneuerungsfeld nicht — eine unvollstaendige Nutzlast wird nicht
+        // dadurch vollstaendig, dass jemand die Sitzung erneuert.
+        //
+        // ⚠️ HIER WIRD KEIN ZUSTAND ZURUECKGESETZT, und der Entwurf bleibt.
+        setFehler({ text: r.text, grund: r.grund });
+        return false;
+      }
+      setFehler(null);
+      setErgebnis(r.wert);
+      return true;
+    },
+  });
+  const entwurfMeldung = useEntwurfMeldung(entwurf);
+  const laeuft = erneuertGerade || entwurf.zustand === "sendet";
 
   /*
    * REINE ANZEIGE, KEIN SIEBTER ZAEHLZUSTAND (IDA-233): welches Verfallsfeld
@@ -516,47 +571,30 @@ export function CheckFlow({
 
   function abschliessen() {
     setFehler(null);
-    start(async () => {
-      try {
-        const nutzlast = checkNutzlast({
-          fahrzeugId: fahrzeug.id,
-          positionen: soll.map((p) => ({ id: p.id, artikelId: p.artikelId, soll: p.soll })),
-          geraete: geraete.map((g) => ({ id: g.id })),
-          flaschen: flaschen.map((f) => ({ id: f.id, nennfuelldruckBar: f.nennfuelldruckBar })),
-          z: zaehlung(),
-        });
-        const r = await checkAbschluss({
-          ...nutzlast,
-          art,
-          // Kurzcheck: jede stehende Plombe, abgelesen oder als fehlend
-          // gemeldet. Vollcheck: nur die neu gesetzten.
-          plomben: art === "kurz"
-            ? ablesen.map((p) => ({ plombeId: p.id, nummer: plombeFehlt[p.id] ? null : plombeEingabe(p.id) }))
-            : plomben
-                .filter((p) => plombeEingabe(p.id) !== "")
-                .map((p) => ({ plombeId: p.id, nummer: plombeEingabe(p.id) })),
-        });
-        if (!r.ok) {
-          // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
-          // Das gilt auch fuer den fuenften Grund `"eingabe"`
-          // (Betreiberentscheidung B4): er traegt seine Botschaft im `text`,
-          // und weil `darfErneuern("eingabe")` false ist, erscheint das
-          // Erneuerungsfeld nicht — eine unvollstaendige Nutzlast wird nicht
-          // dadurch vollstaendig, dass jemand die Sitzung erneuert.
-          //
-          // ⚠️ HIER WIRD KEIN ZUSTAND ZURUECKGESETZT. Alle sechs bleiben stehen.
-          setFehler({ text: r.text, grund: r.grund });
-          return;
-        }
-        setErgebnis(r.wert);
-      } catch {
-        // FALLE 62/66: `CheckFlow.tsx:158-159` faengt zwar, zeigt aber
-        // `e.message` — in Produktion der ENGLISCHE Server-Components-Satz mit
-        // `digest`, der niemanden erreicht. `"netz"` entsteht ausschliesslich
-        // HIER, nie serverseitig (Global Constraint 12).
-        // ALLE SECHS ZUSTAENDE BLEIBEN STEHEN.
-        setFehler({ text: NETZ_TEXT_CHECK, grund: "netz" });
-      }
+    const nutzlast = checkNutzlast({
+      fahrzeugId: fahrzeug.id,
+      positionen: soll.map((p) => ({ id: p.id, artikelId: p.artikelId, soll: p.soll })),
+      geraete: geraete.map((g) => ({ id: g.id })),
+      flaschen: flaschen.map((f) => ({ id: f.id, nennfuelldruckBar: f.nennfuelldruckBar })),
+      z: zaehlung(),
+    });
+    /*
+     * FALLE 62/66 — EIN WURF ERREICHT HIER NIEMANDEN MEHR ALS ENGLISCHER SATZ:
+     * `useEntwurf` faengt ihn, haelt die Sendung auf dem Geraet und versucht es
+     * erneut; die Statuszeile im Fehlerbereich sagt „Nicht gesendet". Ein
+     * erneutes Tippen auf „Abschliessen" zieht den Versuch vor und nimmt die
+     * aktuelle Zaehlung mit (dieselbe Sendungs-ID).
+     */
+    entwurf.sende({
+      ...nutzlast,
+      art,
+      // Kurzcheck: jede stehende Plombe, abgelesen oder als fehlend
+      // gemeldet. Vollcheck: nur die neu gesetzten.
+      plomben: art === "kurz"
+        ? ablesen.map((p) => ({ plombeId: p.id, nummer: plombeFehlt[p.id] ? null : plombeEingabe(p.id) }))
+        : plomben
+            .filter((p) => plombeEingabe(p.id) !== "")
+            .map((p) => ({ plombeId: p.id, nummer: plombeEingabe(p.id) })),
     });
   }
 
@@ -833,11 +871,37 @@ export function CheckFlow({
       {letzterCheckText === null
         ? `Noch kein Check erfasst — das ist der erste für ${dieseEinheit(fahrzeug.einheitenart)}.`
         : `Letzter Check: ${letzterCheckText}`}
+      {entwurfMeldung?.art === "wiederhergestellt" && (
+        <>
+          {" · "}
+          <span data-rolle="entwurf-hinweis">{entwurfMeldung.text}</span>{" "}
+          <button
+            className={s.entwurfVerwerfen}
+            type="button"
+            onClick={entwurf.verwerfen}
+            data-rolle="entwurf-verwerfen"
+          >
+            Neu beginnen
+          </button>
+        </>
+      )}
+    </div>
+  );
+
+  /*
+   * IDA-358: „Nicht gesendet" steht dort, wo der Abschluss steht — mit der Zeit
+   * bis zum naechsten Versuch. „Abschliessen" daneben zieht ihn vor.
+   */
+  const sendeBereich = !fehler && entwurfMeldung && entwurfMeldung.art !== "wiederhergestellt" && (
+    <div className={`${s.karte} ${s.kartePad}`}>
+      <div className={s.gateFehler} data-rolle="check-fehler" data-art={entwurfMeldung.art} role="status">
+        {entwurfMeldung.text}
+      </div>
     </div>
   );
 
   /** Der Fehlerbereich am Abschluss — samt Inline-Erneuerung (§7.4.4). */
-  const fehlerBereich = fehler && (
+  const fehlerBereich = !fehler ? sendeBereich : (
     <div className={`${s.karte} ${s.kartePad}`}>
       <div className={s.gateFehler} data-rolle="check-fehler" role="status">
         {/*

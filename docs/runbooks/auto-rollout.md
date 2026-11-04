@@ -191,6 +191,7 @@ sind im Job-Protokoll lesbar, was bei der Fehlersuche zählt.
 | `SUITE_STACK_DIR` | **ja** | `/opt/iuk-suite` | Verzeichnis mit `compose.yaml` und `.env`. **Solange sie fehlt, wird der `deploy`-Job übersprungen** — sie ist der Ein-/Ausschalter. |
 | `SUITE_HEALTH_URL` | nein | `https://iuk-ue.de/api/health/portal` | Öffentliche Gegenprobe nach dem Rollout. Nicht gesetzt = diese Vorbelegung. `aus` schaltet sie ab. |
 | `SUITE_BACKUP_CMD` | nein | siehe unten | Sicherung **vor** dem Austausch. Nicht gesetzt = keine, mit Warnung im Protokoll. |
+| `SUITE_DEPLOY_UEBERGABE` | nein | `aus` | Nicht gesetzt = Übergabe ohne Ausfallzeit (Teil B). `aus` = der alte Neustart per `docker compose up -d`, mit kurzer Lücke. |
 
 Für `SUITE_BACKUP_CMD` ist der ganze Befehl der Wert. Seit dem Backup-Sidecar (DRK-185)
 ist das der Dienst selbst — er braucht **keine Host-Pfade mehr**, weil die Volumes in
@@ -242,11 +243,47 @@ einschließlich Schritt 4 ist ein Abbruch folgenlos**, danach greift der Rollbac
 | 2 | `docker pull :latest`, Revision aus **Label und ENV** prüfen | überholt → **grün beendet**, sonst Abbruch → **E3/E4** |
 | 3 | Rückweg festhalten (gepinnter Digest, sonst laufender Container) | Warnung, kein Abbruch |
 | 4 | `SUITE_BACKUP_CMD`, falls gesetzt | Abbruch — kein Rollout ohne Sicherung |
-| 5 | Alte Stack-Dateien nach `.rollout-vorher/`, neue ablegen, Merkliste schreiben, Digest pinnen, `up -d` (bei neuer `clamd.files.conf` vorher clamav neu) | ab hier: Rollback von Image **und** Stack-Dateien |
-| 6 | Auf `healthy` warten (bis 300 s) | Rollback → **E5** |
-| 7 | `revision` aus `/api/health/portal` **im Container** vergleichen | Rollback → **E6** |
+| 5 | Alte Stack-Dateien nach `.rollout-vorher/`, neue ablegen, Merkliste schreiben, Digest pinnen, übrige Dienste nachziehen (bei neuer `clamd.files.conf` clamav neu, auf clamav `healthy` warten), dann den **neuen suite-Container neben dem alten** starten (`--scale suite=2 --no-recreate`) | ab hier: Rollback von Image **und** Stack-Dateien |
+| 6 | Auf `healthy` **des neuen** warten (bis 300 s) | nur der neue geht → **E5** |
+| 7 | `revision` aus `/api/health/portal` **im neuen Container** vergleichen | nur der neue geht → **E6** |
+| 7b | 5 s warten (Traefik übernimmt den neuen), alten per SIGTERM stoppen (30 s Gnadenfrist), entfernen, Compose auf 1 | nur Warnung → **E9** |
 | 8 | Öffentliche Gegenprobe über Traefik | nur Warnung → **E7** |
 | 9 | Zusammenfassung an den Lauf schreiben | — |
+
+## Übergabe ohne Ausfallzeit (seit 04.11.2026)
+
+Bis dahin stoppte `docker compose up -d` in Schritt 5 den alten Container, bevor der neue
+`healthy` war; in dieser Spanne hatte Traefik keinen Server und antwortete auf **allen**
+Modul-Hosts mit 404. Am 04.11.2026 konnte so ein Helfer einen Fahrzeugcheck nicht
+absenden. Jetzt läuft der alte weiter, bis der neue gesund **und** als richtiger Commit
+bewiesen ist; Traefik balanciert in der Zwischenzeit über beide (gleiche Labels, gewollt).
+Scheitert der neue, wird nur er entfernt — Nutzer merken davon nichts.
+
+Den alten Weg gibt es weiter: beim **ersten Rollout** (kein laufender suite-Container)
+und mit `SUITE_DEPLOY_UEBERGABE=aus` (A4).
+
+Was in der Überlappung (typisch unter einer Minute) gilt:
+
+- **Zwei Prozesse auf denselben SQLite-Dateien.** WAL und `busy_timeout = 5000` tragen
+  das, weil `suite_data` ein lokales Volume ist. Liegt das Volume je auf einem
+  Netzdateisystem, die Übergabe abschalten.
+- **Der neue migriert, während der alte noch läuft.** Eine zerstörende Migration
+  (Spalte umbenannt oder gelöscht) bricht den alten Code in diesem Fenster. Solche
+  Änderungen über zwei Releases verteilen: erst nicht mehr lesen, dann entfernen.
+- **Hintergrundarbeit läuft doppelt.** Bis auf den Push ist alles idempotent. Der
+  Sofort-Push beginnt 60 s, der Wochen-Push 2 min nach dem Boot; doppelt käme eine
+  Mitteilung nur bei einer Überlappung über 60 s. Deshalb die Gnadenfrist nicht ohne
+  Grund hochsetzen (`SUITE_DEPLOY_GNADE`, Vorgabe 30 s).
+
+> ⚠️ **Restfenster.** Traefik nimmt den alten Container erst beim Docker-Ereignis `die`
+> aus dem Router (plus bis zu 2 s Drosselung), nicht schon bei SIGTERM. Next.js schließt
+> seinen Listener aber sofort bei SIGTERM. In diesen etwa zwei Sekunden bekommt ein Teil
+> der neuen Anfragen 502 (vorher: alle Anfragen 404, die ganze Bootzeit lang) — viel
+> kürzer, aber nicht null. Schließen
+> ließe es sich mit einem aktiven Traefik-Healthcheck am Service
+> (`loadbalancer.healthcheck.*`, Takt 1 s), der den alten bei geschlossenem Listener
+> sofort herausnimmt, oder zusätzlich mit einer Verzögerung zwischen SIGTERM und
+> `server.close()` in der Anwendung. Beides ist bewusst noch nicht gebaut.
 
 Zwei Entscheidungen darin, die man beim Lesen sonst für Nachlässigkeit hält:
 
@@ -280,6 +317,10 @@ curl -s https://iuk-ue.de/api/health/portal
 docker compose exec -T suite wget -qO- http://127.0.0.1:3000/api/health/portal
 ```
 
+Während eines Rollouts zeigt `docker compose ps` kurz **zwei** suite-Container
+(`…-suite-1` und `…-suite-2`, die Nummer zählt weiter) — das ist die Übergabe. Danach
+steht wieder genau einer da, nur eben mit höherer Nummer.
+
 Der Wert aus 3) ist der volle Commit-SHA von `main`; `git log --oneline -1 origin/main`
 ist die Gegenprobe.
 
@@ -290,10 +331,20 @@ ist die Gegenprobe.
 ## D1. Automatisch
 
 Scheitert Schritt 5, 6 oder 7, legt das Skript die ausgetauschten Stack-Dateien aus
-`.rollout-vorher/` zurück (samt Merkliste), setzt den vorherigen Digest, startet neu
-und wartet erneut auf `healthy`. Der Job ist danach **rot** — das ist richtig: der
-Rollout ist gescheitert, auch wenn der Server wieder läuft. Im Protokoll steht dann
-`ROLLBACK auf ghcr.io/rubenvitt/iuk-suite@sha256:…`.
+`.rollout-vorher/` zurück (samt Merkliste) und setzt den vorherigen Digest.
+
+- **Bei der Übergabe** (der Regelfall) entfernt es dann **nur den neuen Container** —
+  der alte hat nie aufgehört zu antworten und wird nicht neu gestartet. Die übrigen
+  Dienste zieht es auf die zurückgelegten Stack-Dateien zurück und prüft, dass der alte
+  noch `healthy` ist. Im Protokoll steht
+  `ROLLBACK: den neuen Container entfernen — der alte lief durchgehend weiter`.
+- **Ohne Übergabe** (erster Rollout, `SUITE_DEPLOY_UEBERGABE=aus`) startet es den Stack
+  mit dem alten Digest neu und wartet erneut auf `healthy`.
+
+  Im Protokoll steht dann `ROLLBACK auf ghcr.io/rubenvitt/iuk-suite@sha256:…`.
+
+In beiden Fällen ist der Job danach **rot** — das ist richtig: der Rollout ist
+gescheitert, auch wenn der Server wieder läuft.
 
 ## D2. Von Hand
 
@@ -480,8 +531,10 @@ trotzdem da, wurde am Image außerhalb der Pipeline gebaut.
 **Die erste Auskunft steht schon im Job-Log.** Vor dem Rollback schreibt `deploy.sh` einen
 „Auszug für die Fehlersuche" ins Protokoll: `docker compose ps -a` und die letzten 80
 Zeilen des gescheiterten Suite-Containers — vorher, weil der Rollback den Container und
-damit sein Log ersetzt. Wird auch der Rollback nicht gesund, folgt ein zweiter Auszug vom
-alten Stand. Jeder Wert aus der Server-`.env` (ab 8 Zeichen, außer `SUITE_IMAGE`) und
+damit sein Log entfernt. Bei der Übergabe ist das ausdrücklich nur das Log des **neuen**
+Containers (`docker logs <id>`): der alte lief daneben mit Verkehr, sein Log gehört nicht
+ins Protokoll. Ohne Übergabe folgt, wenn auch der Rollback nicht gesund wird, ein zweiter
+Auszug vom alten Stand. Jeder Wert aus der Server-`.env` (ab 8 Zeichen, außer `SUITE_IMAGE`) und
 jede Zugangsangabe in einer URL steht darin als `***`, denn das Protokoll ist öffentlich;
 Variablennamen bleiben lesbar. Ein ausgeschriebener Hostname aus `SUITE_HOST_*` ist
 deshalb nur am Server zu sehen. Nach Schritt 7 (E6) gibt es bewusst keinen Auszug: der
@@ -510,9 +563,13 @@ Stand zurück, aber der nächste Rollout scheitert genauso, bis die `.env` stimm
 
 ### E6 — Rollback nach Schritt 7: „meldet Commit A, erwartet war B"
 
-Der Container ist gesund, trägt aber den falschen Stand. Praktisch bedeutet das, dass
-`up -d` den alten Container **nicht ersetzt** hat (Pin nicht angekommen, Compose hat
-keine Änderung gesehen). Gegenprobe:
+Der Container ist gesund, trägt aber den falschen Stand. Geprüft wird gezielt der
+**neue** Container (`docker exec <id>`), nicht „irgendeiner" — bei der Übergabe laufen
+zwei, und `docker compose exec suite` könnte den alten treffen. Praktisch bedeutet die
+Meldung, dass der neue Container nicht mit dem gepinnten Image erzeugt wurde (Pin nicht
+angekommen, Compose hat keine Änderung gesehen). Er war schon healthy und hatte darum
+Verkehr; der Rückweg stoppt ihn mit derselben Gnadenfrist wie sonst den alten.
+Gegenprobe:
 
 ```bash
 grep '^SUITE_IMAGE=' .env
@@ -532,7 +589,7 @@ Drei Ursachen in dieser Reihenfolge:
    interne URL in `SUITE_HEALTH_URL` eintragen oder sie auf `aus` setzen.
 3. **TLS/Cloudflare** davor.
 
-### E8 — „Rollback ebenfalls nicht gesund geworden"
+### E8 — „Rollback ebenfalls nicht gesund geworden" / „der alte Container ist nicht healthy"
 
 Die eine Meldung, die keinen Aufschub verträgt: weder der neue noch der alte Stand läuft.
 Das ist dann kein Image-Problem mehr — Reihenfolge wie in E5 (clamav zuerst). Die
@@ -540,12 +597,34 @@ Stack-Dateien hat der Rollback bereits aus `.rollout-vorher/` zurückgelegt; der
 bekannte Zustand ist die `compose.yaml.bak-<datum>` aus A1 plus der zuletzt bekannte
 Digest.
 
+Bei der Übergabe heißt die Meldung „UND DER ALTE CONTAINER IST NICHT HEALTHY": der alte
+wurde nicht angefasst, war also vermutlich schon vor dem Rollout krank. Einen Log-Auszug
+gibt es dann bewusst nicht (er hatte Verkehr) — `docker compose logs suite` am Server.
+
+### E9 — Warnung in Schritt 7b: alter Container nicht gestoppt oder nicht entfernt
+
+Der Rollout ist **erfolgreich**, der neue Container ist bewiesen und bedient die Suite.
+Übrig ist ein alter Container, den `docker stop`/`docker rm` nicht losgeworden ist; die
+Warnung nennt seine ID. Läuft er noch, bekommt er weiter Verkehr — mit dem **alten**
+Stand. Von Hand:
+
+```bash
+docker compose ps -a suite          # welche stehen da? der neue hat die höchste Nummer
+docker stop --time 30 <alte-id> && docker rm <alte-id>
+```
+
+Kein `docker compose up -d --scale suite=1` solange zwei laufen: welchen Compose dabei
+entfernt, entscheidet Compose, nicht der Betreiber.
+
 ---
 
 # Teil F — Abschalten
 
 **Vorübergehend, ohne Codeänderung:** die Repository-Variable `SUITE_STACK_DIR` löschen.
 Der `deploy`-Job wird ab dem nächsten Lauf **übersprungen**; alles andere bleibt.
+
+**Nur die Übergabe abschalten:** Repository-Variable `SUITE_DEPLOY_UEBERGABE=aus`
+(A4). Der Rollout läuft dann wieder mit `docker compose up -d` und kurzer Lücke.
 
 **Nur pausieren:** die Freigabe im Environment einfach nicht erteilen — der Lauf wartet
 30 Tage und läuft dann ab.

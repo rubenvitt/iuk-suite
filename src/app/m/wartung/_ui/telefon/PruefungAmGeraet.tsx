@@ -1,20 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, Input, InputNumber, Progress, Result } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
-import { randomId } from "@/core/zufallsId";
 import { NOTIZ_MAX } from "../../_lib/eingabe";
 import { ERGEBNIS_TEXT, type Zustand } from "../../_lib/fristen";
 import type { SendeAntwort } from "../../_lib/koerper";
 import type { CheckpunktDTO } from "../../_lib/typen";
 import { Kicker } from "../teile";
 import { FotoWahl, verkleinere } from "./foto";
+import { sendeAnRoute } from "./senden";
 import s from "../wartung.module.css";
 
 type Antwort = { ok: boolean; text: string; foto: File | null };
-const NETZ = "Keine Verbindung. Deine Angaben sind noch da, bitte gleich noch einmal senden.";
+type Stand = { stunden: number | null; antworten: Record<string, { ok: boolean; text: string }>; ergebnis: Zustand | null; notiz: string };
+type Daten = {
+  stunden: number | null; ergebnis: Zustand; notiz: string;
+  antworten: { punktId: string; ok: boolean; text: string; soll?: number; punkt?: string; hinweis?: string }[];
+};
 
 /**
  * Die Prüfung am Gerät mit der Checkliste der Art. Bei einer Materialkiste (`kiste`, IDA-335) sind die Punkte ihre
@@ -31,15 +37,57 @@ export function PruefungAmGeraet({
   stundenPflicht: boolean;
   stundenZuletzt: number | null;
 }) {
-  const [sendung] = useState(randomId);
   const [stunden, setStunden] = useState<number | null>(null);
   const [antworten, setAntworten] = useState<Record<string, Antwort>>({});
   const [ergebnis, setErgebnis] = useState<Zustand | null>(null);
   const [notiz, setNotiz] = useState("");
   const [offenerHinweis, setOffenerHinweis] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [laeuft, setLaeuft] = useState(false);
   const [fertig, setFertig] = useState<{ ergebnis: Zustand; maengel: number } | null>(null);
+  const antwortenRef = useRef(antworten);
+  useLayoutEffect(() => {
+    antwortenRef.current = antworten;
+  });
+
+  /*
+   * IDA-358 — DIE PRÜFUNG LIEGT AUF DEM TELEFON, BIS DER SERVER SIE BESTÄTIGT. Jede Antwort landet sofort im
+   * Entwurf; scheitert das Absenden (Netz, Rollout), versucht `useEntwurf` es erneut, auch nach dem Neuladen.
+   * Die Sendungs-ID ist `sendung` der Route — eine zweite Ankunft legt nichts doppelt an (`schonGesendet`).
+   *
+   * ⚠️ FOTOS LIEGEN NICHT IM ENTWURF (eine Datei passt nicht in `localStorage`). Ein Versuch auf derselben Seite
+   * nimmt sie mit; nach dem Neuladen geht die Prüfung ohne die Fotos, die nicht mehr da sind.
+   */
+  const entwurf = useEntwurf<Stand, Daten, { ergebnis: Zustand; a: SendeAntwort }>({
+    schluessel: `wartung:pruefung:${geraetId}`,
+    stand: {
+      stunden, ergebnis, notiz,
+      antworten: Object.fromEntries(Object.entries(antworten).map(([k, a]) => [k, { ok: a.ok, text: a.text }])),
+    },
+    wiederherstellen: (w) => {
+      setStunden(w.stunden);
+      setErgebnis(w.ergebnis);
+      setNotiz(w.notiz);
+      setAntworten(Object.fromEntries(Object.entries(w.antworten).map(([k, a]) => [k, { ...a, foto: antwortenRef.current[k]?.foto ?? null }])));
+    },
+    senden: async (d, sendung) => {
+      const daten = new FormData();
+      daten.set("daten", JSON.stringify({ ...d, sendung }));
+      for (const a of d.antworten) {
+        const f = a.ok ? null : antwortenRef.current[a.punktId]?.foto;
+        if (f) daten.set(`foto:${a.punktId}`, await verkleinere(f), "foto.jpg");
+      }
+      return { ergebnis: d.ergebnis, a: await sendeAnRoute(`/g/${geraetId}/pruefung/senden`, daten) };
+    },
+    antwort: ({ ergebnis: e, a }) => {
+      if (!a.ok) {
+        setFehler(a.fehler);
+        return false;
+      }
+      setFertig({ ergebnis: e, maengel: a.maengel ?? 0 });
+      return true;
+    },
+  });
+  const laeuft = entwurf.zustand === "sendet";
 
   const erledigt = checkliste.filter((c) => antworten[c.id]).length;
   const maengel = checkliste.filter((c) => antworten[c.id] && !antworten[c.id].ok);
@@ -52,29 +100,13 @@ export function PruefungAmGeraet({
   const setze = (id: string, teil: Partial<Antwort>) =>
     setAntworten((a) => ({ ...a, [id]: { ...(a[id] ?? { ok: true, text: "", foto: null }), ...teil } }));
 
-  async function senden() {
+  function senden() {
     if (laeuft || !bereit) return;
     setFehler(null);
-    setLaeuft(true);
-    try {
-      const daten = new FormData();
-      daten.set("daten", JSON.stringify({
-        sendung, stunden, ergebnis: gewaehlt, notiz,
-        antworten: checkliste.map((c) => ({ punktId: c.id, ok: antworten[c.id].ok, text: antworten[c.id].ok ? "" : antworten[c.id].text, soll: c.soll, punkt: kiste ? c.text : undefined, hinweis: kiste ? c.hinweis : undefined })),
-      }));
-      for (const c of maengel) {
-        const f = antworten[c.id].foto;
-        if (f) daten.set(`foto:${c.id}`, await verkleinere(f), "foto.jpg");
-      }
-      const r = await fetch(`/g/${geraetId}/pruefung/senden`, { method: "POST", body: daten });
-      const a = (await r.json().catch(() => null)) as SendeAntwort | null;
-      if (a?.ok) setFertig({ ergebnis: gewaehlt, maengel: a.maengel ?? 0 });
-      else setFehler(a && !a.ok ? a.fehler : "Die Prüfung ging nicht durch. Bitte noch einmal senden.");
-    } catch {
-      setFehler(NETZ);
-    } finally {
-      setLaeuft(false);
-    }
+    entwurf.sende({
+      stunden, ergebnis: gewaehlt, notiz,
+      antworten: checkliste.map((c) => ({ punktId: c.id, ok: antworten[c.id].ok, text: antworten[c.id].ok ? "" : antworten[c.id].text, soll: c.soll, punkt: kiste ? c.text : undefined, hinweis: kiste ? c.hinweis : undefined })),
+    });
   }
 
   if (fertig) {
@@ -197,6 +229,7 @@ export function PruefungAmGeraet({
       </section>
 
       <div className={s.fuss}>
+        <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
         {(fehler || !bereit) && (
           <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} aria-live="polite" role={fehler ? "alert" : undefined}>
             {fehler ?? [
@@ -209,7 +242,7 @@ export function PruefungAmGeraet({
             ].filter(Boolean).join(" ")}
           </div>
         )}
-        <Button type="primary" block disabled={!bereit} loading={laeuft} onClick={() => void senden()}>
+        <Button type="primary" block disabled={!bereit} loading={laeuft} onClick={senden}>
           {kiste ? "Durchzählen abschließen" : "Prüfung abschließen"}
         </Button>
       </div>

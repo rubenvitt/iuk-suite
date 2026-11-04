@@ -1393,3 +1393,9 @@
  * kein weiterer Text (`lagerbuch-mobil.spec.ts` misst das).
  */
 .grundZeile { flex: 1 0 100%; font-size: 13px; color: var(--lb-stahl); line-height: 1.35 }
+
+/* IDA-358: „Neu beginnen" neben „Eingaben wiederhergestellt" — ein Wort in der Zeile, kein Knopf. */
+.entwurfVerwerfen {
+  font: inherit; color: var(--lb-tinte); background: none; border: 0; padding: 0;
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}

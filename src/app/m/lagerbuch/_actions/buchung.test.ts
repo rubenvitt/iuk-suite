@@ -1807,3 +1807,59 @@ describe("bucheAuffuellung (DRK-313)", () => {
     expect(geschrieben()).toEqual([]);
   });
 });
+
+describe("IDA-358 — eine wiederholte Sendung bucht nicht doppelt", () => {
+  const SENDUNG = "6d1f0a52-93c4-4b1e-9e0a-0123456789ab";
+
+  it("bucheEntnahmeHelfer: derselbe Versuch zweimal — EINE Buchung, dieselbe Antwort", async () => {
+    const eingabe = { artikelId: "art-1", menge: 3, ziel: VERBRAUCH, sendungId: SENDUNG };
+    const erste = await bucheEntnahmeHelfer(eingabe, t.db);
+    const zweite = await bucheEntnahmeHelfer(eingabe, t.db);
+    expect(erste).toEqual({ ok: true, wert: { gebucht: 3 } });
+    expect(zweite).toEqual({ ok: true, wert: { gebucht: 3 } });
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0]!.id).toBe(`${SENDUNG}:0`);
+  });
+
+  it("bucheEntnahmeHelfer: die Wiederholung kommt VOR den Pruefungen durch (Ziel-Cookie inzwischen anders)", async () => {
+    zielCookie = "tk1|fz:fz-1";
+    const eingabe = { artikelId: "art-1", menge: 2, ziel: { art: "fahrzeug", lagerortId: "fz-1" }, sendungId: SENDUNG };
+    expect(await bucheEntnahmeHelfer(eingabe, t.db)).toEqual({ ok: true, wert: { gebucht: 2 } });
+    // Beide Legs tragen die Sendung im Schluessel.
+    expect(geschrieben().map((b) => b.id).sort()).toEqual([`${SENDUNG}:0`, `${SENDUNG}:1`]);
+    zielCookie = "tk1|verbrauch";
+    expect(await bucheEntnahmeHelfer(eingabe, t.db)).toEqual({ ok: true, wert: { gebucht: 2 } });
+    expect(geschrieben()).toHaveLength(2);
+  });
+
+  it("bucheEntnahmeHelfer: eine fremde Sendung fuer einen anderen Artikel wird abgewiesen, nicht gebucht", async () => {
+    await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 1, ziel: VERBRAUCH, sendungId: SENDUNG }, t.db);
+    const erg = await bucheEntnahmeHelfer({ artikelId: "art-2", menge: 1, ziel: VERBRAUCH, sendungId: SENDUNG }, t.db);
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toHaveLength(1);
+  });
+
+  it("bucheEntnahmeHelfer: ohne Sendung bleibt es beim alten Weg (offene alte Seite)", async () => {
+    await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 1, ziel: VERBRAUCH }, t.db);
+    await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 1, ziel: VERBRAUCH }, t.db);
+    expect(geschrieben()).toHaveLength(2);
+  });
+
+  it("bucheAuffuellung: derselbe Versuch zweimal — EIN Zugang, EINE neue Charge, dieselbe Antwort", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", parentId: HANDLAGER_ID, aktiv: true },
+    ]).run();
+    const eingabe = {
+      artikelId: "art-1", menge: 4, zielLagerortId: "schrank-1",
+      charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" }, sendungId: SENDUNG,
+    };
+    const erste = await bucheAuffuellung(eingabe, t.db);
+    // Inzwischen deaktiviert: die Wiederholung antwortet trotzdem mit damals.
+    t.db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, "art-1")).run();
+    const zweite = await bucheAuffuellung(eingabe, t.db);
+    expect(erste).toMatchObject({ ok: true, wert: { gebucht: 4, ziel: "Schrank 1" } });
+    expect(zweite).toEqual(erste);
+    expect(geschrieben()).toHaveLength(1);
+    expect(t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).all()).toHaveLength(1);
+  });
+});

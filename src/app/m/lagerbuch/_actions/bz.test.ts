@@ -1014,3 +1014,16 @@ describe("kontrolleErfassen — Beachtung", () => {
     expect(protokoll).toEqual([]);
   });
 });
+
+describe("IDA-358 — kontrolleErfassen mit Sendungs-ID", () => {
+  it("legt bei einer Wiederholung keine zweite Kontrolle an und antwortet mit damals", async () => {
+    const geraetId = await geraetMitBereichen();
+    const sendungId = "7e6d5c4b-3a29-4180-9f7e-6d5c4b3a2918";
+    const eingabe = { geraetId, level1Wert: 50, level2Wert: 300, sendungId };
+    const erste = await kontrolleErfassen(eingabe, t.db);
+    const zweite = await kontrolleErfassen(eingabe, t.db);
+    expect(erste).toEqual({ ok: true, wert: { id: sendungId, bestanden: true } });
+    expect(zweite).toEqual(erste);
+    expect(kontrollZeilen()).toHaveLength(1);
+  });
+});

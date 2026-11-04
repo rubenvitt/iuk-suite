@@ -65,7 +65,8 @@ export const erledigtEingabe = z.object({
 });
 export type ErledigtEingabe = z.infer<typeof erledigtEingabe>;
 
-export const stundenEingabe = z.object({ stunden: z.number().int().min(0).max(STUNDEN_MAX) });
+/** `sendung` (IDA-358): die Sendungs-ID des Telefons, wird die ID des Eintrags — optional für offene alte Seiten. */
+export const stundenEingabe = z.object({ stunden: z.number().int().min(0).max(STUNDEN_MAX), sendung: idSchema.optional() });
 
 export const fristEingabe = z.object({
   id: idSchema.nullable(),

@@ -27,7 +27,9 @@
 #     erfolgreichen Rollout sonst nicht zu unterscheiden.
 #  3. ES HAT EINEN RÜCKWEG. Vor dem Austausch merkt es sich den laufenden Digest und legt
 #     die alten Stack-Dateien beiseite; jeder Fehlschlag danach setzt beides zurück und
-#     wartet erneut auf `healthy`.
+#     wartet erneut auf `healthy`. Seit dem 04.11.2026 startet der neue Container NEBEN
+#     dem alten (Schritt 5 bis 7b): bis zum Beweis antwortet der alte weiter, und der
+#     Rückweg ist dann nur „den neuen entfernen".
 #
 # WAS ES AUSDRÜCKLICH NICHT TUT — beides ist Runbook-Arbeit, siehe Teil E des Runbooks:
 #   * Die `.env` inhaltlich ausrollen, und eine von Hand geänderte Stack-Datei
@@ -61,11 +63,29 @@ if [ "$HEALTH_URL" = "aus" ]; then HEALTH_URL=""; fi
 # `run --rm` und nicht `exec`: der Dienst soll auch dann sichern, wenn sein Container gerade
 # nicht laeuft — und genau das ist bei einem gescheiterten Rollout der wahrscheinliche Fall.
 BACKUP_CMD="${SUITE_BACKUP_CMD-}"
+# Übergabe ohne Ausfallzeit (Schritt 5 bis 7b): der neue Container startet NEBEN dem
+# alten, und der alte geht erst, wenn der neue bewiesen ist. `aus` schaltet zurück auf
+# den Neustart per `docker compose up -d` (alter Container weg, dann neuer hoch).
+UEBERGABE_SCHALTER="${SUITE_DEPLOY_UEBERGABE:-an}"
+# Nur Ziffern, und führende Nullen weg (`10#`): `08` läse die Arithmetik sonst oktal.
+zahl_oder() { case "$1" in '' | *[!0-9]*) echo "$2" ;; *) echo "$((10#$1))" ;; esac; }
+# Sekunden, die ein Container nach SIGTERM hat, bevor Docker SIGKILL schickt. Next.js
+# nimmt bei SIGTERM keine neuen Verbindungen mehr an und beendet die laufenden Anfragen
+# (`server.close()` in `next/dist/server/lib/start-server.js`); 30s decken auch einen
+# langsamen Upload, ohne den Rollout lange aufzuhalten.
+GNADE="$(zahl_oder "${SUITE_DEPLOY_GNADE:-}" 30)"
+# Sekunden zwischen „neuer Container healthy und bewiesen" und dem Stoppen des alten —
+# begründet in Schritt 7b.
+TRAEFIK_PAUSE="$(zahl_oder "${SUITE_DEPLOY_TRAEFIK_PAUSE:-}" 5)"
 
 REPO_WURZEL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_DATEI="$STACK_DIR/.env"
 NEUES_IMAGE=""
 RUECKWEG=""
+# Übergabe (Schritt 5): 1, wenn neben einem laufenden alten Container ausgerollt wird.
+UEBERGABE=0
+ALT_CIDS=""
+NEU_CID=""
 
 melde() { printf '\n▸ %s\n' "$*"; }
 warne() { printf '\n⚠ %s\n' "$*" >&2; }
@@ -285,7 +305,7 @@ echo "  Digest: $NEUES_IMAGE"
 melde "Schritt 3: Rückweg bestimmen"
 RUECKWEG="$(sed -n 's/^SUITE_IMAGE=//p' "$ENV_DATEI" | tail -1)"
 if [ -z "$RUECKWEG" ]; then
-  cid="$(docker compose ps -q suite 2>/dev/null || true)"
+  cid="$(docker compose ps -q suite 2>/dev/null | head -1 || true)"
   if [ -n "$cid" ]; then
     bild="$(docker inspect -f '{{ .Image }}' "$cid" 2>/dev/null || true)"
     [ -n "$bild" ] && RUECKWEG="$(docker image inspect "$bild" \
@@ -439,21 +459,38 @@ schwaerze() {
 #
 # `ps -a` zuerst, weil der häufigste Grund gar nicht im Suite-Log steht: ein clamav, der
 # nicht healthy wird, hält die Suite per depends_on zurück (Runbook E5).
+#
+# ⚠️ BEI DER ÜBERGABE NUR DAS LOG DES NEUEN CONTAINERS (zweites Argument). Dort laufen
+# alter und neuer nebeneinander, und `docker compose logs suite` mischte das Log des
+# ALTEN hinein — der hatte die ganze Zeit Verkehr, sein Log gehört aus demselben Grund
+# nicht ins Protokoll wie eines nach Schritt 7.
 LOG_ZEILEN=80
 zeige_suite_log() {
   melde "Auszug für die Fehlersuche ($1) — Werte aus der .env geschwärzt"
   echo "  docker compose ps -a:"
   { docker compose ps -a 2>&1 || true; } | schwaerze || true
   echo
-  echo "  docker compose logs suite, letzte $LOG_ZEILEN Zeilen:"
-  { docker compose logs --no-color --timestamps --tail="$LOG_ZEILEN" suite 2>&1 || true; } | schwaerze || true
+  if [ -n "${2-}" ]; then
+    echo "  docker logs des neuen Containers, letzte $LOG_ZEILEN Zeilen:"
+    { docker logs --timestamps --tail="$LOG_ZEILEN" "$2" 2>&1 || true; } | schwaerze || true
+  else
+    echo "  docker compose logs suite, letzte $LOG_ZEILEN Zeilen:"
+    { docker compose logs --no-color --timestamps --tail="$LOG_ZEILEN" suite 2>&1 || true; } | schwaerze || true
+  fi
   echo "  (Ende des Auszugs)"
 }
 
+# Wartet auf `healthy`. Mit Argument auf GENAU diesen Container (Übergabe: der neue,
+# während der alte daneben weiter `healthy` meldet — ein `ps -q suite` fände beide), ohne
+# auf „den" suite-Container, wie vor der Übergabe.
 warte_gesund() {
   local frist=$((SECONDS + FRIST)) cid zustand
   while [ "$SECONDS" -lt "$frist" ]; do
-    cid="$(docker compose ps -q suite 2>/dev/null || true)"
+    if [ "$#" -gt 0 ]; then
+      cid="$1"
+    else
+      cid="$(docker compose ps -q suite 2>/dev/null | head -1 || true)"
+    fi
     if [ -n "$cid" ]; then
       zustand="$(docker inspect -f '{{ if .State.Health }}{{ .State.Health.Status }}{{ else }}ohne-healthcheck{{ end }}' "$cid" 2>/dev/null || echo weg)"
       case "$zustand" in
@@ -461,7 +498,11 @@ warte_gesund() {
         # `unhealthy` erst NACH der start_period und nach `retries` Fehlversuchen —
         # währenddessen steht dort `starting`. Weiterwarten wäre also nur Zeitverlust.
         unhealthy) return 1 ;;
+        # Eine bestimmte ID, die verschwunden ist, kommt nicht wieder.
+        weg) [ "$#" -eq 0 ] || return 1 ;;
       esac
+    elif [ "$#" -gt 0 ]; then
+      return 1
     fi
     sleep 5
   done
@@ -657,9 +698,108 @@ stack_zuruecklegen() {
 # ── Ab hier ist Produktion angefasst: jeder Fehlschlag geht über zurueck_und_raus ──────
 # Die Funktion steht VOR dem Austausch, nicht dahinter: sonst endete ein gescheitertes
 # `up -d` in Schritt 5 per `set -e`, und weder Image noch Stack-Dateien kämen zurück.
+# ── Übergabe: Helfer ────────────────────────────────────────────────────────────────
+# Alle Dienste außer `suite`, so wie `docker compose up -d` sie hochfahren würde (aktive
+# Profile eingeschlossen). `--services` gibt nur Namen aus, keine Werte der `.env`.
+andere_dienste() {
+  docker compose config --services 2>/dev/null | grep -vx suite || true
+}
+
+# suite-Container, die NICHT zu den alten gehören. `-a`, damit auch ein erzeugter, aber
+# nie gestarteter (oder schon abgestürzter) neuer gefunden und entfernt wird.
+neue_suite_container() {
+  local alle
+  alle="$(docker compose ps -q -a suite 2>/dev/null || true)"
+  [ -n "$alle" ] || return 0
+  if [ -n "$ALT_CIDS" ]; then
+    printf '%s\n' "$alle" | grep -vxF -f <(printf '%s\n' $ALT_CIDS) || true
+  else
+    printf '%s\n' "$alle"
+  fi
+}
+
+# Startet den neuen suite-Container NEBEN dem alten und setzt NEU_CID. Rückgabe ≠ 0, wenn
+# das nicht gelingt — der alte ist dann nicht angefasst.
+starte_neben_dem_alten() {
+  local andere anzahl_alt clamav_cid
+  andere="$(andere_dienste)"
+  # Was `docker compose up -d` bisher NEBENBEI erledigte, kommt hier ausdrücklich: eine
+  # geänderte `compose.yaml` (neues Image für clamav, geänderter backup-Dienst, ein neuer
+  # Dienst) erreicht die übrigen Dienste sonst nie, denn der suite-Aufruf darunter läuft
+  # mit `--no-deps`. `--no-deps` auch hier: kein anderer Dienst darf die Suite anfassen.
+  if [ -n "$andere" ]; then
+    # shellcheck disable=SC2086 # Dienstnamen enthalten keine Leerzeichen
+    docker compose up -d --no-deps $andere || return 1
+  fi
+  # ⚠️ `--no-deps` SCHALTET `depends_on: condition: service_healthy` AB — auch das Warten
+  # darauf. Ohne die Zeile hier startete die neue Suite gegen einen gerade neu erzeugten,
+  # noch nicht bereiten clamd, und jeder Upload in diesem Fenster liefe in ECONNREFUSED
+  # bis `av_status = 'error'` (fail-closed, Download dauerhaft gesperrt). Also wird die
+  # Bedingung von Hand nachgestellt; ein unveränderter clamav antwortet sofort `healthy`.
+  if printf '%s\n' "$andere" | grep -qx clamav; then
+    clamav_cid="$(docker compose ps -q clamav 2>/dev/null | head -1 || true)"
+    if [ -z "$clamav_cid" ] || ! warte_gesund "$clamav_cid"; then
+      warne "clamav ist nicht healthy geworden — die Suite hängt per depends_on an ihm (Runbook E5)."
+      return 1
+    fi
+  fi
+  anzahl_alt="$(printf '%s\n' $ALT_CIDS | grep -c . || true)"
+  docker compose up -d --no-deps --no-recreate --scale "suite=$((anzahl_alt + 1))" suite || return 1
+  NEU_CID="$(neue_suite_container)"
+  if [ -z "$NEU_CID" ] || [ "$(printf '%s\n' "$NEU_CID" | grep -c .)" -ne 1 ]; then
+    warne "Nach dem Hochskalieren ist nicht genau EIN neuer suite-Container zu finden: '${NEU_CID:-<keiner>}'."
+    return 1
+  fi
+  echo "  neuer Container ${NEU_CID:0:12} läuft neben $(printf '%s ' $ALT_CIDS | cut -c1-12)"
+}
+
+# Der Rückweg der Übergabe: NUR der neue Container geht, der alte lief die ganze Zeit
+# weiter und wird nicht angefasst — kein Neustart, kein `up -d` auf `suite`.
+uebergabe_zuruecknehmen() {
+  local grund="$1" cid andere
+  melde "ROLLBACK: den neuen Container entfernen — der alte lief durchgehend weiter"
+  for cid in $(neue_suite_container); do
+    # Ein neuer, der schon healthy war, hatte Verkehr (Traefik balanciert über beide);
+    # er bekommt dieselbe Gnadenfrist wie ein alter.
+    docker stop --time "$GNADE" "$cid" >/dev/null 2>&1 || true
+    docker rm -f "$cid" >/dev/null || warne "Konnte den neuen Container $cid nicht entfernen — von Hand: docker rm -f $cid"
+    echo "  neuer Container ${cid:0:12} entfernt."
+  done
+  stack_zuruecklegen
+  if [ -n "$RUECKWEG" ]; then
+    setze_pin "$RUECKWEG"
+  else
+    warne "Kein vorheriger Digest bekannt: SUITE_IMAGE in der .env bleibt auf $NEUES_IMAGE.
+  Der alte Container läuft weiter, ein späteres up -d von Hand zöge aber den NEUEN Stand —
+  vorher Teil D des Runbooks."
+  fi
+  andere="$(andere_dienste)"
+  if [ -n "$andere" ]; then
+    # shellcheck disable=SC2086
+    docker compose up -d --no-deps $andere || warne "docker compose up -d der übrigen Dienste ist beim Rollback gescheitert."
+  fi
+  clamav_nachziehen || warne "clamav liess sich nicht neu erzeugen."
+  if ausgetauscht scripts/backup-sidecar.sh || ausgetauscht scripts/backup.sh; then
+    docker compose up -d --no-deps --force-recreate backup \
+      || warne "Der Dienst backup liess sich nicht neu erzeugen — von Hand nachholen."
+  fi
+  cid="$(printf '%s\n' $ALT_CIDS | head -1)"
+  if warte_gesund "$cid"; then
+    abbruch "$grund — Rollback gelaufen: der neue Container ist entfernt, der alte lief
+  durchgehend weiter und ist wieder healthy. Der Fehler steckt im ausgerollten Stand, nicht im Server."
+  fi
+  # KEIN Log-Auszug: der alte Container hatte die ganze Zeit Verkehr (zeige_suite_log).
+  abbruch "$grund — UND DER ALTE CONTAINER IST NICHT HEALTHY.
+  Erster Blick ist \"docker compose ps\" und \"docker compose ps clamav\", dann
+  \"docker compose logs suite\" am Server (Runbook E8)."
+}
+
 zurueck_und_raus() {
   local grund="$1"
   warne "$grund"
+  if [ "$UEBERGABE" -eq 1 ]; then
+    uebergabe_zuruecknehmen "$grund"
+  fi
   if [ -z "$RUECKWEG" ]; then
     # Die Stack-Dateien bleiben dann bewusst auf dem neuen Stand: zurückgelegt passten
     # sie nicht mehr zu dem Image, das weiterläuft.
@@ -693,7 +833,61 @@ zurueck_und_raus() {
   (die Suite startet wegen depends_on nicht ohne ihn), dann \"docker compose logs suite\"."
 }
 
-melde "Schritt 5: Stack-Dateien ablegen, Image pinnen, Stack neu starten"
+melde "Schritt 5: Stack-Dateien ablegen, Image pinnen, neuen Container starten"
+# ── Übergabe statt Neustart ────────────────────────────────────────────────────────────
+# Bis zum 04.11.2026 stand hier ein nacktes `docker compose up -d`: Compose stoppt den
+# alten Container, DANN startet der neue, und bis der `healthy` meldet, hat Traefik
+# keinen Server für den Router — 404 auf ALLEN Modul-Hosts. An dem Tag konnte so ein
+# Helfer einen Fahrzeugcheck nicht absenden. Jetzt (Muster „docker-rollout"):
+#   5  neuen Container per `--scale suite=<alt+1> --no-recreate` NEBEN den alten stellen,
+#   6  auf GENAU ihn warten (`healthy`), 7  SEINE Revision beweisen,
+#   7b erst dann den alten stoppen (SIGTERM, Gnadenfrist) und entfernen.
+# Scheitert etwas vor 7b, geht nur der neue — der alte hat nie aufgehört zu antworten.
+# `--scale` braucht, dass `suite` weder `container_name` noch einen festen Host-Port hat;
+# `scripts/deploy.test.ts` riegelt beides an der `compose.yaml` ab.
+#
+# ⚠️ ZWEI PROZESSE AUF DENSELBEN SQLITE-DATEIEN, für die Dauer der Überlappung (Boot bis
+# `healthy` plus Gnadenfrist, typisch unter einer Minute). Getragen wird das von WAL und
+# `busy_timeout = 5000` (`src/core/db/index.ts`, `openModuleDatabase`): WAL lässt Leser
+# neben einem Schreiber zu und serialisiert Schreiber über eine Sperre, auf die ein
+# zweiter Prozess bis zu 5s wartet. Das gilt, weil `suite_data` ein LOKALES Volume auf
+# demselben Kern ist — die `-shm`-Datei ist geteilter Speicher und auf einem
+# Netzdateisystem nicht verlässlich. Wer das Volume je auf NFS o. ä. legt, schaltet die
+# Übergabe ab (SUITE_DEPLOY_UEBERGABE=aus).
+#
+# ⚠️ DER NEUE MIGRIERT BEIM BOOT NACH VORN, WÄHREND DER ALTE NOCH SCHREIBT UND LIEST.
+# Eine additive Migration (neue Tabelle, neue Spalte mit Vorbelegung) übersteht der alte
+# Code. Eine ZERSTÖRENDE (Spalte umbenannt oder gelöscht, NOT NULL ohne Vorbelegung)
+# bricht ihn in diesem Fenster — mit Fehlern auf genau den Anfragen, die Traefik noch zu
+# ihm schickt. Das ist dieselbe Regel wie für die Einsatzbuch-App und den Image-Rollback:
+# zerstörende Schemaänderungen über ZWEI Releases (erst nicht mehr lesen, dann entfernen).
+#
+# ⚠️ HINTERGRUNDARBEIT LÄUFT IN DER ÜBERLAPPUNG ZWEIMAL (`startBackgroundWork` in
+# `src/core/bootstrap.ts`). Durchgesehen am 04.11.2026: Audit-Übernahme
+# (`ON CONFLICT(id) DO NOTHING`), Aufräum-Takte von files, einsatzbuch, feedback und
+# radio (Löschen ist idempotent, radio und feedback laufen erst Minuten nach dem Boot) und
+# die Scan-Arbeiter (ein doppelter Scan liefert denselben Befund) sind unschädlich. Der
+# einzige sichtbare Fall ist der Push (`portal/_lib/faelligkeiten/takt.ts`): der Wochen-
+# Push setzt frühestens 2 min, der Sofort-Push 60s nach dem Boot ein und vermerkt
+# Gesendetes in der Datenbank. Doppelt käme eine Sofort-Meldung nur, wenn beide Prozesse
+# sie lesen, bevor einer sie vermerkt — dafür muss die Überlappung länger als 60s dauern.
+# Deshalb soll sie kurz bleiben (GNADE nicht hochsetzen ohne Grund); der Ernstfall ist
+# eine doppelte Mitteilung, und `sofort.ts` nimmt „lieber doppelt als nie" ohnehin hin.
+#
+# Gleiche Traefik-Labels an beiden Containern sind gewollt: Traefik balanciert in der
+# Überlappung über beide. Kein laufender suite-Container (erster Rollout) oder
+# SUITE_DEPLOY_UEBERGABE=aus → der alte Weg, `docker compose up -d`.
+if [ "$UEBERGABE_SCHALTER" != "aus" ]; then
+  ALT_CIDS="$(docker compose ps -q suite 2>/dev/null || true)"
+  [ -z "$ALT_CIDS" ] || UEBERGABE=1
+fi
+if [ "$UEBERGABE" -eq 1 ]; then
+  echo "  Übergabe: der neue Container startet neben $(printf '%s\n' $ALT_CIDS | grep -c .) laufendem."
+elif [ "$UEBERGABE_SCHALTER" = "aus" ]; then
+  echo "  SUITE_DEPLOY_UEBERGABE=aus — Neustart per docker compose up -d (kurze Ausfallzeit)."
+else
+  echo "  Kein laufender suite-Container — Neustart per docker compose up -d."
+fi
 if [ "${#AUSTAUSCH[@]}" -gt 0 ]; then
   # Erst beiseitelegen, dann ablegen — der Rückweg muss stehen, bevor die erste Datei
   # ersetzt ist.
@@ -719,19 +913,37 @@ schreibe_stand
 setze_pin "$NEUES_IMAGE"
 docker compose config >/dev/null || zurueck_und_raus "docker compose config ist nach dem Austausch ungültig — .env prüfen."
 clamav_nachziehen || zurueck_und_raus "clamav liess sich mit der neuen clamd.files.conf nicht neu erzeugen."
-docker compose up -d || zurueck_und_raus "docker compose up -d ist gescheitert."
+if [ "$UEBERGABE" -eq 1 ]; then
+  starte_neben_dem_alten || zurueck_und_raus "Der neue suite-Container liess sich nicht neben dem alten starten."
+else
+  docker compose up -d || zurueck_und_raus "docker compose up -d ist gescheitert."
+fi
 
 # ══ Schritt 6 — auf `healthy` warten ═════════════════════════════════════════════════
 melde "Schritt 6: auf healthy warten (bis zu ${FRIST}s)"
-if ! warte_gesund; then
-  zeige_suite_log "neuer Stand $NEUES_IMAGE"
-  zurueck_und_raus "Die Suite ist nicht healthy geworden. Ihre letzten Logzeilen stehen oben."
+if [ "$UEBERGABE" -eq 1 ]; then
+  if ! warte_gesund "$NEU_CID"; then
+    zeige_suite_log "neuer Stand $NEUES_IMAGE" "$NEU_CID"
+    zurueck_und_raus "Der neue suite-Container ist nicht healthy geworden. Seine letzten Logzeilen stehen oben."
+  fi
+else
+  if ! warte_gesund; then
+    zeige_suite_log "neuer Stand $NEUES_IMAGE"
+    zurueck_und_raus "Die Suite ist nicht healthy geworden. Ihre letzten Logzeilen stehen oben."
+  fi
+  NEU_CID="$(docker compose ps -q suite 2>/dev/null | head -1 || true)"
 fi
 echo "  healthy."
 
 # ══ Schritt 7 — Beweis: antwortet WIRKLICH der neue Commit? ══════════════════════════
+# Gezielt am neuen Container: bei der Übergabe wählte `docker compose exec suite` einen
+# der beiden, womöglich den alten — und bewiese dann das Falsche.
 melde "Schritt 7: Revision der laufenden Instanz prüfen"
-antwort="$(docker compose exec -T suite wget -qO- http://127.0.0.1:3000/api/health/portal 2>/dev/null || true)"
+if [ -n "$NEU_CID" ]; then
+  antwort="$(docker exec "$NEU_CID" wget -qO- http://127.0.0.1:3000/api/health/portal 2>/dev/null || true)"
+else
+  antwort="$(docker compose exec -T suite wget -qO- http://127.0.0.1:3000/api/health/portal 2>/dev/null || true)"
+fi
 rev_live="$(printf '%s' "$antwort" | sed -n 's/.*"revision":"\([^"]*\)".*/\1/p')"
 echo "  Antwort: ${antwort:-<leer>}"
 [ -n "$rev_live" ] || zurueck_und_raus "In /api/health/portal steht kein Feld \`revision\`.
@@ -743,6 +955,54 @@ echo "  Revision stimmt."
 # der Versionierung liefert das Feld gar nicht — deshalb kein Abbruch bei leer.
 VERSION_LIVE="$(printf '%s' "$antwort" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
 echo "  Version: ${VERSION_LIVE:-<kein Feld>}"
+
+# ══ Schritt 7b — Übergabe: der alte Container geht aus dem Verkehr ═══════════════════
+# Erst hier, und das ist die ganze Idee: bis eben konnte jeder Fehlschlag den neuen
+# entfernen, ohne dass ein Nutzer etwas merkt.
+#
+# ⚠️ ERST WARTEN, DANN STOPPEN. Traefiks Docker-Provider erfährt vom neuen Container über
+# das Ereignis `health_status: healthy` und lädt seine Konfiguration danach frühestens
+# nach `providersThrottleDuration` (Vorgabe 2s) neu. Stoppte das Skript den alten sofort,
+# stünde für diese Spanne KEIN Server im Router — dieselbe Lücke wie vorher, nur kürzer.
+# 5s (SUITE_DEPLOY_TRAEFIK_PAUSE) sind die Drosselung mit Luft.
+#
+# ⚠️ DER ALTE BEKOMMT SIGTERM, NICHT SIGKILL, und eine Gnadenfrist (SUITE_DEPLOY_GNADE).
+# Next.js schliesst dann den Listener und beendet laufende Anfragen; ein halb
+# übertragener Fahrzeugcheck wird also zu Ende angenommen. ⛔ WAS DAS NICHT LEISTET, und
+# es gehört benannt: Traefik nimmt den alten erst beim Ereignis `die` (plus Drosselung)
+# aus dem Router, nicht schon bei SIGTERM. Zwischen SIGTERM und Neuladen trifft ein Teil
+# der NEUEN Anfragen den geschlossenen Listener und bekommt 502 — gemessen nicht, nach
+# Traefiks Quelltext (`pkg/provider/docker/pdocker.go`, Ereignisse start/die/health_status)
+# ein Fenster von etwa zwei Sekunden. Das ist der Rest, nicht null; der Weg dorthin steht
+# im Runbook (auto-rollout.md, Teil B, „Restfenster").
+#
+# Ein Fehlschlag HIER rollt nichts zurück: der neue ist bewiesen und hat Verkehr, ein
+# Rollback verlängerte nur die Störung. Laut wird es trotzdem.
+if [ "$UEBERGABE" -eq 1 ]; then
+  melde "Schritt 7b: Übergabe — den alten Container aus dem Verkehr nehmen"
+  sleep "$TRAEFIK_PAUSE"
+  for cid in $ALT_CIDS; do
+    if docker stop --time "$GNADE" "$cid" >/dev/null; then
+      docker rm "$cid" >/dev/null || warne "Alter Container $cid ist gestoppt, liess sich aber nicht entfernen — von Hand: docker rm $cid"
+      echo "  alter Container ${cid:0:12} gestoppt und entfernt."
+    else
+      warne "Alter Container $cid liess sich nicht stoppen und bekommt weiter Verkehr — von Hand: docker stop $cid && docker rm $cid"
+    fi
+  done
+  rest="$(docker compose ps -q -a suite 2>/dev/null || true)"
+  if [ "$rest" = "$NEU_CID" ]; then
+    # Compose merkt sich keine Skalierung; der Aufruf legt den Stand auf 1 fest, ohne den
+    # neuen anzufassen (`--no-recreate`). NUR wenn wirklich allein der neue übrig ist:
+    # welchen Container Compose beim Herunterskalieren entfernt, ist nicht unsere Wahl.
+    docker compose up -d --no-deps --no-recreate --scale suite=1 suite >/dev/null \
+      || warne "docker compose up --scale suite=1 ist gescheitert — der neue Container läuft trotzdem."
+    echo "  Übergabe abgeschlossen: allein ${NEU_CID:0:12} bedient die Suite."
+  else
+    warne "Neben dem neuen Container stehen noch weitere suite-Container:
+$(printf '    %s\n' $rest)
+  Der neue (${NEU_CID:0:12}) ist bewiesen. Die übrigen von Hand stoppen und entfernen."
+  fi
+fi
 
 # ══ Schritt 8 — öffentliche Gegenprobe über Traefik ══════════════════════════════════
 # BEWUSST NUR EINE WARNUNG, kein Rollback: Schritt 7 hat den Container bereits bewiesen.
@@ -860,6 +1120,11 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo "| Commit | \`$ERWARTET\` |"
     echo "| Image | \`$NEUES_IMAGE\` |"
     echo "| Rückweg | \`${RUECKWEG:-— (erster Rollout)}\` |"
+    if [ "$UEBERGABE" -eq 1 ]; then
+      echo "| Wechsel | Übergabe, der alte Container lief bis zum Beweis weiter |"
+    else
+      echo "| Wechsel | Neustart per up -d (kurze Ausfallzeit) |"
+    fi
     echo "| Stack-Dateien | ${AUSTAUSCH[*]:-unverändert} |"
     echo "| Stack | \`$STACK_DIR\` |"
     echo

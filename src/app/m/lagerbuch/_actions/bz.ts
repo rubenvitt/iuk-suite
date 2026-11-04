@@ -64,6 +64,8 @@ const KontrolleSchema = z.object({
    * Status ein Rauschen, das niemand mehr liest.
    */
   beachtung: z.coerce.boolean().default(false),
+  /** IDA-358: die Sendungs-ID des Geraets wird die ID der Kontrolle — Wiederholungsschutz. */
+  sendungId: z.string().uuid().optional(),
 });
 
 /**
@@ -356,6 +358,17 @@ export async function kontrolleErfassen(
     if (!geparst.success) return validierungsFehler(geparst.error);
     const v = geparst.data;
 
+    // IDA-358: eine schon gespeicherte Sendung antwortet mit damals, statt eine
+    // zweite Kontrolle anzulegen (die Tabelle ist append-only).
+    if (v.sendungId) {
+      const frueher = db.select({ id: bzKontrollen.id, geraetId: bzKontrollen.geraetId, bestanden: bzKontrollen.bestanden })
+        .from(bzKontrollen).where(eq(bzKontrollen.id, v.sendungId)).get();
+      if (frueher) {
+        if (frueher.geraetId !== v.geraetId) return festerFehler("Diese Kontrolle gehört zu einem anderen Gerät.");
+        return { ok: true, wert: { id: frueher.id, bestanden: frueher.bestanden } };
+      }
+    }
+
     let id: string;
     let bestanden: boolean;
     try {
@@ -424,7 +437,7 @@ export async function kontrolleErfassen(
         };
       }
 
-      id = newId();
+      id = v.sendungId ?? newId();
       bestanden = bewertung.bestanden;
       const jetzt = new Date();
       /**
