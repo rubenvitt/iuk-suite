@@ -41,19 +41,39 @@ function lies(form: HTMLFormElement): Werte {
   return w;
 }
 
+/*
+ * ⚠️ NICHT `el.value = …`: ein antd-`Input` steuert sein natives Feld intern, und
+ * das nächste Rendern überschriebe den per DOM gesetzten Wert. Der Setter des
+ * Prototyps plus ein blubberndes Ereignis gehen durch Reacts `onChange` — so
+ * erfährt auch die Komponente vom Wert. Aus demselben Grund setzt ein Klick
+ * Checkbox und Radio, nicht `checked`.
+ */
+function setzeWert(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, wert: string) {
+  if (el.value === wert) return;
+  Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")?.set?.call(el, wert);
+  el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }));
+}
+
+function setzeHaken(el: HTMLInputElement, soll: boolean) {
+  if (el.checked !== soll) el.click();
+}
+
 function schreibe(form: HTMLFormElement, w: Werte) {
   for (const el of Array.from(form.elements)) {
     if (!gesichert(el)) continue;
     if (el instanceof HTMLInputElement && el.type === "checkbox") {
       const k = `${el.name}::${el.value}`;
-      if (k in w) el.checked = w[k] === true;
+      if (k in w) setzeHaken(el, w[k] === true);
     } else if (el instanceof HTMLInputElement && el.type === "radio") {
-      if (el.name in w) el.checked = w[el.name] === el.value;
+      if (el.name in w && w[el.name] === el.value) setzeHaken(el, true);
     } else if (el instanceof HTMLSelectElement && el.multiple) {
       const v = w[el.name];
-      if (Array.isArray(v)) for (const o of Array.from(el.options)) o.selected = v.includes(o.value);
+      if (Array.isArray(v)) {
+        for (const o of Array.from(el.options)) o.selected = v.includes(o.value);
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
     } else if (el.name in w && typeof w[el.name] === "string") {
-      el.value = w[el.name] as string;
+      setzeWert(el, w[el.name] as string);
     }
   }
 }
