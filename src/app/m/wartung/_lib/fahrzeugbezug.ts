@@ -26,14 +26,16 @@ export function fahrzeugWahl(fahrzeuge: BereitgestelltesFahrzeug[]): FahrzeugWah
 
 /**
  * Die Eingabe mit Verweis und Namen aus der Fahrzeugverwaltung. Im Lager gibt es keinen Verweis. Ein Verweis
- * auf ein Fahrzeug, das es nicht (mehr) gibt, wird abgelehnt; ein Freitext, der genau einem Fahrzeug
- * gleicht, bekommt dessen Verweis.
+ * auf ein Fahrzeug, das es nicht (mehr) gibt, wird abgelehnt, ebenso ein NEUER Verweis auf ein Fahrzeug außer
+ * Dienst (`bisher` ist der gespeicherte Verweis — der bleibt bearbeitbar); ein Freitext, der genau einem
+ * Fahrzeug gleicht, bekommt dessen Verweis.
  */
-export function mitFahrzeugbezug(e: GeraetEingabe, fahrzeuge: BereitgestelltesFahrzeug[]): GeraetEingabe {
+export function mitFahrzeugbezug(e: GeraetEingabe, fahrzeuge: BereitgestelltesFahrzeug[], bisher: string | null = null): GeraetEingabe {
   if (e.ortArt !== "fahrzeug") return { ...e, fahrzeugId: null };
   if (e.fahrzeugId) {
     const f = fahrzeuge.find((x) => x.id === e.fahrzeugId);
     if (!f) throw new Abgelehnt("Dieses Fahrzeug gibt es in der Fahrzeugverwaltung nicht mehr.", "ort");
+    if (!f.aktiv && f.id !== bisher) throw new Abgelehnt("Dieses Fahrzeug ist außer Dienst.", "ort");
     return { ...e, ort: kurzname(f) };
   }
   const gleich = wahlZuName(fahrzeugWahl(fahrzeuge), e.ort);

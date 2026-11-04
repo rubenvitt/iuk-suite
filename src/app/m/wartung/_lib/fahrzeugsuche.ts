@@ -24,8 +24,12 @@ export function passt(w: Pick<FahrzeugWahl, "suche">, eingabe: string): boolean 
   return eingabe.split(/\s+/).map(normalisiert).filter(Boolean).every((t) => w.suche.includes(t));
 }
 
-/** Das Fahrzeug, dessen Name genau so im Feld steht — sonst ist es Freitext (ein Fahrzeug von woanders). */
+/**
+ * Das Fahrzeug, dessen Name genau so im Feld steht — sonst ist es Freitext (ein Fahrzeug von woanders). Tragen
+ * zwei Fahrzeuge denselben Namen (ohne Funkkenner möglich), verknüpft nur die Auswahl eines Vorschlags.
+ */
 export function wahlZuName(wahl: FahrzeugWahl[], name: string): FahrzeugWahl | null {
   const n = name.trim();
-  return n ? wahl.find((w) => w.name === n) ?? null : null;
+  const treffer = n ? wahl.filter((w) => w.name === n) : [];
+  return treffer.length === 1 ? treffer[0] : null;
 }

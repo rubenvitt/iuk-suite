@@ -83,11 +83,11 @@ export async function geraetAendernAction(id: string, eingabe: unknown): Promise
   const e = geprueft(geraetEingabe, eingabe);
   if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
   return schreibe("verwalter", ({ rechte }) => {
-    const alt = gruppeDesGeraets(id);
+    const alt = getDb().select({ gruppeId: geraet.gruppeId, fahrzeugId: geraet.fahrzeugId }).from(geraet).where(eq(geraet.id, id)).get();
     if (!alt) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
-    if (!verwaltetGruppe(rechte, alt)) throw new Abgelehnt(NICHT_DEINE);
+    if (!verwaltetGruppe(rechte, alt.gruppeId)) throw new Abgelehnt(NICHT_DEINE);
     if (!verwaltetGruppe(rechte, e.wert.gruppeId)) throw new Abgelehnt("Diese Gruppe verwaltest du nicht.", "gruppeId");
-    geraetAendern(getDb(), id, mitFahrzeugbezug(e.wert, bereitgestellteFahrzeuge().fahrzeuge), Date.now());
+    geraetAendern(getDb(), id, mitFahrzeugbezug(e.wert, bereitgestellteFahrzeuge().fahrzeuge, alt.fahrzeugId), Date.now());
   });
 }
 

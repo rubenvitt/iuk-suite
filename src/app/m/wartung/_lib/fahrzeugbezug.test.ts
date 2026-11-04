@@ -52,4 +52,15 @@ describe("Fahrzeugwahl der Gerätewartung (IDA-342)", () => {
     expect(mitFahrzeugbezug({ ...basis, ortArt: "lager", ort: "Halle", fahrzeugId: "a" }, BESTAND).fahrzeugId).toBeNull();
     expect(() => mitFahrzeugbezug({ ...basis, ort: "x", fahrzeugId: "weg" }, BESTAND)).toThrow(/nicht mehr/);
   });
+
+  it("lehnt einen neuen Verweis auf ein Fahrzeug außer Dienst ab, behält einen gespeicherten", () => {
+    expect(() => mitFahrzeugbezug({ ...basis, fahrzeugId: "c" }, BESTAND)).toThrow(/außer Dienst/);
+    expect(mitFahrzeugbezug({ ...basis, fahrzeugId: "c" }, BESTAND, "c")).toMatchObject({ ort: "MTF 11-19-1", fahrzeugId: "c" });
+  });
+
+  it("verknüpft Freitext nicht, wenn zwei Fahrzeuge denselben Namen tragen", () => {
+    const zwei = [fz("x", "Anhänger", null, null), fz("y", "Anhänger", null, null)];
+    expect(mitFahrzeugbezug({ ...basis, ort: "Rotkreuz Musterstadt Anhänger" }, zwei).fahrzeugId).toBeNull();
+    expect(mitFahrzeugbezug({ ...basis, ort: "egal", fahrzeugId: "y" }, zwei).fahrzeugId).toBe("y");
+  });
 });
