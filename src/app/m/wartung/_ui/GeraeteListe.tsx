@@ -99,7 +99,7 @@ export function GeraeteListe({
         rowKey="id"
         aria-label="Geräte"
         dataSource={liste}
-        leer={{ nichts: "Noch keine Geräte.", gefiltert: "Keine Geräte dieser Art.", aktiv: art !== "alle" }}
+        leer={{ nichts: "Noch keine Geräte", figur: "wartung", gefiltert: "Keine Geräte dieser Art.", aktiv: art !== "alle" }}
         karte={{ titel: "name", kennzeichen: ["zustand"] }}
         columns={[
           {

@@ -44,7 +44,7 @@ export function HelferAnsicht({ p, a, helfer, neuTemp, bearbeiteTemp, entferneTe
         rowKey="schluessel"
         aria-label="Helfer der Planung"
         dataSource={zeilen}
-        leer={{ nichts: "Im Helfer-Modul steht noch niemand, und es gibt keine temporären Helfer.", gefiltert: "Niemand passt zu diesem Filter.", aktiv: filter !== "alle" }}
+        leer={{ nichts: "Noch keine Helfer", figur: "schichtplan", gefiltert: "Niemand passt zu diesem Filter.", aktiv: filter !== "alle" }}
         columns={[
           { title: "Name", key: "name", sorter: nachText<PlanHelfer>((h) => `${h.nachname} ${h.vorname}`), render: (_: unknown, h: PlanHelfer) => <strong>{name(h)}</strong> },
           {

@@ -61,7 +61,7 @@ export function ServiceTable({
       size="small"
       // Kein Diagramm, keine Karte darunter — der Leerzustand nennt den
       // naechsten Schritt direkt (Formular steht im selben Abschnitt darunter).
-      leer={{ nichts: "Noch keine Dienste angelegt. Lege unten den ersten an." }}
+      leer={{ nichts: "Noch keine Dienste", figur: "portal" }}
       onRow={() => ({ "data-testid": "service-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={[
         // Spaltenkoepfe sind nackte Zeichenketten — die Kicker-Rolle setzt

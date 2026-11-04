@@ -61,7 +61,7 @@ export function PersonenTabelle({ zeilen }: { zeilen: PersonenZeile[] }) {
       rowKey={(zeile) => zeile.person.id}
       aria-label="Personen"
       dataSource={zeilen}
-      leer={{ nichts: "Noch keine Personen angelegt.", gefiltert: "Keine Person passt zum Filter." }}
+      leer={{ nichts: "Noch keine Personen", figur: "aufgaben", gefiltert: "Keine Person passt zum Filter." }}
       columns={[
         {
           title: "Name",

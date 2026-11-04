@@ -96,7 +96,8 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
         aria-label="Artikel"
         dataSource={zeilen}
         leer={{
-          nichts: sicht === "vorlaeufig" ? "Nichts zu prüfen." : sicht === "inaktiv" ? "Keine inaktiven Artikel." : "Noch keine Artikel.",
+          nichts: sicht === "vorlaeufig" ? "Nichts zu prüfen" : sicht === "inaktiv" ? "Keine inaktiven Artikel" : "Noch keine Artikel",
+          figur: sicht === "vorlaeufig" ? "erledigt" : "verpflegung",
           gefiltert: "Kein Artikel passt zum Filter.",
         }}
         karte={{ titel: "name", kennzeichen: ["stand"] }}

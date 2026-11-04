@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { TableProps } from "antd";
+import { Button, type TableProps } from "antd";
 import { Kartentabelle, nachText, nachZahl, zustandsFilter } from "@/core/tabelle";
 import { Altbestandsfussnote, Notenfunke, Notenpille } from "./Noten";
 import { T } from "./typo";
@@ -165,9 +165,10 @@ export function VergleichTabelle({ zeilen }: { zeilen: VergleichZeile[] }) {
        * §4.3, Punkt 5: der Leertext nennt den nächsten Schritt statt nur den
        * Zustand — die einzige Stelle, an der er entsteht, ist der Einstieg
        * (`+ Neue Gruppe`), den nur ein Admin sieht, also derselbe Kreis, der
-       * diese Seite überhaupt erreicht.
+       * diese Seite überhaupt erreicht. Seit der Haarlinie (Etappe 3) ist der Schritt die EINE
+       * Aktion des Ruhezustands statt eines Satzes.
        */
-      leer={{ nichts: 'Keine Gruppen — leg eine unter „Deine Gruppen" an.' }}
+      leer={{ nichts: "Keine Gruppen", figur: "feedback", aktion: <Button href="/">Deine Gruppen</Button> }}
       onRow={() => ({ "data-testid": "vergleich-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={SPALTEN}
     />

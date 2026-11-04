@@ -333,7 +333,7 @@ export function SharesTabelle({ zeilen }: { zeilen: ShareZeile[] }) {
         columns={spaltenListe}
         /* „Nichts angelegt" faengt `SharesUebersicht` vorher ab (eigener
            Leerzustand mit Weg zum Anlegen); hier bleibt nur der Filterfall. */
-        leer={{ nichts: "Keine Freigabe.", gefiltert: "Keine Freigabe passt zum Filter." }}
+        leer={{ nichts: "Noch keine Freigaben", figur: "files", gefiltert: "Keine Freigabe passt zum Filter." }}
       />
 
       {qrZeile !== null && (

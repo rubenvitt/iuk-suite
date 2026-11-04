@@ -443,7 +443,7 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
     const wirt = await zeichne();
 
     expect(wirt.querySelectorAll("[data-testid='verlauf-kopf']")).toHaveLength(0);
-    expect(wirt.textContent).not.toContain("Noch keine vergangenen Dienstabende.");
+    expect(wirt.textContent).not.toContain("Noch keine vergangenen Dienstabende");
 
     // Zone a steht da: die Teilnahme-Adresse aus den (gemockten) Headern und der
     // Satz, den es nur in der Einrichtung gibt.
@@ -526,7 +526,7 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
     expect(wirt.querySelectorAll("[data-testid='verlauf-kopf']")).toHaveLength(1);
     expect(wirt.textContent).toContain("Abend ohne Feedback nachtragen");
     // Und der Leertext steht dort, weil die Tabelle wirklich leer ist.
-    expect(wirt.textContent).toContain("Noch keine vergangenen Dienstabende.");
+    expect(wirt.textContent).toContain("Noch keine vergangenen Dienstabende");
   });
 
   it("ZAEHLT ABGESAGTE ABENDE NICHT als erfasste Dienstabende", async () => {

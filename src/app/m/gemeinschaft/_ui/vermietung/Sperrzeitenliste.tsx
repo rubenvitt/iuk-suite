@@ -82,7 +82,7 @@ export function Sperrzeitenliste({ anfragen, sperren, heute }: { anfragen: Anfra
         rowKey="id"
         aria-label="Sperrzeiten der Bar"
         dataSource={sperren}
-        leer={{ nichts: "Keine Sperrzeiten eingetragen." }}
+        leer={{ nichts: "Keine Sperrzeiten", figur: "gemeinschaft" }}
         columns={[
           { title: "Wann", key: "wann", sorter: nachZahl<SperrzeitDTO>((x) => x.von), defaultSortOrder: "ascend", render: (_: unknown, x: SperrzeitDTO) => zeitraumText(x.von, x.bis) },
           { title: "Grund", key: "grund", render: (_: unknown, x: SperrzeitDTO) => <Button type="link" style={{ paddingInline: 0, whiteSpace: "normal", textAlign: "start", height: "auto", minHeight: 44 }} onClick={() => setOffenId(x.id)}>{x.grund}</Button> },

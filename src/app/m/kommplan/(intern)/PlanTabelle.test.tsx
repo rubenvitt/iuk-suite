@@ -48,7 +48,7 @@ describe("PlanTabelle", () => {
   });
   it("ohne Pläne steht der Leertext, keine leere Tabelle", async () => {
     await mount(<PlanTabelle zeilen={[]} liste="plaene" />);
-    expect(document.body.textContent).toContain("Noch keine Pläne.");
+    expect(document.body.textContent).toContain("Noch keine Pläne");
   });
   it("ein Menü je Zeile, Einträge je Liste; Archivieren nur, wer den Plan verwaltet (_lib/rechte.ts)", async () => {
     await mount(<PlanTabelle zeilen={ZEILEN.map((z) => ({ ...z, darf: { bearbeiten: false, verwalten: false } }))} liste="plaene" />);

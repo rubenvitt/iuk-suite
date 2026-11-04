@@ -45,7 +45,8 @@ export function ChargenListe({ titel, chargen, kontrolle }: { titel: string; cha
         aria-label={titel}
         dataSource={zeilen}
         leer={{
-          nichts: kontrolle ? "Nichts läuft in den nächsten Wochen ab." : "Noch nichts eingelagert.",
+          nichts: kontrolle ? "Nichts läuft in den nächsten Wochen ab" : "Noch nichts eingelagert",
+          figur: kontrolle ? "erledigt" : "verpflegung",
           gefiltert: "Keine Charge passt zur Auswahl.",
           aktiv: sicht !== "alle" ? true : undefined,
         }}

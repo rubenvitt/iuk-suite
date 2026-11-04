@@ -37,7 +37,7 @@ export function QualifikationenTabelle({ liste, onBearbeiten }: { liste: Qualifi
       dataSource={liste}
       filter={filter}
       onFilter={setFilter}
-      leer={{ nichts: "Noch keine Qualifikationen angelegt.", gefiltert: "Keine Qualifikation passt zum Filter.", aktiv: liste.length > 0 && filterAktiv(filter) }}
+      leer={{ nichts: "Noch keine Qualifikationen", figur: "einsatzbuch", gefiltert: "Keine Qualifikation passt zum Filter.", aktiv: liste.length > 0 && filterAktiv(filter) }}
       columns={[
         { title: "Rang", key: "rang", sorter: nachZahl<QualifikationZeile>((q) => q.rang), render: (_: unknown, q: QualifikationZeile) => q.rang },
         { title: "Kurzform", key: "kurz", sorter: nachText<QualifikationZeile>((q) => q.kurz), render: (_: unknown, q: QualifikationZeile) => q.kurz },
