@@ -235,7 +235,9 @@ export function GeraeteListe({
   // dieselben Praedikate danach noch einmal an — beide Schritte sind idempotent.
   const angezeigt = wendeFilterAn(gefiltert, spaltenliste, spaltenFilter);
   const hatFilter = sucheNachlauf.trim() !== "" || filterAktiv(spaltenFilter);
-  const zaehle = (trifft: (zeile: GeraetAnzeigeZeile) => boolean) => gefiltert.filter(trifft).length;
+  // Jede Pille zaehlt, was nach IHREM Klick stuende: derselbe Merge wie in onChange.
+  const zaehle = (w: Schnellwahl) =>
+    wendeFilterAn(gefiltert, spaltenliste, { ...spaltenFilter, ...SCHNELLWAHL[w] }).length;
 
   return (
     <>
@@ -261,10 +263,10 @@ export function GeraeteListe({
           wert={schnellwahlAus(spaltenFilter)}
           onChange={(w) => setSpaltenFilter((vorher) => ({ ...vorher, ...SCHNELLWAHL[w] }))}
           optionen={[
-            { wert: "alle", label: "Alle", anzahl: gefiltert.length },
-            { wert: "faellig", label: "Fällig", anzahl: zaehle((z) => FAELLIG_FILTER.onFilter("faellig", z)) },
-            { wert: "ohneDatum", label: "Ohne Datum", anzahl: zaehle((z) => FAELLIG_FILTER.onFilter("ohneDatum", z)) },
-            { wert: "inaktiv", label: "Inaktiv", anzahl: zaehle((z) => !z.aktiv) },
+            { wert: "alle", label: "Alle", anzahl: zaehle("alle") },
+            { wert: "faellig", label: "Fällig", anzahl: zaehle("faellig") },
+            { wert: "ohneDatum", label: "Ohne Datum", anzahl: zaehle("ohneDatum") },
+            { wert: "inaktiv", label: "Inaktiv", anzahl: zaehle("inaktiv") },
           ]}
         />
       </div>

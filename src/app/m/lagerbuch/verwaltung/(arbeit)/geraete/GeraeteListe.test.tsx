@@ -346,6 +346,17 @@ describe("GeraeteListe", () => {
     expect(queryAll("[role=radio][aria-checked=true]")).toHaveLength(0);
   });
 
+  it("die Schnellwahl zählt, was nach dem Klick stünde, samt anderer Spaltenfilter", async () => {
+    await mount(<GeraeteListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
+    const pillen = () => queryAll("[role=radiogroup][aria-label=Schnellwahl] [role=radio]");
+    await spaltenFilter("Klasse", "Medizin");
+    expect(pillen().map((p) => p.textContent)).toEqual(["Alle 2", "Fällig 1", "Ohne Datum 1", "Inaktiv 1"]);
+
+    await clickElement(pillen()[1]);
+    expect(zeilenIds()).toEqual(["med-faellig"]);
+    expect(pillen().map((p) => p.textContent)).toEqual(["Alle 2", "Fällig 1", "Ohne Datum 1", "Inaktiv 1"]);
+  });
+
   /**
    * ⚠️ DER BEWEIS, DASS DIE FAELLIGKEIT NICHT UEBER DEN CHIPTEXT SORTIERT.
    * „MTK in 3 T" stuende als Zeichenkette vor „abgelaufen (2 T)"; nur ueber die
