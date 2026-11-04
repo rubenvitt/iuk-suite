@@ -133,9 +133,9 @@ test("die Kachelkante steht in Ruhe auf --iuk-linie und im Hover auf --iuk-marke
   await expect(link).toHaveCount(1);
   const kachel = link.locator(".portal-kachel");
 
-  // Ruhezustand: `--iuk-linie` = #d9dde1. Gewaenne antds `.ant-card-bordered`
+  // Ruhezustand: `--iuk-linie` = #e7e7e4. Gewaenne antds `.ant-card-bordered`
   // (Shorthand auf allen vier Seiten), stuende hier dessen neutraler Rahmen.
-  await expect(kachel).toHaveCSS("border-left-color", "rgb(217, 221, 225)");
+  await expect(kachel).toHaveCSS("border-left-color", "rgb(231, 231, 228)");
 
   await link.hover();
   // Hover: `--iuk-marke` = #c8000f. Gewaenne `.ant-card-hoverable:hover`,

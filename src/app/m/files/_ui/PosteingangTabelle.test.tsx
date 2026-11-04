@@ -315,7 +315,7 @@ describe("Punkt 1 — Spalten und Vorgabesortierung", () => {
    * als Ballast wieder heraus — der Text sieht fuer sich genommen unveraendert
    * aus, die Rolle steckt ausschlieszlich im Stil.
    */
-  it("traegt an der Spalte „Zeit“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
+  it("traegt an der Spalte „Zeit“ die Rolle SCHRIFT.kicker (600)", async () => {
     await zeige();
     const kopf = queryAll("thead.ant-table-thead th")[1]; // Index 0 ist die Auswahlspalte.
     /* Gesucht wird der Span mit der ROLLE, nicht der erste: antd wickelt den
@@ -327,7 +327,7 @@ describe("Punkt 1 — Spalten und Vorgabesortierung", () => {
     );
     expect(span?.textContent).toBe("Zeit");
     expect(span?.style.fontWeight).toBe("600");
-    expect(span?.style.textTransform).toBe("uppercase");
+    expect(span?.style.textTransform).toBe("");
   });
 
   it("zeigt Groeszen in BINAEREN Einheiten mit dem Wort dazu", async () => {

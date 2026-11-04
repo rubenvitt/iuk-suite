@@ -140,7 +140,7 @@ export async function SuiteHeader({
                 weder gewollt noch erklärbar. */}
             <strong
               data-testid="module-title"
-              style={{ ...SCHRIFT.unterTitel, letterSpacing: "0.07em" }}
+              style={SCHRIFT.unterTitel}
             >
               {mod.title}
             </strong>

@@ -228,7 +228,7 @@ describe("Punkt 1 — die Zeile zeigt Zustand und Restbudget, nicht nur einen Na
    * als Ballast wieder heraus — der Text sieht fuer sich genommen unveraendert
    * aus, die Rolle steckt ausschlieszlich im Stil.
    */
-  it("traegt an der Spalte „Bezeichnung“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
+  it("traegt an der Spalte „Bezeichnung“ die Rolle SCHRIFT.kicker (600)", async () => {
     await zeige({ zeilen: [zeile()] });
     const kopf = queryAll("thead.ant-table-thead th")[0];
     /* Gesucht wird der Span mit der ROLLE, nicht der erste: antd wickelt den
@@ -240,7 +240,7 @@ describe("Punkt 1 — die Zeile zeigt Zustand und Restbudget, nicht nur einen Na
     );
     expect(span?.textContent).toBe("Bezeichnung");
     expect(span?.style.fontWeight).toBe("600");
-    expect(span?.style.textTransform).toBe("uppercase");
+    expect(span?.style.textTransform).toBe("");
   });
 
   it("benennt die drei Zustaende mit Text, nicht ueber Farbe", async () => {

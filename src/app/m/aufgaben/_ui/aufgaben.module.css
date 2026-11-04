@@ -2009,3 +2009,12 @@
   font-size: 16px;
   line-height: 1.55;
 }
+
+/*
+ * „… und N weitere" steht als Link in einem Satz. Seit der Haarlinie ist die Linkfarbe
+ * dieselbe Tinte wie der Text; ohne Strich wäre er nur am Zeiger zu erkennen (WCAG 1.4.1).
+ */
+.weitereLink {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

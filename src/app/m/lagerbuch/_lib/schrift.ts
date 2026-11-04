@@ -16,8 +16,8 @@ import { SCHRIFT as SUITE } from "@/core/theme/schrift";
  * Laufweite und Versalien ebenso ausdruecken."
  *
  * Das war richtig gedacht und ist ueberholt. Der Auftrag vom 2026-08-12 lautete,
- * die Anmutung des alten Lagerbuchs zurueckzuholen; die Suite laedt seither
- * Barlow Condensed als `--font-display`. Die Rueckname steht HIER und nicht nur
+ * die Anmutung des alten Lagerbuchs zurueckzuholen; Barlow Condensed war danach
+ * `--font-display`, bis die Haarlinie (IDA-347) Geist nahm. Die Rueckname steht HIER und nicht nur
  * im Entwurf, weil eine stillschweigende Umkehr fuer den naechsten Leser nicht
  * von einem Versehen zu unterscheiden waere.
  *

@@ -19,8 +19,8 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
    `Form.Item`, `Input.TextArea` …). Sicher: `Card`, `Statistic`, `Result`, `Progress`, `Table`, `Tag`.
 2. **`--ant-*`-Variablen sind nicht global** — sie hängen an antds Scope-Klasse. Eigenes Markup sieht
    sie nicht, still. Eigene Variablen verwenden.
-3. **`colorError === colorPrimary === #c8000f`** — ein `Alert type="error"` sieht aus wie eine
-   Primäraktion. Wo Rot fachlich etwas bedeutet, nie Rot auf eine Datenfläche.
+3. **Rot ist Fehler und Marke, nie Primäraktion** (seit IDA-347 ist `colorPrimary` Tinte; bis dahin war es
+   `colorError`). Wo Rot fachlich etwas bedeutet, nie Rot auf eine Datenfläche.
 4. **Kein `size` auf Bedienelementen** (`large` = 72px). Die Bediendichten stehen in
    `core/theme/theme.ts`: `FullShell` 44 (`ARBEITSDICHTE`, auch Telefon und Seitenleiste); `MinimalShell`
    und ohne Shell 56/72; `SCHREIBTISCHDICHTE` 32/40 nur in `radio`s Verwaltung, deren Update-Modus 56/72.

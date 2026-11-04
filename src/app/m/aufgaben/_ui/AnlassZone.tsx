@@ -109,7 +109,7 @@ export function AnlassZone({
       <AufgabenListe zeilen={zeilen} heute={heute} form={form} leerText="Nichts in dieser Zone." />
       {gedeckelt && ziel !== null ? (
         <p style={{ ...SCHRIFT.neben, margin: `${SPACE.sm}px 0 0` }}>
-          <Link href={ziel}>… und {rest} weitere →</Link>
+          <Link href={ziel} className={s.weitereLink}>… und {rest} weitere →</Link>
         </p>
       ) : null}
     </section>

@@ -101,10 +101,10 @@ const BREITE = {
   artikel: 230,
   fach: 90,
   kategorie: 150,
-  bestand: 110,
+  bestand: 120, // Haarlinie: der Kopf steht in Geist statt Barlow Condensed; 110 ließ „Bestand“ neben Sortier- und Filterzeichen nur 3 px Luft
   mindest: 90, // 80 brach den Kopf bei 1280px in „MI N." (IDA-241); Wort und zwei Zeichen brauchen 81
   verfall: 210,
-  status: 240,
+  status: 230, // gibt die 10 px an „Bestand“, die Summe bleibt 1120
 } as const;
 
 /** Die fachliche Ordnung der Ampel — rot zuerst, nicht alphabetisch. */

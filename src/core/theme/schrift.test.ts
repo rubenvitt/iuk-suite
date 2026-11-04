@@ -53,12 +53,13 @@ describe("SCHRIFT — die Rollenleiter der Suite", () => {
     }
   });
 
-  it("versalisiert genau eine Rolle", () => {
-    // Versalien sind der lauteste Griff der Leiter. Zwei Rollen mit Versalien
-    // waeren zwei Kicker, und dann entscheidet der Zufall am Verwendungsort.
+  it("versalisiert keine Rolle (Haarlinie, IDA-347)", () => {
+    // Versalien waren der lauteste Griff der Leiter und gehörten zum Kicker in
+    // Barlow Condensed. Die Haarlinie beschriftet leise; wer Versalien will,
+    // entscheidet das am Verwendungsort, nicht in der Leiter.
     const versal = Object.entries(SCHRIFT)
       .filter(([, w]) => w.textTransform === "uppercase")
       .map(([r]) => r);
-    expect(versal).toEqual(["kicker"]);
+    expect(versal).toEqual([]);
   });
 });

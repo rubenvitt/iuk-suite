@@ -20,7 +20,7 @@ import type { CSSProperties } from "react";
  * Der Charakter kommt aus den ANDEREN vier Achsen — Familie, Versalien und
  * Laufweite, Gewicht, Ziffernstellung. Genau so hat es das alte Lagerbuch
  * gemacht, dessen Anmutung hier zurueckkommt: es benutzte keine exotischen
- * Groeszen, sondern Barlow Condensed und ein durchgehendes Kicker-Muster.
+ * Groeszen, sondern Barlow Condensed und ein durchgehendes Kicker-Muster (Haarlinie: Geist, ohne Versal).
  *
  * KEINE FARBE. Sie gehoert dem Traeger, nicht der Rolle: `feedback` faerbt
  * ueber `--fb-muted`, `lagerbuch` unter `.modul` ueber `--lb-stahl`, Shell und
@@ -62,7 +62,8 @@ export const SCHRIFT: {
     fontFamily: DISPLAY,
     fontSize: 24,
     fontWeight: 600,
-    letterSpacing: "0.02em",
+    // Haarlinie: Geist statt Barlow Condensed, also enger statt weiter gesperrt.
+    letterSpacing: "-0.02em",
     lineHeight: 1.2,
   },
   /** 20/600 — Abschnitt zweiter Ordnung; auch Wortmarke und Modultitel der Shell. */
@@ -71,23 +72,24 @@ export const SCHRIFT: {
     fontFamily: DISPLAY,
     fontSize: 20,
     fontWeight: 600,
-    letterSpacing: "0.02em",
+    letterSpacing: "-0.015em",
   },
-  /** 12/600 versal — Kartentitel, Spaltenkoepfe, Feldbeschriftungen, Achsenlabel. */
+  /** 12/600 — Kartentitel, Spaltenkoepfe, Feldbeschriftungen, Achsenlabel. */
   kicker: {
     ...ZIFFERN,
     fontFamily: DISPLAY,
     fontSize: 12,
     fontWeight: 600,
-    letterSpacing: "0.09em",
-    textTransform: "uppercase",
+    // Haarlinie (IDA-347): kein Versal mehr — leise Beschriftung statt Stempel.
+    letterSpacing: "0.01em",
   },
-  /** 30/700 — Zaehler und KPI-Werte. `lineHeight: 1`, damit die Zahl nicht schwebt. */
+  /** 30/600 — Zaehler und KPI-Werte. `lineHeight: 1`, damit die Zahl nicht schwebt. */
   zahl: {
     ...ZIFFERN,
     fontFamily: DISPLAY,
     fontSize: 30,
-    fontWeight: 700,
+    fontWeight: 600,
+    letterSpacing: "-0.02em",
     lineHeight: 1,
   },
   /** 14/400 — Fliesztext, Tabellenzellen. */
