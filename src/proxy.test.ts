@@ -196,3 +196,24 @@ describe("mitVertraulichenKoepfen — gemessen am INTERNEN Pfad", () => {
     expect(mitVertraulichenKoepfen(NextResponse.next(), "/m/kommplan/p/abc").headers.get("referrer-policy")).toBeNull();
   });
 });
+
+describe("willSeite — nur ein Seitenaufruf bekommt die Seite „Kein Zugriff“", () => {
+  const anfrage = (method: string, koepfe: Record<string, string>) => ({ method, headers: new Headers(koepfe) });
+  const HTML = { accept: "text/html,application/xhtml+xml" };
+
+  it("ein GET mit HTML-Wunsch", () => {
+    expect(proxyModul.willSeite(anfrage("GET", HTML))).toBe(true);
+    expect(proxyModul.willSeite(anfrage("HEAD", HTML))).toBe(true);
+  });
+
+  it("nie eine API, eine Server Action oder ein RSC-Abruf des Client-Routers", () => {
+    expect(proxyModul.willSeite(anfrage("GET", { accept: "application/json" }))).toBe(false);
+    expect(proxyModul.willSeite(anfrage("POST", HTML))).toBe(false);
+    expect(proxyModul.willSeite(anfrage("GET", { ...HTML, rsc: "1" }))).toBe(false);
+    expect(proxyModul.willSeite(anfrage("GET", { ...HTML, "next-action": "abc" }))).toBe(false);
+  });
+
+  it("das Ziel ist die Seite, die `forbidden()` wirft", () => {
+    expect(proxyModul.KEIN_ZUGRIFF_PFAD).toBe("/kein-zugriff");
+  });
+});

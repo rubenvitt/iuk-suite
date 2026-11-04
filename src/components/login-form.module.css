@@ -167,6 +167,17 @@
   height: 68px;
 }
 
+/*
+ * Die Haarlinien-Figur rechts neben der Marke. `.marke .figur` (0,2,0) statt `.figur` allein: die
+ * Breite aus `core/ruhe/ruhe.module.css` steht auf derselben Stufe, und welches Modul-CSS später
+ * im Dokument steht, ist nicht zugesagt (Falle 5).
+ */
+.marke .figur {
+  inline-size: 128px;
+  margin-inline-start: auto;
+  margin-block-end: -12px;
+}
+
 .kicker {
   margin: 0 0 8px;
   font-family: var(--font-display);
