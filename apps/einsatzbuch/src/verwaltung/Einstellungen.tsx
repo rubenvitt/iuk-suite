@@ -13,9 +13,9 @@
  * - **Update:** die installierte Version, die letzte gelungene Suche (`status.updateGeprueft`),
  *   ein Hinweis, wenn der Updater (Rust, nur im Release-Build) eine Version vorgemerkt hat
  *   (`status.update`) oder zuletzt gescheitert ist (`status.updateFehler`), und „Nach Updates
- *   suchen“. Der Knopf sucht nur; installiert wird weiter von Rust allein, sobald nichts
- *   aussteht, niemand angemeldet ist und 15 Minuten lang kein Entwurf geändert wurde (Stufe 7,
- *   Entscheidung 1). Der Fehler steht auch ohne Vormerkung da, denn ein gescheitertes
+ *   suchen“. Der Knopf sucht nur; installiert wird weiter von Rust allein, auf dem
+ *   Startbildschirm in einem ruhigen Moment oder beim Beenden (`darf_installieren` in
+ *   `updater.rs`). Der Fehler steht auch ohne Vormerkung da, denn ein gescheitertes
  *   Installieren verwirft sie. Ein Release-Build hat kein Log, das jemand liest; dieser Hinweis
  *   ist der einzige Ort, an dem etwa eine Signatur auffällt, die nicht zum Schlüssel passt.
  *
@@ -214,7 +214,7 @@ export function Einstellungen(p: EinstellungenProps) {
             {p.version !== null ? <div className="absatz">Installiert ist Version {p.version}.</div> : null}
             {p.update !== null ? (
               <Hinweis ton="info" rolle="status">
-                Update auf {p.update} ist vorgemerkt. Es wird installiert, sobald kein Einsatz aussteht, niemand angemeldet ist und 15 Minuten lang kein Entwurf geändert wurde.
+                Update auf {p.update} ist vorgemerkt.
               </Hinweis>
             ) : null}
             {p.updateFehler !== null ? (

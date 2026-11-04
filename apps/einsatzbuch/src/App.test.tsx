@@ -39,6 +39,7 @@ const befehle = vi.hoisted(() => ({
   autostartStatus: vi.fn(),
   autostartSetzen: vi.fn(),
   updateSuchen: vi.fn(),
+  startbildschirmMelden: vi.fn(),
   beiUpdateStand: vi.fn(),
 }));
 vi.mock("./befehle", () => ({ befehle }));
@@ -217,6 +218,7 @@ beforeEach(() => {
   befehle.autostartStatus.mockResolvedValue(true);
   befehle.autostartSetzen.mockResolvedValue(undefined);
   befehle.beiUpdateStand.mockResolvedValue(() => {});
+  befehle.startbildschirmMelden.mockResolvedValue(undefined);
   befehle.ankerAbgleichen.mockResolvedValue({
     bestaetigtBis: 3, hash: BLOECKE[2].hash, gemeldetAm: "2026-09-25T10:00:00+02:00", abweichung: null, offline: false, widerrufen: false,
   });
@@ -429,6 +431,19 @@ describe("Update-Stand", () => {
     expect(abmelden).toHaveBeenCalledTimes(1);
   });
 
+  /** Der Updater installiert nur auf dem Startbildschirm ohne Dialog; die App meldet jeden Wechsel. */
+  it("meldet dem Updater, ob der Startbildschirm steht", async () => {
+    await starte(status({ update: "1.2.0", updateLauf: "bereit" }));
+    const zuletzt = () => befehle.startbildschirmMelden.mock.calls.at(-1)?.[0];
+    expect(zuletzt()).toBe(true);
+    expect(text()).toContain("Update bereit");
+
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warte();
+    expect(text()).toContain("Neuer Einsatz");
+    expect(zuletzt()).toBe(false);
+  });
+
   /** Unten rechts auf der Startseite, ohne Anmeldung: erst „steht an“, dann der Spinner, dann der Neustart. */
   it("zeigt ein anstehendes und ein laufendes Update auch ohne Anmeldung", async () => {
     await starte(status({ update: "1.2.0" }));
@@ -441,13 +456,13 @@ describe("Update-Stand", () => {
     await act(async () => melde());
     await warte();
     expect(queryAll(".update-spinner")).toHaveLength(1);
-    expect(text()).toContain("Update wird installiert");
+    expect(text()).toContain("Update wird geladen");
 
-    befehle.status.mockResolvedValue(status({ update: "1.2.0", updateLauf: "neustart" }));
+    befehle.status.mockResolvedValue(status({ update: "1.2.0", updateLauf: "bereit" }));
     await act(async () => melde());
     await warte();
     expect(queryAll(".update-spinner")).toHaveLength(0);
-    expect(text()).toContain("Update installiert");
+    expect(text()).toContain("Update bereit");
 
     befehle.status.mockResolvedValue(status());
     await act(async () => melde());

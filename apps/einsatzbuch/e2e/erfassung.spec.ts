@@ -155,7 +155,7 @@ test("Update-Anzeige: auf der Startseite in der Ecke, im Formular über der Fuß
   await installiereStub(page, { betrieb: "test", update: "1.2.0", updateLauf: "laedt" });
   await page.goto("/");
   const anzeige = page.locator(".update-anzeige");
-  await expect(anzeige).toContainText("Update wird installiert");
+  await expect(anzeige).toContainText("Update wird geladen");
   await expect(anzeige.locator(".update-spinner")).toBeVisible();
   const fenster = page.viewportSize()!;
   const inDerEcke = (await anzeige.boundingBox())!;
@@ -169,6 +169,35 @@ test("Update-Anzeige: auf der Startseite in der Ecke, im Formular über der Fuß
   const ueber = (await anzeige.boundingBox())!;
   expect(ueber.y + ueber.height).toBeLessThanOrEqual(leiste.y);
   expect(ueber.y + ueber.height).toBeLessThanOrEqual(knopf.y);
+});
+
+/**
+ * Der Updater installiert und startet nur neu, solange der Startbildschirm ohne Dialog steht
+ * (`darf_installieren` in `src-tauri/src/updater.rs`). Die Oberfläche meldet jeden Wechsel.
+ */
+test("meldet dem Updater, ob der Startbildschirm steht: Formular und Dialog nicht", async ({ page }) => {
+  await installiereStub(page, { betrieb: "test", update: "1.2.0", updateLauf: "bereit" });
+  await page.goto("/");
+  const zuletzt = () =>
+    page.evaluate(() =>
+      (window as unknown as { __aufrufe: { cmd: string; args: { angezeigt?: boolean } }[] }).__aufrufe
+        .filter((a) => a.cmd === "startbildschirm_melden")
+        .map((a) => a.args.angezeigt)
+        .at(-1),
+    );
+  await expect(page.locator(".update-anzeige")).toContainText("Update bereit");
+  await expect.poll(zuletzt).toBe(true);
+
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Neuer Einsatz" })).toBeVisible();
+  await expect.poll(zuletzt).toBe(false);
+
+  await page.getByRole("button", { name: "Zurück", exact: true }).click();
+  await expect.poll(zuletzt).toBe(true);
+
+  await page.getByRole("button", { name: "Testbetrieb beenden" }).click();
+  await expect(page.getByRole("heading", { name: "Testbetrieb beenden?" })).toBeVisible();
+  await expect.poll(zuletzt).toBe(false);
 });
 
 test("je Patient eine Zeile: Einsatznummer und wer transportiert hat gehen mit ab", async ({ page }) => {

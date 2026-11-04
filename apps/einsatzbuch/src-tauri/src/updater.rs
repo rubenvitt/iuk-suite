@@ -7,39 +7,51 @@
 //! - Der Thread prüft kurz nach dem Start (`ERSTE_PRUEFUNG`) und danach alle 6 Stunden
 //!   (`PRUEFTAKT`), nach einer gescheiterten Prüfung oder einem gescheiterten Herunterladen oder
 //!   Installieren schon nach 15 Minuten (`WIEDERHOLUNG`).
-//!   Eine neuere Version wird nur **vorgemerkt** (`Zustand::update`, nur die Version); der
-//!   Status meldet sie der Oberfläche.
-//! - Jede Minute (`REGELTAKT`) fragt er, solange etwas vorgemerkt ist, `darf_installieren`:
-//!   nichts ausstehend, keine Sitzung, keine laufende Anmeldung und kein Entwurf, der in den
-//!   letzten 15 Minuten (`ENTWURF_RUHE`) geändert wurde. Erst dann lädt er herunter
-//!   (Entscheidung 2), fragt die Regel nach dem Herunterladen **noch einmal** und installiert nur,
-//!   wenn sie weiter gilt: Das Herunterladen kann dauern, und wer in der Zeit einen Einsatz
-//!   absendet oder sich anmeldet, soll nicht mitten in der Arbeit neu starten.
+//!   Eine neuere Version wird **vorgemerkt** (`Zustand::update`); der Status meldet sie der
+//!   Oberfläche.
+//! - Eine Vormerkung lädt der Thread gleich herunter, auf jeder Seite (`ladrunde`): Herunterladen
+//!   und Signatur prüfen reißen nichts ab. Das Paket liegt danach im Speicher (`Ablage`), die
+//!   Vormerkung gilt als `geladen`, der Status meldet `Updatelauf::Bereit`.
+//! - Installiert und neu gestartet wird nur, wenn `darf_installieren` gilt (`installationsrunde`,
+//!   jede Minute, `REGELTAKT`): Die Oberfläche zeigt den **Startbildschirm** ohne offenen Dialog
+//!   (`Zustand::startbildschirm`, gemeldet von `App.tsx`), nichts steht aus, keine Sitzung, keine
+//!   laufende Anmeldung und kein Entwurf, der in den letzten 15 Minuten (`ENTWURF_RUHE`) geändert
+//!   wurde. Ein offenes Formular, die Verwaltung (das Tagebuch) oder die Einrichtung halten das
+//!   Update also auf, so lange sie offen sind (Anlass 04.11.2026: Ein Neustart darf nie Eingaben
+//!   verwerfen).
 //! - Nach dem Installieren folgt `AppHandle::restart()` aus dem Tauri-Kern (kein
 //!   `tauri-plugin-process` nötig, dessen `relaunch` ruft dasselbe), aber erst, wenn
 //!   `darf_installieren` dann noch gilt; sonst wartet der Neustart minütlich darauf (`Lauf`).
 //!   Unter Windows beendet `install` die App schon selbst und startet den NSIS-Installer
 //!   (`installMode: "passive"`), der sie danach neu startet.
+//! - Beendet jemand die App mit einem geladenen, noch nicht installierten Paket, installiert
+//!   `beim_beenden` es (`RunEvent::Exit` in `lib.rs`), ohne Neustart. Nicht unter Windows: Dort
+//!   startet der Installer die App danach wieder (`/R` im Passivmodus), sie käme also nach dem
+//!   Beenden zurück. Unter Windows installiert deshalb der nächste Start, sobald der
+//!   Startbildschirm steht.
 //! - Ein Fehler steht als kurzer Text in `Zustand::update_fehler` (`Updatefehler`), und der
 //!   Status zeigt ihn in der Karte „Einstellungen“: Ein Release-Build schreibt kein Log, das
 //!   jemand lesen könnte. Die Texte baut `PluginQuelle` aus festen Sätzen, nie aus der Meldung des
 //!   Plugins (die Pfade und Adressen enthalten kann). Eine Panik fängt der Thread je Runde (wie
-//!   `abgleich.rs`). Ein Fehler beim Installieren (etwa eine falsche Signatur) verwirft die
-//!   Vormerkung: Die nächste Prüfung, 15 Minuten später, merkt neu vor, statt jede Minute erneut
-//!   herunterzuladen.
+//!   `abgleich.rs`). Ein Fehler beim Herunterladen oder Installieren (etwa eine falsche Signatur)
+//!   verwirft die Vormerkung: Die nächste Prüfung, 15 Minuten später, merkt neu vor, statt jede
+//!   Minute erneut herunterzuladen.
 //! - „Nach Updates suchen“ (Befehl `update_suchen`) ruft dieselbe `pruefrunde` sofort, außerhalb
-//!   des Takts. Sie merkt nur vor; installiert wird weiter nur hier im Thread, im ruhigen Moment.
+//!   des Takts. Sie merkt nur vor; geladen und installiert wird weiter nur hier im Thread.
 //! - Ändert eine Runde, was der Status über das Update meldet (`Stand`), sendet der Thread das
 //!   Ereignis `STAND_EREIGNIS`, und die Oberfläche liest den Status neu. Sonst sähe niemand das
 //!   Ergebnis der ersten Prüfung, der die App vorher geöffnet hat.
-//! - Herunterladen und Installieren sind sichtbar (`Updatelauf`, `Laufanzeige`): Die Oberfläche
-//!   zeigt unten rechts einen Spinner, danach bis zum Neustart einen Hinweis. Das Ereignis geht
-//!   dafür schon zu Beginn der Installationsrunde hinaus, nicht erst nach dem ganzen Schritt.
+//! - Herunterladen und Bereitschaft sind sichtbar (`Updatelauf`, `Laufanzeige`): Die Oberfläche
+//!   zeigt unten rechts einen Spinner, danach „Update bereit“. Das Ereignis geht dafür schon zu
+//!   Beginn einer Runde hinaus, nicht erst nach dem ganzen Schritt.
 //!
 //! Sperrreihenfolge (`zustand.rs`): `update`, `update_fehler`, `update_geprueft` und `update_lauf` sind Blätter,
 //! keiner wird über einem anderen gehalten. `lage` nimmt das Buch kurz und gibt es vor den Blättern frei; kein Lock
-//! wird über einer Anfrage an GitHub gehalten.
+//! wird über einer Anfrage an GitHub gehalten. Der Lock der `Ablage` wird nur zum Ablegen und Herausnehmen genommen,
+//! nie über dem Herunterladen oder Installieren.
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::Ordering;
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
@@ -64,11 +76,12 @@ pub const ENTWURF_RUHE: Duration = Duration::from_secs(15 * 60);
 /// Ereignis an die Oberfläche: Der Update-Teil des Status hat sich geändert (`Stand`).
 pub const STAND_EREIGNIS: &str = "update-stand";
 
-/// Ein gefundenes, noch nicht installiertes Update. Nur die Metadaten: Heruntergeladen wird erst
-/// beim Installieren (Entscheidung 2).
+/// Ein gefundenes, noch nicht installiertes Update: die Version und ob das Paket schon
+/// heruntergeladen und geprüft in der `Ablage` liegt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Vorgemerkt {
     pub version: String,
+    pub geladen: bool,
 }
 
 /// Was der Updater gerade tut; die Oberfläche zeigt es unten rechts (`bausteine/UpdateAnzeige.tsx`).
@@ -76,16 +89,18 @@ pub struct Vorgemerkt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Updatelauf {
-    /// Die Installationsrunde läuft: erneut prüfen, herunterladen, installieren.
+    /// Das Herunterladen läuft.
     Laedt,
+    /// Heruntergeladen und geprüft; installiert wird auf dem Startbildschirm oder beim Beenden.
+    Bereit,
     /// Installiert; der Neustart wartet auf einen ruhigen Moment (`Lauf::neustart_faellig`).
     Neustart,
 }
 
-/// Hält `Zustand::update_lauf` für die Dauer einer Installationsrunde auf `Laedt` und setzt ihn
-/// beim Verlassen auf `danach`, auch nach einem Fehler oder einer Panik (`Drop`). Beide Male
-/// meldet `melde` es der Oberfläche: Sonst stünde der Spinner nach einer Panik für immer da,
-/// oder er erschiene gar nicht, weil der Thread `STAND_EREIGNIS` erst nach dem Schritt sendet.
+/// Hält `Zustand::update_lauf` für die Dauer einer Runde auf `waehrend` und setzt ihn beim
+/// Verlassen auf `danach`, auch nach einem Fehler oder einer Panik (`Drop`). Beide Male meldet
+/// `melde` es der Oberfläche: Sonst stünde der Spinner nach einer Panik für immer da, oder er
+/// erschiene gar nicht, weil der Thread `STAND_EREIGNIS` erst nach dem Schritt sendet.
 struct Laufanzeige<'a> {
     z: &'a Zustand,
     melde: &'a dyn Fn(),
@@ -93,8 +108,8 @@ struct Laufanzeige<'a> {
 }
 
 impl<'a> Laufanzeige<'a> {
-    fn beginne(z: &'a Zustand, melde: &'a dyn Fn()) -> Laufanzeige<'a> {
-        *z.update_lauf() = Some(Updatelauf::Laedt);
+    fn beginne(z: &'a Zustand, melde: &'a dyn Fn(), waehrend: Updatelauf) -> Laufanzeige<'a> {
+        *z.update_lauf() = Some(waehrend);
         melde();
         Laufanzeige { z, melde, danach: None }
     }
@@ -130,6 +145,8 @@ impl Updatefehler {
 /// Was einer Installation im Weg stehen kann.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lage {
+    /// Die Oberfläche zeigt den Startbildschirm ohne offenen Dialog (`Zustand::startbildschirm`).
+    pub startbildschirm: bool,
     /// Ein abgesendeter Einsatz wartet auf seine Frist.
     pub ausstehend: bool,
     /// Eine Verwaltungssitzung ist offen (eine abgelaufene zählt nicht).
@@ -140,13 +157,13 @@ pub struct Lage {
     pub entwurf_in_arbeit: bool,
 }
 
-/// Installiert und neu gestartet wird nur in einem ruhigen Moment: nichts ausstehend, niemand
-/// angemeldet, keine Anmeldung im Gang (Spec §4.8, Review Focus 1) und kein Entwurf, an dem in
-/// den letzten 15 Minuten jemand geschrieben hat. Ein Entwurf übersteht den Neustart zwar, aber
-/// ein Neustart mitten im Tippen reißt die Eingabe ab. Ein liegengelassener Entwurf hält das
-/// Update dagegen nicht auf: Nach 15 Minuten ohne Änderung zählt er nicht mehr.
+/// Installiert und neu gestartet wird nur in einem ruhigen Moment: auf dem Startbildschirm,
+/// nichts ausstehend, niemand angemeldet, keine Anmeldung im Gang (Spec §4.8, Review Focus 1) und
+/// kein Entwurf, an dem in den letzten 15 Minuten jemand geschrieben hat. Der Startbildschirm ist
+/// die eigentliche Bedingung: Jede andere Seite kann Eingaben halten, die ein Neustart abreißt.
+/// Die übrigen bleiben als zweite Sicherung stehen.
 pub fn darf_installieren(l: &Lage) -> bool {
-    !l.ausstehend && !l.sitzung && !l.anmeldung_laeuft && !l.entwurf_in_arbeit
+    l.startbildschirm && !l.ausstehend && !l.sitzung && !l.anmeldung_laeuft && !l.entwurf_in_arbeit
 }
 
 /// Wurde der Entwurf vor weniger als `ENTWURF_RUHE` geändert? Gemessen in beide Richtungen: Eine
@@ -175,33 +192,29 @@ pub fn lage(z: &Zustand) -> Lage {
     let jetzt_ms = jetzt.timestamp_millis();
     let sitzung = z.sitzung().as_ref().is_some_and(|s| s.ablauf_ms > jetzt_ms);
     let anmeldung_laeuft = z.anmeldung().is_some();
-    Lage { ausstehend, sitzung, anmeldung_laeuft, entwurf_in_arbeit }
-}
-
-/// Ausgang eines Installationsversuchs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Installation {
-    /// Installiert; unter macOS folgt der Neustart.
-    Installiert,
-    /// Heruntergeladen, aber die Lage kippte inzwischen: nicht installiert, bleibt vorgemerkt.
-    Verschoben,
-    /// Der Endpunkt nennt keine neuere Version mehr (etwa nach einem Rücksetzen nach Runbook).
-    KeinUpdate,
+    let startbildschirm = z.startbildschirm.load(Ordering::SeqCst);
+    Lage { startbildschirm, ausstehend, sitzung, anmeldung_laeuft, entwurf_in_arbeit }
 }
 
 /// Der Weg zum Update-Endpunkt: im Betrieb das Tauri-Plugin (`PluginQuelle`), in Tests ein Fake.
 pub trait Quelle {
     /// Fragt den Endpunkt. `Some(version)`, wenn es eine neuere Version gibt.
     fn pruefe(&self) -> Result<Option<String>, String>;
-    /// Fragt den Endpunkt erneut, lädt herunter und prüft die Signatur. Danach fragt sie `darf`
-    /// und installiert nur bei `true`.
-    fn installiere(&self, darf: &dyn Fn() -> bool) -> Result<Installation, String>;
+    /// Fragt den Endpunkt erneut, lädt herunter, prüft die Signatur und legt das Paket ab.
+    /// `Some(version)` des abgelegten Pakets; `None`, wenn der Endpunkt keine neuere Version mehr
+    /// nennt (etwa nach einem Rücksetzen nach Runbook).
+    fn lade(&self) -> Result<Option<String>, String>;
+    /// Installiert das abgelegte Paket und nimmt es dabei aus der Ablage.
+    fn installiere(&self) -> Result<(), String>;
+    /// Verwirft ein abgelegtes Paket.
+    fn verwirf(&self);
 }
 
 /// Eine Prüfrunde: merkt die neuere Version vor oder verwirft die Vormerkung, wenn der Endpunkt
-/// keine mehr nennt. Ein Fehler lässt die Vormerkung stehen, steht danach in
-/// `Updatefehler::pruefung` und geht an den Aufrufer. Nennt der Endpunkt keine neuere Version,
-/// ist auch ein alter Installationsfehler erledigt.
+/// keine mehr nennt. Nennt er dieselbe Version wie vorgemerkt, bleibt ein geladenes Paket liegen;
+/// eine andere verwirft es, die nächste `ladrunde` holt die neue. Ein Fehler lässt die Vormerkung
+/// stehen, steht danach in `Updatefehler::pruefung` und geht an den Aufrufer. Nennt der Endpunkt
+/// keine neuere Version, ist auch ein alter Installationsfehler erledigt.
 pub fn pruefrunde(z: &Zustand, q: &dyn Quelle) -> Result<(), String> {
     let neu = match q.pruefe() {
         Ok(neu) => neu,
@@ -218,37 +231,70 @@ pub fn pruefrunde(z: &Zustand, q: &dyn Quelle) -> Result<(), String> {
             fehler.installation = None;
         }
     }
-    *z.update() = neu.map(|version| Vorgemerkt { version });
+    // Eigene Anweisung: Der Guard von `update` darf nicht über `update_lauf` gehalten werden.
+    let bisher = z.update().clone();
+    if bisher.as_ref().map(|v| &v.version) == neu.as_ref() {
+        return Ok(());
+    }
+    if bisher.is_some_and(|v| v.geladen) {
+        q.verwirf();
+        let mut lauf = z.update_lauf();
+        if *lauf == Some(Updatelauf::Bereit) {
+            *lauf = None;
+        }
+    }
+    *z.update() = neu.map(|version| Vorgemerkt { version, geladen: false });
     Ok(())
 }
 
-/// Eine Installationsrunde: nur mit Vormerkung und nur, wenn `darf_installieren` gilt, vor und
-/// nach dem Herunterladen. `Ok(true)` heißt installiert, der Aufrufer startet neu. Ein Fehler
+/// Eine Laderunde: nur mit Vormerkung, die noch nicht geladen ist, und auf jeder Seite.
+/// `Ok(true)` heißt geladen (`Updatelauf::Bereit`). Ein Fehler verwirft die Vormerkung (die
+/// nächste Prüfung merkt neu vor), steht danach in `Updatefehler::installation` und geht an den
+/// Aufrufer. Solange sie läuft, steht `Updatelauf::Laedt` im Status (`Laufanzeige`); `melde` sagt
+/// es der Oberfläche.
+pub fn ladrunde(z: &Zustand, q: &dyn Quelle, melde: &dyn Fn()) -> Result<bool, String> {
+    let offen = z.update().as_ref().filter(|v| !v.geladen).map(|v| v.version.clone());
+    let Some(version) = offen else {
+        return Ok(false);
+    };
+    let mut anzeige = Laufanzeige::beginne(z, melde, Updatelauf::Laedt);
+    match q.lade() {
+        Ok(Some(geladen)) => {
+            *z.update() = Some(Vorgemerkt { version: geladen, geladen: true });
+            anzeige.danach = Some(Updatelauf::Bereit);
+            Ok(true)
+        }
+        Ok(None) => {
+            *z.update() = None;
+            z.update_fehler().installation = None;
+            Ok(false)
+        }
+        Err(e) => {
+            *z.update() = None;
+            z.update_fehler().installation = Some(format!("Update auf {version} nicht geladen: {e}"));
+            Err(e)
+        }
+    }
+}
+
+/// Eine Installationsrunde: nur mit geladenem Paket und nur, wenn `darf_installieren` gilt.
+/// `Ok(true)` heißt installiert, der Aufrufer startet neu (`Updatelauf::Neustart`). Ein Fehler
 /// verwirft die Vormerkung (die nächste Prüfung merkt neu vor), steht danach in
-/// `Updatefehler::installation` und geht an den Aufrufer. Solange sie läuft, steht
-/// `Updatelauf::Laedt` im Status, nach einer Installation `Neustart` (`Laufanzeige`); `melde`
-/// sagt es der Oberfläche.
+/// `Updatefehler::installation` und geht an den Aufrufer.
 pub fn installationsrunde(z: &Zustand, q: &dyn Quelle, melde: &dyn Fn()) -> Result<bool, String> {
-    // Eigene Anweisung: Der Guard von `update` darf nicht über `lage` (Buch) gehalten werden.
-    let vorgemerkt = z.update().as_ref().map(|v| v.version.clone());
-    let Some(version) = vorgemerkt else {
+    let geladen = z.update().as_ref().filter(|v| v.geladen).map(|v| v.version.clone());
+    let Some(version) = geladen else {
         return Ok(false);
     };
     if !darf_installieren(&lage(z)) {
         return Ok(false);
     }
-    let mut anzeige = Laufanzeige::beginne(z, melde);
-    match q.installiere(&|| darf_installieren(&lage(z))) {
-        Ok(Installation::Installiert) => {
+    let mut anzeige = Laufanzeige::beginne(z, melde, Updatelauf::Bereit);
+    match q.installiere() {
+        Ok(()) => {
             z.update_fehler().installation = None;
             anzeige.danach = Some(Updatelauf::Neustart);
             Ok(true)
-        }
-        Ok(Installation::Verschoben) => Ok(false),
-        Ok(Installation::KeinUpdate) => {
-            *z.update() = None;
-            z.update_fehler().installation = None;
-            Ok(false)
         }
         Err(e) => {
             *z.update() = None;
@@ -279,10 +325,31 @@ fn kurztext(e: &tauri_plugin_updater::Error) -> String {
     .to_string()
 }
 
+/// Ein heruntergeladenes, geprüftes Paket, bereit zum Installieren.
+struct Paket {
+    update: tauri_plugin_updater::Update,
+    bytes: Vec<u8>,
+}
+
+/// Wo das geladene Paket bis zur Installation liegt: im Speicher, verwaltet von Tauri (`starte`),
+/// damit Updater-Thread, „Nach Updates suchen“ und `beim_beenden` dasselbe sehen. Nur im
+/// Release-Build vorhanden.
+#[derive(Default)]
+pub struct Ablage(Mutex<Option<Paket>>);
+
+impl Ablage {
+    fn nimm(&self) -> Option<Paket> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner).take()
+    }
+    fn lege(&self, paket: Paket) {
+        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(paket);
+    }
+}
+
 /// Die echte Quelle: `tauri-plugin-updater` mit Endpunkt und Schlüssel aus `tauri.conf.json`.
-/// Die asynchrone API läuft per `block_on` auf dem Updater-Thread. Die volle Meldung des Plugins
-/// geht nur nach stderr (sichtbar nur, wenn die App aus einem Terminal läuft), an die Oberfläche
-/// der `kurztext`.
+/// Die asynchrone API läuft per `block_on` auf dem aufrufenden Thread. Die volle Meldung des
+/// Plugins geht nur nach stderr (sichtbar nur, wenn die App aus einem Terminal läuft), an die
+/// Oberfläche der `kurztext`.
 pub struct PluginQuelle {
     pub app: AppHandle,
 }
@@ -290,6 +357,12 @@ pub struct PluginQuelle {
 fn kurz(e: tauri_plugin_updater::Error) -> String {
     eprintln!("Updater: {e}");
     kurztext(&e)
+}
+
+impl PluginQuelle {
+    fn ablage(&self) -> Result<tauri::State<'_, Ablage>, String> {
+        self.app.try_state::<Ablage>().ok_or_else(|| "Unerwarteter Fehler des Updaters.".to_string())
+    }
 }
 
 impl Quelle for PluginQuelle {
@@ -301,20 +374,45 @@ impl Quelle for PluginQuelle {
         })
     }
 
-    fn installiere(&self, darf: &dyn Fn() -> bool) -> Result<Installation, String> {
+    fn lade(&self) -> Result<Option<String>, String> {
+        let ablage = self.ablage()?;
         tauri::async_runtime::block_on(async {
             let updater = self.app.updater().map_err(kurz)?;
             let Some(update) = updater.check().await.map_err(kurz)? else {
-                return Ok(Installation::KeinUpdate);
+                ablage.nimm();
+                return Ok(None);
             };
-            let paket = update.download(|_, _| {}, || {}).await.map_err(kurz)?;
-            if !darf() {
-                return Ok(Installation::Verschoben);
-            }
-            update.install(paket).map_err(kurz)?;
-            Ok(Installation::Installiert)
+            let bytes = update.download(|_, _| {}, || {}).await.map_err(kurz)?;
+            let version = update.version.clone();
+            ablage.lege(Paket { update, bytes });
+            Ok(Some(version))
         })
     }
+
+    fn installiere(&self) -> Result<(), String> {
+        let paket = self.ablage()?.nimm().ok_or_else(|| "Unerwarteter Fehler des Updaters.".to_string())?;
+        paket.update.install(&paket.bytes).map_err(kurz)
+    }
+
+    fn verwirf(&self) {
+        if let Ok(ablage) = self.ablage() {
+            ablage.nimm();
+        }
+    }
+}
+
+/// Die App wird beendet (`RunEvent::Exit` in `lib.rs`): Liegt ein geladenes Paket bereit, wird es
+/// jetzt installiert, ohne Neustart. Nicht unter Windows (siehe Modulkopf). Nach einem Neustart
+/// des Updaters ist die Ablage schon leer, und es geschieht nichts.
+pub fn beim_beenden(app: &AppHandle) {
+    #[cfg(not(target_os = "windows"))]
+    if let Some(paket) = app.try_state::<Ablage>().and_then(|a| a.nimm()) {
+        if let Err(e) = paket.update.install(&paket.bytes) {
+            eprintln!("Update beim Beenden nicht installiert: {e}");
+        }
+    }
+    #[cfg(target_os = "windows")]
+    let _ = app;
 }
 
 /// Führt eine Runde aus und fängt Fehler und Panik; `None` nach beidem.
@@ -366,24 +464,28 @@ impl Lauf {
         Lauf { naechste_pruefung: jetzt, neustart_faellig: false }
     }
 
-    /// Eine Minute der Schleife. `true` heißt: jetzt neu starten. `melde` geht an die
+    /// Eine Minute der Schleife. `true` heißt: jetzt neu starten. `melde` geht an Lade- und
     /// Installationsrunde (`Laufanzeige`).
     ///
     /// - Wartet ein installiertes Update auf den Neustart, wird nur `darf_installieren` gefragt:
     ///   Unter macOS ist das Bundle dann schon ersetzt, und zwischen Installation und Neustart kann
-    ///   sich jemand angemeldet oder einen Einsatz abgesendet haben. Weder Prüfung noch
-    ///   Installation laufen dann erneut.
+    ///   jemand den Startbildschirm verlassen haben. Weder Prüfung noch Installation laufen dann
+    ///   erneut.
     /// - Sonst ist die Prüfung fällig: nach einem Erfolg die nächste in 6 Stunden, nach einem
     ///   Fehlschlag (etwa offline beim Start) in 15 Minuten.
-    /// - Danach die Installationsrunde; nach einer Installation gleich die Frage nach dem Neustart.
-    ///   Scheitert sie (Herunterladen, Signatur, Installieren), ist die Vormerkung verworfen, und
-    ///   die nächste Prüfung kommt spätestens in 15 Minuten statt erst nach 6 Stunden. Ein
-    ///   verschobenes Update (die Lage kippte) zieht die Prüfung nicht vor.
+    /// - Danach die Laderunde, auf jeder Seite, dann die Installationsrunde; nach einer
+    ///   Installation gleich die Frage nach dem Neustart. Scheitert eine von beiden, ist die
+    ///   Vormerkung verworfen, und die nächste Prüfung kommt spätestens in 15 Minuten statt erst
+    ///   nach 6 Stunden. Ein Update, das nur auf den Startbildschirm wartet, zieht die Prüfung
+    ///   nicht vor.
     pub fn schritt(&mut self, z: &Zustand, q: &dyn Quelle, jetzt: Instant, melde: &dyn Fn()) -> bool {
         if !self.neustart_faellig {
             if jetzt >= self.naechste_pruefung {
                 let gelungen = fange("Update-Prüfung", || pruefrunde(z, q)).is_some();
                 self.naechste_pruefung = jetzt + if gelungen { PRUEFTAKT } else { WIEDERHOLUNG };
+            }
+            if fange("Update-Download", || ladrunde(z, q, melde)).is_none() {
+                self.naechste_pruefung = self.naechste_pruefung.min(jetzt + WIEDERHOLUNG);
             }
             match fange("Update-Installation", || installationsrunde(z, q, melde)) {
                 Some(installiert) => self.neustart_faellig = installiert,
@@ -394,8 +496,9 @@ impl Lauf {
     }
 }
 
-/// Startet den Updater-Thread. `lib.rs` ruft das nur im Release-Build.
+/// Startet den Updater-Thread und legt die `Ablage` an. `lib.rs` ruft das nur im Release-Build.
 pub fn starte(app: AppHandle) -> std::io::Result<()> {
+    app.manage(Ablage::default());
     std::thread::Builder::new().name("updater".into()).spawn(move || {
         let quelle = PluginQuelle { app: app.clone() };
         // Scheitert das Senden, zeigt die Oberfläche den Stand beim nächsten Neulesen.
@@ -438,9 +541,10 @@ mod tests {
     use crate::befehle::{lies_status, sende_ab, speichere_entwurf, verwirf_entwurf, versiegele_jetzt};
 
     #[test]
-    fn darf_installieren_nur_ohne_ausstehendes_sitzung_anmeldung_und_frischen_entwurf() {
-        for bits in 0..16u8 {
+    fn darf_installieren_nur_auf_dem_startbildschirm_und_in_ruhe() {
+        for bits in 0..32u8 {
             let l = Lage {
+                startbildschirm: bits & 16 == 0,
                 ausstehend: bits & 1 != 0,
                 sitzung: bits & 2 != 0,
                 anmeldung_laeuft: bits & 4 != 0,
@@ -450,15 +554,19 @@ mod tests {
         }
     }
 
-    /// Eine Quelle, die der Test steuert. Sie zählt die Aufrufe und hält fest, was `darf` nach
-    /// dem „Herunterladen“ sagte.
+    /// Eine Quelle, die der Test steuert. Sie zählt die Aufrufe und hält fest, ob ein Paket
+    /// „abgelegt“ ist.
     struct FakeQuelle {
         version: RefCell<Result<Option<String>, String>>,
-        installation: RefCell<Result<Installation, String>>,
-        /// Läuft zwischen „heruntergeladen“ und der zweiten Frage an `darf` (Lage kippt).
+        /// Was `lade` liefert; `Ok(Some(_))` legt ein Paket ab.
+        ladung: RefCell<Result<Option<String>, String>>,
+        installation: RefCell<Result<(), String>>,
+        /// Läuft mitten in `lade`.
         waehrend_download: RefCell<Option<Box<dyn Fn()>>>,
         /// Läuft nach einer gelungenen Installation, vor der Frage nach dem Neustart.
         nach_installation: RefCell<Option<Box<dyn Fn()>>>,
+        abgelegt: Cell<bool>,
+        geladen: Cell<u32>,
         installiert: Cell<u32>,
         geprueft: Cell<u32>,
     }
@@ -467,9 +575,12 @@ mod tests {
         fn mit(version: Option<&str>) -> FakeQuelle {
             FakeQuelle {
                 version: RefCell::new(Ok(version.map(String::from))),
-                installation: RefCell::new(Ok(Installation::Installiert)),
+                ladung: RefCell::new(Ok(version.map(String::from))),
+                installation: RefCell::new(Ok(())),
                 waehrend_download: RefCell::new(None),
                 nach_installation: RefCell::new(None),
+                abgelegt: Cell::new(false),
+                geladen: Cell::new(0),
                 installiert: Cell::new(0),
                 geprueft: Cell::new(0),
             }
@@ -481,21 +592,30 @@ mod tests {
             self.geprueft.set(self.geprueft.get() + 1);
             self.version.borrow().clone()
         }
-        fn installiere(&self, darf: &dyn Fn() -> bool) -> Result<Installation, String> {
+        fn lade(&self) -> Result<Option<String>, String> {
             if let Some(f) = self.waehrend_download.borrow().as_ref() {
                 f();
             }
-            let ergebnis = self.installation.borrow().clone();
-            if ergebnis == Ok(Installation::Installiert) && !darf() {
-                return Ok(Installation::Verschoben);
+            let ergebnis = self.ladung.borrow().clone();
+            if let Ok(Some(_)) = ergebnis {
+                self.geladen.set(self.geladen.get() + 1);
+                self.abgelegt.set(true);
             }
-            if ergebnis == Ok(Installation::Installiert) {
+            ergebnis
+        }
+        fn installiere(&self) -> Result<(), String> {
+            assert!(self.abgelegt.replace(false), "installiert nur ein abgelegtes Paket");
+            let ergebnis = self.installation.borrow().clone();
+            if ergebnis.is_ok() {
                 self.installiert.set(self.installiert.get() + 1);
                 if let Some(f) = self.nach_installation.borrow().as_ref() {
                     f();
                 }
             }
             ergebnis
+        }
+        fn verwirf(&self) {
+            self.abgelegt.set(false);
         }
     }
 
@@ -506,17 +626,39 @@ mod tests {
         z.update().as_ref().map(|v| v.version.clone())
     }
 
+    fn ist_geladen(z: &Zustand) -> bool {
+        z.update().as_ref().is_some_and(|v| v.geladen)
+    }
+
+    fn zeige_start(z: &Zustand, angezeigt: bool) {
+        z.startbildschirm.store(angezeigt, Ordering::SeqCst);
+    }
+
     fn sitzung_bis(ablauf_ms: i64) -> Sitzung {
         Sitzung { token: Zeroizing::new("t".into()), name: "Erika".into(), ablauf_ms, rechner_id: None }
     }
 
+    /// Ein ruhiger Rechner auf dem Startbildschirm: ohne Sitzung, Ausstehendes und Entwurf.
+    fn ruhig(z: &Zustand) {
+        *z.sitzung() = None;
+        zeige_start(z, true);
+    }
+
     #[test]
-    fn lage_liest_ausstehendes_sitzung_und_anmeldung() {
+    fn lage_liest_startbildschirm_ausstehendes_sitzung_und_anmeldung() {
         let ordner = tempfile::tempdir().unwrap();
         let uhr = Stelluhr::neu();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &uhr);
         *z.sitzung() = None;
-        assert_eq!(lage(&z), Lage { ausstehend: false, sitzung: false, anmeldung_laeuft: false, entwurf_in_arbeit: false });
+        assert_eq!(
+            lage(&z),
+            Lage { startbildschirm: false, ausstehend: false, sitzung: false, anmeldung_laeuft: false, entwurf_in_arbeit: false },
+            "bis die Oberfläche den Startbildschirm meldet, gilt er als nicht angezeigt"
+        );
+        zeige_start(&z, true);
+        assert!(lage(&z).startbildschirm);
+        zeige_start(&z, false);
+        assert!(!lage(&z).startbildschirm);
 
         sende_ab(&z, &entwurf_suite(), false).unwrap();
         assert!(lage(&z).ausstehend);
@@ -539,7 +681,7 @@ mod tests {
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
         let q = FakeQuelle::mit(Some("0.2.0"));
         pruefrunde(&z, &q).unwrap();
-        assert_eq!(vorgemerkt(&z).as_deref(), Some("0.2.0"));
+        assert_eq!(*z.update(), Some(Vorgemerkt { version: "0.2.0".into(), geladen: false }));
 
         *q.version.borrow_mut() = Err("offline".into());
         assert!(pruefrunde(&z, &q).is_err());
@@ -548,6 +690,37 @@ mod tests {
         *q.version.borrow_mut() = Ok(None);
         pruefrunde(&z, &q).unwrap();
         assert_eq!(vorgemerkt(&z), None, "zurückgesetzt nach Runbook");
+    }
+
+    /// Dieselbe Version lässt ein geladenes Paket liegen; eine andere oder keine verwirft es.
+    #[test]
+    fn pruefrunde_behaelt_das_paket_nur_fuer_dieselbe_version() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
+        let q = FakeQuelle::mit(Some("0.2.0"));
+        pruefrunde(&z, &q).unwrap();
+        assert_eq!(ladrunde(&z, &q, &still), Ok(true));
+        assert!(ist_geladen(&z) && q.abgelegt.get());
+        assert_eq!(*z.update_lauf(), Some(Updatelauf::Bereit));
+
+        pruefrunde(&z, &q).unwrap();
+        assert!(ist_geladen(&z) && q.abgelegt.get(), "dieselbe Version: nicht neu laden");
+        assert_eq!(ladrunde(&z, &q, &still), Ok(false));
+        assert_eq!(q.geladen.get(), 1);
+
+        *q.version.borrow_mut() = Ok(Some("0.3.0".into()));
+        pruefrunde(&z, &q).unwrap();
+        assert_eq!(*z.update(), Some(Vorgemerkt { version: "0.3.0".into(), geladen: false }));
+        assert!(!q.abgelegt.get(), "das alte Paket ist verworfen");
+        assert_eq!(*z.update_lauf(), None);
+
+        *q.ladung.borrow_mut() = Ok(Some("0.3.0".into()));
+        assert_eq!(ladrunde(&z, &q, &still), Ok(true));
+        *q.version.borrow_mut() = Ok(None);
+        pruefrunde(&z, &q).unwrap();
+        assert_eq!(vorgemerkt(&z), None);
+        assert!(!q.abgelegt.get());
+        assert_eq!(*z.update_lauf(), None);
     }
 
     /// Die letzte gelungene Prüfung steht mit Zeitpunkt im Status und im `Stand`; eine
@@ -581,29 +754,36 @@ mod tests {
         assert_eq!(stand(&z), Stand { update: Some("0.2.0".into()), fehler: None, geprueft: Some(uhr.jetzt()), lauf: None });
     }
 
+    /// Geladen wird auf jeder Seite, auch mitten in einem Einsatz oder einer Sitzung; installiert
+    /// erst in Ruhe auf dem Startbildschirm.
     #[test]
-    fn installationsrunde_wartet_auf_einen_ruhigen_moment() {
+    fn laedt_ueberall_und_installiert_nur_auf_dem_startbildschirm() {
         let ordner = tempfile::tempdir().unwrap();
         let uhr = Stelluhr::neu();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &uhr);
-        *z.sitzung() = None;
+        *z.sitzung() = Some(sitzung_bis(uhr.jetzt().timestamp_millis() + 3_600_000));
         let q = FakeQuelle::mit(Some("0.2.0"));
 
         // Ohne Vormerkung geschieht nichts.
+        assert_eq!(ladrunde(&z, &q, &still), Ok(false));
         assert_eq!(installationsrunde(&z, &q, &still), Ok(false));
-        assert_eq!(q.installiert.get(), 0);
 
         pruefrunde(&z, &q).unwrap();
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "noch nicht geladen");
+        assert_eq!(ladrunde(&z, &q, &still), Ok(true), "geladen, obwohl jemand angemeldet ist");
+        assert_eq!(q.geladen.get(), 1);
+
+        *z.sitzung() = None;
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "das Formular oder die Verwaltung ist offen");
+        assert_eq!(q.installiert.get(), 0);
+        assert!(ist_geladen(&z), "bleibt geladen");
+
+        zeige_start(&z, true);
         sende_ab(&z, &entwurf_suite(), false).unwrap();
         assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "ein Einsatz steht aus");
-        assert_eq!(q.installiert.get(), 0);
-        assert_eq!(vorgemerkt(&z).as_deref(), Some("0.2.0"), "bleibt vorgemerkt");
-
         versiegele_jetzt(&z).unwrap();
         *z.sitzung() = Some(sitzung_bis(uhr.jetzt().timestamp_millis() + 60_000));
         assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "jemand ist angemeldet");
-        assert_eq!(q.installiert.get(), 0);
-
         *z.sitzung() = None;
         *z.anmeldung() = Some(Arc::new(AtomicBool::new(false)));
         assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "eine Anmeldung läuft");
@@ -611,16 +791,16 @@ mod tests {
 
         *z.anmeldung() = None;
         assert_eq!(installationsrunde(&z, &q, &still), Ok(true));
-        assert_eq!(q.installiert.get(), 1);
+        assert_eq!((q.geladen.get(), q.installiert.get()), (1, 1));
+        assert_eq!(*z.update_lauf(), Some(Updatelauf::Neustart));
     }
 
-    /// Während der Installationsrunde steht `Laedt` im Status, danach `Neustart` oder nichts; die
+    /// Während des Herunterladens steht `Laedt` im Status, danach `Bereit` oder nichts; die
     /// Oberfläche erfährt beides sofort (`melde`), nicht erst nach dem Schritt.
     #[test]
-    fn installationsrunde_zeigt_den_lauf_und_meldet_ihn() {
+    fn ladrunde_zeigt_den_lauf_und_meldet_ihn() {
         let ordner = tempfile::tempdir().unwrap();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
-        *z.sitzung() = None;
         let z = Arc::new(z);
         let q = FakeQuelle::mit(Some("0.2.0"));
         let beim_herunterladen = Rc::new(Cell::new(None));
@@ -631,31 +811,30 @@ mod tests {
 
         pruefrunde(&z, &q).unwrap();
         assert_eq!(*z.update_lauf(), None, "vorgemerkt ist noch kein Lauf");
-        assert_eq!(installationsrunde(&z, &q, &melde), Ok(true));
+        assert_eq!(ladrunde(&z, &q, &melde), Ok(true));
         assert_eq!(beim_herunterladen.get(), Some(Some(Updatelauf::Laedt)));
-        assert_eq!(*z.update_lauf(), Some(Updatelauf::Neustart));
-        assert_eq!(stand(&z).lauf, Some(Updatelauf::Neustart));
+        assert_eq!(*z.update_lauf(), Some(Updatelauf::Bereit));
+        assert_eq!(stand(&z).lauf, Some(Updatelauf::Bereit));
         assert_eq!(meldungen.get(), 2, "zu Beginn und am Ende der Runde");
 
-        // Ohne Vormerkung oder in einem unruhigen Moment beginnt kein Lauf und nichts wird gemeldet.
-        *z.update_lauf() = None;
-        *z.update() = None;
-        assert_eq!(installationsrunde(&z, &q, &melde), Ok(false));
-        pruefrunde(&z, &q).unwrap();
-        *z.anmeldung() = Some(Arc::new(AtomicBool::new(false)));
-        assert_eq!(installationsrunde(&z, &q, &melde), Ok(false));
+        // Schon geladen: kein neuer Lauf, nichts gemeldet.
+        assert_eq!(ladrunde(&z, &q, &melde), Ok(false));
         assert_eq!(meldungen.get(), 2);
-        *z.anmeldung() = None;
 
-        *q.installation.borrow_mut() = Err("Download abgebrochen".into());
-        assert!(installationsrunde(&z, &q, &melde).is_err());
+        *z.update() = None;
+        *z.update_lauf() = None;
+        pruefrunde(&z, &q).unwrap();
+        *q.ladung.borrow_mut() = Err("Download abgebrochen".into());
+        assert!(ladrunde(&z, &q, &melde).is_err());
         assert_eq!(*z.update_lauf(), None, "nach einem Fehler kein Spinner mehr");
+        assert_eq!(vorgemerkt(&z), None, "kein erneuter Download jede Minute");
         assert_eq!(meldungen.get(), 4);
 
         pruefrunde(&z, &q).unwrap();
-        *q.installation.borrow_mut() = Ok(Installation::KeinUpdate);
-        assert_eq!(installationsrunde(&z, &q, &melde), Ok(false));
+        *q.ladung.borrow_mut() = Ok(None);
+        assert_eq!(ladrunde(&z, &q, &melde), Ok(false));
         assert_eq!(*z.update_lauf(), None);
+        assert_eq!(vorgemerkt(&z), None, "der Endpunkt nennt keine neuere Version mehr");
     }
 
     /// Eine Panik mitten im Herunterladen lässt keinen Spinner stehen.
@@ -663,89 +842,93 @@ mod tests {
     fn nach_einer_panik_steht_kein_lauf_mehr() {
         let ordner = tempfile::tempdir().unwrap();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
-        *z.sitzung() = None;
         let q = FakeQuelle::mit(Some("0.2.0"));
         *q.waehrend_download.borrow_mut() = Some(Box::new(|| panic!("Netz weg")));
         let meldungen = Cell::new(0);
         let melde = || meldungen.set(meldungen.get() + 1);
         pruefrunde(&z, &q).unwrap();
-        assert!(fange("Update-Installation", || installationsrunde(&z, &q, &melde)).is_none());
+        assert!(fange("Update-Download", || ladrunde(&z, &q, &melde)).is_none());
         assert_eq!(*z.update_lauf(), None);
         assert_eq!(meldungen.get(), 2);
     }
 
     #[test]
-    fn kippt_die_lage_waehrend_des_herunterladens_wird_nicht_installiert() {
-        let ordner = tempfile::tempdir().unwrap();
-        let uhr = Stelluhr::neu();
-        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &uhr);
-        *z.sitzung() = None;
-        let z = Arc::new(z);
-        let q = FakeQuelle::mit(Some("0.2.0"));
-        pruefrunde(&z, &q).unwrap();
-        let z2 = Arc::clone(&z);
-        *q.waehrend_download.borrow_mut() = Some(Box::new(move || {
-            sende_ab(&z2, &entwurf_suite(), false).unwrap();
-        }));
-        assert_eq!(installationsrunde(&z, &q, &still), Ok(false));
-        assert_eq!(q.installiert.get(), 0);
-        assert_eq!(vorgemerkt(&z).as_deref(), Some("0.2.0"));
-    }
-
-    #[test]
-    fn fehler_oder_kein_update_verwirft_die_vormerkung() {
+    fn fehler_beim_installieren_verwirft_die_vormerkung() {
         let ordner = tempfile::tempdir().unwrap();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
-        *z.sitzung() = None;
+        ruhig(&z);
         let q = FakeQuelle::mit(Some("0.2.0"));
 
         pruefrunde(&z, &q).unwrap();
+        ladrunde(&z, &q, &still).unwrap();
         *q.installation.borrow_mut() = Err("Signatur passt nicht".into());
         assert_eq!(installationsrunde(&z, &q, &still), Err("Signatur passt nicht".into()));
         assert_eq!(vorgemerkt(&z), None, "kein erneuter Download jede Minute");
-
-        pruefrunde(&z, &q).unwrap();
-        *q.installation.borrow_mut() = Ok(Installation::KeinUpdate);
-        assert_eq!(installationsrunde(&z, &q, &still), Ok(false));
-        assert_eq!(vorgemerkt(&z), None);
+        assert_eq!(*z.update_lauf(), None);
     }
 
-    /// Kippt die Lage zwischen Installation und Neustart (macOS: das Bundle ist schon ersetzt),
-    /// wartet der Neustart, bis es wieder ruhig ist, ohne erneut zu installieren oder zu prüfen.
+    /// Verlässt jemand den Startbildschirm, während installiert wird (macOS: das Bundle ist dann
+    /// schon ersetzt), wartet der Neustart, bis er zurück ist, ohne erneut zu installieren oder zu
+    /// prüfen.
     #[test]
-    fn neustart_wartet_nach_der_installation_auf_einen_ruhigen_moment() {
+    fn neustart_wartet_auf_die_rueckkehr_zum_startbildschirm() {
         let ordner = tempfile::tempdir().unwrap();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
-        *z.sitzung() = None;
+        ruhig(&z);
         let z = Arc::new(z);
         let q = FakeQuelle::mit(Some("0.2.0"));
         let z2 = Arc::clone(&z);
-        *q.nach_installation.borrow_mut() = Some(Box::new(move || {
-            *z2.anmeldung() = Some(Arc::new(AtomicBool::new(false)));
-        }));
+        *q.nach_installation.borrow_mut() = Some(Box::new(move || zeige_start(&z2, false)));
         let start = Instant::now();
         let mut lauf = Lauf::neu(start);
 
-        assert!(!lauf.schritt(&z, &q, start, &still), "installiert, aber eine Anmeldung läuft inzwischen");
+        assert!(!lauf.schritt(&z, &q, start, &still), "installiert, aber das Formular ist inzwischen offen");
         assert_eq!(q.installiert.get(), 1);
         assert!(lauf.neustart_faellig);
         assert!(!lauf.schritt(&z, &q, start + REGELTAKT, &still));
-        assert!(!lauf.schritt(&z, &q, start + PRUEFTAKT, &still), "auch nach 6 Stunden noch nicht ruhig");
-        assert_eq!((q.installiert.get(), q.geprueft.get()), (1, 1), "weder neu installiert noch neu geprüft");
+        assert!(!lauf.schritt(&z, &q, start + PRUEFTAKT, &still), "auch nach 6 Stunden noch offen");
+        assert_eq!((q.geladen.get(), q.installiert.get(), q.geprueft.get()), (1, 1, 1), "weder neu geladen, installiert noch geprüft");
 
-        *z.anmeldung() = None;
-        assert!(lauf.schritt(&z, &q, start + PRUEFTAKT + REGELTAKT, &still), "jetzt ruhig: neu starten");
+        zeige_start(&z, true);
+        assert!(lauf.schritt(&z, &q, start + PRUEFTAKT + REGELTAKT, &still), "zurück auf dem Startbildschirm: neu starten");
         assert_eq!(q.installiert.get(), 1);
     }
 
+    /// Ein Schritt auf dem Startbildschirm prüft, lädt, installiert und startet neu.
     #[test]
-    fn neustart_sofort_wenn_es_nach_der_installation_ruhig_bleibt() {
+    fn neustart_sofort_auf_dem_startbildschirm() {
         let ordner = tempfile::tempdir().unwrap();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
-        *z.sitzung() = None;
+        ruhig(&z);
         let q = FakeQuelle::mit(Some("0.2.0"));
         let start = Instant::now();
         assert!(Lauf::neu(start).schritt(&z, &q, start, &still));
+    }
+
+    /// Ein Formular ist offen: Der Schritt lädt herunter und wartet. Erst die Rückkehr zum
+    /// Startbildschirm installiert und startet neu. Die Prüfung bleibt bei 6 Stunden.
+    #[test]
+    fn im_formular_laden_und_warten() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
+        ruhig(&z);
+        zeige_start(&z, false);
+        let q = FakeQuelle::mit(Some("0.2.0"));
+        let start = Instant::now();
+        let mut lauf = Lauf::neu(start);
+
+        assert!(!lauf.schritt(&z, &q, start, &still));
+        assert_eq!((q.geladen.get(), q.installiert.get()), (1, 0));
+        assert_eq!(*z.update_lauf(), Some(Updatelauf::Bereit));
+        assert_eq!(lauf.naechste_pruefung, start + PRUEFTAKT);
+        for minute in 1..=30 {
+            assert!(!lauf.schritt(&z, &q, start + minute * REGELTAKT, &still));
+        }
+        assert_eq!((q.geladen.get(), q.installiert.get()), (1, 0), "einmal geladen, nie installiert");
+
+        zeige_start(&z, true);
+        assert!(lauf.schritt(&z, &q, start + 31 * REGELTAKT, &still));
+        assert_eq!((q.geladen.get(), q.installiert.get()), (1, 1));
     }
 
     /// Scheitert eine Prüfung (etwa offline beim Start), folgt die nächste nach 15 Minuten; nach
@@ -775,14 +958,14 @@ mod tests {
         assert_eq!(q.geprueft.get(), 4);
     }
 
-    /// Ein Entwurf, der vor 5 Minuten geändert wurde, hält Installation und Neustart auf; einer,
-    /// der seit 20 Minuten liegt, nicht mehr.
+    /// Ein Entwurf, der vor 5 Minuten geändert wurde, hält die Installation auch auf dem
+    /// Startbildschirm auf; einer, der seit 20 Minuten liegt, nicht mehr.
     #[test]
     fn ein_frisch_geaenderter_entwurf_haelt_das_update_auf() {
         let ordner = tempfile::tempdir().unwrap();
         let uhr = Stelluhr::neu();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &uhr);
-        *z.sitzung() = None;
+        ruhig(&z);
         assert!(!lage(&z).entwurf_in_arbeit, "ohne Entwurf");
 
         speichere_entwurf(&z, &entwurf_suite(), false).unwrap();
@@ -792,9 +975,9 @@ mod tests {
 
         let q = FakeQuelle::mit(Some("0.2.0"));
         pruefrunde(&z, &q).unwrap();
+        ladrunde(&z, &q, &still).unwrap();
         assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "jemand schreibt gerade");
         assert_eq!(q.installiert.get(), 0);
-        assert_eq!(vorgemerkt(&z).as_deref(), Some("0.2.0"));
 
         uhr.vor(Dauer::minutes(15));
         assert!(!lage(&z).entwurf_in_arbeit, "seit 20 Minuten unverändert");
@@ -806,29 +989,6 @@ mod tests {
         assert!(lage(&z).entwurf_in_arbeit);
         verwirf_entwurf(&z).unwrap();
         assert!(!lage(&z).entwurf_in_arbeit);
-    }
-
-    /// Kippt die Lage nach der Installation, weil jemand zu tippen beginnt, wartet auch der
-    /// Neustart die 15 Minuten ab.
-    #[test]
-    fn neustart_wartet_auf_einen_ruhenden_entwurf() {
-        let ordner = tempfile::tempdir().unwrap();
-        let uhr = Stelluhr::neu();
-        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &uhr);
-        *z.sitzung() = None;
-        let z = Arc::new(z);
-        let q = FakeQuelle::mit(Some("0.2.0"));
-        let z2 = Arc::clone(&z);
-        *q.nach_installation.borrow_mut() = Some(Box::new(move || {
-            speichere_entwurf(&z2, &entwurf_suite(), false).unwrap();
-        }));
-        let start = Instant::now();
-        let mut lauf = Lauf::neu(start);
-        assert!(!lauf.schritt(&z, &q, start, &still), "installiert, aber jemand schreibt");
-        uhr.vor(Dauer::minutes(5));
-        assert!(!lauf.schritt(&z, &q, start + REGELTAKT, &still));
-        uhr.vor(Dauer::minutes(15));
-        assert!(lauf.schritt(&z, &q, start + 2 * REGELTAKT, &still), "20 Minuten ohne Änderung");
     }
 
     #[test]
@@ -854,50 +1014,63 @@ mod tests {
     fn fehler_der_installation_bleibt_bis_zur_gelungenen_installation() {
         let ordner = tempfile::tempdir().unwrap();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
-        *z.sitzung() = None;
+        ruhig(&z);
         let q = FakeQuelle::mit(Some("0.2.0"));
-        const TEXT: &str = "Update auf 0.2.0 nicht installiert: Die Signatur des Updates passt nicht zum Schlüssel dieser App.";
+        const SIGNATUR: &str = "Die Signatur des Updates passt nicht zum Schlüssel dieser App.";
+        let text = format!("Update auf 0.2.0 nicht geladen: {SIGNATUR}");
 
         pruefrunde(&z, &q).unwrap();
-        *q.installation.borrow_mut() = Err("Die Signatur des Updates passt nicht zum Schlüssel dieser App.".into());
-        assert!(installationsrunde(&z, &q, &still).is_err());
-        assert_eq!(lies_status(&z).unwrap().update_fehler.as_deref(), Some(TEXT));
+        *q.ladung.borrow_mut() = Err(SIGNATUR.into());
+        assert!(ladrunde(&z, &q, &still).is_err());
+        assert_eq!(lies_status(&z).unwrap().update_fehler.as_deref(), Some(text.as_str()));
 
         pruefrunde(&z, &q).unwrap();
-        assert_eq!(lies_status(&z).unwrap().update_fehler.as_deref(), Some(TEXT), "gelungene Prüfung löscht ihn nicht");
+        assert_eq!(lies_status(&z).unwrap().update_fehler.as_deref(), Some(text.as_str()), "gelungene Prüfung löscht ihn nicht");
         *q.version.borrow_mut() = Err("offline".into());
         assert!(pruefrunde(&z, &q).is_err());
         assert_eq!(
             lies_status(&z).unwrap().update_fehler.as_deref(),
-            Some(TEXT),
+            Some(text.as_str()),
             "der Installationsfehler geht dem der Prüfung vor"
         );
 
         *q.version.borrow_mut() = Ok(Some("0.2.0".into()));
         pruefrunde(&z, &q).unwrap();
-        *q.installation.borrow_mut() = Ok(Installation::Installiert);
+        *q.ladung.borrow_mut() = Ok(Some("0.2.0".into()));
+        ladrunde(&z, &q, &still).unwrap();
+        *q.installation.borrow_mut() = Err(SIGNATUR.into());
+        assert!(installationsrunde(&z, &q, &still).is_err());
+        assert_eq!(
+            lies_status(&z).unwrap().update_fehler.as_deref(),
+            Some(format!("Update auf 0.2.0 nicht installiert: {SIGNATUR}").as_str())
+        );
+
+        pruefrunde(&z, &q).unwrap();
+        ladrunde(&z, &q, &still).unwrap();
+        *q.installation.borrow_mut() = Ok(());
         assert_eq!(installationsrunde(&z, &q, &still), Ok(true));
         assert_eq!(lies_status(&z).unwrap().update_fehler, None);
 
         // Nennt der Endpunkt keine neuere Version mehr, ist ein alter Fehler ebenfalls erledigt.
-        *q.installation.borrow_mut() = Err("x".into());
+        *z.update() = None;
         pruefrunde(&z, &q).unwrap();
-        assert!(installationsrunde(&z, &q, &still).is_err());
+        *q.ladung.borrow_mut() = Err("x".into());
+        assert!(ladrunde(&z, &q, &still).is_err());
         assert!(lies_status(&z).unwrap().update_fehler.is_some());
         *q.version.borrow_mut() = Ok(None);
         pruefrunde(&z, &q).unwrap();
         assert_eq!(lies_status(&z).unwrap().update_fehler, None);
     }
 
-    /// Scheitert Herunterladen oder Installieren, folgt die nächste Prüfung nach 15 Minuten, nicht
-    /// erst nach 6 Stunden. Ein verschobenes Update zieht die Prüfung nicht vor.
+    /// Scheitert das Herunterladen, folgt die nächste Prüfung nach 15 Minuten, nicht erst nach
+    /// 6 Stunden.
     #[test]
-    fn nach_einer_gescheiterten_installation_nach_15_minuten_erneut() {
+    fn nach_einem_gescheiterten_download_nach_15_minuten_erneut() {
         let ordner = tempfile::tempdir().unwrap();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
-        *z.sitzung() = None;
+        ruhig(&z);
         let q = FakeQuelle::mit(Some("0.2.0"));
-        *q.installation.borrow_mut() = Err("Download abgebrochen".into());
+        *q.ladung.borrow_mut() = Err("Download abgebrochen".into());
         let start = Instant::now();
         let mut lauf = Lauf::neu(start);
 
@@ -906,20 +1079,9 @@ mod tests {
         assert_eq!(lauf.naechste_pruefung, start + WIEDERHOLUNG);
         lauf.schritt(&z, &q, start + WIEDERHOLUNG - REGELTAKT, &still);
         assert_eq!(q.geprueft.get(), 1);
-        *q.installation.borrow_mut() = Ok(Installation::Installiert);
-        assert!(lauf.schritt(&z, &q, start + WIEDERHOLUNG, &still), "neu vorgemerkt und installiert");
-        assert_eq!((q.geprueft.get(), q.installiert.get()), (2, 1));
-
-        // Verschoben (die Lage kippt beim Herunterladen): die Prüfung bleibt bei 6 Stunden.
-        let q = FakeQuelle::mit(Some("0.3.0"));
-        let z = Arc::new(z);
-        let z2 = Arc::clone(&z);
-        *q.waehrend_download.borrow_mut() = Some(Box::new(move || {
-            *z2.anmeldung() = Some(Arc::new(AtomicBool::new(false)));
-        }));
-        let mut lauf = Lauf::neu(start);
-        assert!(!lauf.schritt(&z, &q, start, &still));
-        assert_eq!(lauf.naechste_pruefung, start + PRUEFTAKT);
+        *q.ladung.borrow_mut() = Ok(Some("0.2.0".into()));
+        assert!(lauf.schritt(&z, &q, start + WIEDERHOLUNG, &still), "neu vorgemerkt, geladen und installiert");
+        assert_eq!((q.geprueft.get(), q.geladen.get(), q.installiert.get()), (2, 1, 1));
     }
 
     #[test]
@@ -927,17 +1089,17 @@ mod tests {
         let ordner = tempfile::tempdir().unwrap();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
         assert_eq!(lies_status(&z).unwrap().update, None);
-        *z.update() = Some(Vorgemerkt { version: "0.2.0".into() });
+        *z.update() = Some(Vorgemerkt { version: "0.2.0".into(), geladen: false });
         let s = lies_status(&z).unwrap();
         assert_eq!(s.update.as_deref(), Some("0.2.0"));
         let json = serde_json::to_value(&s).unwrap();
         assert_eq!(json.get("update"), Some(&serde_json::json!("0.2.0")));
         assert_eq!(json.get("updateFehler"), Some(&serde_json::Value::Null));
         assert_eq!(json.get("updateLauf"), Some(&serde_json::Value::Null));
-        *z.update_lauf() = Some(Updatelauf::Laedt);
-        assert_eq!(serde_json::to_value(lies_status(&z).unwrap()).unwrap().get("updateLauf"), Some(&serde_json::json!("laedt")));
-        *z.update_lauf() = Some(Updatelauf::Neustart);
-        assert_eq!(serde_json::to_value(lies_status(&z).unwrap()).unwrap().get("updateLauf"), Some(&serde_json::json!("neustart")));
+        for (lauf, text) in [(Updatelauf::Laedt, "laedt"), (Updatelauf::Bereit, "bereit"), (Updatelauf::Neustart, "neustart")] {
+            *z.update_lauf() = Some(lauf);
+            assert_eq!(serde_json::to_value(lies_status(&z).unwrap()).unwrap().get("updateLauf"), Some(&serde_json::json!(text)));
+        }
         z.update_fehler().pruefung = Some("Suche nach Updates gescheitert".into());
         let json = serde_json::to_value(lies_status(&z).unwrap()).unwrap();
         assert_eq!(json.get("updateFehler"), Some(&serde_json::json!("Suche nach Updates gescheitert")));

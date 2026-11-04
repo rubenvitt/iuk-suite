@@ -1,7 +1,7 @@
 /**
- * Die Anzeige unten rechts: Spinner, solange das Update läuft, danach der wartende Neustart, und
- * vorher das anstehende Update. Die Einbindung in die App (auf der Startseite, ohne Anmeldung,
- * nach dem Ereignis des Updaters) prüft `App.test.tsx`.
+ * Die Anzeige unten rechts: Spinner, solange das Update lädt, danach „Update bereit“, und vorher
+ * das anstehende Update. Die Einbindung in die App (auf der Startseite, ohne Anmeldung, nach dem
+ * Ereignis des Updaters) prüft `App.test.tsx`.
  */
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -26,26 +26,30 @@ describe("UpdateAnzeige", () => {
   it("kündigt ein vorgemerktes Update an, ohne Spinner", async () => {
     await mount(<UpdateAnzeige update="1.2.0" lauf={null} />);
     expect(anzeige()[0].dataset.lauf).toBe("vorgemerkt");
-    expect(text()).toContain("Update auf 1.2.0 steht an");
-    expect(text()).toContain("Es wird installiert, sobald niemand angemeldet ist und kein Einsatz aussteht.");
+    expect(text()).toBe("Update auf 1.2.0 steht an");
     expect(queryAll(".update-spinner")).toHaveLength(0);
   });
 
-  it("dreht einen Spinner, solange das Update heruntergeladen und installiert wird", async () => {
+  it("dreht einen Spinner, solange das Update heruntergeladen wird", async () => {
     await mount(<UpdateAnzeige update="1.2.0" lauf="laedt" />);
     expect(anzeige()[0].dataset.lauf).toBe("laedt");
     expect(queryAll(".update-spinner")).toHaveLength(1);
     expect(queryAll(".update-spinner")[0].getAttribute("aria-hidden")).toBe("true");
-    expect(text()).toContain("Update wird installiert");
-    expect(text()).toContain("Version 1.2.0. Die App startet danach neu.");
-    expect(text()).not.toContain("steht an");
+    expect(text()).toBe("Update wird geladenVersion 1.2.0");
   });
 
-  it("meldet den wartenden Neustart, auch ohne Version", async () => {
+  it("meldet ein geladenes Update als bereit, ohne Neustart anzukündigen", async () => {
+    await mount(<UpdateAnzeige update="1.2.0" lauf="bereit" />);
+    expect(anzeige()[0].dataset.lauf).toBe("bereit");
+    expect(queryAll(".update-spinner")).toHaveLength(0);
+    expect(text()).toContain("Update bereit");
+    expect(text()).toContain("Version 1.2.0");
+    expect(text()).not.toContain("neu");
+  });
+
+  it("zeigt den wartenden Neustart ebenso als bereit, auch ohne Version", async () => {
     await mount(<UpdateAnzeige update={null} lauf="neustart" />);
     expect(queryAll(".update-spinner")).toHaveLength(0);
-    expect(text()).toContain("Update installiert");
-    expect(text()).toContain("Die App startet neu, sobald niemand angemeldet ist und kein Einsatz aussteht.");
-    expect(text()).not.toContain("Version");
+    expect(text()).toBe("Update bereit");
   });
 });

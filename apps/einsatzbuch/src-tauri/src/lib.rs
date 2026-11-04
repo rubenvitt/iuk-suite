@@ -139,6 +139,7 @@ pub fn run() {
         befehle::autostart_status,
         befehle::autostart_setzen,
         befehle::update_suchen,
+        befehle::startbildschirm_melden,
         sicherung::sicherungsordner_waehlen,
         sicherung::wiederherstellen,
         export::export_speichern,
@@ -169,6 +170,7 @@ pub fn run() {
         befehle::autostart_status,
         befehle::autostart_setzen,
         befehle::update_suchen,
+        befehle::startbildschirm_melden,
         sicherung::sicherungsordner_waehlen,
         sicherung::wiederherstellen,
         export::export_speichern,
@@ -191,6 +193,13 @@ pub fn run() {
     builder
         .setup(richte_ein)
         .invoke_handler(befehle)
-        .run(tauri::generate_context!())
-        .expect("die Einsatztagebuch-App ließ sich nicht starten");
+        .build(tauri::generate_context!())
+        .expect("die Einsatztagebuch-App ließ sich nicht starten")
+        // Beim Beenden ein geladenes, noch nicht installiertes Update installieren
+        // (`updater::beim_beenden`); im Debug-Build ist die Ablage leer.
+        .run(|app, ereignis| {
+            if let tauri::RunEvent::Exit = ereignis {
+                updater::beim_beenden(app);
+            }
+        });
 }

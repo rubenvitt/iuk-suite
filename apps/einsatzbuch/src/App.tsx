@@ -26,7 +26,7 @@
  * verspätete Antwort etwa eine schon verworfene Sitzung zurück.
  */
 import { open } from "@tauri-apps/plugin-dialog";
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { useEntwurfSpeicher } from "./ablauf/entwurfSpeicher";
 import { useFristUhr, type FristStand } from "./ablauf/fristUhr";
@@ -334,6 +334,12 @@ export function App() {
   });
 
   const startTasten = status !== null && lokal.phase === "start" && !bestaetigen;
+  // Nur auf dem Startbildschirm ohne Dialog darf der Updater installieren und neu starten
+  // (`darf_installieren` in `src-tauri/src/updater.rs`); jede andere Seite kann Eingaben halten.
+  // Als Layout-Effekt: Die Meldung geht hinaus, bevor die nächste Seite gezeichnet und bedienbar ist.
+  useLayoutEffect(() => {
+    befehle.startbildschirmMelden(startTasten).catch(() => undefined);
+  }, [startTasten]);
   useEffect(() => {
     if (!startTasten) return;
     const hoere = (ev: KeyboardEvent) => taste(ev);

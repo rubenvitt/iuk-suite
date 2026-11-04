@@ -483,25 +483,29 @@ Wer einrichtet, braucht in der Suite Zugang zur Verwaltung des Einsatzbuchs.
   30 Sekunden nach dem Start, danach alle 6 Stunden. Nach einer gescheiterten Prüfung, etwa ohne
   Netz, und nach einem gescheiterten Herunterladen oder Installieren versucht die App es nach
   15 Minuten erneut.
-- Eine neuere Version wird zunächst nur **vorgemerkt**. Installiert wird sie erst, wenn kein
-  Einsatz aussteht, niemand in der Verwaltung angemeldet ist, keine Anmeldung läuft und seit
-  15 Minuten niemand an einem Entwurf geschrieben hat. Die App prüft das jede Minute, vor und nach
-  dem Herunterladen. Ein Entwurf, der länger unverändert liegt, hält das Update nicht auf: Er
-  übersteht den Neustart. Der Neustart nach der Installation wartet ebenfalls auf einen solchen
-  ruhigen Moment.
+- Eine neuere Version wird **vorgemerkt** und gleich heruntergeladen, auf jeder Seite. Unten rechts
+  steht dann „Update bereit“. Installiert und neu gestartet wird erst, wenn die App den
+  **Startbildschirm** ohne offenen Dialog zeigt, kein Einsatz aussteht, niemand in der Verwaltung
+  angemeldet ist, keine Anmeldung läuft und seit 15 Minuten niemand an einem Entwurf geschrieben
+  hat. Die App prüft das jede Minute. Ein offenes Formular, die Verwaltung oder die Einrichtung
+  halten das Update also auf, solange sie offen sind; ein Neustart wirft nie Eingaben weg. Der
+  Neustart nach der Installation wartet ebenfalls darauf.
+- **Beim Beenden** installiert die App ein schon geladenes Update ohne Neustart (macOS). Unter
+  Windows nicht, denn der Installer startet die App danach wieder; dort installiert der nächste
+  Start, sobald der Startbildschirm steht.
 - Wer in der Verwaltung angemeldet ist, sieht unter „Einstellungen“ → „Update“ den Hinweis „Update
   auf X.Y.Z ist vorgemerkt“. Genau diese Anmeldung hält das Update aber auf. Nach „Sitzung sperren“
-  (oder 10 Minuten ohne Eingabe) installiert die App innerhalb etwa einer Minute, sofern nichts
-  aussteht und kein Entwurf in Arbeit ist.
+  (oder 10 Minuten ohne Eingabe) und zurück auf dem Startbildschirm installiert die App innerhalb
+  etwa einer Minute, sofern nichts aussteht und kein Entwurf in Arbeit ist.
 - **Früher prüfen lassen:** Die App beenden und neu starten. Das zieht nur die Prüfung auf etwa
   30 Sekunden nach dem Start vor. Die Regeln für die Installation gelten weiter, erzwingen lässt
   sich nichts.
 - Unter Windows beendet der Installer die App selbst und startet sie danach neu.
-- Scheitert die Installation (etwa an einer falschen Signatur), verwirft die App die Vormerkung und
+- Scheitert das Herunterladen oder die Installation (etwa an einer falschen Signatur), verwirft die App die Vormerkung und
   merkt bei der nächsten Prüfung, 15 Minuten später, neu vor.
 - **Fehler sehen:** Eine Release-Fassung schreibt kein Log, das man einsehen könnte. Den letzten
   Fehler zeigt die Verwaltung der App unter „Einstellungen“ → „Update“, zum Beispiel „Suche nach
-  Updates gescheitert: …“ oder „Update auf X.Y.Z nicht installiert: Die Signatur des Updates passt
+  Updates gescheitert: …“ oder „Update auf X.Y.Z nicht geladen: Die Signatur des Updates passt
   nicht zum Schlüssel dieser App.“ Ein Fehler beim Installieren bleibt dort stehen, bis ein Update
   gelingt oder keine neuere Version mehr angeboten wird; ein Fehler der Suche nur bis zur nächsten
   gelungenen Suche. Die Signatur-Meldung heißt: Das Update ist mit einem anderen Schlüssel signiert,

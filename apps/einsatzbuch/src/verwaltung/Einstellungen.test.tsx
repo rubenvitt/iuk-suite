@@ -253,8 +253,7 @@ describe("Autostart", () => {
 });
 
 describe("Update", () => {
-  const HINWEIS =
-    "Update auf 0.2.0 ist vorgemerkt. Es wird installiert, sobald kein Einsatz aussteht, niemand angemeldet ist und 15 Minuten lang kein Entwurf geändert wurde.";
+  const HINWEIS = "Update auf 0.2.0 ist vorgemerkt.";
   const FEHLER = "Update auf 0.2.0 nicht installiert: Die Signatur des Updates passt nicht zum Schlüssel dieser App.";
   const NOCHMAL = "Die App versucht es in etwa 15 Minuten erneut.";
 

@@ -12,8 +12,8 @@
 //! sperrt nur den zweiten Schreiber, und unter ihm wird `buch` nur kurz genommen. Über der
 //! Meldung an die Suite ist es schon wieder frei. `startfehler`, `sitzung`, `anmeldung`,
 //! `abgleich`, `update`, `update_fehler`, `update_geprueft` und `update_lauf` sind Blätter: Wer
-//! einen von ihnen hält, nimmt keinen weiteren Mutex. Der Merker `einrichtung_laeuft` ist kein
-//! Lock, auf ihn wartet niemand: Ein zweiter Einrichtungslauf wird abgewiesen, nicht eingereiht.
+//! einen von ihnen hält, nimmt keinen weiteren Mutex. Die Merker `einrichtung_laeuft` und `startbildschirm` sind
+//! keine Locks, auf sie wartet niemand: Ein zweiter Einrichtungslauf wird abgewiesen, nicht eingereiht.
 //! Kein anderer Lock wird über eine Anfrage an die Suite oder den Update-Endpunkt, das Warten auf
 //! den Anmelderückruf, einen Dialog oder das Schreiben und Prüfen einer Datei außerhalb des
 //! App-Datenordners (Sicherungsordner) gehalten. Den Versiegelungshinweis schreibt der Kern in
@@ -86,6 +86,10 @@ pub struct Zustand {
     /// Was der Updater gerade tut (`updater::Laufanzeige`): herunterladen und installieren oder
     /// auf den Neustart warten; `None` sonst.
     pub update_lauf: Mutex<Option<Updatelauf>>,
+    /// Zeigt die Oberfläche gerade den Startbildschirm, ohne offenen Dialog
+    /// (`befehle::startbildschirm_melden`)? Nur dann installiert der Updater und startet neu
+    /// (`updater::darf_installieren`). Bis zur ersten Meldung `false`. Kein Lock, ein Merker.
+    pub startbildschirm: AtomicBool,
 }
 
 /// Was die Anbindung an die Suite mitbringt — im Betrieb Netz und Schlüsselbund, in Tests Fakes.
@@ -125,6 +129,7 @@ impl Zustand {
             update_fehler: Mutex::new(Updatefehler::default()),
             update_geprueft: Mutex::new(None),
             update_lauf: Mutex::new(None),
+            startbildschirm: AtomicBool::new(false),
         }
     }
 
