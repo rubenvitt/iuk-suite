@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { getDb } from "../../_db/client";
 import { NEWSREADER_KLASSE } from "../../f/[slugSecret]/Zustaende";
 import s from "../../f/[slugSecret]/zettel.module.css";
+import { abholenPfad } from "../../_lib/ehrlich/adresse";
 import { einwerfenAktion } from "../../_lib/ehrlich/aktionen";
 import { istKastenSecret } from "../../_lib/ehrlich/daten";
 import { ladeLeserNamen, namensreihe } from "../../_lib/ehrlich/leser";
 import { EHRLICH_THEMEN } from "../../_lib/ehrlich/themen";
+import { turnstileSiteKey } from "../../_lib/ehrlich/turnstile";
 import { Blatt } from "../Blatt";
 import { Einwurf } from "./Einwurf";
 
@@ -35,6 +38,8 @@ export default async function EinwurfSeite({ params }: { params: Promise<{ secre
       leser={leser.length > 0 ? namensreihe(leser) : null}
       leserOder={leser.length > 0 ? namensreihe(leser, "oder") : null}
       schrift={NEWSREADER_KLASSE}
+      abholen={abholenPfad(await headers())}
+      turnstile={turnstileSiteKey()}
     />
   );
 }

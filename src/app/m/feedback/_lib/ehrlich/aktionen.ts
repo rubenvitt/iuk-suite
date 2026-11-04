@@ -13,7 +13,9 @@ import {
   erneuereKastenSecret, gibAntwortFrei, holeAbholung, istKastenSecret, legeMitteilungAn, legeNotizAn,
   loescheMitteilung, schreibeZurueck, setzeRueckfrage, setzeStatus, tagVon, type Abholung,
 } from "./daten";
-import { EHRLICH_THEMEN, KONTAKT_MAX, NAME_MAX, TEXT_MAX } from "./themen";
+import { EHRLICH_THEMEN, HONIGTOPF_FELD, KONTAKT_MAX, NAME_MAX, TEXT_MAX, TURNSTILE_FELD } from "./themen";
+import { istEhrlichEinstieg } from "./adresse";
+import { pruefeTurnstile } from "./turnstile";
 import { istEhrlichLeser } from "./zugang";
 
 /*
@@ -44,29 +46,47 @@ function feld(fd: FormData, name: string, max: number): string {
 
 export type EinwurfErgebnis =
   | { ok: true; antwortweg: EhrlichAntwortweg; code: string | null }
-  | { ok: false; fehler: "leer" | "name" | "ratelimit" | "ungueltig" };
+  | { ok: false; fehler: "leer" | "name" | "ratelimit" | "ungueltig" | "pruefung" };
 
+/** Über den Link auf dem Aushang (Secret im Pfad). */
 export async function einwerfenAktion(secret: string, _vorher: EinwurfErgebnis | null, fd: FormData): Promise<EinwurfErgebnis> {
   return withAuditContext({ actor: { kind: "anonymous" } }, async (): Promise<EinwurfErgebnis> => {
     const db = getDb();
     const ip = clientIpAus(await headers());
     if (!istKastenSecret(db, secret)) return fehlversuche.check(ip) ? { ok: false, fehler: "ungueltig" } : { ok: false, fehler: "ratelimit" };
-
-    const text = feld(fd, "text", TEXT_MAX);
-    const wegRoh = fd.get("antwortweg");
-    const antwortweg: EhrlichAntwortweg = wegRoh === "code" || wegRoh === "name" ? wegRoh : "keine";
-    const name = feld(fd, "name", NAME_MAX);
-    const kontakt = feld(fd, "kontakt", KONTAKT_MAX);
-    const themaRoh = fd.get("thema");
-    const thema = (EHRLICH_THEMEN as readonly string[]).includes(String(themaRoh)) ? String(themaRoh) : null;
-    if (text === "") return { ok: false, fehler: "leer" };
-    if (antwortweg === "name" && name === "") return { ok: false, fehler: "name" };
-    if (!einwuerfe.check(ip)) return { ok: false, fehler: "ratelimit" };
-
-    const { code } = legeMitteilungAn(db, { thema, text, antwortweg, name: name || null, kontakt: kontakt || null }, tagVon(Date.now()));
-    revalidatePath(PFAD);
-    return { ok: true, antwortweg, code };
+    return einwerfen(fd, ip);
   });
+}
+
+/** Öffentlich über den Einstiegshost (IDA-340), ohne Secret — nur dort, sonst wie ein ungültiger Link. */
+export async function einwerfenOeffentlichAktion(_vorher: EinwurfErgebnis | null, fd: FormData): Promise<EinwurfErgebnis> {
+  return withAuditContext({ actor: { kind: "anonymous" } }, async (): Promise<EinwurfErgebnis> => {
+    const kopf = await headers();
+    const ip = clientIpAus(kopf);
+    if (!istEhrlichEinstieg(kopf)) return fehlversuche.check(ip) ? { ok: false, fehler: "ungueltig" } : { ok: false, fehler: "ratelimit" };
+    return einwerfen(fd, ip);
+  });
+}
+
+async function einwerfen(fd: FormData, ip: string): Promise<EinwurfErgebnis> {
+  const text = feld(fd, "text", TEXT_MAX);
+  const wegRoh = fd.get("antwortweg");
+  const antwortweg: EhrlichAntwortweg = wegRoh === "code" || wegRoh === "name" ? wegRoh : "keine";
+  const name = feld(fd, "name", NAME_MAX);
+  const kontakt = feld(fd, "kontakt", KONTAKT_MAX);
+  const themaRoh = fd.get("thema");
+  const thema = (EHRLICH_THEMEN as readonly string[]).includes(String(themaRoh)) ? String(themaRoh) : null;
+  if (text === "") return { ok: false, fehler: "leer" };
+  if (antwortweg === "name" && name === "") return { ok: false, fehler: "name" };
+  if (!einwuerfe.check(ip)) return { ok: false, fehler: "ratelimit" };
+  // Ein gefüllter Honigtopf bekommt ein „Danke" und landet nirgends — ein Bot soll nicht lernen, woran es lag.
+  if (feld(fd, HONIGTOPF_FELD, 200) !== "") return { ok: true, antwortweg: "keine", code: null };
+  if (!(await pruefeTurnstile(feld(fd, TURNSTILE_FELD, 4096)))) return { ok: false, fehler: "pruefung" };
+
+  const db = getDb();
+  const { code } = legeMitteilungAn(db, { thema, text, antwortweg, name: name || null, kontakt: kontakt || null }, tagVon(Date.now()));
+  revalidatePath(PFAD);
+  return { ok: true, antwortweg, code };
 }
 
 export type AbholErgebnis =

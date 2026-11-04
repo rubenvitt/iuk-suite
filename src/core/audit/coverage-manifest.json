@@ -1361,6 +1361,10 @@
     "kind": "context",
     "via": "einwerfenAktion"
   },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#einwerfenOeffentlichAktion": {
+    "kind": "context",
+    "via": "einwerfenOeffentlichAktion"
+  },
   "src/app/m/feedback/_lib/ehrlich/aktionen.ts#abholenAktion": {
     "kind": "excluded",
     "reason": "Anonymous read under a pickup code; no mutation, failed guesses are rate-limited in memory."
