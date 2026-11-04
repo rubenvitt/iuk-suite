@@ -78,8 +78,15 @@ describe("ci.yml — `:latest` geht nie rückwärts", () => {
     const mergeJob = rumpf(jobs, "merge", 2).join("\n");
     expect(mergeJob).toContain('LATESTTAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest');
     expect(mergeJob).toMatch(/compare\/\$GITHUB_SHA\.\.\.\$jetzt/);
-    expect(mergeJob).toContain('= "ahead" ]');
+    expect(mergeJob).toContain('[ "$stand" = "ahead" ]');
+    // Ein Prüfungsfehler bricht ab, statt `:latest` blind zu schreiben.
+    expect(mergeJob).toContain("liess sich nicht pruefen");
     expect(mergeJob).toContain('grep -vxF "$LATESTTAG"');
+  });
+
+  it("deploy.sh rollt nur den Kopf von main aus, ein älterer Lauf endet als ÜBERHOLT", () => {
+    expect(deploySh).toContain('merge-base --is-ancestor "$ERWARTET" "$main_kopf"');
+    expect(deploySh).toContain("ÜBERHOLT: main steht schon auf dem NEUEREN Commit");
   });
 });
 

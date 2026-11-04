@@ -45,8 +45,9 @@ export function GeraetAkte({
   const [eintragen, setEintragen] = useState<FristStand | null>(null);
   const [erledigt, setErledigt] = useState<Erledigt>({ am: heute, stunden: g.stunden, wer: "", notiz: "" });
   const [aendern, setAendern] = useState(false);
-  // Derselbe Schlüssel fürs Formular und fürs Löschen nach dem Speichern.
-  const aendernSchluessel = `wartung:geraet:${g.id}:${fingerabdruck(g)}`;
+  // Der Fingerabdruck nur über die Felder des Formulars; derselbe Schlüssel fürs Formular und fürs Löschen.
+  const aendernStart = { gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise };
+  const aendernSchluessel = `wartung:geraet:${g.id}:${fingerabdruck(aendernStart)}`;
   // IDA-358: die Angaben zu „… eintragen" liegen je Gerät und Frist auf dem Gerät, bis das Eintragen bestätigt ist.
   const erledigtEntwurf = useEntwurf<Erledigt>({
     schluessel: eintragen ? `wartung:erledigt:${g.id}:${eintragen.vorlage.id}` : null,
@@ -238,7 +239,7 @@ export function GeraetAkte({
         entwurfSchluessel={aendernSchluessel}
         offen
         titel="Gerät bearbeiten"
-        start={{ gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise }}
+        start={aendernStart}
         gruppen={gruppen}
         arten={arten}
         orte={orte}
