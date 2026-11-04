@@ -40,24 +40,8 @@
 .kicker { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--iuk-gedaempft); }
 .filter { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 8px 12px; align-items: center; }
 
-.chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; vertical-align: middle; }
-.punkt { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
-.ok { color: var(--vl-ok-text); background: var(--vl-ok-flaeche); }
-.gelb { color: var(--vl-gelb-text); background: var(--vl-gelb-flaeche); }
-.rot { color: var(--vl-rot-text); background: var(--vl-rot-flaeche); }
-.grau { color: var(--vl-grau-text); background: var(--vl-grau-flaeche); }
 .textGelb { color: var(--vl-gelb-text); }
 
-/* Kennzahlen der Übersicht */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; }
-.kpi {
-  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--vl-karte); border-radius: 8px;
-  border: 1px solid var(--iuk-linie); border-inline-start: 4px solid var(--vl-grau-text); text-decoration: none; color: inherit;
-}
-.kpi:hover { background: var(--iuk-flaeche-aktiv); }
-.kpi.kpiRot { border-inline-start-color: var(--vl-rot-text); }
-.kpi.kpiGelb { border-inline-start-color: var(--vl-gelb-text); }
-.kpiZahl { font-family: var(--font-display); font-size: 32px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
 .zwei { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (min-width: 768px) {
   .zwei { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }

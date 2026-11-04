@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { App, Button, Form, Input, InputNumber, Modal, Segmented, Select } from "antd";
+import { Filterchips } from "@/core/filterchips/Filterchips";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachText, trifftWert, werteAlsFilter } from "@/core/tabelle";
@@ -81,11 +82,11 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
         titel="Artikel"
         aktionen={
           <span className={s.reihe}>
-            <Segmented<Sicht>
+            <Filterchips<Sicht>
               aria-label="Auswahl"
-              value={sicht}
+              wert={sicht}
               onChange={setSicht}
-              options={[{ value: "aktiv", label: "Aktiv" }, { value: "vorlaeufig", label: `Vorläufig (${vorlaeufig})` }, { value: "inaktiv", label: "Inaktiv" }]}
+              optionen={[{ wert: "aktiv", label: "Aktiv" }, { wert: "vorlaeufig", label: "Vorläufig", anzahl: vorlaeufig }, { wert: "inaktiv", label: "Inaktiv" }]}
             />
             <Button type="primary" icon={<Icons8Ikone name="plus" groesse={16} />} onClick={() => oeffne("neu")}>Artikel anlegen</Button>
           </span>
