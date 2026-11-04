@@ -7,7 +7,7 @@ import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDirectory, type DirectoryResult } from "@/core/directory";
 import { getDb } from "../_db/client";
 import { geraet } from "../_db/schema";
-import { ladeMangel } from "../_lib/daten";
+import { ladeMangel, ladeUnterlage } from "../_lib/daten";
 import {
   artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, verwalterEingabe,
 } from "../_lib/eingabe";
@@ -17,8 +17,9 @@ import {
 import { heute } from "../_lib/heute";
 import {
   Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
-  gruppeSpeichern, mangelBeheben,
+  gruppeSpeichern, mangelBeheben, unterlageLoeschen, unterlageVerschieben,
 } from "../_lib/schreiben";
+import { entferneUnterlage } from "../_lib/unterlagen";
 import type { Ergebnis, PersonVorschlag } from "../_lib/typen";
 import { anzeigename, requireAktion, verwaltetGruppe, type Rechte, type Stufe, type Viewer } from "../_lib/zugang";
 
@@ -118,6 +119,36 @@ export async function mangelBehebenAction(id: string): Promise<Ergebnis> {
     if (!m) throw new Abgelehnt("Diesen Mangel gibt es nicht mehr.");
     if (!verwaltetGruppe(rechte, m.gruppeId)) throw new Abgelehnt(NICHT_DEINE);
     mangelBeheben(getDb(), id, kontext(viewer));
+  });
+}
+
+// ---------------------------------------------------------------- Unterlagen (IDA-300; Hochladen: Route `geraete/[id]/unterlagen`)
+
+/** Die Unterlage, wenn die aufrufende Person die Gruppe ihres Geräts verwaltet — Gruppe aus der Datenbank. */
+function eigeneUnterlage(rechte: Rechte, id: string) {
+  const u = ladeUnterlage(getDb(), id);
+  if (!u) throw new Abgelehnt("Diese Unterlage gibt es nicht mehr.");
+  if (!verwaltetGruppe(rechte, u.gruppeId)) throw new Abgelehnt(NICHT_DEINE);
+  return u;
+}
+
+export async function unterlageLoeschenAction(id: string): Promise<Ergebnis> {
+  if (!idSchema.safeParse(id).success) return { ok: false, fehler: UNGUELTIG };
+  let typ: "pdf" | "bild" | null = null;
+  const r = await schreibe("verwalter", ({ rechte }) => {
+    typ = eigeneUnterlage(rechte, id).typ;
+    unterlageLoeschen(getDb(), id);
+  });
+  // Erst der Eintrag, dann die Datei: bricht es dazwischen, bleibt höchstens eine Datei ohne Verweis liegen.
+  if (r.ok && typ) await entferneUnterlage(id, typ);
+  return r;
+}
+
+export async function unterlageVerschiebenAction(id: string, richtung: unknown): Promise<Ergebnis> {
+  if (!idSchema.safeParse(id).success || (richtung !== -1 && richtung !== 1)) return { ok: false, fehler: UNGUELTIG };
+  return schreibe("verwalter", ({ rechte }) => {
+    eigeneUnterlage(rechte, id);
+    unterlageVerschieben(getDb(), id, richtung);
   });
 }
 

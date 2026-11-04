@@ -124,3 +124,89 @@ test("Verwalter zuordnen, Gerät anlegen, prüfen, Mangel ohne Anmeldung melden 
   expect(fremd?.status()).toBe(404);
   await iukKontext.close();
 });
+
+/**
+ * IDA-300: Hinweise und Unterlagen am QR-Code. Der Admin trägt Hinweise ein und lädt ein PDF und ein Bild in die
+ * Akte; jemand ohne Anmeldung sieht beides am Steckbrief (320 und 390 px ohne Querscrollen) und öffnet das PDF.
+ * Hochladen bleibt ohne Anmeldung zu, eine Unterlage eines anderen Geräts gibt es unter dieser Adresse nicht.
+ */
+test("Hinweise und Unterlagen am QR-Code", async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  const name = `Zeltheizung E2E ${Date.now() % 100_000}`;
+  await devLogin(page, { host: HOST, email: "admin@localtest.me", groups: "wartung-admin", callbackPath: "/geraete" });
+  await page.goto(url("/geraete"));
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Gerät anlegen" }));
+  const dialog = page.getByRole("dialog", { name: "Gerät anlegen" });
+  await dialog.getByText("Technik", { exact: true }).click();
+  await dialog.getByLabel("Bezeichnung").fill(name);
+  await dialog.getByLabel("Standort").fill("Lager Technik");
+  await dialog.getByLabel("Hinweise am Gerät").fill("Nur im Freien betreiben.\nAbgasschlauch nie ins Zelt legen.");
+  await klickeWennRuhig(dialog.getByRole("button", { name: "Speichern" }));
+  await page.waitForURL(/\/geraete\/[0-9a-f-]{36}$/);
+  const id = page.url().split("/").pop()!;
+  await warteAufGestreamteInhalte(page);
+  await expect(page.getByText("Abgasschlauch nie ins Zelt legen.")).toBeVisible();
+
+  const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+  // 1×1 PNG.
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==", "base64");
+  for (const [titel, datei] of [
+    ["Betriebsanleitung", { name: "handbuch.pdf", mimeType: "application/pdf", buffer: pdf }],
+    ["Schaltbild", { name: "schaltbild.png", mimeType: "image/png", buffer: png }],
+  ] as const) {
+    await klickeWennRuhig(page.getByRole("button", { name: "Hinzufügen" }));
+    const hoch = page.getByRole("dialog", { name: "Unterlage hinzufügen" });
+    await hoch.locator('input[type="file"]').setInputFiles(datei);
+    await hoch.getByLabel("Titel").fill(titel);
+    const antwort = page.waitForResponse((r) => r.url().endsWith(`/geraete/${id}/unterlagen`) && r.request().method() === "POST");
+    await klickeWennRuhig(hoch.getByRole("button", { name: "Hochladen" }));
+    expect((await antwort).status()).toBe(200);
+    await expect(page.getByRole("list", { name: "Unterlagen" }).getByText(titel)).toBeVisible();
+  }
+  // Ein Text mit PDF-Namen ist kein PDF.
+  await klickeWennRuhig(page.getByRole("button", { name: "Hinzufügen" }));
+  const falsch = page.getByRole("dialog", { name: "Unterlage hinzufügen" });
+  await falsch.locator('input[type="file"]').setInputFiles({ name: "boese.pdf", mimeType: "application/pdf", buffer: Buffer.from("<script>alert(1)</script>") });
+  await klickeWennRuhig(falsch.getByRole("button", { name: "Hochladen" }));
+  await expect(falsch.getByText("Bitte ein PDF oder ein Bild wählen.")).toBeVisible();
+  await klickeWennRuhig(falsch.getByRole("button", { name: "Abbrechen" }));
+
+  // Ohne Anmeldung am Telefon.
+  for (const breite of [320, 390]) {
+    const gastKontext = await browser.newContext({ viewport: { width: breite, height: 760 } });
+    const gast = await gastKontext.newPage();
+    await gast.goto(url(`/g/${id}`));
+    await warteAufGestreamteInhalte(gast);
+    await expect(gast.getByText("Nur im Freien betreiben.")).toBeVisible();
+    const liste = gast.getByRole("list", { name: "Unterlagen" });
+    await expect(liste.getByRole("link")).toHaveCount(2);
+    expect(await gast.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const href = await liste.getByRole("link", { name: /Betriebsanleitung/ }).getAttribute("href");
+    const datei = await gast.request.get(url(href!));
+    expect(datei.status()).toBe(200);
+    expect(datei.headers()["content-type"]).toBe("application/pdf");
+    expect(datei.headers()["x-content-type-options"]).toBe("nosniff");
+    expect((await datei.body()).subarray(0, 5).toString()).toBe("%PDF-");
+    const bild = await gast.request.get(url((await liste.getByRole("link", { name: /Schaltbild/ }).getAttribute("href"))!));
+    expect(bild.headers()["content-type"]).toBe("image/jpeg");
+    expect(bild.headers()["content-security-policy"]).toContain("sandbox");
+    // Dieselbe Unterlage unter einem anderen Gerät gibt es nicht.
+    const uid = href!.split("/").pop()!;
+    expect((await gast.request.get(url(`/g/00000000-0000-4000-8000-000000000000/unterlagen/${uid}`))).status()).toBe(404);
+    // Hochladen ohne Anmeldung.
+    const hoch = await gast.request.post(url(`/geraete/${id}/unterlagen`), { multipart: { titel: "x", datei: { name: "a.pdf", mimeType: "application/pdf", buffer: pdf } } });
+    expect(hoch.status()).toBe(403);
+    if (breite === 390) await gast.screenshot({ path: "test-results/wartung-steckbrief-390.png", fullPage: true });
+    await gastKontext.close();
+  }
+
+  // Entfernen.
+  const zeile = page.getByRole("list", { name: "Unterlagen" }).getByRole("listitem").filter({ hasText: "Schaltbild" });
+  await klickeWennRuhig(zeile.getByRole("button", { name: "Schaltbild: Aktionen" }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Entfernen" }));
+  await klickeWennRuhig(page.getByRole("dialog", { name: "Schaltbild entfernen?" }).getByRole("button", { name: "Entfernen" }));
+  await expect(page.getByText("Entfernt.")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Unterlagen" }).getByRole("listitem")).toHaveCount(1);
+  await page.screenshot({ path: "test-results/wartung-akte-unterlagen.png", fullPage: true });
+});

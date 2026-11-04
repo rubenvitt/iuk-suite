@@ -46,6 +46,7 @@ export const geraetEingabe = z.object({
   ortArt: z.enum(["lager", "fahrzeug"]),
   ort: pflicht(NAME_MAX, "Wo steht das Gerät?"),
   stunden,
+  hinweise: frei(NOTIZ_MAX).default(""),
 });
 export type GeraetEingabe = z.infer<typeof geraetEingabe>;
 
@@ -114,6 +115,11 @@ export const mangelEingabe = z.object({
   /** Nur ohne Anmeldung: wer meldet, freiwillig (IDA-337). */
   name: z.string().trim().max(NAME_MAX).default(""),
 });
+
+/** Titel einer Unterlage am Gerät (IDA-300), z. B. „Kurzanleitung“. */
+export const unterlageTitel = pflicht(KURZ_MAX, "Bitte die Unterlage benennen.");
+/** Höchstens so viele Unterlagen je Gerät. */
+export const UNTERLAGEN_MAX = 12;
 
 /** Erste Meldung je Feld aus einem Zod-Fehler. */
 export function feldFehlerAus(fehler: z.ZodError): Record<string, string> {

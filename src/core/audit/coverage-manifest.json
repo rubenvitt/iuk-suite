@@ -1343,6 +1343,13 @@
     "kind": "excluded",
     "reason": "Liest Vorschläge zum Zuordnen von Verwaltern (bekannte Personen und Personenverzeichnis, höchstens 20); schreibt nichts."
   },
+  "src/app/m/wartung/_actions/verwaltung.ts#unterlageLoeschenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#unterlageVerschiebenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/(verwaltung)/geraete/[id]/unterlagen/route.ts#POST": { "kind": "context", "via": "POST" },
+  "src/app/m/wartung/(geraet)/g/[id]/unterlagen/[uid]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Opening a device manual or quick guide behind the device's QR code; reads files the managers attached, writes nothing."
+  },
   "src/app/m/wartung/_actions/telefon.ts#stundenEintragenAction": { "kind": "context", "via": "stundenEintragenAction" },
   "src/app/m/wartung/(geraet)/g/[id]/pruefung/senden/route.ts#POST": { "kind": "context", "via": "POST" },
   "src/app/m/wartung/(geraet)/g/[id]/mangel/senden/route.ts#POST": { "kind": "context", "via": "POST" },

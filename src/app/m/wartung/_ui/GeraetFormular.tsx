@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AutoComplete, Form, Input, InputNumber, Modal, Radio, Select } from "antd";
-import { KURZ_MAX, NAME_MAX, type GeraetEingabe } from "../_lib/eingabe";
+import { KURZ_MAX, NAME_MAX, NOTIZ_MAX, type GeraetEingabe } from "../_lib/eingabe";
 
 export type GeraetWerte = GeraetEingabe;
 
@@ -80,6 +80,9 @@ export function GeraetFormular({
         </Form.Item>
         <Form.Item label="Betriebsstunden" htmlFor="gw-stunden" {...fehler("stunden")}>
           <InputNumber id="gw-stunden" value={w.stunden ?? undefined} min={0} precision={0} suffix="h" style={{ width: "100%" }} onChange={(v) => setze({ stunden: v ?? null })} />
+        </Form.Item>
+        <Form.Item label="Hinweise am Gerät" htmlFor="gw-hinweise" {...fehler("hinweise")}>
+          <Input.TextArea id="gw-hinweise" rows={3} maxLength={NOTIZ_MAX} showCount value={w.hinweise} onChange={(e) => setze({ hinweise: e.target.value })} />
         </Form.Item>
       </Form>
     </Modal>
