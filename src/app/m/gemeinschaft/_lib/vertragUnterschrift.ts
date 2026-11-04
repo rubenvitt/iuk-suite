@@ -29,7 +29,7 @@ const beginntMit = (bytes: Buffer, kopf: Buffer) => bytes.length >= kopf.length 
  * mit riesigen Maßen sprengt sonst den gemeinsamen Next-Prozess. JPEG bettet pdf-lib ohne Dekodieren ein.
  */
 function pngPixel(bytes: Buffer): number {
-  // Der Decoder nimmt den LETZTEN IHDR: genau einer, und zwar als erster Chunk, sonst abgelehnt.
+  // Der Decoder nimmt den LETZTEN IHDR: genau einer, und zwar als erster Chunk, sonst abgelehnt. Kein APNG.
   let px = Infinity, ihdr = 0;
   for (let o = 8; o + 8 <= bytes.length;) {
     const laenge = bytes.readUInt32BE(o);
@@ -39,6 +39,8 @@ function pngPixel(bytes: Buffer): number {
       if (o !== 8 || laenge !== 13 || ++ihdr > 1) return Infinity;
       px = bytes.readUInt32BE(o + 8) * bytes.readUInt32BE(o + 12);
     }
+    // APNG: der Decoder baut jeden Frame in voller Größe auf, viele Frames = vielfacher Speicher.
+    if (typ === "acTL" || typ === "fcTL" || typ === "fdAT") return Infinity;
     if (typ === "IEND") break;
     o += 12 + laenge;
   }
