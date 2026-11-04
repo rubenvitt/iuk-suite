@@ -201,14 +201,36 @@ test("das Flyin passt auf 320px", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", port: PORT });
   await page.goto(portal());
   await warteAufGestreamteInhalte(page);
-  // Ueber den schwebenden Knopf, nicht die Portal-Kachel: bei 320x640 steht die
-  // Kachel auch ganz hinuntergescrollt unter dem Knopf (Kachelmitte y≈584, Knopf
-  // y 580–624). Gegenstand hier ist die Breite des Flyins, nicht die Kachel.
   await klickeWennRuhig(page.getByTestId("rueckmeldung-knopf"));
   const kasten = await messeWennRuhig(page.getByTestId("rueckmeldung-formular"));
   expect(kasten.x).toBeGreaterThanOrEqual(0);
   expect(kasten.x + kasten.width).toBeLessThanOrEqual(320);
 });
+
+/**
+ * IDA-352: bei 320x640 lag der Knopf auch ganz hinuntergescrollt über der
+ * letzten Portal-Kachel (Kachelmitte y≈584, Knopf y 580–624). Der Platz im
+ * Fluss hält unten frei, was der Knopf belegt.
+ */
+for (const breite of [320, 390]) {
+  test(`ganz unten verdeckt der Knopf bei ${breite}px nichts`, async ({ page }) => {
+    await page.setViewportSize({ width: breite, height: 640 });
+    await devLogin(page, { host: "portal.localtest.me", port: PORT });
+    await page.goto(portal());
+    await warteAufGestreamteInhalte(page);
+    await expect(page.getByTestId("rueckmeldung-knopf")).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+    const knopf = await messeWennRuhig(page.getByTestId("rueckmeldung-schweber"));
+    const kachel = await messeWennRuhig(page.getByTestId("portal-feedback"));
+    expect(kachel.y + kachel.height, "Kachel endet über dem Knopf").toBeLessThanOrEqual(knopf.y);
+
+    // Und genau ein Klick auf die Kachel trifft die Kachel, nicht den Knopf.
+    await klickeWennRuhig(page.getByTestId("portal-feedback"));
+    await expect(page.getByTestId("rueckmeldung-formular")).toBeVisible();
+    await expect(page.getByTestId("rueckmeldung-schweber")).toBeVisible();
+  });
+}
 
 /**
  * ⚠️ OHNE DIESEN FALL STEHT HINTER JEDER GEDRUCKTEN ARBEITSSEITE EIN LEERES

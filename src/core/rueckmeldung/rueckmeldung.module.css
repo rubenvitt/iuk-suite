@@ -50,6 +50,39 @@
 }
 
 /*
+ * DER PLATZ IM FLUSS (IDA-352). Ohne ihn lag der Knopf am Telefon auch ganz
+ * unten gescrollt über dem letzten Inhalt — im Portal über der letzten Kachel.
+ * Er ist so hoch wie der Knopf plus sein Abstand zum Rand; die Polsterung des
+ * Inhalts darunter bleibt der Luftspalt.
+ *
+ * ⚠️ 44px IST `controlHeight` AUS `ARBEITSDICHTE` (`core/theme/theme.ts`), der
+ * Höhe des Knopfes (Falle 4). `platz.test.ts` hält beide Zahlen
+ * zusammen. Die Variable steht am Wurzelelement, damit eine Fläche mit voller
+ * Fensterhöhe (`core/seite`, Typ „werkzeug") den Platz abziehen kann.
+ */
+:global(html):has(.platz) {
+  --iuk-rueckmeldung-platz: calc(44px + max(16px, env(safe-area-inset-bottom)));
+}
+
+.platz {
+  block-size: var(--iuk-rueckmeldung-platz);
+}
+
+/*
+ * ⚠️ KLEBT UNTEN SCHON EINE LEISTE, TRITT DER KNOPF ZURÜCK. Er läge sonst auf
+ * ihren Bedienelementen (Abschluss der Inventur, Verlauf im
+ * Kommunikationsplan), und ein Platz im Fluss hilft gegen etwas Klebendes nicht. Der Weg
+ * zur Rückmeldung bleibt über das Nutzermenü und die Portal-Kachel offen.
+ */
+:global(html):has([data-fussleiste]) {
+  --iuk-rueckmeldung-platz: 0px;
+}
+
+:global(html):has([data-fussleiste]) .schweber {
+  display: none;
+}
+
+/*
  * Der Schatten macht aus einem Knopf einen schwebenden Knopf. Bewusst
  * zurückhaltend und ohne Farbe: im Hellmodus hebt er die Pille von der Fläche
  * ab, im Dunkelmodus verschwindet er fast — dort trägt die Kontur des
