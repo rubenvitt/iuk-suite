@@ -1,4 +1,4 @@
-import { moduleForHost, getModule, findModule, canAccess, VERTRAULICHE_ANSICHTEN } from "@/core/registry";
+import { moduleForHost, getModule, findModule, canAccess, einstiegFuerHost, VERTRAULICHE_ANSICHTEN } from "@/core/registry";
 
 export type RouteDecision =
   | { action: "next" }
@@ -88,7 +88,9 @@ export function decideRoute(input: {
     return { action: "next" };
   }
 
-  const mod = moduleForHost(host) ?? getModule("portal");
+  // Einstiegshost (IDA-340): ein Host für einen Pfadraum eines Moduls, gegatet wie dessen Modulhost.
+  const einstieg = einstiegFuerHost(host);
+  const mod = einstieg ? getModule(einstieg.modul) : (moduleForHost(host) ?? getModule("portal"));
 
   if (mod.requiresAuth && groups === null) {
     return { action: "login", callbackUrl: pathname };
@@ -98,7 +100,7 @@ export function decideRoute(input: {
   }
 
   const rest = pathname === "/" ? "" : pathname;
-  return { action: "rewrite", target: `/m/${mod.key}${rest}`, moduleKey: mod.key };
+  return { action: "rewrite", target: `/m/${mod.key}${einstieg?.praefix ?? ""}${rest}`, moduleKey: mod.key };
 }
 
 /**

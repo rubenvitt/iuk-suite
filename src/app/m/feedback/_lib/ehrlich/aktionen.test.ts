@@ -14,16 +14,19 @@ const h = vi.hoisted(() => ({
   db: null as unknown as ReturnType<typeof drizzle<typeof schema>>,
   sqlite: null as unknown as Database.Database,
   ip: "203.0.113.77",
+  host: "feedback.localtest.me",
   auth: vi.fn(),
+  turnstile: vi.fn(async (_token: string) => true),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/headers", () => ({ headers: async () => new Headers({ "cf-connecting-ip": h.ip, "x-forwarded-for": h.ip }) }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ "cf-connecting-ip": h.ip, "x-forwarded-for": h.ip, host: h.host }) }));
+vi.mock("./turnstile", () => ({ pruefeTurnstile: h.turnstile }));
 vi.mock("@/core/auth", () => ({ auth: h.auth }));
 vi.mock("../../_db/client", () => ({ getDb: () => h.db }));
 
 import {
-  abholenAktion, antwortAktion, einwerfenAktion, notizAktion, rueckfrageAktion, statusAktion, zurueckschreibenAktion,
+  abholenAktion, antwortAktion, einwerfenAktion, einwerfenOeffentlichAktion, notizAktion, rueckfrageAktion, statusAktion, zurueckschreibenAktion,
 } from "./aktionen";
 import { kastenSecret } from "./daten";
 
@@ -41,6 +44,9 @@ beforeEach(() => {
   migrate(h.db, { migrationsFolder: "src/app/m/feedback/_db/migrations" });
   // Jeder Test aus einem eigenen Netz: die Limiter sind prozessweit.
   h.ip = `203.0.113.${(ipZaehler += 1)}`;
+  h.host = "feedback.localtest.me";
+  h.turnstile.mockReset();
+  h.turnstile.mockResolvedValue(true);
   h.auth.mockResolvedValue({ user: { id: "sub-erika", name: "Erika Mustermann", email: "erika@example.org", groups: ["kummerkasten-leser"] } });
 });
 
@@ -105,6 +111,39 @@ describe("einwerfenAktion", () => {
   it("verwirft ein Thema außerhalb der festen Liste", async () => {
     await einwerfenAktion(kastenSecret(h.db), null, fd({ text: "x", thema: "<script>" }));
     expect(h.sqlite.prepare("SELECT thema FROM ehrlich_mitteilungen").get()).toEqual({ thema: null });
+  });
+});
+
+describe("öffentlicher Einwurf (IDA-340)", () => {
+  const anzahl = () => (h.sqlite.prepare("SELECT count(*) n FROM ehrlich_mitteilungen").get() as { n: number }).n;
+
+  it("nimmt über den Einstiegshost ohne Secret an und prüft das Turnstile-Token", async () => {
+    h.host = "ehrlich-gesagt.localtest.me:3000";
+    const r = await einwerfenOeffentlichAktion(null, fd({ text: "Offen gesagt.", "cf-turnstile-response": "tok" }));
+    expect(r).toEqual({ ok: true, antwortweg: "keine", code: null });
+    expect(h.turnstile).toHaveBeenCalledWith("tok");
+    expect(anzahl()).toBe(1);
+  });
+
+  it("gilt auf keinem anderen Host", async () => {
+    expect(await einwerfenOeffentlichAktion(null, fd({ text: "x" }))).toEqual({ ok: false, fehler: "ungueltig" });
+    expect(anzahl()).toBe(0);
+  });
+
+  it("lehnt bei nicht bestandener Prüfung ab, auch über den Secret-Link", async () => {
+    h.turnstile.mockResolvedValue(false);
+    expect(await einwerfenAktion(kastenSecret(h.db), null, fd({ text: "x" }))).toEqual({ ok: false, fehler: "pruefung" });
+    h.host = "ehrlich-gesagt.localtest.me";
+    expect(await einwerfenOeffentlichAktion(null, fd({ text: "x" }))).toEqual({ ok: false, fehler: "pruefung" });
+    expect(anzahl()).toBe(0);
+  });
+
+  it("dankt einem gefüllten Honigtopf, speichert aber nichts", async () => {
+    h.host = "ehrlich-gesagt.localtest.me";
+    expect(await einwerfenOeffentlichAktion(null, fd({ text: "Kauf jetzt!", antwortweg: "code", webseite: "https://spam.example" })))
+      .toEqual({ ok: true, antwortweg: "keine", code: null });
+    expect(h.turnstile).not.toHaveBeenCalled();
+    expect(anzahl()).toBe(0);
   });
 });
 

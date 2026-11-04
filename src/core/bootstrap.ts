@@ -3,7 +3,7 @@ import { auditRetentionDays } from "@/core/audit/retention";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { openModuleDatabase, moduleDbPath, getModuleDb } from "@/core/db";
-import { MODULES } from "@/core/registry";
+import { MODULES, einstiegsHostFehler } from "@/core/registry";
 import { validateHostConfig } from "@/core/hosts";
 import { validateGroupConfig } from "@/core/groups";
 import * as portalSchema from "@/app/m/portal/_db/schema";
@@ -120,7 +120,7 @@ export const CORE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
 export async function assertHostConfig(): Promise<void> {
   const keys = MODULES.map((m) => m.key);
   const errors = [
-    ...validateHostConfig(keys), ...lokalHttpFehler(),
+    ...validateHostConfig(keys), ...einstiegsHostFehler(), ...lokalHttpFehler(),
     ...validateGroupConfig(keys),
     ...(await filesBootFehler()),
     // lagerbuch: greift nur bei gesetztem SUITE_HOST_LAGERBUCH und WIRFT NIE (Spec §10.5).

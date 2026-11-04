@@ -140,3 +140,18 @@ describe("moduleForHost — prod apex", () => {
     expect(moduleForHost("iuk-ue.de:443")?.key).toBe("portal");
   });
 });
+
+describe("einstiegsHostFehler (IDA-340)", () => {
+  it("still ohne Variable und bei reinem, freiem Hostnamen", async () => {
+    const { einstiegsHostFehler } = await import("@/core/registry");
+    expect(einstiegsHostFehler({})).toEqual([]);
+    expect(einstiegsHostFehler({ SUITE_EINSTIEG_HOST_EHRLICH: "ehrlich-gesagt.example.org" })).toEqual([]);
+  });
+  it("meldet Protokoll, Port und einen Host, den schon ein Modul trägt", async () => {
+    const { einstiegsHostFehler } = await import("@/core/registry");
+    expect(einstiegsHostFehler({ SUITE_EINSTIEG_HOST_EHRLICH: "https://x.example.org" })).toHaveLength(1);
+    expect(einstiegsHostFehler({ SUITE_EINSTIEG_HOST_EHRLICH: "x.example.org:8443" })).toHaveLength(1);
+    expect(einstiegsHostFehler({ SUITE_EINSTIEG_HOST_EHRLICH: "da.example.org", SUITE_HOST_FEEDBACK: "da.example.org" }))
+      .toEqual(['SUITE_EINSTIEG_HOST_EHRLICH: "da.example.org" ist schon Host des Moduls feedback.']);
+  });
+});

@@ -233,3 +233,33 @@ describe("antwortKoepfeFuer — vertrauliche Ansichten (kommplan Phase 5, Entsch
     }
   });
 });
+
+describe("decideRoute — Einstiegshost (IDA-340)", () => {
+  const vorher = process.env.SUITE_EINSTIEG_HOST_EHRLICH;
+  beforeAll(() => { process.env.SUITE_EINSTIEG_HOST_EHRLICH = "Ehrlich-Gesagt.example.org"; });
+  afterAll(() => {
+    if (vorher === undefined) delete process.env.SUITE_EINSTIEG_HOST_EHRLICH;
+    else process.env.SUITE_EINSTIEG_HOST_EHRLICH = vorher;
+  });
+
+  it("führt jeden Pfad in den Pfadraum des Moduls, anonym", () => {
+    expect(decideRoute({ host: "ehrlich-gesagt.example.org", pathname: "/", groups: null }))
+      .toEqual({ action: "rewrite", target: "/m/feedback/k", moduleKey: "feedback" });
+    expect(decideRoute({ host: "EHRLICH-GESAGT.example.org:443", pathname: "/abholen", groups: null }))
+      .toEqual({ action: "rewrite", target: "/m/feedback/k/abholen", moduleKey: "feedback" });
+  });
+  it("lokal über den devHost, auch ohne Variable", () => {
+    delete process.env.SUITE_EINSTIEG_HOST_EHRLICH;
+    expect(decideRoute({ host: "ehrlich-gesagt.localtest.me:3000", pathname: "/", groups: null }))
+      .toMatchObject({ action: "rewrite", target: "/m/feedback/k" });
+    process.env.SUITE_EINSTIEG_HOST_EHRLICH = "ehrlich-gesagt.example.org";
+  });
+  it("lässt interne Pfade und Passthrough unberührt", () => {
+    expect(decideRoute({ host: "ehrlich-gesagt.example.org", pathname: "/_next/static/x.js", groups: null }).action).toBe("next");
+    expect(decideRoute({ host: "ehrlich-gesagt.example.org", pathname: "/m/feedback/k", groups: null }).action).toBe("next");
+  });
+  it("die Einwurfwurzel ist eine vertrauliche Ansicht", () => {
+    expect(antwortKoepfeFuer("/m/feedback/k")).not.toBeNull();
+    expect(antwortKoepfeFuer("/m/feedback/kxyz")).toBeNull();
+  });
+});

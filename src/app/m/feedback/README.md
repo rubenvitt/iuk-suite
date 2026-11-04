@@ -68,6 +68,12 @@ Entscheidungen stehen an IDA-309 (POC) und IDA-314 in Zunder.
 - **Öffentlich:** `k/<secret>` (Einwurf), `k/abholen` (Antwort unter dem Abholcode). Ohne Anmeldung, ohne
   antd, Optik des Abendzettels. `k/` ist eine vertrauliche Ansicht (`VERTRAULICHE_ANSICHTEN` in
   `core/registry.ts`: `no-store`, `noindex`, `no-referrer`).
+- **Öffentliche Adresse (IDA-340):** `SUITE_EINSTIEG_HOST_EHRLICH` (Prod `ehrlich-gesagt.iuk-ue.de`, lokal
+  `ehrlich-gesagt.localtest.me`) ist ein Einstiegshost (`EINSTIEGSHOSTS` in `core/registry.ts`): jeder Pfad
+  geht nach `k/…`, die Wurzel ist der Einwurf ohne Secret (`k/page.tsx`, nur auf diesem Host). Aushang und
+  QR-Code zeigen dann diese Adresse; Secret-Links gelten weiter. Nicht in `SUITE_HOST_FEEDBACK` eintragen.
+  Gegen Bots: Honigtopf-Feld und Cloudflare Turnstile (`_lib/ehrlich/turnstile.ts`, aktiv mit
+  `SUITE_EHRLICH_TURNSTILE_SITE_KEY` und `SUITE_EHRLICH_TURNSTILE_SECRET`), für beide Einwurfwege.
 - **Verwaltung:** `(admin)/ehrlich-gesagt` und der Druck `(print)/ehrlich-gesagt-aushang`. Riegel ist allein
   die Lesegruppe (`_lib/ehrlich/zugang.ts`, Vorgabe `kummerkasten-leser`, `SUITE_LESER_GROUP_FEEDBACK`) —
   **nicht** `feedback-admin` und nicht der Suite-Betrieb. Damit die Vertrauenspersonen das Modul betreten,

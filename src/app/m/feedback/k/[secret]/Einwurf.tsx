@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import s from "../../f/[slugSecret]/zettel.module.css";
 import type { EinwurfErgebnis } from "../../_lib/ehrlich/aktionen";
+import { HONIGTOPF_FELD } from "../../_lib/ehrlich/themen";
 import { Blatt, Haken } from "../Blatt";
 import e from "../ehrlich.module.css";
+import { Turnstile } from "../Turnstile";
 
 type Antwortweg = "keine" | "code" | "name";
 
@@ -16,6 +18,7 @@ const FEHLER: Record<Exclude<EinwurfErgebnis, { ok: true }>["fehler"], string> =
   name: "Für eine Rückmeldung mit Namen fehlt noch dein Name.",
   ratelimit: "Von diesem Netz kamen gerade sehr viele Mitteilungen. Versuch es in ein paar Minuten noch einmal.",
   ungueltig: "Dieser Link gilt nicht mehr.",
+  pruefung: "Die Prüfung gegen automatische Einsendungen hat nicht geklappt. Versuch es noch einmal.",
 };
 
 /** Die Zusage über dem Knopf. Jeder Halbsatz hat eine Deckung im Code: `_db/schema.ts`, Abschnitt „Ehrlich gesagt". */
@@ -31,6 +34,10 @@ type EinwurfProps = {
   leser: string | null;
   leserOder: string | null;
   schrift: string;
+  /** Pfad zum Abholen aus Sicht des aufgerufenen Hosts (`abholenPfad`). */
+  abholen: string;
+  /** Site-Key, wenn Turnstile aktiv ist (`turnstileSiteKey`). */
+  turnstile: string | null;
 };
 
 /** „Neue Mitteilung schreiben" baut das Formular frisch auf — samt leerem Ergebnis der Aktion. */
@@ -39,7 +46,7 @@ export function Einwurf(props: EinwurfProps) {
   return <EinwurfRunde key={runde} {...props} neu={() => setRunde((r) => r + 1)} />;
 }
 
-function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, neu }: EinwurfProps & { neu: () => void }) {
+function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, abholen, turnstile, neu }: EinwurfProps & { neu: () => void }) {
   const [ergebnis, absenden, laeuft] = useActionState(aktion, null);
   const [text, setText] = useState("");
   const [thema, setThema] = useState<string | null>(null);
@@ -47,6 +54,13 @@ function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, neu }: Einwur
   const [name, setName] = useState("");
   const [kontakt, setKontakt] = useState("");
   const [kopiert, setKopiert] = useState<string | null>(null);
+  const [abgelehnt, setAbgelehnt] = useState(0);
+  const [gesehen, setGesehen] = useState(ergebnis);
+  // Nach jeder Ablehnung ein frisches Token: ein Turnstile-Token gilt nur einmal.
+  if (ergebnis !== gesehen) {
+    setGesehen(ergebnis);
+    if (ergebnis && !ergebnis.ok) setAbgelehnt((n) => n + 1);
+  }
 
   if (ergebnis?.ok) {
     return (
@@ -76,7 +90,7 @@ function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, neu }: Einwur
                 </button>
               </div>
               <div className={e.fuss}>
-                <Link className={e.textlink} href="/k/abholen">Antwort abholen</Link>
+                <Link className={e.textlink} href={abholen}>Antwort abholen</Link>
               </div>
             </>
           ) : ergebnis.antwortweg === "name" && leserOder ? (
@@ -111,6 +125,10 @@ function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, neu }: Einwur
       }
     >
       <form action={absenden} noValidate>
+        <div className={e.honigtopf} aria-hidden="true">
+          <label htmlFor={HONIGTOPF_FELD}>Webseite</label>
+          <input id={HONIGTOPF_FELD} name={HONIGTOPF_FELD} type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
+        </div>
         <fieldset className={`${s.sektion} ${s.aufbau}`} style={{ border: 0, padding: 0, marginInline: 0 }}>
           <legend className={s.sektionKicker}>Worum geht es?</legend>
           <div className={e.themen}>
@@ -172,6 +190,7 @@ function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, neu }: Einwur
 
         <div className={s.aufbau}>
           <p className={s.kurzzusage}>{kurzzusage(weg)}</p>
+          {turnstile ? <Turnstile siteKey={turnstile} runde={abgelehnt} /> : null}
           <button className={s.knopf} type="submit" disabled={laeuft} aria-busy={laeuft}>
             {laeuft ? "Wird gesendet…" : "Mitteilung absenden"}
           </button>
@@ -179,7 +198,7 @@ function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, neu }: Einwur
             <p className={s.meldung} role="alert">{fehler}</p>
           ) : null}
           <div className={e.fuss}>
-            <Link className={e.textlink} href="/k/abholen">Antwort abholen</Link>
+            <Link className={e.textlink} href={abholen}>Antwort abholen</Link>
           </div>
         </div>
       </form>
