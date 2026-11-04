@@ -99,7 +99,11 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
         leer={{
           nichts: sicht === "vorlaeufig" ? "Nichts zu prüfen" : sicht === "inaktiv" ? "Keine inaktiven Artikel" : "Noch keine Artikel",
           figur: sicht === "vorlaeufig" ? "erledigt" : "verpflegung",
-          gefiltert: "Kein Artikel passt zum Filter.",
+          gefiltert: sicht === "inaktiv" ? "Keine inaktiven Artikel." : "Kein Artikel passt zum Filter.",
+          // Aktiv/Inaktiv sind Filterchips über einem Bestand, der existiert: leer
+          // heißt dort „nichts passt", kein Ruhezustand. „Vorläufig" ist die
+          // Prüfliste — leer ist sie erledigt, also Figur.
+          aktiv: sicht !== "vorlaeufig" && artikel.length > 0 ? true : undefined,
         }}
         karte={{ titel: "name", kennzeichen: ["stand"] }}
         columns={[
