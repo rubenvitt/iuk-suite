@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { AutoComplete, Form, Input, InputNumber, Modal, Radio, Select } from "antd";
 import { KURZ_MAX, NAME_MAX, NOTIZ_MAX, type GeraetEingabe } from "../_lib/eingabe";
+import { passt, wahlZuName, type FahrzeugWahl } from "../_lib/fahrzeugsuche";
+import type { BekannteOrte } from "../_lib/typen";
 
 export type GeraetWerte = GeraetEingabe;
 
@@ -12,14 +14,16 @@ export type GeraetWerte = GeraetEingabe;
  * mit `start`.
  */
 export function GeraetFormular({
-  offen, titel, start, gruppen, arten, orte, laeuft, feldFehler, onAbbrechen, onSpeichern,
+  offen, titel, start, gruppen, arten, orte, fahrzeuge, laeuft, feldFehler, onAbbrechen, onSpeichern,
 }: {
   offen: boolean;
   titel: string;
   start: GeraetWerte;
   gruppen: { id: string; name: string }[];
   arten: { id: string; einzahl: string }[];
-  orte: string[];
+  orte: BekannteOrte;
+  /** Die Fahrzeuge der Fahrzeugverwaltung (IDA-342); ein anderer Name im Feld bleibt Freitext. */
+  fahrzeuge: FahrzeugWahl[];
   laeuft: boolean;
   feldFehler: Record<string, string>;
   onAbbrechen: () => void;
@@ -27,6 +31,9 @@ export function GeraetFormular({
 }) {
   const [w, setW] = useState<GeraetWerte>(start);
   const setze = (teil: Partial<GeraetWerte>) => setW((alt) => ({ ...alt, ...teil }));
+  const verknuepft = w.ortArt === "fahrzeug" ? wahlZuName(fahrzeuge, w.ort) : null;
+  const setzeOrt = (ort: string, ortArt = w.ortArt) =>
+    setze({ ort, ortArt, fahrzeugId: ortArt === "fahrzeug" ? wahlZuName(fahrzeuge, ort)?.id ?? null : null });
   const fehler = (feld: string) => (feldFehler[feld] ? { validateStatus: "error" as const, help: feldFehler[feld] } : {});
 
   return (
@@ -65,16 +72,21 @@ export function GeraetFormular({
         <Form.Item label="Steht auf">
           <Radio.Group
             value={w.ortArt}
-            onChange={(e) => setze({ ortArt: e.target.value })}
+            onChange={(e) => setzeOrt(w.ort, e.target.value)}
             options={[{ value: "lager", label: "Lager" }, { value: "fahrzeug", label: "Fahrzeug" }]}
           />
         </Form.Item>
-        <Form.Item label={w.ortArt === "fahrzeug" ? "Fahrzeug" : "Standort"} htmlFor="gw-ort" {...fehler("ort")}>
+        <Form.Item
+          label={w.ortArt === "fahrzeug" ? "Fahrzeug" : "Standort"}
+          htmlFor="gw-ort"
+          extra={verknuepft ? [verknuepft.funkrufname, verknuepft.kennzeichen].filter(Boolean).join(" · ") : undefined}
+          {...fehler("ort")}
+        >
           <AutoComplete
             id="gw-ort"
             value={w.ort}
-            onChange={(v) => setze({ ort: v })}
-            options={orte.filter((o) => o.toLowerCase().includes(w.ort.toLowerCase())).map((o) => ({ value: o }))}
+            onChange={(v: string) => setzeOrt(v)}
+            options={ortOptionen(w.ortArt === "fahrzeug" ? fahrzeuge : [], orte[w.ortArt], w.ort)}
             maxLength={NAME_MAX}
           />
         </Form.Item>
@@ -87,4 +99,25 @@ export function GeraetFormular({
       </Form>
     </Modal>
   );
+}
+
+const zeile = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+
+/** Erst die passenden Fahrzeuge der Fahrzeugverwaltung, dann Namen, die schon vorkommen. */
+function ortOptionen(fahrzeuge: FahrzeugWahl[], bisher: string[], eingabe: string) {
+  const treffer = fahrzeuge.filter((f) => passt(f, eingabe));
+  const namen = new Set(fahrzeuge.map((f) => f.name));
+  const q = eingabe.trim().toLowerCase();
+  return [
+    ...treffer.map((f) => ({
+      value: f.name,
+      label: (
+        <div>
+          <div style={zeile}>{f.name}</div>
+          <div style={{ ...zeile, fontSize: "0.85em", opacity: 0.7 }}>{[f.funkrufname, f.kennzeichen].filter(Boolean).join(" · ")}</div>
+        </div>
+      ),
+    })),
+    ...bisher.filter((o) => !namen.has(o) && o.toLowerCase().includes(q)).map((o) => ({ value: o })),
+  ];
 }

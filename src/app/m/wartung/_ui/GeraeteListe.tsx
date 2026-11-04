@@ -9,7 +9,8 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachRang, nachText } from "@/core/tabelle";
 import { geraetAnlegenAction } from "../_actions/verwaltung";
 import { RANG, type Stufe, type Zustand } from "../_lib/fristen";
-import type { Ergebnis, GeraetZeile } from "../_lib/typen";
+import type { FahrzeugWahl } from "../_lib/fahrzeugsuche";
+import type { BekannteOrte, Ergebnis, GeraetZeile } from "../_lib/typen";
 import { GeraetFormular, type GeraetWerte } from "./GeraetFormular";
 import { GruppenFilter } from "./GruppenFilter";
 import { NICHT_GESPEICHERT } from "./useAktion";
@@ -20,13 +21,14 @@ const KURZ: Record<Zustand, string> = { ok: "Einsatzbereit", mangel: "Mit Mangel
 const STUFEN = (Object.keys(RANG) as Stufe[]).sort((a, b) => RANG[a] - RANG[b]);
 
 export function GeraeteListe({
-  zeilen, arten, gruppen, orte, verwalter, gruppenWahl, gewaehlt,
+  zeilen, arten, gruppen, orte, fahrzeuge, verwalter, gruppenWahl, gewaehlt,
 }: {
   zeilen: GeraetZeile[];
   arten: { id: string; name: string; einzahl: string }[];
   /** Gruppen, die diese Person verwaltet — leer heißt: nur ansehen und prüfen. */
   gruppen: { id: string; name: string }[];
-  orte: string[];
+  orte: BekannteOrte;
+  fahrzeuge: FahrzeugWahl[];
   verwalter: boolean;
   gruppenWahl: { id: string; name: string }[];
   gewaehlt: string | null;
@@ -43,7 +45,7 @@ export function GeraeteListe({
   const artWahl = arten.filter((a) => zeilen.some((g) => g.artId === a.id));
   const start = useMemo<GeraetWerte>(() => ({
     gruppeId: gewaehlt ?? gruppen[0]?.id ?? "", artId: arten[0]?.id ?? "", name: "", hersteller: "", typ: "", seriennr: "",
-    ortArt: "lager", ort: "", stunden: null, hinweise: "",
+    ortArt: "lager", ort: "", fahrzeugId: null, stunden: null, hinweise: "",
   }), [gewaehlt, gruppen, arten]);
 
   const speichern = (w: GeraetWerte) => {
@@ -136,6 +138,7 @@ export function GeraeteListe({
           gruppen={gruppen}
           arten={arten}
           orte={orte}
+          fahrzeuge={fahrzeuge}
           laeuft={laeuft}
           feldFehler={feldFehler}
           onAbbrechen={() => setAnlegen(false)}

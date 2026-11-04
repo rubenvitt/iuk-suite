@@ -5,6 +5,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDirectory, type DirectoryResult } from "@/core/directory";
+import { bereitgestellteFahrzeuge } from "@/app/m/fahrzeuge/_lib/bereitstellung";
 import { getDb } from "../_db/client";
 import { geraet } from "../_db/schema";
 import { ladeMangel, ladeUnterlage } from "../_lib/daten";
@@ -20,6 +21,7 @@ import {
   gruppeSpeichern, mangelBeheben, unterlageLoeschen, unterlageVerschieben,
 } from "../_lib/schreiben";
 import { entferneUnterlage } from "../_lib/unterlagen";
+import { mitFahrzeugbezug } from "../_lib/fahrzeugbezug";
 import type { Ergebnis, PersonVorschlag } from "../_lib/typen";
 import { anzeigename, requireAktion, verwaltetGruppe, type Rechte, type Stufe, type Viewer } from "../_lib/zugang";
 
@@ -72,7 +74,7 @@ export async function geraetAnlegenAction(eingabe: unknown): Promise<Ergebnis> {
   if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
   return schreibe("verwalter", ({ rechte }) => {
     if (!verwaltetGruppe(rechte, e.wert.gruppeId)) throw new Abgelehnt("Diese Gruppe verwaltest du nicht.", "gruppeId");
-    return { ok: true, id: geraetAnlegen(getDb(), e.wert, Date.now()) };
+    return { ok: true, id: geraetAnlegen(getDb(), mitFahrzeugbezug(e.wert, bereitgestellteFahrzeuge().fahrzeuge), Date.now()) };
   });
 }
 
@@ -85,7 +87,7 @@ export async function geraetAendernAction(id: string, eingabe: unknown): Promise
     if (!alt) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
     if (!verwaltetGruppe(rechte, alt)) throw new Abgelehnt(NICHT_DEINE);
     if (!verwaltetGruppe(rechte, e.wert.gruppeId)) throw new Abgelehnt("Diese Gruppe verwaltest du nicht.", "gruppeId");
-    geraetAendern(getDb(), id, e.wert, Date.now());
+    geraetAendern(getDb(), id, mitFahrzeugbezug(e.wert, bereitgestellteFahrzeuge().fahrzeuge), Date.now());
   });
 }
 
