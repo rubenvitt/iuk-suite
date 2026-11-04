@@ -64,3 +64,6 @@ export default async function LagerbuchDruckLayout({
 
   return <DruckRahmen>{children}</DruckRahmen>;
 }
+
+/** Titel des Etikettenbogens (`etiketten/page.tsx` ist `"use client"`); Checklisten und Ortsetiketten setzen ihren eigenen. */
+export const metadata = { title: "Artikeletiketten" };
