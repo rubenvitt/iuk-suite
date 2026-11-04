@@ -230,7 +230,8 @@ export function schonGesendet(
  * Mangel“, das niemand beheben kann.
  *
  * Bei einer Materialkiste (IDA-335) sind die Punkte ihre Inhaltsliste: „fehlt“ braucht keinen Text, denn die
- * Position sagt schon, was fehlt; der Mangel trägt `fehlt` und erscheint so in „Was steht an“.
+ * Position sagt schon, was fehlt; der Mangel trägt `fehlt` und die Position und erscheint so in „Was steht an“.
+ * Je Position gibt es höchstens einen offenen Fehlt-Mangel, und eine wieder vollständig gezählte behebt ihn.
  */
 export function pruefungAbschliessen(
   db: WartungDb,
@@ -247,7 +248,9 @@ export function pruefungAbschliessen(
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));
     const meldung = a.kiste ? "Die Inhaltsliste hat sich geändert. Bitte neu durchzählen." : "Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.";
     if (punkte.some((pk) => !antwort.has(pk.id))) throw new Abgelehnt(meldung);
-    if (a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
+    // Gezählt wurde gegen die Menge auf dem Bildschirm; hat sie jemand inzwischen geändert, gilt die Zählung nicht.
+    if (a.kiste && punkte.some((pk) => antwort.get(pk.id)!.soll !== pk.soll)) throw new Abgelehnt(meldung);
+    if (!a.kiste && a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
     pruefeStunden(p.stunden, g.stunden);
 
     const mitMangel = punkte.filter((pk) => !antwort.get(pk.id)!.ok);
@@ -257,13 +260,21 @@ export function pruefungAbschliessen(
       throw new Abgelehnt("Bitte in der Bemerkung beschreiben, was nicht stimmt.", "notiz");
     }
 
-    const maengel: (NeuerMangel & { fehlt: boolean })[] = mitMangel.map((pk) => {
+    // Je Position höchstens ein offener Fehlt-Mangel: fehlt sie wieder, bleibt der alte stehen; ist sie wieder
+    // vollständig, ist er behoben.
+    const offenFehlt = a.kiste
+      ? new Map(tx.select({ id: mangel.id, inhaltId: mangel.inhaltId, text: mangel.text }).from(mangel)
+        .where(and(eq(mangel.geraetId, geraetId), eq(mangel.fehlt, true), isNull(mangel.behobenAm))).all()
+        .filter((m) => m.inhaltId !== null).map((m) => [m.inhaltId!, m]))
+      : new Map<string, { id: string; text: string }>();
+    const maengel: (NeuerMangel & { inhaltId: string | null })[] = mitMangel.filter((pk) => !offenFehlt.has(pk.id)).map((pk) => {
       const x = antwort.get(pk.id)!;
       const id = fotos.get(pk.id) ?? neueId();
       const text = a.kiste ? `Fehlt: ${pk.text} (Soll ${pk.soll})${x.text ? ` – ${x.text}` : ""}` : `${pk.text}: ${x.text}`;
-      return { id, text, foto: fotos.has(pk.id), fehlt: a.kiste };
+      return { id, text, foto: fotos.has(pk.id), inhaltId: a.kiste ? pk.id : null };
     });
-    if (mitMangel.length === 0 && p.ergebnis !== "ok") maengel.push({ id: neueId(), text: p.notiz, foto: false, fehlt: false });
+    if (mitMangel.length === 0 && p.ergebnis !== "ok") maengel.push({ id: neueId(), text: p.notiz, foto: false, inhaltId: null });
+    const wiederDa = punkte.filter((pk) => antwort.get(pk.id)!.ok && offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
 
     const pruefFrist = tx.select().from(frist).where(and(eq(frist.artId, g.artId), eq(frist.wer, "intern"))).get();
     tx.insert(eintrag).values({
@@ -275,7 +286,14 @@ export function pruefungAbschliessen(
     if (p.stunden !== null) tx.update(geraet).set({ stunden: p.stunden, aktualisiertAm: k.jetzt }).where(eq(geraet.id, geraetId)).run();
     for (const m of maengel) {
       tx.insert(mangel).values({
-        id: m.id, geraetId, text: m.text, foto: m.foto, einsatzbereit: p.ergebnis !== "defekt", gemeldetAm: k.jetzt, gemeldetVon: k.wer, fehlt: m.fehlt,
+        id: m.id, geraetId, text: m.text, foto: m.foto, einsatzbereit: p.ergebnis !== "defekt", gemeldetAm: k.jetzt, gemeldetVon: k.wer,
+        fehlt: m.inhaltId !== null, inhaltId: m.inhaltId,
+      }).run();
+    }
+    for (const m of wiederDa) {
+      tx.update(mangel).set({ behobenAm: k.jetzt, behobenVon: k.wer }).where(eq(mangel.id, m.id)).run();
+      tx.insert(eintrag).values({
+        id: neueId(), geraetId, typ: "behoben", titel: "Wieder vollständig", am: k.heute, wer: k.wer, notiz: m.text, angelegtAm: k.jetzt,
       }).run();
     }
     return { maengel: maengel.length };

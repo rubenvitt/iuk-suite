@@ -1,6 +1,8 @@
 /*
  * Das Etikett einer Materialkiste (IDA-335): A6 hochkant zum Aufkleben, mit QR-Code, Standort und Inhaltsliste.
- * Papier ist immer hell.
+ * Papier ist immer hell. Etwa 18 Positionen passen in normaler Schrift auf ein Blatt, eng gesetzt (`.dicht`, ab
+ * `DICHT_AB`) etwa 28; eine längere Liste läuft auf ein zweites Blatt derselben Größe weiter, nichts wird
+ * abgeschnitten (`e2e/wartung-kisten.spec.ts`).
  *
  * Eigene Route neben den Geräte-Etiketten und eine BENANNTE @page (Falle 18): `A6` ist als Schlüsselwort
  * ungültig, also Kantenlängen; und Next legt CSS-Module routenübergreifend in gemeinsame Chunks, eine
@@ -8,7 +10,7 @@
  */
 .bogen { display: flex; flex-wrap: wrap; gap: 16px; }
 .etikett {
-  display: flex; flex-direction: column; gap: 3mm; width: min(105mm, 100%); min-height: 148mm; padding: 6mm;
+  display: flex; flex-direction: column; gap: 3mm; box-sizing: border-box; width: min(105mm, 100%); min-height: 148mm; padding: 6mm;
   background: #fff; color: #1a1d20; border: 1px dashed #9aa4ad; border-radius: 6px; font-size: 10pt; line-height: 1.3;
 }
 .kopf { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4mm; align-items: start; }
@@ -25,11 +27,14 @@
 .liste td { border-block-end: .6px solid #c9ced3; padding: 1mm 1.5mm 1mm 0; vertical-align: top; overflow-wrap: anywhere; }
 .liste .menge { width: 12mm; text-align: end; padding-inline-end: 3mm; font-weight: 600; }
 .bemerkung { color: #5b6570; }
+/* Lange Listen enger setzen; passt es dann noch nicht, läuft die Liste auf ein zweites A6-Blatt weiter. */
+.dicht .liste { font-size: 8pt; line-height: 1.2; }
+.dicht .liste td { padding-block: .5mm; }
 .leer { color: #5b6570; }
 
 @page kistenetikett { size: 105mm 148mm; margin: 0; }
 @media print {
   .bogen { display: block; }
-  .etikett { page: kistenetikett; width: 105mm; min-height: 148mm; border: none; border-radius: 0; break-after: page; break-inside: avoid; }
+  .etikett { page: kistenetikett; width: 105mm; min-height: 148mm; border: none; border-radius: 0; break-after: page; }
   .etikett:last-child { break-after: auto; }
 }

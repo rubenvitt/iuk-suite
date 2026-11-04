@@ -14,6 +14,9 @@ import s from "../../../_ui/wartung.module.css";
 
 export const dynamic = "force-dynamic";
 
+/** Ab so vielen Positionen setzt das Etikett die Liste enger (`kistenetikett.module.css`). */
+const DICHT_AB = 16;
+
 /**
  * Etiketten der Materialkisten (IDA-335): je Kiste ein A6-Blatt mit QR-Code, Standort und Inhaltsliste.
  * Eigene Route, weil die Druckgröße eine andere ist als beim Bogen der Geräte-Etiketten (Falle 18).
@@ -40,7 +43,7 @@ export default async function KistenEtikettenSeite({ searchParams }: { searchPar
       {etiketten.length === 0 ? <p className={s.neben}>Noch keine Materialkisten.</p> : (
         <div className={k.bogen}>
           {etiketten.map(({ g, qr, inhalt }) => (
-            <section key={g.id} className={k.etikett} data-rolle="kistenetikett" aria-label={g.name}>
+            <section key={g.id} className={`${k.etikett} ${inhalt.length >= DICHT_AB ? k.dicht : ""}`} data-rolle="kistenetikett" aria-label={g.name}>
               <div className={k.kopf}>
                 <div style={{ minWidth: 0 }}>
                   <div className={k.marke}>Materialkiste · {g.gruppeName}</div>

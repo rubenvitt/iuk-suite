@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { eintrag, inhalt, mangel } from "../_db/schema";
 import { ladeArten, ladeGeraet, ladeInhalt } from "./daten";
-import { inhaltEingabe } from "./eingabe";
+import { artEingabe, inhaltEingabe } from "./eingabe";
 import { wartungFaelligkeiten } from "./faelligkeiten";
 import { Abgelehnt, geraetAnlegen, inhaltSpeichern, neueId, pruefungAbschliessen } from "./schreiben";
 import { START } from "./startbestand";
@@ -22,6 +22,17 @@ function mitKiste() {
   ]);
   return { db, id, liste: ladeInhalt(db, id) };
 }
+
+type Liste = ReturnType<typeof ladeInhalt>;
+/** Eine Zählung: `fehlt` nennt die Positionen (Index → Text), die fehlen; gezählt gegen die angezeigte Menge. */
+const zaehlung = (liste: Liste, fehlt: Record<number, string> = {}) =>
+  liste.map((p, i) => ({ punktId: p.id, ok: !(i in fehlt), text: fehlt[i] ?? "", soll: p.soll }));
+const zaehle = (db: ReturnType<typeof testDb>, id: string, liste: Liste, fehlt: Record<number, string> = {}) =>
+  pruefungAbschliessen(db, id, {
+    sendung: neueId(), stunden: null, ergebnis: Object.keys(fehlt).length ? "mangel" : "ok", notiz: "", antworten: zaehlung(liste, fehlt),
+  }, new Map(), K);
+const offen = (db: ReturnType<typeof testDb>, id: string) =>
+  db.select().from(mangel).where(and(eq(mangel.geraetId, id), isNull(mangel.behobenAm))).all();
 
 describe("Materialkisten (IDA-335)", () => {
   it("die Migration bringt die Art „Materialkisten“ mit Quartalsprüfung und ohne Checkliste", () => {
@@ -64,13 +75,12 @@ describe("Materialkisten (IDA-335)", () => {
     const { db, id, liste } = mitKiste();
     const sendung = neueId();
     const r = pruefungAbschliessen(db, id, {
-      sendung, stunden: null, ergebnis: "mangel", notiz: "",
-      antworten: [{ punktId: liste[0].id, ok: true, text: "" }, { punktId: liste[1].id, ok: false, text: "" }],
+      sendung, stunden: null, ergebnis: "mangel", notiz: "", antworten: zaehlung(liste, { 1: "" }),
     }, new Map(), K);
     expect(r.maengel).toBe(1);
     const m = db.select().from(mangel).where(eq(mangel.geraetId, id)).all();
     expect(m).toHaveLength(1);
-    expect(m[0]).toMatchObject({ text: "Fehlt: USB-C-Hub (Soll 2)", fehlt: true, einsatzbereit: true });
+    expect(m[0]).toMatchObject({ text: "Fehlt: USB-C-Hub (Soll 2)", fehlt: true, inhaltId: liste[1].id, einsatzbereit: true });
     const e = db.select().from(eintrag).where(eq(eintrag.id, sendung)).get()!;
     expect(e.fristId).toBe(START.frist.kiste.quartal);
     expect(JSON.parse(e.antworten!)).toEqual([{ text: "3 × HDMI-Kabel 2 m", ok: true }, { text: "2 × USB-C-Hub", ok: false }]);
@@ -81,12 +91,9 @@ describe("Materialkisten (IDA-335)", () => {
   it("Durchzählen: ein Text kommt an den Mangel, eine leere Liste und eine geänderte werden abgewiesen", () => {
     const { db, id, liste } = mitKiste();
     expect(() => pruefungAbschliessen(db, id, {
-      sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten: [{ punktId: liste[0].id, ok: true, text: "" }],
+      sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten: zaehlung(liste).slice(0, 1),
     }, new Map(), K)).toThrow(/Inhaltsliste hat sich geändert/);
-    pruefungAbschliessen(db, id, {
-      sendung: neueId(), stunden: null, ergebnis: "mangel", notiz: "",
-      antworten: [{ punktId: liste[0].id, ok: false, text: "nur 2 da" }, { punktId: liste[1].id, ok: true, text: "" }],
-    }, new Map(), K);
+    zaehle(db, id, liste, { 0: "nur 2 da" });
     expect(db.select().from(mangel).where(eq(mangel.geraetId, id)).get()!.text).toBe("Fehlt: HDMI-Kabel 2 m (Soll 3) – nur 2 da");
 
     const leer = geraetAnlegen(db, { ...basis, gruppeId: START.gruppe.iuk, artId: START.art.kiste, name: "Leere Kiste" }, K.jetzt);
@@ -98,14 +105,48 @@ describe("Materialkisten (IDA-335)", () => {
     const { db, id, liste } = mitKiste();
     const jetzt = new Date(K.jetzt);
     expect(wartungFaelligkeiten(jetzt, db).filter((f) => f.art === "Kiste unvollständig")).toEqual([]);
-    pruefungAbschliessen(db, id, {
-      sendung: neueId(), stunden: null, ergebnis: "mangel", notiz: "",
-      antworten: liste.map((p) => ({ punktId: p.id, ok: false, text: "" })),
-    }, new Map(), K);
+    zaehle(db, id, liste, { 0: "", 1: "" });
     const f = wartungFaelligkeiten(jetzt, db).filter((x) => x.art === "Kiste unvollständig");
     expect(f).toHaveLength(1);
     expect(f[0]).toMatchObject({ titel: "I&K-Kiste 1", zustand: "2 Positionen fehlen", dringlichkeit: "bald", pfad: `/geraete/${id}` });
     // Gerade durchgezählt: die Quartalsprüfung selbst steht nicht an.
     expect(wartungFaelligkeiten(jetzt, db).some((x) => x.id.startsWith(`frist:${id}`))).toBe(false);
+  });
+
+  it("je Position ein offener Fehlt-Mangel; wieder vollständig gezählt ist er behoben", () => {
+    const { db, id, liste } = mitKiste();
+    expect(zaehle(db, id, liste, { 1: "" }).maengel).toBe(1);
+    expect(zaehle(db, id, liste, { 1: "immer noch weg" }).maengel).toBe(0);
+    expect(offen(db, id)).toHaveLength(1);
+    expect(ladeGeraet(db, id, HEUTE)!.fehlend).toBe(1);
+    expect(zaehle(db, id, liste, { 0: "" }).maengel).toBe(1);
+    expect(offen(db, id).map((m) => m.inhaltId)).toEqual([liste[0].id]);
+    expect(db.select().from(eintrag).where(and(eq(eintrag.geraetId, id), eq(eintrag.typ, "behoben"))).all().map((e) => e.titel))
+      .toEqual(["Wieder vollständig"]);
+  });
+
+  it("eine inzwischen geänderte Soll-Menge macht die Zählung ungültig", () => {
+    const { db, id, liste } = mitKiste();
+    const angezeigt = zaehlung(liste);
+    inhaltSpeichern(db, id, [{ ...liste[0], soll: 5 }, liste[1]]);
+    expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten: angezeigt }, new Map(), K))
+      .toThrow(/Inhaltsliste hat sich geändert/);
+    expect(() => pruefungAbschliessen(db, id, {
+      sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten: angezeigt.map((a) => ({ punktId: a.punktId, ok: a.ok, text: a.text })),
+    }, new Map(), K)).toThrow(/Inhaltsliste hat sich geändert/);
+  });
+
+  it("eine entfernte Position lässt ihren Mangel stehen, ohne Bezug", () => {
+    const { db, id, liste } = mitKiste();
+    zaehle(db, id, liste, { 1: "" });
+    inhaltSpeichern(db, id, [liste[0]]);
+    expect(offen(db, id)).toMatchObject([{ fehlt: true, inhaltId: null }]);
+  });
+
+  it("eine Materialkiste hat keine Betriebsstunden-Pflicht", () => {
+    const art = { name: "Kisten", einzahl: "Kiste", ikone: "package", kiste: true, checkliste: [],
+      fristen: [{ id: null, name: "Quartalsprüfung", wer: "intern" as const, monate: 3, stunden: null }] };
+    expect(artEingabe.safeParse({ ...art, stundenPflicht: false }).success).toBe(true);
+    expect(artEingabe.safeParse({ ...art, stundenPflicht: true }).success).toBe(false);
   });
 });

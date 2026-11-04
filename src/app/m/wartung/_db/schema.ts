@@ -185,6 +185,11 @@ export const mangel = sqliteTable("mangel", {
   gepushtAm: integer("gepusht_am"),
   /** Beim Durchzählen einer Materialkiste als fehlend gemeldet (IDA-335). */
   fehlt: integer("fehlt", { mode: "boolean" }).notNull().default(false),
+  /**
+   * Welche Position fehlt: je Position steht höchstens ein offener Fehlt-Mangel, und wer sie wieder vollständig
+   * zählt, behebt ihn (`_lib/schreiben.ts`). `null`, wenn die Position inzwischen von der Liste ist.
+   */
+  inhaltId: text("inhalt_id").references(() => inhalt.id, { onDelete: "set null" }),
 }, (t) => [
   index("mangel_geraet_idx").on(t.geraetId, t.behobenAm),
   index("mangel_offen_idx").on(t.behobenAm, t.gemeldetAm),

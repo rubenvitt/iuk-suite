@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e09128d2-e0c9-412b-8518-0d6914d76635",
+  "id": "a14b69be-1614-44f0-a6fc-9442cddda055",
   "prevId": "0553c514-4617-45d7-b946-ececcb5f5525",
   "tables": {
     "art": {
@@ -865,6 +865,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
+        },
+        "inhalt_id": {
+          "name": "inhalt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -897,6 +904,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mangel_inhalt_id_inhalt_id_fk": {
+          "name": "mangel_inhalt_id_inhalt_id_fk",
+          "tableFrom": "mangel",
+          "tableTo": "inhalt",
+          "columnsFrom": [
+            "inhalt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

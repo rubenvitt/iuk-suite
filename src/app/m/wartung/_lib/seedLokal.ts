@@ -134,8 +134,10 @@ function seedKisten(db: WartungDb, jetzt: number): string[] {
         id, gruppeId: START.gruppe.iuk, artId: START.art.kiste, name: k.name, ortArt: k.ortArt, ort: k.ort,
         stunden: null, aktiv: true, angelegtAm: jetzt, aktualisiertAm: jetzt,
       }).run();
-      k.inhalt.forEach(([text, soll, bemerkung = ""], position) => {
-        tx.insert(inhalt).values({ id: neueId(), geraetId: id, text, soll, bemerkung, position }).run();
+      const inhaltIds = k.inhalt.map(([text, soll, bemerkung = ""], position) => {
+        const inhaltId = neueId();
+        tx.insert(inhalt).values({ id: inhaltId, geraetId: id, text, soll, bemerkung, position }).run();
+        return inhaltId;
       });
       const am = jetzt - k.vorTagen * 86_400_000;
       tx.insert(eintrag).values({
@@ -147,7 +149,7 @@ function seedKisten(db: WartungDb, jetzt: number): string[] {
         const [text, soll] = k.inhalt[k.fehlt.index];
         tx.insert(mangel).values({
           id: neueId(), geraetId: id, text: `Fehlt: ${text} (Soll ${soll}) – ${k.fehlt.notiz}`, foto: false, einsatzbereit: true,
-          gemeldetAm: am, gemeldetVon: "Helfer C", gepushtAm: am, fehlt: true,
+          gemeldetAm: am, gemeldetVon: "Helfer C", gepushtAm: am, fehlt: true, inhaltId: inhaltIds[k.fehlt.index],
         }).run();
       }
     }

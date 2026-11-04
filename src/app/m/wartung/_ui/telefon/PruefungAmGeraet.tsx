@@ -44,7 +44,7 @@ export function PruefungAmGeraet({
   const erledigt = checkliste.filter((c) => antworten[c.id]).length;
   const maengel = checkliste.filter((c) => antworten[c.id] && !antworten[c.id].ok);
   const gewaehlt: Zustand = ergebnis === "ok" && maengel.length > 0 ? "mangel" : ergebnis ?? (maengel.length ? "mangel" : "ok");
-  const stundenFehlt = stundenPflicht && stunden === null;
+  const stundenFehlt = !kiste && stundenPflicht && stunden === null;
   const zuKlein = stunden !== null && stundenZuletzt !== null && stunden < stundenZuletzt;
   const ohneText = !kiste && maengel.some((c) => !antworten[c.id].text.trim());
   const ohneBemerkung = maengel.length === 0 && gewaehlt !== "ok" && !notiz.trim();
@@ -60,7 +60,7 @@ export function PruefungAmGeraet({
       const daten = new FormData();
       daten.set("daten", JSON.stringify({
         sendung, stunden, ergebnis: gewaehlt, notiz,
-        antworten: checkliste.map((c) => ({ punktId: c.id, ok: antworten[c.id].ok, text: antworten[c.id].ok ? "" : antworten[c.id].text })),
+        antworten: checkliste.map((c) => ({ punktId: c.id, ok: antworten[c.id].ok, text: antworten[c.id].ok ? "" : antworten[c.id].text, soll: c.soll })),
       }));
       for (const c of maengel) {
         const f = antworten[c.id].foto;

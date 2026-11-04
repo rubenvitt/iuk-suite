@@ -4,7 +4,8 @@ import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte } from "
 /**
  * Materialkisten im Modul wartung (IDA-335): der Admin legt eine Kiste an, erfasst am Telefon (320 px) ihre
  * Inhaltsliste, zählt durch und meldet eine Position als fehlend; die Akte zeigt den Mangel, und das Etikett
- * druckt auf A6 mit QR-Code und Inhaltsliste — gemessen an der MediaBox eines echten PDF (Falle 18).
+ * druckt auf A6 mit QR-Code und Inhaltsliste — gemessen an der MediaBox eines echten PDF (Falle 18), auch mit
+ * der längsten erlaubten Liste.
  */
 const HOST = "wartung.localtest.me";
 const url = (p: string) => `http://${HOST}:${E2E_PORT}${p}`;
@@ -93,4 +94,21 @@ test("Materialkiste anlegen, Inhalt am Telefon erfassen, durchzählen und Etiket
   await expect(etikett.locator("tbody tr")).toHaveCount(2);
   await expect(etikett.locator("svg")).toHaveCount(2); // Ortszeichen und QR-Code
   expect(await seitenInMm(page)).toEqual([{ breite: 105, hoehe: 148 }]);
+
+  // Die längste erlaubte Liste (40 Positionen): eng gesetzt, auf weiteren A6-Blättern, keine Zeile fehlt.
+  await page.goto(url(`/g/${id}/inhalt`));
+  await warteAufGestreamteInhalte(page);
+  for (let i = 3; i <= 40; i++) {
+    await page.getByRole("button", { name: "Position hinzufügen" }).click();
+    await page.locator('[data-rolle="inhalt-zeile"]').last().getByPlaceholder("Position").fill(`Adapter Nummer ${i} mit etwas längerem Namen`);
+  }
+  await expect(page.getByRole("button", { name: "Position hinzufügen" })).toBeDisabled();
+  await klickeWennRuhig(page.getByRole("button", { name: "Speichern" }));
+  await page.waitForURL(new RegExp(`/g/${id}$`));
+  await page.goto(url(`/etiketten/kisten?geraet=${id}`));
+  await warteAufGestreamteInhalte(page);
+  await expect(etikett.locator("tbody tr")).toHaveCount(40);
+  const seiten = await seitenInMm(page);
+  expect(seiten.length).toBeGreaterThan(1);
+  expect(seiten.every((x) => x.breite === 105 && x.hoehe === 148)).toBe(true);
 });

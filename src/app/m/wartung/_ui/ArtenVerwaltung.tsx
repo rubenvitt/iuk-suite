@@ -120,11 +120,11 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
                 options={ART_IKONEN.map((i) => ({ value: i.name, label: <span className={s.reihe}><ArtZeichen ikone={i.name} groesse={16} /> {i.titel}</span> }))}
               />
             </Form.Item>
-            <Form.Item label="Betriebsstunden bei jeder Prüfung Pflicht">
-              <Switch checked={e.stundenPflicht} onChange={(v) => setze({ stundenPflicht: v })} aria-label="Betriebsstunden bei jeder Prüfung Pflicht" />
+            <Form.Item label="Betriebsstunden bei jeder Prüfung Pflicht" {...fehler("stundenPflicht")}>
+              <Switch checked={e.stundenPflicht} disabled={e.kiste} onChange={(v) => setze({ stundenPflicht: v })} aria-label="Betriebsstunden bei jeder Prüfung Pflicht" />
             </Form.Item>
             <Form.Item label="Materialkiste mit Inhaltsliste">
-              <Switch checked={e.kiste} onChange={(v) => setze({ kiste: v })} aria-label="Materialkiste mit Inhaltsliste" />
+              <Switch checked={e.kiste} onChange={(v) => setze({ kiste: v, stundenPflicht: v ? false : e.stundenPflicht })} aria-label="Materialkiste mit Inhaltsliste" />
             </Form.Item>
 
             <Kicker>Fristen</Kicker>

@@ -88,6 +88,8 @@ export const artEingabe = z.object({
   checkliste: z.array(punktEingabe).max(40),
 }).refine((a) => a.fristen.filter((f) => f.wer === "intern").length <= 1, {
   message: "Nur eine Frist wird selbst am Gerät erledigt.", path: ["fristen"],
+}).refine((a) => !(a.kiste && a.stundenPflicht), {
+  message: "Eine Materialkiste hat keine Betriebsstunden.", path: ["stundenPflicht"],
 }).refine((a) => a.kiste || !a.fristen.some((f) => f.wer === "intern") || a.checkliste.length > 0, {
   message: "Die Prüfung am Gerät braucht mindestens einen Punkt.", path: ["checkliste"],
 });
@@ -115,7 +117,11 @@ export const pruefungEingabe = z.object({
   /** Vom Telefon je Prüfung einmal gezogen: kommt sie zweimal an, steht sie trotzdem nur einmal da. */
   sendung: idSchema,
   stunden,
-  antworten: z.array(z.object({ punktId: idSchema, ok: z.boolean(), text: frei(NOTIZ_MAX) })).max(40)
+  antworten: z.array(z.object({
+    punktId: idSchema, ok: z.boolean(), text: frei(NOTIZ_MAX),
+    /** Nur beim Durchzählen: die Soll-Menge, gegen die gezählt wurde (IDA-335). */
+    soll: z.number().int().min(1).max(SOLL_MAX).optional(),
+  })).max(INHALT_MAX)
     .refine((a) => new Set(a.map((x) => x.punktId)).size === a.length, "Jeder Punkt der Checkliste darf nur einmal vorkommen."),
   ergebnis: z.enum(["ok", "mangel", "defekt"]),
   notiz: frei(NOTIZ_MAX),
