@@ -41,6 +41,7 @@ import gemeinschaftBarQrPlakat from "@/app/m/portal/_lib/neuigkeiten/notizen/gem
 import feedbackEhrlichGesagt from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-03-ehrlich-gesagt";
 import feedbackEhrlichGesagtAdresse from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-04-ehrlich-gesagt-adresse";
 import wartungGeraetewartung from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-03-geraetewartung";
+import wartungMaterialkisten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-materialkisten";
 import wartungUnterlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-unterlagen";
 import wartungFahrzeugwahl from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-fahrzeugwahl";
 import verpflegungVerpflegungslager from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-04-verpflegungslager";
@@ -184,6 +185,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   feedbackEhrlichGesagt,
   feedbackEhrlichGesagtAdresse,
   wartungGeraetewartung,
+  wartungMaterialkisten,
   wartungUnterlagen,
   wartungFahrzeugwahl,
   verpflegungVerpflegungslager,

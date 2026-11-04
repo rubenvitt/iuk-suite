@@ -10,7 +10,7 @@ import { getDb } from "../_db/client";
 import { geraet } from "../_db/schema";
 import { ladeMangel, ladeUnterlage } from "../_lib/daten";
 import {
-  artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, verwalterEingabe,
+  artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, verwalterEingabe,
 } from "../_lib/eingabe";
 import {
   SUCHE_MAX_TREFFER, SUCHE_MIN_ZEICHEN, verwalterEntfernen, verwalterHinzufuegen, vorschlaege,
@@ -18,7 +18,7 @@ import {
 import { heute } from "../_lib/heute";
 import {
   Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
-  gruppeSpeichern, mangelBeheben, unterlageLoeschen, unterlageVerschieben,
+  gruppeSpeichern, inhaltSpeichern, mangelBeheben, unterlageLoeschen, unterlageVerschieben,
 } from "../_lib/schreiben";
 import { entferneUnterlage } from "../_lib/unterlagen";
 import { mitFahrzeugbezug } from "../_lib/fahrzeugbezug";
@@ -111,6 +111,19 @@ export async function erledigtEintragenAction(geraetId: string, eingabe: unknown
     if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
     if (!verwaltetGruppe(rechte, g)) throw new Abgelehnt(NICHT_DEINE);
     erledigtEintragen(getDb(), geraetId, e.wert, kontext(viewer));
+  });
+}
+
+/** Die Inhaltsliste einer Materialkiste (IDA-335) — Verwalter ihrer Gruppe, auch am Telefon in der Halle. */
+export async function inhaltSpeichernAction(geraetId: string, eingabe: unknown, stand: unknown): Promise<Ergebnis> {
+  if (!idSchema.safeParse(geraetId).success || typeof stand !== "string") return { ok: false, fehler: UNGUELTIG };
+  const e = geprueft(inhaltEingabe, eingabe);
+  if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
+  return schreibe("verwalter", ({ rechte }) => {
+    const g = gruppeDesGeraets(geraetId);
+    if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
+    if (!verwaltetGruppe(rechte, g)) throw new Abgelehnt(NICHT_DEINE);
+    inhaltSpeichern(getDb(), geraetId, e.wert, stand);
   });
 }
 

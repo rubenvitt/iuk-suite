@@ -1,0 +1,41 @@
+/*
+ * Das Etikett einer Materialkiste (IDA-335): A6 hochkant zum Aufkleben, mit QR-Code, Standort und Inhaltsliste.
+ * Papier ist immer hell. Etwa 18 Positionen passen in normaler Schrift auf ein Blatt, eng gesetzt (`.dicht`, ab
+ * `DICHT_AB`) etwa 28; eine längere Liste läuft auf ein zweites Blatt derselben Größe weiter, nichts wird
+ * abgeschnitten (`e2e/wartung-kisten.spec.ts`).
+ *
+ * Eigene Route neben den Geräte-Etiketten und eine BENANNTE @page (Falle 18): `A6` ist als Schlüsselwort
+ * ungültig, also Kantenlängen; und Next legt CSS-Module routenübergreifend in gemeinsame Chunks, eine
+ * unbenannte Regel träfe dann auch den Bogen der Geräte-Etiketten.
+ */
+.bogen { display: flex; flex-wrap: wrap; gap: 16px; }
+.etikett {
+  display: flex; flex-direction: column; gap: 3mm; box-sizing: border-box; width: min(105mm, 100%); min-height: 148mm; padding: 6mm;
+  background: #fff; color: #1a1d20; border: 1px dashed #9aa4ad; border-radius: 6px; font-size: 10pt; line-height: 1.3;
+}
+.kopf { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4mm; align-items: start; }
+.marke { font-family: var(--font-display); font-size: 9pt; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #5b6570; }
+.name { margin: 1mm 0 0; font-family: var(--font-display); font-size: 15pt; font-weight: 600; line-height: 1.15; overflow-wrap: anywhere; }
+.ort { margin-top: 1.5mm; font-weight: 600; overflow-wrap: anywhere; }
+.qr { width: 30mm; height: 30mm; }
+.qr svg { display: block; width: 100%; height: 100%; }
+.liste { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.liste th {
+  text-align: start; font-size: 7.5pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #5b6570;
+  border-block-end: 1.2px solid #1a1d20; padding: 0 1.5mm 1mm 0;
+}
+.liste td { border-block-end: .6px solid #c9ced3; padding: 1mm 1.5mm 1mm 0; vertical-align: top; overflow-wrap: anywhere; }
+.liste .menge { width: 12mm; text-align: end; padding-inline-end: 3mm; font-weight: 600; }
+.bemerkung { color: #5b6570; }
+/* Lange Listen enger setzen; passt es dann noch nicht, läuft die Liste auf ein zweites A6-Blatt weiter. */
+.dicht .liste { font-size: 8pt; line-height: 1.2; }
+.dicht .liste td { padding-block: .5mm; }
+.leer { color: #5b6570; }
+
+/* Der Rand gehört an die Seite, nicht ans Etikett: Padding wiederholt sich auf einem Folgeblatt nicht. */
+@page kistenetikett { size: 105mm 148mm; margin: 6mm; }
+@media print {
+  .bogen { display: block; }
+  .etikett { page: kistenetikett; width: auto; min-height: 0; padding: 0; border: none; border-radius: 0; break-after: page; }
+  .etikett:last-child { break-after: auto; }
+}

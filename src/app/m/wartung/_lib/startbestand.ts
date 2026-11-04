@@ -9,11 +9,14 @@ export const START = {
     heizung: "041a7030-e246-5614-9946-20bd4d2f490c",
     akku: "32104ecc-dd27-59e1-ac96-15ee83b96707",
     it: "d0fd6334-2f77-5dde-a0df-613133afdf84",
+    /** `0005_materialkisten.sql` (IDA-335). */
+    kiste: "a538c43d-3b3d-5b99-9509-e4f850a72e44",
   },
   frist: {
     stromerzeuger: { quartal: "d06ab9f8-8d7d-55c8-a1ab-17e081c17795", wartung: "0a60d30a-b5c2-5b6e-82bb-57fd37fbb1ab", dguv: "0b3bc63a-20c9-5da6-9e87-d6127573b178" },
     heizung: { quartal: "5f692f33-2bd4-575f-8d00-9aefaa44b298", wartung: "8a2acc24-6dda-5c16-a7f5-4d24504cf700" },
     akku: { quartal: "a86ee46d-168e-53ff-a314-a46631adf341", dguv: "15ccad90-4b29-5327-a9c1-66d7d16a5504" },
     it: { quartal: "173cf362-ee70-5303-a056-698f8cf7e603", dguv: "1709a29b-2902-5f22-a055-9a0f61ba8805" },
+    kiste: { quartal: "8ee6fcf7-883f-51c4-bade-3435a04260a2" },
   },
 } as const;

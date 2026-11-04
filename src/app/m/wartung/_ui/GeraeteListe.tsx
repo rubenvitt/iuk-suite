@@ -84,12 +84,14 @@ export function GeraeteListe({
         <div className={s.reihe}>
           <GruppenFilter wahl={gruppenWahl} gewaehlt={gewaehlt} />
           {artWahl.length > 1 && (
-            <Segmented
-              aria-label="Geräteart"
-              value={art}
-              onChange={(v) => setArt(String(v))}
-              options={[{ label: "Alle Arten", value: "alle" }, ...artWahl.map((a) => ({ label: a.name, value: a.id }))]}
-            />
+            <div className={s.wischleiste}>
+              <Segmented
+                aria-label="Geräteart"
+                value={art}
+                onChange={(v) => setArt(String(v))}
+                options={[{ label: "Alle Arten", value: "alle" }, ...artWahl.map((a) => ({ label: a.name, value: a.id }))]}
+              />
+            </div>
           )}
         </div>
       )}

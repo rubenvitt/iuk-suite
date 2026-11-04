@@ -32,6 +32,16 @@ export interface CheckpunktDTO {
   id: string;
   text: string;
   hinweis: string;
+  /** Nur beim Durchzählen einer Materialkiste: die Soll-Menge der Position. */
+  soll?: number;
+}
+
+/** Eine Position der Inhaltsliste einer Materialkiste (IDA-335). */
+export interface InhaltDTO {
+  id: string;
+  text: string;
+  soll: number;
+  bemerkung: string;
 }
 
 export interface ArtDTO {
@@ -40,6 +50,7 @@ export interface ArtDTO {
   einzahl: string;
   ikone: string;
   stundenPflicht: boolean;
+  kiste: boolean;
   fristen: FristDTO[];
   checkliste: CheckpunktDTO[];
   geraete: number;
@@ -57,6 +68,8 @@ export interface GeraetZeile {
   artEinzahl: string;
   ikone: string;
   stundenPflicht: boolean;
+  /** Materialkiste mit Inhaltsliste (IDA-335). */
+  kiste: boolean;
   ortArt: "lager" | "fahrzeug";
   ort: string;
   fahrzeugId: string | null;
@@ -68,6 +81,8 @@ export interface GeraetZeile {
   staende: FristStand[];
   naechste: FristStand | null;
   offeneMaengel: number;
+  /** Davon beim Durchzählen als fehlend gemeldet. */
+  fehlend: number;
 }
 
 export interface EintragDTO {

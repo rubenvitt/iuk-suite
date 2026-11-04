@@ -7,10 +7,10 @@
  */
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { WartungDb } from "../_db/client";
-import { art, checkpunkt, eintrag, frist, geraet, gruppe, mangel, unterlage } from "../_db/schema";
+import { art, checkpunkt, eintrag, frist, geraet, gruppe, inhalt, mangel, unterlage } from "../_db/schema";
 import { ladeVerwalter } from "./personen";
 import { fristStand, naechsteFrist, vergleicheStaende, zustandAus, type LetzteErledigung } from "./fristen";
-import type { ArtDTO, BekannteOrte, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, MangelDTO, UnterlageDTO } from "./typen";
+import type { ArtDTO, BekannteOrte, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, InhaltDTO, MangelDTO, UnterlageDTO } from "./typen";
 
 type Leser = Pick<WartungDb, "select">;
 
@@ -37,6 +37,7 @@ export function ladeArten(db: Leser): ArtDTO[] {
     einzahl: a.einzahl,
     ikone: a.ikone,
     stundenPflicht: a.stundenPflicht,
+    kiste: a.kiste,
     fristen: fristen.filter((f) => f.artId === a.id)
       .map((f) => ({ id: f.id, name: f.name, wer: f.wer, monate: f.monate, stunden: f.stunden, position: f.position })),
     checkliste: punkte.filter((p) => p.artId === a.id).map((p) => ({ id: p.id, text: p.text, hinweis: p.hinweis })),
@@ -75,7 +76,7 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
     filter.gruppen ? inArray(geraet.gruppeId, [...filter.gruppen]) : undefined,
     filter.ids ? inArray(geraet.id, [...filter.ids]) : undefined,
   ].filter((b) => b !== undefined);
-  const zeilen = db.select({ g: geraet, gruppeName: gruppe.name, artEinzahl: art.einzahl, ikone: art.ikone, stundenPflicht: art.stundenPflicht })
+  const zeilen = db.select({ g: geraet, gruppeName: gruppe.name, artEinzahl: art.einzahl, ikone: art.ikone, stundenPflicht: art.stundenPflicht, kiste: art.kiste })
     .from(geraet)
     .innerJoin(gruppe, eq(gruppe.id, geraet.gruppeId))
     .innerJoin(art, eq(art.id, geraet.artId))
@@ -86,10 +87,10 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
   const ids = zeilen.map((z) => z.g.id);
   const fristen = db.select().from(frist).orderBy(asc(frist.position)).all();
   const letzte = letzteErledigungen(db, ids);
-  const offen = db.select({ g: mangel.geraetId, einsatzbereit: mangel.einsatzbereit }).from(mangel)
+  const offen = db.select({ g: mangel.geraetId, einsatzbereit: mangel.einsatzbereit, fehlt: mangel.fehlt, inhaltId: mangel.inhaltId }).from(mangel)
     .where(and(inArray(mangel.geraetId, ids), isNull(mangel.behobenAm))).all();
 
-  return zeilen.map(({ g, gruppeName, artEinzahl, ikone, stundenPflicht }) => {
+  return zeilen.map(({ g, gruppeName, artEinzahl, ikone, stundenPflicht, kiste }) => {
     const staende = fristen.filter((f) => f.artId === g.artId)
       .map((f) => fristStand(
         { id: f.id, name: f.name, wer: f.wer, monate: f.monate, stunden: f.stunden },
@@ -100,11 +101,20 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
     const eigene = offen.filter((m) => m.g === g.id);
     return {
       id: g.id, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr,
-      gruppeId: g.gruppeId, gruppeName, artId: g.artId, artEinzahl, ikone, stundenPflicht,
+      gruppeId: g.gruppeId, gruppeName, artId: g.artId, artEinzahl, ikone, stundenPflicht, kiste,
       ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise, aktiv: g.aktiv,
       zustand: zustandAus(eigene), staende, naechste: naechsteFrist(staende), offeneMaengel: eigene.length,
+      // Nur Positionen, die noch auf der Liste stehen: ein Mangel zu einer entfernten Position bleibt offen,
+      // lässt sich aber durch Durchzählen nicht mehr beheben.
+      fehlend: kiste ? eigene.filter((m) => m.fehlt && m.inhaltId !== null).length : 0,
     };
   });
+}
+
+/** Die Inhaltsliste einer Materialkiste in ihrer Reihenfolge (IDA-335). */
+export function ladeInhalt(db: Leser, geraetId: string): InhaltDTO[] {
+  return db.select({ id: inhalt.id, text: inhalt.text, soll: inhalt.soll, bemerkung: inhalt.bemerkung }).from(inhalt)
+    .where(eq(inhalt.geraetId, geraetId)).orderBy(asc(inhalt.position)).all();
 }
 
 export function ladeGeraet(db: Leser, id: string, heute: string): GeraetZeile | null {

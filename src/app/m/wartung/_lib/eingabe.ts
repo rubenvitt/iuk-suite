@@ -10,6 +10,9 @@ export const KURZ_MAX = 60;
 export const NOTIZ_MAX = 500;
 export const PUNKT_MAX = 120;
 export const STUNDEN_MAX = 1_000_000;
+/** Positionen einer Materialkiste (IDA-335) — sie müssen noch auf ein Etikett passen. */
+export const INHALT_MAX = 40;
+export const SOLL_MAX = 9999;
 
 /** Zeichen, aus denen eine Geräteart wählt. */
 export const ART_IKONEN: readonly { name: Icons8Name; titel: string }[] = [
@@ -22,6 +25,7 @@ export const ART_IKONEN: readonly { name: Icons8Name; titel: string }[] = [
   { name: "walkie-talkie", titel: "Funk" },
   { name: "monitor", titel: "Bildschirm" },
   { name: "tent", titel: "Zelt" },
+  { name: "package", titel: "Kiste" },
   { name: "wrench", titel: "Werkzeug" },
 ];
 
@@ -82,14 +86,30 @@ export const artEingabe = z.object({
   einzahl: pflicht(KURZ_MAX, "Bitte die Einzahl angeben."),
   ikone: z.string(),
   stundenPflicht: z.boolean(),
+  kiste: z.boolean(),
   fristen: z.array(fristEingabe).min(1, "Mindestens eine Frist.").max(10),
   checkliste: z.array(punktEingabe).max(40),
 }).refine((a) => a.fristen.filter((f) => f.wer === "intern").length <= 1, {
   message: "Nur eine Frist wird selbst am Gerät erledigt.", path: ["fristen"],
-}).refine((a) => !a.fristen.some((f) => f.wer === "intern") || a.checkliste.length > 0, {
+}).refine((a) => !(a.kiste && a.stundenPflicht), {
+  message: "Eine Materialkiste hat keine Betriebsstunden.", path: ["stundenPflicht"],
+}).refine((a) => !a.kiste || a.fristen.every((f) => f.stunden === null), {
+  message: "Eine Materialkiste hat keine Betriebsstunden.", path: ["fristen"],
+}).refine((a) => !a.kiste || a.fristen.some((f) => f.wer === "intern"), {
+  message: "Eine Materialkiste braucht eine Frist, die selbst durchgezählt wird.", path: ["fristen"],
+}).refine((a) => a.kiste || !a.fristen.some((f) => f.wer === "intern") || a.checkliste.length > 0, {
   message: "Die Prüfung am Gerät braucht mindestens einen Punkt.", path: ["checkliste"],
 });
 export type ArtEingabe = z.infer<typeof artEingabe>;
+
+/** Die Inhaltsliste einer Materialkiste, ganz (IDA-335): Reihenfolge wie übergeben. */
+export const inhaltEingabe = z.array(z.object({
+  id: idSchema.nullable(),
+  text: pflicht(PUNKT_MAX, "Was liegt in der Kiste?"),
+  soll: z.number({ message: "Bitte eine Menge angeben." }).int("Bitte eine ganze Zahl.").min(1, "Mindestens 1.").max(SOLL_MAX),
+  bemerkung: frei(KURZ_MAX),
+})).max(INHALT_MAX, `Höchstens ${INHALT_MAX} Positionen.`);
+export type InhaltEingabe = z.infer<typeof inhaltEingabe>;
 
 export const gruppeEingabe = z.object({
   name: pflicht(40, "Bitte einen Namen angeben."),
@@ -104,7 +124,13 @@ export const pruefungEingabe = z.object({
   /** Vom Telefon je Prüfung einmal gezogen: kommt sie zweimal an, steht sie trotzdem nur einmal da. */
   sendung: idSchema,
   stunden,
-  antworten: z.array(z.object({ punktId: idSchema, ok: z.boolean(), text: frei(NOTIZ_MAX) })).max(40)
+  antworten: z.array(z.object({
+    punktId: idSchema, ok: z.boolean(), text: frei(NOTIZ_MAX),
+    /** Nur beim Durchzählen: Soll-Menge, Wortlaut und Bemerkung der Position, gegen die gezählt wurde (IDA-335). */
+    soll: z.number().int().min(1).max(SOLL_MAX).optional(),
+    punkt: z.string().max(PUNKT_MAX).optional(),
+    hinweis: z.string().max(KURZ_MAX).optional(),
+  })).max(INHALT_MAX)
     .refine((a) => new Set(a.map((x) => x.punktId)).size === a.length, "Jeder Punkt der Checkliste darf nur einmal vorkommen."),
   ergebnis: z.enum(["ok", "mangel", "defekt"]),
   notiz: frei(NOTIZ_MAX),

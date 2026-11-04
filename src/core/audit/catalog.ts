@@ -733,6 +733,12 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "inhalt": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "verpflegung": {
