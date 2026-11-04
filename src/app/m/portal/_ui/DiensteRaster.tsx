@@ -384,7 +384,7 @@ export function DiensteRaster({
       <div data-testid="portal-leer">
         <Ruhezustand figur="portal" titel="Für dich ist noch nichts freigeschaltet" />
         {ansprechpartner ? (
-          <p data-testid="portal-kontakt" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0, textAlign: "center" }}>
+          <p data-testid="portal-kontakt" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
             Ansprechpartner: {ansprechpartner}
           </p>
         ) : null}

@@ -16,11 +16,17 @@
 
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* Links an der Menükante wie jeder Inhalt unter `FullShell` (Etappe 2); mittig nur die Randseiten. */
+  align-items: flex-start;
   gap: 12px;
   padding-block: 24px 32px;
-  text-align: center;
+  text-align: start;
   min-inline-size: 0;
+}
+
+.mittig {
+  align-items: center;
+  text-align: center;
 }
 
 /*

@@ -18,6 +18,7 @@ export function Ruhezustand({
   aktion,
   als = "p",
   groesse = "gross",
+  mittig = false,
   className,
   ...rest
 }: Omit<HTMLAttributes<HTMLDivElement>, "children" | "title"> & {
@@ -27,13 +28,15 @@ export function Ruhezustand({
   /** `h1` auf Seiten, deren einzige Auskunft der Zustand ist (404, 403). */
   als?: "h1" | "h2" | "p";
   groesse?: "gross" | "klein";
+  /** Nur für Randseiten ohne Shell (404, 403): dort gibt es keine Menükante. */
+  mittig?: boolean;
 }) {
   const Titel = als;
   return (
     <div
       {...rest}
       data-rolle="ruhezustand"
-      className={[s.ruhe, className].filter(Boolean).join(" ")}
+      className={[s.ruhe, mittig && s.mittig, className].filter(Boolean).join(" ")}
     >
       <FigurInsel figur={figurFuer(figur)} groesse={groesse} />
       <Titel className={groesse === "klein" ? `${s.titel} ${s.titelKlein}` : s.titel}>{titel}</Titel>

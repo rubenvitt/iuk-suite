@@ -20,6 +20,7 @@ export default async function Forbidden() {
       <Ruhezustand
         figur="zugriff"
         als="h1"
+        mittig
         titel="Kein Zugriff"
         data-testid="kein-zugriff"
         aktion={

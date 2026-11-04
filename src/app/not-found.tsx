@@ -30,6 +30,7 @@ export default function NotFound() {
       <Ruhezustand
         figur="fehlt"
         als="h1"
+        mittig
         titel="Diese Seite gibt es hier nicht."
         aktion={
           /*
