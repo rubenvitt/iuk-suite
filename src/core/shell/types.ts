@@ -102,7 +102,11 @@ export type NavIkonName =
   // Für die Vermietung der Bar: `belegung` (Uhr: wann ist der Raum vergeben), `anfragen`
   // (Eingang: was wartet auf eine Entscheidung), `sperrzeiten` (Verbot: hier geht nichts),
   // `mietvertrag` (Dokument: die Vertragsvorlage, IDA-343).
-  | "kalender" | "events" | "projekte" | "belegung" | "anfragen" | "sperrzeiten" | "mietvertrag";
+  | "kalender" | "events" | "projekte" | "belegung" | "anfragen" | "sperrzeiten" | "mietvertrag"
+  // Haarlinie Etappe 3: die Kommunikationspläne. KEINE geliehenen Namen — `vorlagen` (layout) meint im
+  // lagerbuch Checklisten-Vorlagen, `journal` (history) eine Buchungshistorie; ein Plan ist ein Baum aus
+  // Stellen (das Zeichen des Moduls), das Archiv die abgelegten Pläne, die Bibliothek die Stammstellen.
+  | "plaene" | "archiv" | "bibliothek";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

@@ -25,13 +25,29 @@ async function legeBibStelleAn(page: Page, titel: string, leiter: string, telefo
   await expect(stellenStatus(page)).toContainText(`„${titel}“ gespeichert.`);
 }
 
+/** Die Modulnavigation im Menü (Haarlinie Etappe 3; vorher Links im Seitenkopf der Planliste). */
+const menuEintraege = (page: Page) => page.getByRole("navigation", { name: "Navigation" }).getByRole("link")
+  .filter({ hasText: /^(Pläne|Archiv|Bibliothek|Einstellungen)$/ });
+
 test("Zugangsgruppe: kein Weg zur Bibliothek, /bibliothek ist 404", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "kommplan-nutzer", callbackPath: "/" });
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
+  await expect(menuEintraege(page)).toHaveText(["Pläne", "Archiv"]);
   await expect(page.getByRole("link", { name: "Bibliothek" })).toHaveCount(0);
   const r = await page.goto(url("/bibliothek"));
   expect(r?.status()).toBe(404);
+});
+
+test("Admin: Bibliothek und Einstellungen im Menü, nicht im Seitenkopf", async ({ page }) => {
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await page.goto(url("/"));
+  await warteAufSpaltenaufteilung(page);
+  await expect(menuEintraege(page)).toHaveText(["Pläne", "Archiv", "Bibliothek", "Einstellungen"]);
+  await expect(page.locator(".kp-kopfaktionen a")).toHaveCount(0);
+  await klickeWennRuhig(menuEintraege(page).filter({ hasText: "Bibliothek" }));
+  await expect(page).toHaveURL(url("/bibliothek"));
+  await expect(page.getByRole("heading", { name: "Bibliothek", level: 1 })).toBeVisible();
 });
 
 test("Stelle anlegen, suchen, Dublette abgewiesen, löschen", async ({ page }) => {

@@ -19,8 +19,8 @@ export default async function Einstellungen() {
   const db = getDb();
   const stand = ladeBriefkopf(db);
   return (
-    <Huelle>
-      <Seitenkopf titel="Einstellungen" zurueck={{ titel: "Alle Pläne", href: "/" }} />
+    <Huelle viewer={viewer}>
+      <Seitenkopf titel="Einstellungen" />
       <h2 className="kp-abschnittstitel">Vorschau des Kopfs</h2>
       <KopfVorschau kopf={kopfFuerZeichnung(db)} schrift={ZEICHENSCHRIFT.style.fontFamily} />
       <h2 className="kp-abschnittstitel">Briefkopf</h2>
