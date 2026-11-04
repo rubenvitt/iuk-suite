@@ -560,3 +560,16 @@ später eine eigene (Instrumententafel). Die beiden bleiben getrennt.
     `core/seite/zentrierung.test.ts` riegelt ab. Ausgenommen (mit Grund in der Liste) sind Flächen
     außerhalb von `FullShell`: Telefon, Kiosk, öffentliche Zettel und Druckblätter.
   - Die Polsterung (16px) trägt `MenueRahmen`, nicht der Typ.
+- **Bausteine (Etappe 3):** drei serversichere Teile in `core`, je mit eigener Tonpalette über `--sc-ton`
+  statt `--ant-*` (Falle 2):
+  - `Statuschip` (`core/status`) — Pille mit Haarlinie, weicher Fläche und Punkt (oder Zeichen); Töne
+    `neutral`, `info`, `ok`, `warnung`, `fehler`. **`fehler` ist der einzige rote Ton** und gilt nur
+    echten Missständen (abgelaufen, defekt), nie einer fachlichen Wertung (Falle 3). Taugt in RSC und in
+    `render` einer `Datentabelle`. Modul-Chips sind Adapter darauf (`lagerbuch/_ui/Chip.tsx`).
+  - `Filterchips` (`core/filterchips`, Client) — Pillenreihe über Listen statt `Segmented`; Einfachwahl
+    als `radiogroup` mit Pfeiltasten, Mehrfachwahl als Umschaltknöpfe, optional mit Zahl. 44px
+    Tippfläche, am Telefon scrollt die Reihe in sich. Setzt eine Pille einen Spaltenfilter, dann
+    **denselben** Zustand, den der Spaltenkopf zeigt (Vorbild Lagerbuch, Geräte).
+  - `Kennzahlen`/`Kennzahl` (`core/kennzahl`) — freistehende Zahl (`SCHRIFT.zahl`) mit Beschriftung,
+    keine Karte; zwischen den Zahlen eine Haarlinie, die am Anfang jeder umbrochenen Zeile wegfällt. Die
+    Zahl trägt Tinte, der Befund steht als Punkt vor der Beschriftung. Textwerte mit `text` (20px).
