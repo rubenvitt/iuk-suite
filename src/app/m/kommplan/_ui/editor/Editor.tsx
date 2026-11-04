@@ -525,7 +525,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
             }}
             symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} />
         </div>
-        <div className="kp-verlaufsleiste kp-nur-schmal" role="toolbar" aria-label="Verlauf" data-fussleiste="">
+        <div className="kp-verlaufsleiste kp-nur-schmal" role="toolbar" aria-label="Verlauf" data-fussleiste="schmal">
           <span className="kp-verlaufsstatus" role="status" aria-live="polite">{statusText(speicherZustand)}</span>
           <Button {...VERLAUFSKNOPF} onClick={() => perVerlaufsknopf(rueck)} disabled={!kannRueckgaengig(verlauf)}>Rückgängig</Button>
         </div>

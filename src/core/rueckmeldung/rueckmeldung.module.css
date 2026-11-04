@@ -74,12 +74,23 @@
  * Kommunikationsplan), und ein Platz im Fluss hilft gegen etwas Klebendes nicht. Der Weg
  * zur Rückmeldung bleibt über das Nutzermenü und die Portal-Kachel offen.
  */
-:global(html):has([data-fussleiste]) {
+/* `data-fussleiste="schmal"`: die Leiste steht nur unter 768px (Verlauf im Kommunikationsplan). */
+:global(html):has([data-fussleiste=""]) {
   --iuk-rueckmeldung-platz: 0px;
 }
 
-:global(html):has([data-fussleiste]) .schweber {
+:global(html):has([data-fussleiste=""]) .schweber {
   display: none;
+}
+
+@media (max-width: 767.98px) {
+  :global(html):has([data-fussleiste="schmal"]) {
+    --iuk-rueckmeldung-platz: 0px;
+  }
+
+  :global(html):has([data-fussleiste="schmal"]) .schweber {
+    display: none;
+  }
 }
 
 /*
@@ -112,5 +123,10 @@
 @media print {
   .schweber {
     display: none !important;
+  }
+
+  /* Und ohne Knopf auch kein Platz für ihn. */
+  :global(html):has(.platz) {
+    --iuk-rueckmeldung-platz: 0px;
   }
 }

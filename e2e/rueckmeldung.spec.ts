@@ -201,6 +201,9 @@ test("das Flyin passt auf 320px", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", port: PORT });
   await page.goto(portal());
   await warteAufGestreamteInhalte(page);
+  // Über den schwebenden Knopf: Gegenstand hier ist die Breite des Flyins.
+  // Dass der Knopf bei 320px nichts verdeckt, prüft der Fall „ganz unten
+  // verdeckt der Knopf nichts“ (IDA-352).
   await klickeWennRuhig(page.getByTestId("rueckmeldung-knopf"));
   const kasten = await messeWennRuhig(page.getByTestId("rueckmeldung-formular"));
   expect(kasten.x).toBeGreaterThanOrEqual(0);

@@ -20,15 +20,21 @@ describe("Platz unter dem Rückmeldeknopf", () => {
 
   it("fällt weg, solange eine Fußleiste klebt", () => {
     expect(FUSSLEISTE).toBe("data-fussleiste");
-    expect(CSS).toMatch(/:global\(html\):has\(\[data-fussleiste\]\) \{\s*--iuk-rueckmeldung-platz: 0px;/);
-    expect(CSS).toMatch(/:global\(html\):has\(\[data-fussleiste\]\) \.schweber \{\s*display: none;/);
+    expect(CSS).toMatch(/:global\(html\):has\(\[data-fussleiste=""\]\) \{\s*--iuk-rueckmeldung-platz: 0px;/);
+    expect(CSS).toMatch(/:global\(html\):has\(\[data-fussleiste=""\]\) \.schweber \{\s*display: none;/);
+    // Eine Leiste nur fürs Telefon nimmt den Knopf am Schreibtisch nicht mit.
+    expect(CSS).toMatch(/@media \(max-width: 767\.98px\) \{\s*:global\(html\):has\(\[data-fussleiste="schmal"\]\) \{\s*--iuk-rueckmeldung-platz: 0px;/);
+  });
+
+  it("gibt den Platz im Druck zurück", () => {
+    expect(CSS).toMatch(/@media print \{[\s\S]*:global\(html\):has\(\.platz\) \{\s*--iuk-rueckmeldung-platz: 0px;/);
   });
 
   it.each([
-    ["die Abschlussleiste der Inventur", "src/app/m/lagerbuch/verwaltung/(arbeit)/inventur/Abschlussleiste.tsx"],
-    ["die Verlaufsleiste im Kommunikationsplan", "src/app/m/kommplan/_ui/editor/Editor.tsx"],
-  ])("%s ist als Fußleiste markiert", (_name, pfad) => {
-    expect(readFileSync(pfad, "utf8")).toContain(`${FUSSLEISTE}=""`);
+    ["die Abschlussleiste der Inventur", "src/app/m/lagerbuch/verwaltung/(arbeit)/inventur/Abschlussleiste.tsx", ""],
+    ["die Verlaufsleiste im Kommunikationsplan", "src/app/m/kommplan/_ui/editor/Editor.tsx", "schmal"],
+  ])("%s ist als Fußleiste markiert", (_name, pfad, wert) => {
+    expect(readFileSync(pfad, "utf8")).toContain(`${FUSSLEISTE}="${wert}"`);
   });
 
   it("wird von der Vollhöhen-Tabelle abgezogen", () => {
