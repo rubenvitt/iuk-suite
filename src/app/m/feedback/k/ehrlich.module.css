@@ -4,6 +4,15 @@
  * Kein Suite-Rot in dieser Datei — Rot hat auf den öffentlichen Seiten genau zwei Stellen (Fahne, Wortzeichen).
  */
 
+/* Ein `fieldset` ist von Haus aus mindestens so breit wie sein Inhalt (`min-inline-size: min-content`):
+   die Namensfelder schoben den Einwurf so auf 415px, auf jedem Telefon (wie `.zeile` im Abendzettel). */
+.gruppe {
+  min-inline-size: 0;
+  margin-inline: 0;
+  padding: 0;
+  border: 0;
+}
+
 .themen {
   display: flex;
   flex-wrap: wrap;

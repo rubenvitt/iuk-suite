@@ -129,7 +129,7 @@ function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, abholen, turn
           <label htmlFor={HONIGTOPF_FELD}>Webseite</label>
           <input id={HONIGTOPF_FELD} name={HONIGTOPF_FELD} type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
         </div>
-        <fieldset className={`${s.sektion} ${s.aufbau}`} style={{ border: 0, padding: 0, marginInline: 0 }}>
+        <fieldset className={`${s.sektion} ${s.aufbau} ${e.gruppe}`}>
           <legend className={s.sektionKicker}>Worum geht es?</legend>
           <div className={e.themen}>
             {themen.map((t, i) => (
@@ -167,7 +167,7 @@ function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, abholen, turn
           ) : null}
         </div>
 
-        <fieldset className={`${s.sektion} ${s.aufbau}`} style={{ border: 0, padding: 0, marginInline: 0 }}>
+        <fieldset className={`${s.sektion} ${s.aufbau} ${e.gruppe}`}>
           <legend className={s.sektionKicker}>Möchtest du eine Antwort?</legend>
           <div className={e.wahl}>
             <Option wert="keine" weg={weg} setWeg={setWeg} titel="Nein, ich will es nur loswerden." text="Niemand meldet sich." />
