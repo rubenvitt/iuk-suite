@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { hasAnyGroup, isModuleAdmin } from "@/core/groups";
 import { getModule, requiredGroupsFor } from "@/core/registry";
@@ -37,7 +37,6 @@ export function darfPlanungLoeschen(groups: readonly string[] | null | undefined
 export async function requireSchichtplanZugang(): Promise<Viewer> {
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("schichtplan");
     redirect(`/login?callbackUrl=${encodeURIComponent("/m/schichtplan")}`);
   }
   if (!hatSchichtplanZugang(viewer.groups)) {
@@ -52,7 +51,7 @@ export async function requireSchichtplanAktion(admin = false): Promise<Viewer> {
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istSchichtplanHost(kopf)) { auditDenied("schichtplan", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { auditLoginRequired("schichtplan"); throw new Error("Forbidden"); }
+  if (!viewer) { throw new Error("Forbidden"); }
   const darf = admin ? darfPlanungLoeschen(viewer.groups) : hatSchichtplanZugang(viewer.groups);
   if (!darf) { auditDenied("schichtplan", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;

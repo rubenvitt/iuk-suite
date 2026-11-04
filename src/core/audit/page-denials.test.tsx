@@ -79,20 +79,20 @@ it("a registered Auftrag viewer can read another person's plan without an event"
 });
 
 /*
- * OHNE SITZUNG IST NIEMAND ABGEWIESEN WORDEN — und genau das muss die Zeile sagen.
+ * OHNE SITZUNG IST NIEMAND ABGEWIESEN WORDEN — also schreibt der Aufruf keine Zeile.
  *
- * Der Anlass steht im Protokoll einer echten Instanz: „Zugriff verweigert ·
- * Modulzugriff · Anonym" auf `feedback`, waehrend die Betreiberin angemeldet war.
- * Beides schrieb bis dahin dieselbe Zeile — die abgewiesene Person MIT Kennung und
- * der Aufruf ganz ohne Cookie (Bot auf der Modul-Wurzel, Linkvorschau, abgelaufene
- * Sitzung). Der Objekttyp trennt sie jetzt; der 404 bleibt unveraendert.
+ * Erst hiess es „Zugriff verweigert · Modulzugriff · Anonym", dann (2026-09-12)
+ * „Modulzugriff ohne Anmeldung" — beides fuer den normalen Weg zum Login: Bot auf
+ * der Modul-Wurzel, Linkvorschau, abgelaufene Sitzung, erster Aufruf vor der
+ * Anmeldung. Seit 2026-11-04 bleibt das Protokoll dabei leer; der 404 bleibt
+ * unveraendert. Abgewiesen wird nur eine angemeldete Person (`access` mit Kennung).
  */
-it("no session at all is recorded as login_required, not as a refused person",async()=>{
+it("no session at all writes no audit row, the 404 stays",async()=>{
  session=null;
  await expect(VergleichPage()).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
  const events=queryAuditEvents().events;
- expect(events).toHaveLength(1);
- expect(events[0]).toMatchObject({module:"feedback",action:"access_denied",objectType:"login_required",result:"denied",origin:"server",actor:{kind:"anonymous"}});
+ expect(events).toHaveLength(0);
+ expect(events.some(e=>e.objectType==="login_required")).toBe(false);
 });
 
 it("synthetic predicate fault: defensive plan denial also persists one event and preserves 404",async()=>{

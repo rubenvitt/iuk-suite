@@ -1,4 +1,4 @@
-import { auditDenied, auditActor, auditLoginRequired } from "@/core/audit/server";
+import { auditDenied, auditActor } from "@/core/audit/server";
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/core/auth";
 import { getDb } from "../_db/client";
@@ -31,7 +31,7 @@ import { hatFeedbackVerwaltungszugang, type Viewer } from "./access";
 export async function requireFeedbackAccess(): Promise<Viewer> {
   const session = await auth();
   const viewer = viewerFromSession(session);
-  if (!viewer) { auditLoginRequired("feedback"); redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`); }
+  if (!viewer) { redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`); }
 
   /*
    * DAS PRÄDIKAT LIEGT SEIT DRK-290 IN `access.ts` (`hatFeedbackVerwaltungszugang`),

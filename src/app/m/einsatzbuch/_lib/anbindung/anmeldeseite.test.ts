@@ -2,11 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const zustand: { user: { id: string; name: string | null; groups: string[] } | null } = { user: null };
 vi.mock("@/core/auth", () => ({ auth: async () => (zustand.user ? { user: zustand.user } : null) }));
-const audit = vi.hoisted(() => ({ denied: vi.fn(), login: vi.fn() }));
+const audit = vi.hoisted(() => ({ denied: vi.fn() }));
 vi.mock("@/core/audit/server", async (orig) => ({
   ...(await orig<typeof import("@/core/audit/server")>()),
   auditDenied: audit.denied,
-  auditLoginRequired: audit.login,
 }));
 
 import { anmeldePfad, anmeldezugang, leseAnmeldeparameter, rueckrufUrl } from "./anmeldeseite";
@@ -105,14 +104,12 @@ describe("anmeldezugang", () => {
   beforeEach(() => {
     zustand.user = null;
     audit.denied.mockClear();
-    audit.login.mockClear();
   });
 
-  it("ohne Sitzung: loginUrl mit kodierter Query, Audit login_required", async () => {
+  it("ohne Sitzung: loginUrl mit kodierter Query, kein Audit", async () => {
     const pfad = "/anmelden?port=1&state=s&challenge=c";
     const z = await anmeldezugang(pfad);
     expect(z).toEqual({ art: "anmelden", loginUrl: `/login?callbackUrl=${encodeURIComponent(pfad)}` });
-    expect(audit.login).toHaveBeenCalledWith("einsatzbuch");
     expect(audit.denied).not.toHaveBeenCalled();
   });
 
@@ -122,7 +119,6 @@ describe("anmeldezugang", () => {
     expect(z).toEqual({ art: "kein_zugang" });
     expect(audit.denied).toHaveBeenCalledTimes(1);
     expect(audit.denied).toHaveBeenCalledWith("einsatzbuch", { kind: "user", id: "s1", name: "Jana" });
-    expect(audit.login).not.toHaveBeenCalled();
   });
 
   it("mit Sitzung und Gruppe: ok mit dem Viewer", async () => {
@@ -130,6 +126,5 @@ describe("anmeldezugang", () => {
     const z = await anmeldezugang("/anmelden");
     expect(z).toEqual({ art: "ok", viewer: zustand.user });
     expect(audit.denied).not.toHaveBeenCalled();
-    expect(audit.login).not.toHaveBeenCalled();
   });
 });

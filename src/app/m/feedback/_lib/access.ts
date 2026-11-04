@@ -1,4 +1,4 @@
-import { auditDenied, auditActor, auditLoginRequired } from "@/core/audit/server";
+import { auditDenied, auditActor } from "@/core/audit/server";
 import { getModule, requiredGroupsFor } from "@/core/registry";
 import { adminGroupsFor } from "@/core/groups";
 
@@ -50,7 +50,6 @@ export function isFeedbackAdmin(viewer: Viewer | null): boolean {
  */
 export function auditFeedbackDenied(viewer: Viewer | null): void {
   if (viewer) auditDenied("feedback", auditActor(viewer));
-  else auditLoginRequired("feedback");
 }
 
 /**

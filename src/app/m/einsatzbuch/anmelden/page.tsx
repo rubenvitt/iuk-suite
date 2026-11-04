@@ -55,7 +55,7 @@ export default async function AnmeldenPage({
 
   const zugang = await anmeldezugang(anmeldePfad(p));
   // Manifest `src/core/audit/page-coverage-manifest.json`: `excluded`, "Anmeldeumweg ohne
-  // Sitzung; Audit per auditLoginRequired in _lib" — `anmeldezugang` hat die Zeile schon geschrieben.
+  // Sitzung; kein Audit (normaler Login-Weg)" — ohne Sitzung ist niemand abgewiesen worden.
   if (zugang.art === "anmelden") redirect(zugang.loginUrl);
 
   if (zugang.art === "kein_zugang") {

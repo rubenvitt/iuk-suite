@@ -1,4 +1,4 @@
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { notFound, redirect } from "next/navigation";
 import { viewerFromSession } from "../viewer";
@@ -35,7 +35,6 @@ export async function requireEhrlichLeser(callbackPfad = "/m/feedback/ehrlich-ge
   const session = await auth();
   const viewer = viewerFromSession(session);
   if (!viewer) {
-    auditLoginRequired("feedback");
     redirect(`/login?callbackUrl=${encodeURIComponent(callbackPfad)}`);
   }
   if (!istEhrlichLeser(viewer.groups)) {

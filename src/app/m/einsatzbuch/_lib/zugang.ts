@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { hasAnyGroup } from "@/core/groups";
 import { getModule, requiredGroupsFor } from "@/core/registry";
@@ -37,7 +37,6 @@ export async function requireEinsatzbuchZugang() {
   const session = await auth();
   const viewer = session?.user;
   if (!viewer) {
-    auditLoginRequired("einsatzbuch");
     redirect(`/login?callbackUrl=${encodeURIComponent("/m/einsatzbuch")}`);
   }
   if (!hatEinsatzbuchZugang(viewer.groups)) {
@@ -55,7 +54,7 @@ export async function requireEinsatzbuchAktion(): Promise<Viewer> {
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istEinsatzbuchHost(kopf)) { auditDenied("einsatzbuch", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { auditLoginRequired("einsatzbuch"); throw new Error("Forbidden"); }
+  if (!viewer) { throw new Error("Forbidden"); }
   if (!hatEinsatzbuchZugang(viewer.groups)) { auditDenied("einsatzbuch", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;
 }
@@ -64,7 +63,6 @@ export async function requireEinsatzbuchAktion(): Promise<Viewer> {
 export async function einsatzbuchZugang(): Promise<{ ok: true; viewer: Viewer } | { ok: false; response: Response }> {
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("einsatzbuch");
     return { ok: false, response: Response.json({ error: { code: "unauthenticated", message: "Anmeldung erforderlich" } }, { status: 401 }) };
   }
   if (!hatEinsatzbuchZugang(viewer.groups)) {

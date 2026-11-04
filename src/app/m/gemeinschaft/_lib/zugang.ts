@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { isModuleAdmin } from "@/core/groups";
 import { getModule } from "@/core/registry";
@@ -23,7 +23,6 @@ export function istLeitung(groups: readonly string[] | null | undefined, env: En
 export async function requireLeitung(): Promise<Viewer> {
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("gemeinschaft");
     redirect(anmeldeHref(await headers(), "/"));
   }
   if (!istLeitung(viewer.groups)) {
@@ -38,7 +37,7 @@ export async function requireLeitungAktion(): Promise<Viewer> {
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istGemeinschaftHost(kopf)) { auditDenied("gemeinschaft", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { auditLoginRequired("gemeinschaft"); throw new Error("Forbidden"); }
+  if (!viewer) { throw new Error("Forbidden"); }
   if (!istLeitung(viewer.groups)) { auditDenied("gemeinschaft", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;
 }

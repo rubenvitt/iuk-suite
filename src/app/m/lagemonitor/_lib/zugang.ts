@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { isModuleAdmin } from "@/core/groups";
 import { getModule } from "@/core/registry";
@@ -23,7 +23,6 @@ export function darfLagemonitorVerwalten(groups: readonly string[] | null | unde
 export async function requireLagemonitorVerwaltung(): Promise<Viewer> {
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("lagemonitor");
     redirect(`/login?callbackUrl=${encodeURIComponent("/m/lagemonitor")}`);
   }
   if (!darfLagemonitorVerwalten(viewer.groups)) {
@@ -38,7 +37,7 @@ export async function requireLagemonitorAktion(): Promise<Viewer> {
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istLagemonitorHost(kopf)) { auditDenied("lagemonitor", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { auditLoginRequired("lagemonitor"); throw new Error("Forbidden"); }
+  if (!viewer) { throw new Error("Forbidden"); }
   if (!darfLagemonitorVerwalten(viewer.groups)) { auditDenied("lagemonitor", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;
 }

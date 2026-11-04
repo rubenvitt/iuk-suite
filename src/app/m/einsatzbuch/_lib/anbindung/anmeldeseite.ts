@@ -7,7 +7,7 @@
  * Seite braucht beides anders — „Kein Zugang zum Einsatzbuch“ statt 404, und einen `callbackUrl`,
  * der die Anmeldeparameter der App trägt, sonst stünde die App nach dem Login ohne ihre Query da.
  */
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { hatEinsatzbuchZugang, type Viewer } from "../zugang";
 import { GEHEIMNIS } from "./token";
@@ -96,15 +96,14 @@ export type Anmeldezugang =
   | { art: "ok"; viewer: Viewer };
 
 /**
- * Entscheidet den Zugang zur Anmeldeseite und auditiert SELBST (`auditLoginRequired` bzw.
- * `auditDenied`) — die Seite (`page.tsx`) braucht damit keinen eigenen Audit-Zweig neben ihrem
+ * Entscheidet den Zugang zur Anmeldeseite und auditiert SELBST (`auditDenied` für eine Person
+ * ohne Gruppe) — die Seite (`page.tsx`) braucht damit keinen eigenen Audit-Zweig neben ihrem
  * `redirect(loginUrl)`; der Manifest-Eintrag dafür ist `excluded` mit der Begründung „Anmeldeumweg
- * ohne Sitzung; Audit per auditLoginRequired in _lib“.
+ * ohne Sitzung; kein Audit (normaler Login-Weg)“.
  */
 export async function anmeldezugang(pfadMitQuery: string): Promise<Anmeldezugang> {
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("einsatzbuch");
     return { art: "anmelden", loginUrl: `/login?callbackUrl=${encodeURIComponent(pfadMitQuery)}` };
   }
   if (!hatEinsatzbuchZugang(viewer.groups)) {

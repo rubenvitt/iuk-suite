@@ -1,4 +1,4 @@
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { istLeitung, type Viewer } from "./zugang";
 
@@ -10,7 +10,7 @@ import { istLeitung, type Viewer } from "./zugang";
  */
 export async function leitungImHandler(): Promise<Viewer | null> {
   const viewer = (await auth())?.user;
-  if (!viewer) { auditLoginRequired("gemeinschaft"); return null; }
+  if (!viewer) { return null; }
   if (!istLeitung(viewer.groups)) { auditDenied("gemeinschaft", auditActor(viewer)); return null; }
   return viewer;
 }
