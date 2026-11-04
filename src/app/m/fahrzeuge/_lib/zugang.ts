@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { hasAnyGroup, isModuleAdmin } from "@/core/groups";
 import { getModule, requiredGroupsFor } from "@/core/registry";
@@ -34,7 +34,6 @@ export function darfFahrzeugeVerwalten(groups: readonly string[] | null | undefi
 export async function requireFahrzeugeZugang(): Promise<Viewer> {
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("fahrzeuge");
     redirect(`/login?callbackUrl=${encodeURIComponent("/m/fahrzeuge")}`);
   }
   if (!hatFahrzeugeZugang(viewer.groups)) {
@@ -49,7 +48,7 @@ export async function requireFahrzeugeVerwaltenAktion(): Promise<Viewer> {
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istFahrzeugeHost(kopf)) { auditDenied("fahrzeuge", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { auditLoginRequired("fahrzeuge"); throw new Error("Forbidden"); }
+  if (!viewer) { throw new Error("Forbidden"); }
   if (!darfFahrzeugeVerwalten(viewer.groups)) { auditDenied("fahrzeuge", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;
 }

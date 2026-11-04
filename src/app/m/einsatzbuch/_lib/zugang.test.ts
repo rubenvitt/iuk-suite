@@ -4,10 +4,10 @@ import { hatEinsatzbuchZugang } from "./zugang";
 const zustand: { host: string; user: { sub: string; name: string; groups: string[] } | null } = { host: "einsatzbuch.localtest.me", user: null };
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: zustand.host }) }));
 vi.mock("@/core/auth", () => ({ auth: async () => (zustand.user ? { user: zustand.user } : null) }));
-const audit = vi.hoisted(() => ({ denied: vi.fn(), login: vi.fn() }));
+const audit = vi.hoisted(() => ({ denied: vi.fn() }));
 vi.mock("@/core/audit/server", async orig => ({
   ...(await orig<typeof import("@/core/audit/server")>()),
-  auditDenied: audit.denied, auditLoginRequired: audit.login,
+  auditDenied: audit.denied,
 }));
 vi.mock("next/navigation", () => ({
   notFound: () => { throw new Error("NEXT_NOT_FOUND"); },
@@ -34,14 +34,14 @@ describe("hatEinsatzbuchZugang", () => {
 });
 
 describe("Riegel mit Audit-Zweigen", () => {
-  beforeEach(() => { zustand.host = "einsatzbuch.localtest.me"; zustand.user = null; audit.denied.mockClear(); audit.login.mockClear(); });
+  beforeEach(() => { zustand.host = "einsatzbuch.localtest.me"; zustand.user = null; audit.denied.mockClear(); });
   const mitGruppe = { sub: "s1", name: "Jana", groups: ["einsatzbuch-nutzer"] };
   const admin = { sub: "s2", name: "Chef", groups: ["admin"] };
 
-  it("requireEinsatzbuchZugang: ohne Sitzung → Login mit Audit, ohne Gruppe → 404 mit Audit", async () => {
+  it("requireEinsatzbuchZugang: ohne Sitzung → Login ohne Audit, ohne Gruppe → 404 mit Audit", async () => {
     const { requireEinsatzbuchZugang } = await import("./zugang");
     await expect(requireEinsatzbuchZugang()).rejects.toThrow("NEXT_REDIRECT");
-    expect(audit.login).toHaveBeenCalledWith("einsatzbuch");
+    expect(audit.denied).not.toHaveBeenCalled();
     zustand.user = admin;
     await expect(requireEinsatzbuchZugang()).rejects.toThrow("NEXT_NOT_FOUND");
     expect(audit.denied).toHaveBeenCalledTimes(1);
@@ -55,7 +55,7 @@ describe("Riegel mit Audit-Zweigen", () => {
     expect(audit.denied).toHaveBeenCalledTimes(1);
     zustand.host = "einsatzbuch.localtest.me"; zustand.user = null;
     await expect(requireEinsatzbuchAktion()).rejects.toThrow("Forbidden");
-    expect(audit.login).toHaveBeenCalledTimes(1);
+    expect(audit.denied).toHaveBeenCalledTimes(1);
     zustand.user = admin;
     await expect(requireEinsatzbuchAktion()).rejects.toThrow("Forbidden");
     expect(audit.denied).toHaveBeenCalledTimes(2);

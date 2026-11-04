@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { hasAnyGroup, isModuleAdmin } from "@/core/groups";
 import { getModule, requiredGroupsFor } from "@/core/registry";
@@ -36,7 +36,6 @@ export function darfHelferVerwalten(groups: readonly string[] | null | undefined
 export async function requireHelferZugang(): Promise<Viewer> {
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("helfer");
     redirect(`/login?callbackUrl=${encodeURIComponent("/m/helfer")}`);
   }
   if (!hatHelferZugang(viewer.groups)) {
@@ -51,7 +50,7 @@ export async function requireHelferVerwaltenAktion(): Promise<Viewer> {
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istHelferHost(kopf)) { auditDenied("helfer", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { auditLoginRequired("helfer"); throw new Error("Forbidden"); }
+  if (!viewer) { throw new Error("Forbidden"); }
   if (!darfHelferVerwalten(viewer.groups)) { auditDenied("helfer", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;
 }
@@ -60,7 +59,6 @@ export async function requireHelferVerwaltenAktion(): Promise<Viewer> {
 export async function helferVerwaltenZugang(): Promise<{ ok: true; viewer: Viewer } | { ok: false; response: Response }> {
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("helfer");
     return { ok: false, response: new Response("Anmeldung erforderlich", { status: 401 }) };
   }
   if (!darfHelferVerwalten(viewer.groups)) {

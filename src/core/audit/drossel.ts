@@ -2,7 +2,7 @@ export type AuditEntscheid = "einzeln" | "gedrosselt" | "still";
 
 /**
  * Obergrenze für Audit-Zeilen wiederholter anonymer Ablehnungen — Herkunft UAV-Anmeldung
- * (DRK-447, `uav/_lib/anmeldeSchranke.ts`), seit IDA-263 auch `auditLoginRequired`.
+ * (DRK-447, `uav/_lib/anmeldeSchranke.ts`), dazu Codes/Tokens in lagemonitor und verpflegung.
  *
  * Je Minutenfenster höchstens `max` einzelne Zeilen, danach EINE Markierung (`gedrosselt`,
  * geschrieben als `access_throttled`) und bis zum nächsten Fenster nichts mehr. Die Markierung

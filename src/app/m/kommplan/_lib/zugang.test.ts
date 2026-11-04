@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const zustand: { user: { sub: string; name: string; groups: string[] } | null } = { user: null };
 vi.mock("@/core/auth", () => ({ auth: async () => (zustand.user ? { user: zustand.user } : null) }));
-const audit = vi.hoisted(() => ({ denied: vi.fn(), login: vi.fn() }));
+const audit = vi.hoisted(() => ({ denied: vi.fn() }));
 vi.mock("@/core/audit/server", async (orig) => ({
   ...(await orig<typeof import("@/core/audit/server")>()),
-  auditDenied: audit.denied, auditLoginRequired: audit.login,
+  auditDenied: audit.denied,
 }));
 vi.mock("next/navigation", () => ({
   notFound: () => { throw new Error("NEXT_NOT_FOUND"); },
@@ -36,10 +36,10 @@ describe("Zugang zu kommplan", () => {
 });
 
 describe("requireKommplanZugang", () => {
-  beforeEach(() => { zustand.user = null; audit.denied.mockClear(); audit.login.mockClear(); });
-  it("ohne Sitzung → Login mit Audit; ohne Gruppe → 404 mit Audit; mit Gruppe → Viewer", async () => {
+  beforeEach(() => { zustand.user = null; audit.denied.mockClear(); });
+  it("ohne Sitzung → Login ohne Audit; ohne Gruppe → 404 mit Audit; mit Gruppe → Viewer", async () => {
     await expect(requireKommplanZugang()).rejects.toThrow("NEXT_REDIRECT /login?callbackUrl=%2Fm%2Fkommplan");
-    expect(audit.login).toHaveBeenCalledWith("kommplan");
+    expect(audit.denied).not.toHaveBeenCalled();
     zustand.user = { sub: "s1", name: "Jana", groups: ["andere"] };
     await expect(requireKommplanZugang()).rejects.toThrow("NEXT_NOT_FOUND");
     expect(audit.denied).toHaveBeenCalledTimes(1);
@@ -49,8 +49,8 @@ describe("requireKommplanZugang", () => {
 });
 
 describe("Bearbeiten-Riegel für Server Actions", () => {
-  beforeEach(() => { kopf.host = "kommplan.localtest.me"; audit.denied.mockReset(); audit.login.mockReset(); });
-  it("Admin-Gruppe darf, Zugangsgruppe nicht, ohne Anmeldung nicht, fremder Host nicht — je mit Audit", async () => {
+  beforeEach(() => { kopf.host = "kommplan.localtest.me"; audit.denied.mockReset(); });
+  it("Admin-Gruppe darf, Zugangsgruppe nicht, ohne Anmeldung nicht (ohne Audit), fremder Host nicht", async () => {
     zustand.user = { sub: "u1", name: "Jana", groups: ["kommplan-admin"] };
     await expect(requireKommplanBearbeitenAktion()).resolves.toMatchObject({ sub: "u1" });
     zustand.user = { sub: "u2", name: "Ole", groups: ["kommplan-nutzer"] };
@@ -58,7 +58,7 @@ describe("Bearbeiten-Riegel für Server Actions", () => {
     expect(audit.denied).toHaveBeenCalledTimes(1);
     zustand.user = null;
     await expect(requireKommplanBearbeitenAktion()).rejects.toThrow("Forbidden");
-    expect(audit.login).toHaveBeenCalledTimes(1);
+    expect(audit.denied).toHaveBeenCalledTimes(1);
     zustand.user = { sub: "u1", name: "Jana", groups: ["kommplan-admin"] };
     kopf.host = "feedback.localtest.me";
     await expect(requireKommplanBearbeitenAktion()).rejects.toThrow("Forbidden");

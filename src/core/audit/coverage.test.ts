@@ -121,8 +121,8 @@ it("classifies every actual module page/layout 404 and redirect decision, includ
       * ZWEI ZULAESSIGE SCHREIBWEISEN, EINE ZUSAGE: die Abweisung schreibt eine
       * Zeile MIT dem Akteur. `auditDenied(` braucht `auditActor(` daneben;
       * `auditFeedbackDenied(` entscheidet selbst zwischen beiden
-      * Abweisungsgruenden (Person abgewiesen -> `access` mit Kennung, gar keine
-      * Sitzung -> `login_required` anonym) und traegt den Akteur damit in sich
+      * Faellen (Person abgewiesen -> `access` mit Kennung, gar keine Sitzung ->
+      * keine Zeile, normaler Login-Weg) und traegt den Akteur damit in sich
       * — siehe `app/m/feedback/_lib/access.ts`. Ohne diesen zweiten Zweig waere
       * die einzige Moeglichkeit, die Zusage zu erfuellen, die Weiche an jeder
       * Aufrufstelle auszuschreiben.

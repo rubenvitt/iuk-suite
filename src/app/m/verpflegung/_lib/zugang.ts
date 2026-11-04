@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { auditAccessActor, auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditAccessActor, auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { hasAnyGroup, isModuleAdmin } from "@/core/groups";
 import { getModule, prodHostsFor, requiredGroupsFor } from "@/core/registry";
@@ -61,7 +61,6 @@ export async function requireZugang(pfad = "/"): Promise<{ viewer: Viewer; recht
   if (!istVerpflegungHost(kopf)) notFound();
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("verpflegung");
     redirect(loginPfad(kopf, pfad));
   }
   if (!hatVerpflegungZugang(viewer.groups)) {
@@ -87,7 +86,7 @@ export async function requireAktion(stufe: Stufe): Promise<{ viewer: Viewer; rec
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istVerpflegungHost(kopf)) { auditDenied("verpflegung", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { auditLoginRequired("verpflegung"); throw new Error("Forbidden"); }
+  if (!viewer) { throw new Error("Forbidden"); }
   if (!hatVerpflegungZugang(viewer.groups)) { auditDenied("verpflegung", auditActor(viewer)); throw new Error("Forbidden"); }
   const rechte = { admin: istVerpflegungAdmin(viewer.groups) };
   if (stufe === "admin" && !rechte.admin) { auditDenied("verpflegung", auditActor(viewer)); throw new Error("Forbidden"); }

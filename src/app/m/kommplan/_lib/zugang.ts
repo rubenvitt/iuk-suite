@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { hasAnyGroup, isModuleAdmin } from "@/core/groups";
 import { getModule, requiredGroupsFor } from "@/core/registry";
@@ -38,7 +38,6 @@ export function darfKommplanBearbeiten(groups: readonly string[] | null | undefi
 export async function requireKommplanZugang(): Promise<Viewer> {
   const viewer = (await auth())?.user;
   if (!viewer) {
-    auditLoginRequired("kommplan");
     redirect(`/login?callbackUrl=${encodeURIComponent("/m/kommplan")}`);
   }
   if (!hatKommplanZugang(viewer.groups)) {
@@ -69,7 +68,7 @@ export async function requireKommplanBearbeitenAktion(): Promise<Viewer> {
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istKommplanHost(kopf)) { auditDenied("kommplan", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { auditLoginRequired("kommplan"); throw new Error("Forbidden"); }
+  if (!viewer) { throw new Error("Forbidden"); }
   if (!darfKommplanBearbeiten(viewer.groups)) { auditDenied("kommplan", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;
 }
@@ -83,7 +82,7 @@ export async function requireKommplanAktion(): Promise<Viewer> {
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istKommplanHost(kopf)) { auditDenied("kommplan", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { auditLoginRequired("kommplan"); throw new Error("Forbidden"); }
+  if (!viewer) { throw new Error("Forbidden"); }
   if (!hatKommplanZugang(viewer.groups)) { auditDenied("kommplan", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;
 }

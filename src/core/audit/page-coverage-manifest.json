@@ -61,7 +61,7 @@
   },
   "src/app/m/einsatzbuch/anmelden/page.tsx#redirect:zugang.art === \"anmelden\":1": {
     "kind": "excluded",
-    "reason": "Anmeldeumweg ohne Sitzung; Audit per auditLoginRequired in _lib."
+    "reason": "Anmeldeumweg ohne Sitzung; kein Audit (normaler Login-Weg)."
   },
   "src/app/m/einsatzbuch/anmelden/page.tsx#redirect:unconditional/catch:1": {
     "kind": "excluded",
