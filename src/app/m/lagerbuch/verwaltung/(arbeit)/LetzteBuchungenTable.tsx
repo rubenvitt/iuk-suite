@@ -1,6 +1,7 @@
 "use client";
 
-import { Empty, type TableProps } from "antd";
+import type { TableProps } from "antd";
+import { Ruhezustand } from "@/core/ruhe";
 import { Kartentabelle, Zellentext } from "@/core/tabelle";
 import s from "../../_ui/verwaltung.module.css";
 
@@ -90,11 +91,7 @@ export function LetzteBuchungenTable({ zeilen }: {
   if (zeilen.length === 0) {
     // Punkt 5 der Pruefliste: ein eigener Leerzustand statt einer leeren
     // Tabelle; er nennt nur den Zustand, ohne Erklaerung.
-    return (
-      <Empty
-        description="Noch keine Buchungen."
-      />
-    );
+    return <Ruhezustand figur="lagerbuch" titel="Noch keine Buchungen" groesse="klein" />;
   }
 
   return (

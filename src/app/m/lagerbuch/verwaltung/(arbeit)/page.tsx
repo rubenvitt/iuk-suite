@@ -1,4 +1,5 @@
-import { Card, Col, Empty, Row } from "antd";
+import { Card, Col, Row } from "antd";
+import { Ruhezustand } from "@/core/ruhe";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { SPACE } from "@/core/theme/tokens";
@@ -203,7 +204,7 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
         style={{ marginBlockEnd: SPACE.lg }}
       >
         {kritisch.length === 0 ? (
-          <Empty description="Alles im grünen Bereich." />
+          <Ruhezustand figur="erledigt" titel="Alles im grünen Bereich" groesse="klein" />
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {sichtbar.map((zeile) => (
