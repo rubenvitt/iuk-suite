@@ -18,7 +18,7 @@ async function breitOk(page: Page, wo: string) {
 }
 
 async function scanneEan(handy: Page, ean: string) {
-  await handy.locator('[data-rolle="scan-feld"]').fill(ean);
+  await handy.locator('[data-rolle="artikel-suche"]').fill(ean);
   await klickeWennRuhig(handy.getByRole("button", { name: `Weiter mit ${ean}` }));
 }
 
@@ -68,11 +68,12 @@ test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verw
   await handy.goto(adresse);
   await handy.waitForURL(/\/h$/);
   await expect(handy.locator('[data-rolle="wer"]')).toContainText(`Helfer-Link ${anlass}`);
+  await klickeWennRuhig(handy.getByRole("button", { name: "Ort wechseln" }));
   const ortWahl = handy.getByRole("dialog", { name: "Ort wechseln" });
   await klickeWennRuhig(ortWahl.getByRole("button", { name: new RegExp(ort) }));
   await expect(handy.locator('[data-rolle="ort"]')).toContainText(ort);
 
-  // Einbuchen: zwei Chargen, die spätere zuerst.
+  // Einbuchen: zwei Chargen, die spätere zuerst; jede über die Liste, gescannt.
   await klickeWennRuhig(handy.getByRole("button", { name: "Einbuchen", exact: true }));
   for (const [tage, menge] of [[90, 3], [40, 2]] as const) {
     await scanneEan(handy, ean);
@@ -80,7 +81,7 @@ test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verw
     for (let i = 1; i < menge; i++) await klickeWennRuhig(handy.getByRole("button", { name: "mehr" }));
     await klickeWennRuhig(handy.getByRole("button", { name: `${menge} Stück einbuchen` }));
     await expect(handy.getByRole("status")).toContainText(`${menge} Stück ${artikel} eingebucht`);
-    await klickeWennRuhig(handy.getByRole("button", { name: "Nächste Packung scannen" }));
+    await klickeWennRuhig(handy.getByRole("button", { name: "Zurück" }));
   }
 
   // Unbekannte Packung: vorläufig anlegen und gleich einbuchen.
@@ -93,28 +94,40 @@ test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verw
   await expect(handy.getByRole("status")).toContainText("eingebucht");
   await breitOk(handy, "Telefon nach dem Einbuchen");
 
-  // Ausgeben: die Charge mit dem früheren MHD wird zuerst angeboten.
+  // Ausgeben: „Zuerst ablaufende“ ist vorgewählt und nimmt die Charge mit dem früheren MHD.
   await klickeWennRuhig(handy.getByRole("button", { name: "Ausgeben", exact: true }));
   await scanneEan(handy, ean);
-  const zuerst = handy.getByRole("radiogroup", { name: "Packung" }).locator("label", { hasText: "zuerst raus" });
-  await expect(zuerst).toContainText(tagIn(40).split("-").reverse().join("."));
+  const chargen = handy.getByRole("radiogroup", { name: "Charge" });
+  await expect(chargen.getByRole("radio", { name: "Zuerst ablaufende" })).toBeChecked();
+  await expect(chargen.locator("label").nth(1)).toContainText(tagIn(40).split("-").reverse().join("."));
   await klickeWennRuhig(handy.getByRole("button", { name: "1 Stück ausgeben" }));
   await expect(handy.getByRole("status")).toContainText(`1 Stück ${artikel} ausgegeben`);
+  await expect(chargen.locator("label").nth(1)).toContainText("1Stück");
 
-  // Aussondern über den Scan.
+  // Aussondern über die Suche nach dem Namen, Charge von Hand gewählt.
   await klickeWennRuhig(handy.getByRole("button", { name: "Aussondern", exact: true }));
-  await klickeWennRuhig(handy.getByRole("button", { name: "Packung scannen" }));
-  await scanneEan(handy, ean);
-  await klickeWennRuhig(handy.getByRole("button", { name: tagIn(90).split("-").reverse().join(".") }));
+  await handy.locator('[data-rolle="artikel-suche"]').fill(artikel);
+  await klickeWennRuhig(handy.locator('[data-rolle="artikel-zeile"]', { hasText: artikel }));
+  await klickeWennRuhig(handy.getByRole("radiogroup", { name: "Charge" }).locator("label", { hasText: tagIn(90).split("-").reverse().join(".") }));
   await klickeWennRuhig(handy.getByRole("button", { name: "beschädigt", exact: true }));
   await klickeWennRuhig(handy.getByRole("button", { name: "3 Stück aussondern" }));
   await expect(handy.getByRole("status")).toContainText(`3 Stück ${artikel} ausgesondert (beschädigt)`);
 
   await klickeWennRuhig(handy.getByRole("button", { name: "Bestand", exact: true }));
-  await expect(handy.getByLabel("Bestand hier")).toContainText(artikel);
+  await klickeWennRuhig(handy.locator('[data-rolle="artikel-zeile"]', { hasText: artikel }));
+  await expect(handy.getByLabel("Chargen")).toContainText(tagIn(40).split("-").reverse().join("."));
   for (const breite of [390, 320]) {
     await handy.setViewportSize({ width: breite, height: 760 });
     await breitOk(handy, `Telefon bei ${breite}px`);
+  }
+  // Tablet und Schreibtisch: Reiter oben, Inhalt nicht auf Telefonbreite.
+  for (const breite of [820, 1366]) {
+    await handy.setViewportSize({ width: breite, height: 900 });
+    await breitOk(handy, `Telefon bei ${breite}px`);
+    const leiste = (await handy.getByRole("navigation", { name: "Bereiche" }).boundingBox())!;
+    const inhalt = (await handy.locator("main").boundingBox())!;
+    expect(leiste.y, `Reiter bei ${breite}px oben`).toBeLessThan(inhalt.y);
+    expect(inhalt.width, `Inhalt bei ${breite}px`).toBeGreaterThan(breite - 40);
   }
 
   // Die Verwaltung sieht die Buchungen unter dem Namen des Links und den vorläufigen Artikel.

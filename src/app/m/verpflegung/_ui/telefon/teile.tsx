@@ -57,19 +57,6 @@ export function Stepper({ wert, setWert, max, einheit }: { wert: number; setWert
   );
 }
 
-export function Rueckmeldung({ text, onWeiter }: { text: string; onWeiter: () => void }) {
-  return (
-    <div className={s.stapel}>
-      <div className={`${s.hinweis} ${s.ok}`} role="status" style={{ marginTop: 0, fontSize: 15, padding: "14px 14px" }}>
-        <Icons8Ikone name="checkmark" groesse={18} /> {text}
-      </div>
-      <button type="button" className={`${s.knopf} ${s.knopfTinte} ${s.breit}`} onClick={onWeiter}>
-        <Icons8Ikone name="barcode" groesse={20} /> Nächste Packung scannen
-      </button>
-    </div>
-  );
-}
-
 /** Ein Strichcode aus Kamera oder Feld: nur Ziffern, 8 oder 12–14 Stellen. */
 export function eanAus(roh: string): string | null {
   const z = roh.replace(/\s/g, "");
@@ -78,54 +65,72 @@ export function eanAus(roh: string): string | null {
 
 export type Treffer = { ean: string; artikelId: string | null };
 
+/** Eine Zeile der Artikelliste: was sie zeigt, steht fest; gefiltert wird über Name, Kategorie und EAN. */
+export type ListenZeile = { artikel: ArtikelDTO; bestand: number; ampel: MhdStatus | null };
+
+const falte = (x: string) => x.toLocaleLowerCase("de").normalize("NFD").replace(/\p{M}/gu, "");
+
 /**
- * Packung finden: Kamera (EAN), oder EAN tippen, oder nach Namen suchen. `auswahl` sind die Artikel, die die
- * Namenssuche anbietet (beim Ausgeben die, die hier liegen).
+ * Startschirm jedes Reiters wie `lagerbuch/_ui/ArtikelSuche.tsx`: Suchfeld, daneben die Kamera für die EAN der
+ * Packung, darunter die Artikel. Eine getippte EAN geht wie ein Scan weiter, auch wenn das Lager sie nicht kennt.
  */
-export function Scanner({ titel, auswahl, artikel, onTreffer }: {
-  titel: string;
-  auswahl: readonly ArtikelDTO[];
+export function ArtikelListe({ zeilen, artikel, onWahl, onTreffer, leerText }: {
+  zeilen: readonly ListenZeile[];
   artikel: readonly ArtikelDTO[];
+  onWahl: (artikelId: string) => void;
   onTreffer: (t: Treffer) => void;
+  leerText: string;
 }) {
-  const [suche, setSuche] = useState("");
-  const q = suche.trim().toLowerCase();
-  const ean = eanAus(suche);
-  const treffer = q && !ean ? auswahl.filter((a) => a.name.toLowerCase().includes(q) || (a.ean ?? "").includes(q)).slice(0, 8) : [];
+  const [q, setQ] = useState("");
+  const [kamera, setKamera] = useState(false);
+  const ean = eanAus(q);
+  const nadel = falte(q.trim());
+  const treffer = zeilen.filter((z) => falte(`${z.artikel.name} ${z.artikel.kategorie} ${z.artikel.ean ?? ""}`).includes(nadel));
   const melde = (code: string) => {
     const e = eanAus(code);
     if (e) onTreffer({ ean: e, artikelId: artikel.find((a) => a.ean === e)?.id ?? null });
   };
   return (
     <>
-      <div className={s.schirmkopf}>{titel}</div>
-      <Kamera lesart="ean" onCode={melde} />
-      <form className={s.block} onSubmit={(e) => { e.preventDefault(); if (ean) melde(ean); }}>
+      <form className={s.feldzeile} onSubmit={(e) => { e.preventDefault(); if (ean) melde(ean); }}>
         <input
           className={s.suchfeld}
-          aria-label="Strichcode oder Name"
-          placeholder="Strichcode oder Name"
+          type="search"
+          aria-label="Artikel suchen"
+          placeholder="Artikel oder Strichcode…"
           autoComplete="off"
-          value={suche}
-          onChange={(e) => setSuche(e.target.value)}
-          data-rolle="scan-feld"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          data-rolle="artikel-suche"
         />
-        {ean && <button type="submit" className={`${s.knopf} ${s.knopfTinte} ${s.breit} ${s.block}`}>Weiter mit {ean}</button>}
+        <button type="button" className={`${s.knopf} ${kamera ? s.knopfTinte : s.knopfGeist}`} aria-pressed={kamera} onClick={() => setKamera((k) => !k)}>
+          <Icons8Ikone name="barcode" groesse={20} /> Scannen
+        </button>
       </form>
-      {treffer.length > 0 && (
-        <div className={`${s.karte} ${s.block}`}>
-          {treffer.map((a) => (
-            <button type="button" key={a.id} className={s.zeile} onClick={() => onTreffer({ ean: a.ean ?? "", artikelId: a.id })}>
-              <div className={s.zeilehaupt}>
-                <div className={s.name}>{a.name}</div>
-                {a.ean && <div className={s.meta}><span className={s.mono}>{a.ean}</span></div>}
-              </div>
-              <Icons8Ikone name="chevron-right" groesse={18} />
-            </button>
-          ))}
-        </div>
+      {kamera && <div className={s.block} style={{ marginTop: 0, marginBottom: 10 }}><Kamera lesart="ean" onCode={melde} /></div>}
+      {ean && (
+        <button type="button" className={`${s.knopf} ${s.knopfTinte} ${s.breit}`} style={{ marginBottom: 10 }} onClick={() => melde(ean)}>
+          Weiter mit {ean}
+        </button>
       )}
-      {q && !ean && treffer.length === 0 && <div className={`${s.karte} ${s.leer} ${s.block}`}>Nichts gefunden.</div>}
+      <div className={`${s.karte} ${s.karteRaster}`}>
+        {zeilen.length === 0 && <div className={s.leer}>{leerText}</div>}
+        {zeilen.length > 0 && treffer.length === 0 && <div className={s.leer}>Nichts gefunden.</div>}
+        {treffer.map((z) => (
+          <button type="button" key={z.artikel.id} className={s.zeile} onClick={() => onWahl(z.artikel.id)} data-rolle="artikel-zeile">
+            <div className={s.zeilehaupt}>
+              <div className={s.name}>{z.artikel.name}</div>
+              <div className={s.meta}>
+                <span className={s.fach}>{z.artikel.kategorie}</span>
+                <span>Bestand {zahlText(z.bestand)} {einheitText(z.bestand, z.artikel.einheit)}</span>
+                {z.ampel && z.ampel.ampel !== "ok" && <Ampel status={z.ampel} />}
+                {z.artikel.vorlaeufig && <span className={`${s.chip} ${s.gelb}`}>vorläufig</span>}
+              </div>
+            </div>
+            <Icons8Ikone name="chevron-right" groesse={18} />
+          </button>
+        ))}
+      </div>
     </>
   );
 }
