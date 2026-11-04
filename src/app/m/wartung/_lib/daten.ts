@@ -7,10 +7,10 @@
  */
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { WartungDb } from "../_db/client";
-import { art, checkpunkt, eintrag, frist, geraet, gruppe, inhalt, mangel } from "../_db/schema";
+import { art, checkpunkt, eintrag, frist, geraet, gruppe, inhalt, mangel, unterlage } from "../_db/schema";
 import { ladeVerwalter } from "./personen";
 import { fristStand, naechsteFrist, vergleicheStaende, zustandAus, type LetzteErledigung } from "./fristen";
-import type { ArtDTO, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, InhaltDTO, MangelDTO } from "./typen";
+import type { ArtDTO, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, InhaltDTO, MangelDTO, UnterlageDTO } from "./typen";
 
 type Leser = Pick<WartungDb, "select">;
 
@@ -102,7 +102,7 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
     return {
       id: g.id, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr,
       gruppeId: g.gruppeId, gruppeName, artId: g.artId, artEinzahl, ikone, stundenPflicht, kiste,
-      ortArt: g.ortArt, ort: g.ort, stunden: g.stunden, aktiv: g.aktiv,
+      ortArt: g.ortArt, ort: g.ort, stunden: g.stunden, hinweise: g.hinweise, aktiv: g.aktiv,
       zustand: zustandAus(eigene), staende, naechste: naechsteFrist(staende), offeneMaengel: eigene.length,
       // Nur Positionen, die noch auf der Liste stehen: ein Mangel zu einer entfernten Position bleibt offen,
       // lässt sich aber durch Durchzählen nicht mehr beheben.
@@ -203,4 +203,16 @@ export function ladeMangel(db: Leser, id: string): { id: string; geraetId: strin
 /** Standorte und Fahrzeuge, die schon vorkommen — Vorschläge im Formular. */
 export function bekannteOrte(db: Pick<WartungDb, "selectDistinct">): string[] {
   return db.selectDistinct({ ort: geraet.ort }).from(geraet).orderBy(asc(geraet.ort)).all().map((z) => z.ort);
+}
+
+/** Die Unterlagen eines Geräts in ihrer Reihenfolge (IDA-300). */
+export function ladeUnterlagen(db: Leser, geraetId: string): UnterlageDTO[] {
+  return db.select({ id: unterlage.id, titel: unterlage.titel, typ: unterlage.typ, bytes: unterlage.bytes }).from(unterlage)
+    .where(eq(unterlage.geraetId, geraetId)).orderBy(asc(unterlage.position), asc(unterlage.angelegtAm)).all();
+}
+
+/** Eine Unterlage samt Gerät — für die Auslieferung und das Entfernen; die Gruppe kommt aus der Datenbank (IDOR). */
+export function ladeUnterlage(db: Leser, id: string): { id: string; geraetId: string; gruppeId: string; aktiv: boolean; titel: string; typ: "pdf" | "bild" } | null {
+  return db.select({ id: unterlage.id, geraetId: unterlage.geraetId, gruppeId: geraet.gruppeId, aktiv: geraet.aktiv, titel: unterlage.titel, typ: unterlage.typ })
+    .from(unterlage).innerJoin(geraet, eq(geraet.id, unterlage.geraetId)).where(eq(unterlage.id, id)).get() ?? null;
 }

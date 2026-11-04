@@ -688,6 +688,12 @@ export const AUDIT_TABLES = {
         "nutzer"
       ]
     },
+    "unterlage": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
     "person": {
       "mode": "excluded",
       "reason": "Anzeigenamen-Cache bei Seitenaufrufen (Quelle der Personensuche); Rechte stehen in verwalter."

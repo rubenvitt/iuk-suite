@@ -318,5 +318,9 @@
   "src/app/m/feedback/(admin)/page.tsx#redirect:viewer && nurEhrlichLeser(viewer):1": {
     "kind": "excluded",
     "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/feedback/k/page.tsx#notFound:!istEhrlichEinstieg(kopf):1": {
+    "kind": "excluded",
+    "reason": "Host check for the public entry page: the page exists only on its own entry host and is anonymous by design; not an authorization decision."
   }
 }

@@ -9,7 +9,7 @@ export const START = {
     heizung: "041a7030-e246-5614-9946-20bd4d2f490c",
     akku: "32104ecc-dd27-59e1-ac96-15ee83b96707",
     it: "d0fd6334-2f77-5dde-a0df-613133afdf84",
-    /** `0003_materialkisten.sql` (IDA-335). */
+    /** `0004_materialkisten.sql` (IDA-335). */
     kiste: "a538c43d-3b3d-5b99-9509-e4f850a72e44",
   },
   frist: {

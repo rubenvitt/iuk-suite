@@ -32,8 +32,9 @@ SUITE_HOST_WARTUNG=wartung.iuk-ue.de
 Reihenfolge wie bei jedem neuen Modul: erst das Image mit dem Modul ausrollen, dann den Host setzen.
 Der Host braucht DNS und die Traefik-Regel (`SUITE_TRAEFIK_RULE`). Die Datenbank `wartung.db` legt der
 Boot-Pfad an (`MODULE_MIGRATIONS`), mit Startbestand: Gruppen Technik und I&K (noch ohne Verwalter) und die
-vier Gerätearten mit Fristen und Checklisten. Mängelfotos liegen unter
-`DATA_DIR/wartung/maengel/`; `scripts/backup.sh` sichert die `wartung.db`, die Fotos noch nicht (IDA-336).
+vier Gerätearten mit Fristen und Checklisten. Mängelfotos liegen unter `DATA_DIR/wartung/maengel/`,
+Unterlagen am Gerät (IDA-300) unter `DATA_DIR/wartung/unterlagen/`; `scripts/backup.sh` sichert die
+`wartung.db` und seit IDA-336 beide Verzeichnisse (`wartung/maengel/`, `wartung/unterlagen/` im Tarball).
 
 ## 3. Erste Schritte nach dem Deploy
 
@@ -50,6 +51,6 @@ vier Gerätearten mit Fristen und Checklisten. Mängelfotos liegen unter
 
 ## 4. Was hier bewusst fehlt
 
-- **Unterlagen** (Betriebsanleitung, Kurzanleitung) am Steckbrief kommen mit IDA-300 aus dem Modul Dateien.
+- **Unterlagen** über 9 MB: Hochgeladen wird in einem Stück, der Proxy puffert höchstens 10 MB (IDA-300).
 - **Materialkisten** mit Inhaltsliste folgen in IDA-335.
 - Ein Foto je Mangel; mehrere Fotos gibt es bewusst nicht.

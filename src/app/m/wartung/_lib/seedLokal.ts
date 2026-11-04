@@ -22,10 +22,11 @@ export async function seedLokalWartung(db: WartungDb, jetzt = Date.now()): Promi
   type E = [vorTagen: number, frist: string | null, titel: string, wer: string, rest?: { ergebnis?: "ok" | "mangel" | "defekt"; stunden?: number; notiz?: string; maengel?: number }];
   const geraete: {
     gruppe: string; art: string; name: string; hersteller: string; typ: string; seriennr: string;
-    ortArt: "lager" | "fahrzeug"; ort: string; stunden: number | null; verlauf: E[]; maengel?: { text: string; einsatzbereit: boolean; vorTagen: number }[];
+    ortArt: "lager" | "fahrzeug"; ort: string; stunden: number | null; hinweise?: string; verlauf: E[]; maengel?: { text: string; einsatzbereit: boolean; vorTagen: number }[];
   }[] = [
     { gruppe: G.technik, art: A.stromerzeuger, name: "Stromerzeuger 8 kVA", hersteller: "Endress", typ: "ESE 808 DBG ES DIN", seriennr: "808-19-04472",
-      ortArt: "fahrzeug", ort: "GW-Technik", stunden: 425, verlauf: [
+      ortArt: "fahrzeug", ort: "GW-Technik", stunden: 425,
+      hinweise: "Nur im Freien betreiben, Abgas nicht in Zelte leiten.\nVor dem Start Erdungsspieß setzen. Tankinhalt 25 l Diesel.", verlauf: [
         [42, F.stromerzeuger.quartal, "Quartalsprüfung", "Helfer A", { ergebnis: "ok", stunden: 418 }],
         [133, F.stromerzeuger.quartal, "Quartalsprüfung", "Helfer B", { ergebnis: "ok", stunden: 371 }],
         [232, F.stromerzeuger.wartung, "Wartung", "Fachfirma", { stunden: 340, notiz: "Öl und Zündkerze gewechselt, Luftfilter neu." }],
@@ -80,7 +81,7 @@ export async function seedLokalWartung(db: WartungDb, jetzt = Date.now()): Promi
       const id = neueId();
       tx.insert(geraet).values({
         id, gruppeId: g.gruppe, artId: g.art, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr,
-        ortArt: g.ortArt, ort: g.ort, stunden: g.stunden, aktiv: true, angelegtAm: jetzt, aktualisiertAm: jetzt,
+        ortArt: g.ortArt, ort: g.ort, stunden: g.stunden, hinweise: g.hinweise ?? "", aktiv: true, angelegtAm: jetzt, aktualisiertAm: jetzt,
       }).run();
       for (const [vor, fristId, titel, wer, rest = {}] of g.verlauf) {
         const pruefung = rest.ergebnis !== undefined;

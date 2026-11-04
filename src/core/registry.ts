@@ -401,7 +401,7 @@ export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[
   // gemeinschaft: persönlicher Link eines Mitglieds und Statusseite einer Bar-Anfrage — der Code im Pfad ist der Zugang.
   { modul: "gemeinschaft", muster: /^\/m\/gemeinschaft\/(mein|status)\/[^/]/ },
   // feedback (IDA-314): Einwurf und Abholen von „Ehrlich gesagt" — das Secret steht im Pfad, die Antwort hinter dem Code.
-  { modul: "feedback", muster: /^\/m\/feedback\/k\// },
+  { modul: "feedback", muster: /^\/m\/feedback\/k(\/|$)/ },
 ];
 
 /**
@@ -422,4 +422,51 @@ export const BEREICH_WEITERE_APPS = "Weitere Apps";
 
 export function bereichFuer(modulKey: string): string {
   return APP_BEREICHE.find((b) => b.module.includes(modulKey))?.titel ?? BEREICH_WEITERE_APPS;
+}
+
+/**
+ * EINSTIEGSHOSTS (IDA-340): ein eigener Host, der nur EINEN Pfadraum eines Moduls bedient. Jeder Pfad
+ * auf diesem Host geht nach `/m/<modul><praefix>…`; `ehrlich.…/` ist der Einwurf von „Ehrlich gesagt“,
+ * `ehrlich.…/abholen` das Abholen. Der Host steht in `env` (NICHT unter `SUITE_HOST_`, dort meldet
+ * `validateHostConfig` jeden Namen ohne Modul), lokal und im e2e gilt `devHost`.
+ * Gating wie beim Modulhost (`decideRoute`). Am Dateiende aus demselben Grund wie `VERWALTUNGSEINSTIEGE`.
+ */
+export interface Einstiegshost {
+  modul: string;
+  env: string;
+  devHost: string;
+  /** Interner Pfadraum unter `/m/<modul>`, mit führendem Schrägstrich, ohne Schrägstrich am Ende. */
+  praefix: string;
+}
+
+export const EINSTIEGSHOSTS: readonly Einstiegshost[] = [
+  { modul: "feedback", env: "SUITE_EINSTIEG_HOST_EHRLICH", devHost: "ehrlich-gesagt.localtest.me", praefix: "/k" },
+];
+
+/** Der geltende Host eines Einstiegs: die Variable (getrimmt, klein), sonst keiner. */
+export function einstiegsHostAusEnv(e: Einstiegshost, env: EnvLike = process.env): string | null {
+  const roh = env[e.env]?.trim().toLowerCase();
+  return roh ? roh : null;
+}
+
+export function einstiegFuerHost(host: string, env: EnvLike = process.env): Einstiegshost | null {
+  const h = host.split(":")[0].toLowerCase();
+  if (h === "") return null;
+  return EINSTIEGSHOSTS.find((e) => h === e.devHost || h === einstiegsHostAusEnv(e, env)) ?? null;
+}
+
+/** Boot-Prüfung der Einstiegshosts (`assertHostConfig`): reiner Hostname, kein Modulhost. */
+export function einstiegsHostFehler(env: EnvLike = process.env): string[] {
+  const fehler: string[] = [];
+  for (const e of EINSTIEGSHOSTS) {
+    const host = einstiegsHostAusEnv(e, env);
+    if (host === null) continue;
+    if (host.includes("/") || host.includes(":")) {
+      fehler.push(`${e.env}: "${host}" muss ein reiner Hostname sein — ohne Protokoll und ohne Port.`);
+      continue;
+    }
+    const belegt = MODULES.find((m) => prodHostsFor(m, env).includes(host));
+    if (belegt) fehler.push(`${e.env}: "${host}" ist schon Host des Moduls ${belegt.key}.`);
+  }
+  return fehler;
 }

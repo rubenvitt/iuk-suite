@@ -10,9 +10,10 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { erledigtEintragenAction, geraetAendernAction, geraetAktivAction, mangelBehebenAction } from "../_actions/verwaltung";
 import { NAME_MAX, NOTIZ_MAX } from "../_lib/eingabe";
 import { ERGEBNIS_TEXT, intervallText, WER_TEXT, type FristStand } from "../_lib/fristen";
-import type { EintragDTO, GeraetZeile, InhaltDTO, MangelDTO } from "../_lib/typen";
+import type { EintragDTO, GeraetZeile, InhaltDTO, MangelDTO, UnterlageDTO } from "../_lib/typen";
 import { GeraetFormular } from "./GeraetFormular";
 import { MangelEintrag } from "./MangelEintrag";
+import { UnterlagenKarte } from "./UnterlagenKarte";
 import { Chip, datum, FristChip, OrtText, stundenText, ZUSTAND_FARBE, ZustandChip } from "./teile";
 import { useAktion } from "./useAktion";
 import s from "./wartung.module.css";
@@ -20,12 +21,13 @@ import s from "./wartung.module.css";
 type Erledigt = { am: string; stunden: number | null; wer: string; notiz: string };
 
 export function GeraetAkte({
-  g, inhalt, maengel, verlauf, qr, heute, arten, gruppen, orte,
+  g, inhalt, maengel, verlauf, unterlagen, qr, heute, arten, gruppen, orte,
 }: {
   g: GeraetZeile;
   /** Nur bei einer Materialkiste (IDA-335). */
   inhalt: InhaltDTO[];
   maengel: MangelDTO[];
+  unterlagen: UnterlageDTO[];
   verlauf: EintragDTO[];
   qr: string;
   heute: string;
@@ -146,7 +148,8 @@ export function GeraetAkte({
                 { key: "s", label: "Seriennummer", children: <span className={s.mono}>{g.seriennr || "—"}</span> },
                 { key: "o", label: g.ortArt === "fahrzeug" ? "Fahrzeug" : "Standort", children: <OrtText ortArt={g.ortArt} ort={g.ort} /> },
                 { key: "b", label: "Betriebsstunden", children: <span className={s.ziffern}>{g.stunden !== null ? stundenText(g.stunden) : "nicht erfasst"}</span> },
-              ].filter((z) => !g.kiste || (z.key === "h" ? Boolean(g.hersteller || g.typ) : z.key === "s" ? Boolean(g.seriennr) : z.key === "b" ? g.stunden !== null : true))}
+                { key: "i", label: "Hinweise", children: g.hinweise ? <p className={s.hinweise}>{g.hinweise}</p> : "—" },
+              ].filter((z) => !g.kiste || (z.key === "h" ? Boolean(g.hersteller || g.typ) : z.key === "s" ? Boolean(g.seriennr) : z.key === "b" ? g.stunden !== null : z.key === "i" ? Boolean(g.hinweise) : true))}
             />
           </Card>
           {g.kiste && (
@@ -166,6 +169,7 @@ export function GeraetAkte({
               )}
             </Card>
           )}
+          <UnterlagenKarte geraetId={g.id} unterlagen={unterlagen} aktiv={g.aktiv} />
           <Card title="QR-Etikett">
             <div className={s.qrRahmen}>
               <div className={s.qr} dangerouslySetInnerHTML={{ __html: qr }} />
@@ -218,7 +222,7 @@ export function GeraetAkte({
       {aendern && <GeraetFormular
         offen
         titel="Gerät bearbeiten"
-        start={{ gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, stunden: g.stunden }}
+        start={{ gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, stunden: g.stunden, hinweise: g.hinweise }}
         gruppen={gruppen}
         arten={arten}
         orte={orte}

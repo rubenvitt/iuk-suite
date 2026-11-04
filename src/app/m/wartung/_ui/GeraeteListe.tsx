@@ -43,7 +43,7 @@ export function GeraeteListe({
   const artWahl = arten.filter((a) => zeilen.some((g) => g.artId === a.id));
   const start = useMemo<GeraetWerte>(() => ({
     gruppeId: gewaehlt ?? gruppen[0]?.id ?? "", artId: arten[0]?.id ?? "", name: "", hersteller: "", typ: "", seriennr: "",
-    ortArt: "lager", ort: "", stunden: null,
+    ortArt: "lager", ort: "", stunden: null, hinweise: "",
   }), [gewaehlt, gruppen, arten]);
 
   const speichern = (w: GeraetWerte) => {

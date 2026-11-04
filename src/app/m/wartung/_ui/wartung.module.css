@@ -148,3 +148,9 @@ a.zeile:hover { background: var(--iuk-flaeche-aktiv); }
 .inhaltPosten { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: baseline; padding: 6px 0; }
 .inhaltPosten + .inhaltPosten { border-top: 1px solid var(--iuk-linie); }
 .inhaltPosten > span:last-child { overflow-wrap: anywhere; }
+
+/* Unterlagen und Hinweise (IDA-300) */
+.unterlage { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 10px 0; color: inherit; text-decoration: none; }
+a.unterlage:hover { background: var(--iuk-flaeche-aktiv); }
+.unterlageTitel { min-width: 0; overflow-wrap: break-word; }
+.hinweise { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }

@@ -111,6 +111,8 @@ export const geraet = sqliteTable("geraet", {
   ort: text("ort").notNull(),
   /** Zuletzt abgelesener Stand; `null`, solange nichts erfasst ist. */
   stunden: integer("stunden"),
+  /** Was jeder am Gerät wissen muss, bevor er es benutzt (IDA-300); steht auf dem Steckbrief. */
+  hinweise: text("hinweise").notNull().default(""),
   /** Ausgemustert: fällt aus Listen und Fristen, der Verlauf bleibt. */
   aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
   angelegtAm: integer("angelegt_am").notNull(),
@@ -199,4 +201,23 @@ export const mangel = sqliteTable("mangel", {
 }, (t) => [
   index("mangel_geraet_idx").on(t.geraetId, t.behobenAm),
   index("mangel_offen_idx").on(t.behobenAm, t.gemeldetAm),
+]);
+
+/**
+ * Eine Unterlage am Gerät (IDA-300): Kurzanleitung, Handbuch, Schaltplan. Die Datei liegt unter
+ * `DATA_DIR/wartung/unterlagen/<id>.<pdf|jpg>` (`_lib/unterlagen.ts`); hier stehen nur Titel und Art. Sie liegen im
+ * Modul selbst und nicht im Modul Dateien, weil dessen Freigaben ablaufen (Entscheidung an IDA-300).
+ */
+export const unterlage = sqliteTable("unterlage", {
+  id: text("id").primaryKey(),
+  geraetId: text("geraet_id").notNull().references(() => geraet.id, { onDelete: "cascade" }),
+  titel: text("titel").notNull(),
+  typ: text("typ", { enum: ["pdf", "bild"] }).notNull(),
+  bytes: integer("bytes").notNull(),
+  position: integer("position").notNull().default(0),
+  angelegtAm: integer("angelegt_am").notNull(),
+  angelegtVon: text("angelegt_von").notNull().default(""),
+}, (t) => [
+  index("unterlage_geraet_idx").on(t.geraetId, t.position),
+  check("unterlage_typ", sql`typ IN ('pdf','bild')`),
 ]);

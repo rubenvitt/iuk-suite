@@ -3416,3 +3416,92 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
     }
   });
 });
+
+describe("scripts/backup.sh — die Maengelfotos von `lagerbuch` und `wartung` (IDA-336)", () => {
+  // Quelltext-Scan wie bei `files` und `aufgaben`. Den echten Lauf (Fotos beider Module
+  // im Tarball, `*.tmp` nicht; Zeile mit Foto ohne Bild → exit 1; Tabelle fehlt → exit 0)
+  // ist am 04.11.2026 in alpine:3.24 mit bash, sqlite3 und rsync gemessen.
+  const kern = lies("scripts/backup.sh");
+  const kernZeilen = kern.split("\n");
+  const befehl = (teil: string) => {
+    const i = kernZeilen.findIndex((z) => !z.trim().startsWith("#") && z.includes(teil));
+    expect(i, `scripts/backup.sh fuehrt eine Befehlszeile mit "${teil}"`).toBeGreaterThanOrEqual(0);
+    return i;
+  };
+
+  it("die Ablage beider Module liegt unter `DATA_DIR` — und `suite_data` ist dort gemountet", () => {
+    // Darum braucht es weder eine eigene Variable noch einen eigenen Mount: laege eines
+    // der Module eines Tages in einem eigenen Volume, saehe das rsync einen leeren Ordner.
+    expect(lies("src/app/m/lagerbuch/_lib/maengel/fotos.ts")).toContain(
+      'resolve(process.env.DATA_DIR ?? "./.data", "lagerbuch", "maengel")',
+    );
+    expect(lies("src/app/m/wartung/_lib/fotos.ts")).toContain(
+      'resolve(process.env.DATA_DIR ?? "./.data", "wartung", "maengel")',
+    );
+    expect(backupMounts).toContain("suite_data:/data");
+    expect(backupMounts.some((m) => /:\/data\/(lagerbuch|wartung)/.test(m))).toBe(false);
+  });
+
+  for (const modul of ["lagerbuch", "wartung"]) {
+    it(`\`${modul}\`: rsync ohne Zwischendateien, nach dem sqlite3 und vor dem tar`, () => {
+      const kopie = befehl(
+        `rsync -a --exclude='*.tmp' "$DATA_DIR/${modul}/maengel/" "$work/${modul}/maengel/"`,
+      );
+      // rsync legt nur die letzte Stufe des Ziels an; ohne `mkdir -p` scheitert der Lauf.
+      expect(kernZeilen[kopie - 1]).toContain(`mkdir -p "$work/${modul}"`);
+      expect(kernZeilen[kopie - 2]).toContain(`[ -d "$DATA_DIR/${modul}/maengel" ]`);
+      expect(befehl(".backup '")).toBeLessThan(kopie);
+      expect(kopie).toBeLessThan(befehl("tar -czf"));
+    });
+  }
+
+  it("bricht ab, wenn Meldungen ein Foto fuehren, aber kein Bild kopiert wurde", () => {
+    const ab = befehl("for modul in lagerbuch wartung; do");
+    const block = kernZeilen.slice(ab, befehl("tar -czf")).join("\n");
+    expect(block).toContain('"select count(*) from maengel where fotos > 0"');
+    expect(block).toContain('"select count(*) from mangel where foto = 1"');
+    expect(block).toContain('sqlite3 "$work/$modul.db"');
+    expect(block).toContain("|| echo 0");
+    expect(block).toContain('find "$work/$modul/maengel" -type f');
+    expect(block).toContain('[ "$zeilen_fotos" -gt 0 ] && [ "$bilder" -eq 0 ]');
+    expect(block).toContain('rm -rf "$work"');
+    expect(block).toContain("exit 1");
+  });
+
+  it("`wartung`: auch die Unterlagen am Geraet (IDA-300), Datei vor Zeile", () => {
+    expect(lies("src/app/m/wartung/_lib/unterlagen.ts")).toContain(
+      'resolve(process.env.DATA_DIR ?? "./.data", "wartung", "unterlagen")',
+    );
+    const kopie = befehl(`rsync -a --exclude='*.tmp' "$DATA_DIR/wartung/unterlagen/" "$work/wartung/unterlagen/"`);
+    expect(kernZeilen[kopie - 1]).toContain('mkdir -p "$work/wartung"');
+    expect(kernZeilen[kopie - 2]).toContain('[ -d "$DATA_DIR/wartung/unterlagen" ]');
+    expect(befehl(".backup '")).toBeLessThan(kopie);
+    expect(kopie).toBeLessThan(befehl("tar -czf"));
+    const route = lies("src/app/m/wartung/(verwaltung)/geraete/[id]/unterlagen/route.ts");
+    expect(route.indexOf("await legeUnterlageAb(")).toBeGreaterThanOrEqual(0);
+    expect(route.indexOf("await legeUnterlageAb(")).toBeLessThan(route.indexOf("unterlageAnlegen(getDb()"));
+  });
+
+  it("bricht ab, wenn `unterlage` Zeilen hat, aber keine Unterlage kopiert wurde", () => {
+    const ab = befehl("if [ -f \"$work/wartung.db\" ]; then");
+    const block = kernZeilen.slice(ab, befehl("tar -czf")).join("\n");
+    expect(block).toContain('"select count(*) from unterlage"');
+    expect(block).toContain("|| echo 0");
+    expect(block).toContain('find "$work/wartung/unterlagen" -type f');
+    expect(block).toContain('[ "$zeilen_unterlagen" -gt 0 ] && [ "$unterlagen" -eq 0 ]');
+    expect(block).toContain('rm -rf "$work"');
+    expect(block).toContain("exit 1");
+  });
+
+  it("die Annahme dahinter: das Foto liegt, BEVOR seine Zeile entsteht", () => {
+    const lagerbuch = lies("src/app/m/lagerbuch/helfer/mangel/melden/route.ts");
+    expect(lagerbuch.indexOf("await legeFotoAb(")).toBeGreaterThanOrEqual(0);
+    expect(lagerbuch.indexOf("await legeFotoAb(")).toBeLessThan(lagerbuch.indexOf("legeMangelAn(db,"));
+    const wartung = lies("src/app/m/wartung/(geraet)/g/[id]/mangel/senden/route.ts");
+    expect(wartung.indexOf("await legeFotoAb(")).toBeGreaterThanOrEqual(0);
+    expect(wartung.indexOf("await legeFotoAb(")).toBeLessThan(wartung.indexOf("mangelMelden(getDb()"));
+    const pruefung = lies("src/app/m/wartung/(geraet)/g/[id]/pruefung/senden/route.ts");
+    expect(pruefung.indexOf("await legeFotoAb(")).toBeGreaterThanOrEqual(0);
+    expect(pruefung.indexOf("await legeFotoAb(")).toBeLessThan(pruefung.indexOf("pruefungAbschliessen(db,"));
+  });
+});

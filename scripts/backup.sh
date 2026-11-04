@@ -166,6 +166,28 @@ fi
 if [ -d "$AUFGABEN_DIR" ]; then
   rsync -a "$AUFGABEN_DIR/" "$work/aufgaben/"
 fi
+# Die Maengelfotos von `lagerbuch` (IDA-298) und `wartung` (IDA-312), IDA-336. Anders als
+# `files` und `aufgaben` liegen sie in KEINEM eigenen Volume, sondern unter `$DATA_DIR`
+# selbst (`lagerbuch/_lib/maengel/fotos.ts`, `wartung/_lib/fotos.ts`) — deshalb keine
+# eigene Variable und kein eigener Mount: wo die *.db liegen, liegen auch sie. Gesichert
+# wurden sie trotzdem nie, weil das `tar` nur `$work` packt und nicht `$DATA_DIR`.
+# Beide Module schreiben erst `<ziel>.<pid>.tmp` und benennen dann um; eine Zwischendatei
+# ist ein halbes Bild und gehoert nicht ins Backup. Das `mkdir -p` ist Pflicht: rsync legt
+# nur die letzte Stufe des Ziels an, `$work/lagerbuch/` gibt es sonst nicht. Die Reihenfolge traegt wie bei
+# `aufgaben`: das Foto liegt, BEVOR seine Zeile entsteht.
+if [ -d "$DATA_DIR/lagerbuch/maengel" ]; then
+  mkdir -p "$work/lagerbuch"
+  rsync -a --exclude='*.tmp' "$DATA_DIR/lagerbuch/maengel/" "$work/lagerbuch/maengel/"
+fi
+if [ -d "$DATA_DIR/wartung/maengel" ]; then
+  mkdir -p "$work/wartung"
+  rsync -a --exclude='*.tmp' "$DATA_DIR/wartung/maengel/" "$work/wartung/maengel/"
+fi
+# Die Unterlagen am Geraet (IDA-300, `wartung/_lib/unterlagen.ts`): dasselbe Muster, Datei vor Zeile.
+if [ -d "$DATA_DIR/wartung/unterlagen" ]; then
+  mkdir -p "$work/wartung"
+  rsync -a --exclude='*.tmp' "$DATA_DIR/wartung/unterlagen/" "$work/wartung/unterlagen/"
+fi
 
 # Der stille Fall: vollstaendige Zeilen in der DB, aber kein einziger Blob kopiert
 # (falsch belegtes BLOB_DIR, leerer Mountpunkt). Dieselbe Linie wie der Abbruch oben
@@ -222,6 +244,48 @@ if [ -f "$work/aufgaben.db" ]; then
   fi
   if [ "$zeilen_aufgaben" -gt 0 ] && [ "$blobs_aufgaben" -eq 0 ]; then
     echo "backup: $zeilen_aufgaben rows in aufgaben.db (dateien) but no blobs from $AUFGABEN_DIR — aborting" >&2
+    rm -rf "$work"
+    exit 1
+  fi
+fi
+
+# Derselbe stille Fall fuer die Maengelfotos (IDA-336): Meldungen mit Foto in der DB-Kopie,
+# aber kein einziges Bild kopiert. Gezaehlt wird je Modul in SEINER Spalte — `lagerbuch`
+# fuehrt die Anzahl (`maengel.fotos`), `wartung` ein Ja/Nein (`mangel.foto`). Ein Foto wird
+# nie geloescht, solange seine Zeile steht; Fotos OHNE Zeile (ein geloeschtes Geraet nimmt
+# seine Maengel per Kaskade mit) sind harmlos und werden einfach mitgesichert.
+# `|| echo 0` wie oben: vor der Migration fehlt die Tabelle.
+for modul in lagerbuch wartung; do
+  [ -f "$work/$modul.db" ] || continue
+  case "$modul" in
+    lagerbuch) abfrage="select count(*) from maengel where fotos > 0" ;;
+    wartung) abfrage="select count(*) from mangel where foto = 1" ;;
+  esac
+  zeilen_fotos="$(sqlite3 "$work/$modul.db" "$abfrage" 2>/dev/null || echo 0)"
+  [ -n "$zeilen_fotos" ] || zeilen_fotos=0
+  bilder=0
+  if [ -d "$work/$modul/maengel" ]; then
+    bilder="$(find "$work/$modul/maengel" -type f | wc -l | tr -d ' ')"
+  fi
+  if [ "$zeilen_fotos" -gt 0 ] && [ "$bilder" -eq 0 ]; then
+    echo "backup: $zeilen_fotos rows with photo in $modul.db but no photos from $DATA_DIR/$modul/maengel — aborting" >&2
+    rm -rf "$work"
+    exit 1
+  fi
+done
+
+# Und fuer die Unterlagen am Geraet (IDA-300): Zeilen in `unterlage`, aber keine Datei
+# kopiert. Jede Zeile hat ihre Datei, weil die Datei vor der Zeile entsteht.
+if [ -f "$work/wartung.db" ]; then
+  zeilen_unterlagen="$(sqlite3 "$work/wartung.db" "select count(*) from unterlage" \
+    2>/dev/null || echo 0)"
+  [ -n "$zeilen_unterlagen" ] || zeilen_unterlagen=0
+  unterlagen=0
+  if [ -d "$work/wartung/unterlagen" ]; then
+    unterlagen="$(find "$work/wartung/unterlagen" -type f | wc -l | tr -d ' ')"
+  fi
+  if [ "$zeilen_unterlagen" -gt 0 ] && [ "$unterlagen" -eq 0 ]; then
+    echo "backup: $zeilen_unterlagen rows in wartung.db (unterlage) but no files from $DATA_DIR/wartung/unterlagen — aborting" >&2
     rm -rf "$work"
     exit 1
   fi
