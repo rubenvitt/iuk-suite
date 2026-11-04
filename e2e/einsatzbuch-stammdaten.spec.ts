@@ -176,7 +176,15 @@ test("Einstellungen: speichern, neu laden, ungültige Frist wird abgelehnt", asy
   await frist.fill("121");
   await klickeWennRuhig(page.getByRole("button", { name: "Speichern" }));
   await expect(page.getByText("Höchstens 120 Minuten")).toBeVisible();
-  // 121 steht weder still geklemmt als 120 noch sonst wie in der Datenbank.
+  // Die abgelehnte Eingabe übersteht das Neuladen auf dem Gerät (IDA-358) …
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await expect(frist).toHaveValue("121");
+  await expect(page.getByText("Eingaben wiederhergestellt.")).toBeVisible();
+  // … in der Datenbank steht sie weder still geklemmt als 120 noch sonst wie.
+  await page.evaluate(() => {
+    for (const k of Object.keys(localStorage)) if (k.startsWith("iuk-entwurf:")) localStorage.removeItem(k);
+  });
   await page.reload();
   await page.waitForLoadState("networkidle");
   await expect(frist).toHaveValue("30");
