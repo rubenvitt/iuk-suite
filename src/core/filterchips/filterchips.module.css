@@ -1,0 +1,94 @@
+/*
+ * DIE FILTERCHIP-ZEILE (Haarlinie) — Regeln in `Filterchips.tsx`.
+ *
+ * Eigene Variablen über `--iuk-*` (Falle 2), keine `.ant-*`-Selektoren (Falle 20). Der Modus
+ * kommt über `--iuk-*`, die `data-theme` schon umschaltet.
+ */
+
+.reihe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+/* Telefon: eine Zeile, die in sich scrollt. Die Seite läuft nicht über (`max-inline-size`), die
+   Zeile wird ihr eigener Scroller; ohne Leiste, weil der angeschnittene Chip das Weiter zeigt. */
+@media (max-width: 767.98px) {
+  .reihe {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .reihe::-webkit-scrollbar { display: none; }
+}
+
+/* 44px Tippfläche, unsichtbar; sichtbar ist die Pille. */
+.knopf {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pille {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  block-size: 32px;
+  padding-inline: 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 999px;
+  background: var(--iuk-karte);
+  color: var(--iuk-tinte);
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform var(--iuk-feder-dauer) var(--iuk-feder);
+}
+
+.anzahl {
+  color: var(--iuk-gedaempft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.knopf:hover .pille { border-color: var(--iuk-gedaempft); }
+.knopf:active .pille { transform: scale(0.96); transition-duration: 60ms; }
+
+/* Der Fokusring an der Pille, nicht am unsichtbaren Knopf. */
+.knopf:focus-visible { outline: none; }
+.knopf:focus-visible .pille { outline: 2px solid var(--iuk-fokus); outline-offset: 2px; }
+
+.knopf[aria-checked="true"] .pille,
+.knopf[aria-pressed="true"] .pille {
+  border-color: var(--iuk-tinte);
+  background: var(--iuk-tinte);
+  color: var(--iuk-karte);
+}
+.knopf[aria-checked="true"] .anzahl,
+.knopf[aria-pressed="true"] .anzahl {
+  color: inherit;
+  opacity: 0.72;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pille { transition: none; }
+  .knopf:active .pille { transform: none; }
+}
