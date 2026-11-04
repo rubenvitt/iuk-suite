@@ -33,7 +33,8 @@ Reihenfolge wie bei jedem neuen Modul: erst das Image mit dem Modul ausrollen, d
 Der Host braucht DNS und die Traefik-Regel (`SUITE_TRAEFIK_RULE`). Die Datenbank `wartung.db` legt der
 Boot-Pfad an (`MODULE_MIGRATIONS`), mit Startbestand: Gruppen Technik und I&K (noch ohne Verwalter) und die
 vier Gerätearten mit Fristen und Checklisten. Mängelfotos liegen unter
-`DATA_DIR/wartung/maengel/`; `scripts/backup.sh` sichert die `wartung.db`, die Fotos noch nicht (IDA-336).
+`DATA_DIR/wartung/maengel/`; `scripts/backup.sh` sichert die `wartung.db` und seit IDA-336 auch die Fotos
+(`wartung/maengel/` im Tarball).
 
 ## 3. Erste Schritte nach dem Deploy
 
