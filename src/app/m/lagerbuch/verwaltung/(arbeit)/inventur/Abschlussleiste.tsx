@@ -222,7 +222,7 @@ export function Abschlussleiste({
   }
 
   return (
-    <div ref={leiste} className={k.abschluss} data-rolle="abschlussleiste">
+    <div ref={leiste} className={k.abschluss} data-rolle="abschlussleiste" data-fussleiste="">
       {ausgeblendet > 0 || meldung || entwurfZeile ? (
         <Flex vertical gap={SPACE.sm}>
           {entwurfZeile ? <EntwurfHinweis entwurf={entwurf} /> : null}
