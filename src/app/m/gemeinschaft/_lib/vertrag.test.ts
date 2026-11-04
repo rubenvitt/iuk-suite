@@ -1,4 +1,4 @@
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName } from "pdf-lib";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { anfrage } from "../_db/schema";
@@ -66,7 +66,7 @@ describe("Vorlage", () => {
     expect(anfrageNachCode(db, vorher)?.vertrag).toEqual({ stand: "verschickt", vorlage: sha256(pdf), zeichnen: true, datei: null });
     const danach = zusage(db, "2026-11-14");
     expect(anfrageNachCode(db, danach)?.vertrag?.stand).toBe("verschickt");
-    expect(vertragFuerStatus(db, danach)).toMatchObject({ art: "vorlage", name: "Mietvertrag Bar 2026-11-14.pdf" });
+    expect(vertragFuerStatus(db, danach)).toMatchObject({ art: "vorlage", name: "Mietvertrag Bar 2026-11-14 18.00 Uhr.pdf" });
   });
 
   it("ersetzen verwirft das Unterschriftenfeld; entfernen nimmt den Vertrag von der Statusseite", async () => {
@@ -116,9 +116,18 @@ describe("Unterschreiben auf der Statusseite", () => {
     legeUnterschriebenAb(db, code, { name: "v.pdf", inhalt: Buffer.from(fertig), herkunft: "gezeichnet", unterschriebenVon: "Erika Sommer", vorlageStand: sha256(pdf) }, JETZT);
     expect(anfrageNachCode(db, code)?.vertrag).toMatchObject({ stand: "unterschrieben", datei: { am: JETZT, herkunft: "gezeichnet" } });
     expect(ladeAnfragen(db)[0].datei).toMatchObject({ herkunft: "gezeichnet", unterschriebenVon: "Erika Sommer" });
-    expect(vertragFuerStatus(db, code)).toMatchObject({ art: "unterschrieben", name: "Mietvertrag Bar 2026-11-07 – unterschrieben.pdf" });
+    expect(vertragFuerStatus(db, code)).toMatchObject({ art: "unterschrieben", name: "Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf" });
     expect(() => legeUnterschriebenAb(db, code, { name: "x.pdf", inhalt: Buffer.from(fertig), herkunft: "hochgeladen", unterschriebenVon: null, vorlageStand: null }, JETZT))
       .toThrow("schon unterschrieben");
+  });
+
+  it("der Titel der Vorlage, auch aus XMP, kommt nicht in die unterschriebene Fassung", async () => {
+    const d = await PDFDocument.load(await vorlagePdf(1));
+    d.setTitle("IDA");
+    d.catalog.set(PDFName.of("Metadata"), d.context.register(d.context.stream("<x:xmpmeta><dc:title>IDA</dc:title></x:xmpmeta>", { Type: "Metadata", Subtype: "XML" })));
+    const fertig = await PDFDocument.load(await unterschriebenePdf(await d.save(), null, PNG, { name: "Erika Sommer", am: JETZT, zeitraum: "Sa.", anlass: "Geburtstag", titel: "Mietvertrag Bar" }));
+    expect(fertig.getTitle()).toBe("Mietvertrag Bar");
+    expect(fertig.catalog.get(PDFName.of("Metadata"))).toBeUndefined();
   });
 
   it("ohne Feld kommt eine eigene letzte Seite dazu", async () => {

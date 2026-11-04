@@ -130,10 +130,10 @@ test("Vorlage mit Feld; Unterschrift am Telefon landet im Feld, danach nur noch 
   expect(fertig.status()).toBe(200);
   expect(fertig.headers()["content-disposition"]).toMatch(/^attachment;/);
   // Name und PDF-Titel aus dem Vorgang, nicht aus der Vorlage (sonst hieß er „IDA“).
-  expect(fertig.headers()["content-disposition"]).toContain(`filename*=UTF-8''${encodeURIComponent(`Mietvertrag Bar ${tag} – unterschrieben.pdf`)}`);
+  expect(fertig.headers()["content-disposition"]).toContain(`filename*=UTF-8''${encodeURIComponent(`Mietvertrag Bar ${tag} 18.00 Uhr – unterschrieben.pdf`)}`);
   const fertigPdf = await PDFDocument.load(await fertig.body());
   expect(fertigPdf.getPageCount()).toBe(2);
-  expect(fertigPdf.getTitle()).toBe(`Mietvertrag Bar ${tag} – unterschrieben`);
+  expect(fertigPdf.getTitle()).toBe(`Mietvertrag Bar ${tag} 18.00 Uhr – unterschrieben`);
 
   // Ein zweites Unterschreiben geht nicht; die Leitung sieht „unterschrieben“ mit Datei.
   const nochmal = await gast.request.post(url(`${status}/vertrag`), { multipart: { datei: { name: "x.pdf", mimeType: "application/pdf", buffer: await vorlage(1) } } });

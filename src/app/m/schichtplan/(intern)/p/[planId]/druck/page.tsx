@@ -24,7 +24,7 @@ export default async function PlanungDruck({ params, searchParams }: {
   const auswahl = typeof q.auswahl === "string" ? q.auswahl : null;
   return (
     <>
-    <DruckTitel titel={druckTitel(["Schichtplan", planung.name, sicht === "helfer" ? "Helfer" : "Abschnitte"], planung.von)} />
+    <DruckTitel titel={druckTitel(["Schichtplan", planung.name, sicht === "helfer" ? "Helfer" : (auswahl && planung.einheiten.find((e) => e.id === auswahl)?.name) || "Abschnitte"], planung.von)} />
     <Druckansicht
       planung={planung}
       helfer={[...stammHelfer(), ...tempAlsPlanHelfer(planung.temporaere)]}

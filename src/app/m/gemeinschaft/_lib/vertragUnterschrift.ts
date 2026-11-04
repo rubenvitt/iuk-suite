@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PDFDocument, StandardFonts, rgb, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, PDFName, StandardFonts, rgb, type PDFImage, type PDFPage } from "pdf-lib";
 import { winAnsi } from "@/core/pdf/winAnsi";
 import type { Feld, Seitenmass } from "./vertragFeld";
 import { eingangText } from "./vermietungText";
@@ -116,6 +116,8 @@ export async function unterschriebenePdf(vorlage: Uint8Array, feld: Feld | null,
     p.drawLine({ start: { x: kasten.x, y: kasten.y - 4 }, end: { x: kasten.x + kasten.b, y: kasten.y - 4 }, thickness: 0.6, color: rgb(0.3, 0.3, 0.3) });
     zeileUnterFeld(p, `${name} · ${wann} · digital unterschrieben`, kasten.x, kasten.y - 16, kasten.b, schrift);
   }
+  // Ein XMP-Paket der Vorlage (Word, Acrobat) trüge den alten Titel weiter, und Betrachter wie pdf.js ziehen es vor.
+  doc.catalog.delete(PDFName.of("Metadata"));
   doc.setTitle(a.titel);
   doc.setModificationDate(new Date(a.am));
   return doc.save();

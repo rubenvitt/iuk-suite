@@ -173,11 +173,11 @@ describe("Vertrag", () => {
     expect(() => legeVertragAb(db, id, "v.pdf", PDF, JETZT)).toThrow(Abgelehnt);
     sageZu(db, id, JETZT);
     legeVertragAb(db, id, "Mietvertrag.pdf", PDF, JETZT);
-    expect(ladeAnfragen(db)[0]).toMatchObject({ vertrag: "unterschrieben", datei: { name: "Mietvertrag Bar 2026-11-07 – unterschrieben.pdf", groesse: PDF.length } });
+    expect(ladeAnfragen(db)[0]).toMatchObject({ vertrag: "unterschrieben", datei: { name: "Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf", groesse: PDF.length } });
     expect(ladeVertragsdatei(db, id)?.inhalt.equals(PDF)).toBe(true);
     legeVertragAb(db, id, "Neu.pdf", PDF, JETZT);
-    expect(ladeAnfragen(db)[0].datei?.name).toBe("Mietvertrag Bar 2026-11-07 – unterschrieben.pdf");
-    expect(ladeVertragsdatei(db, id)?.name).toBe("Mietvertrag Bar 2026-11-07 – unterschrieben.pdf");
+    expect(ladeAnfragen(db)[0].datei?.name).toBe("Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf");
+    expect(ladeVertragsdatei(db, id)?.name).toBe("Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf");
     entferneVertrag(db, id);
     expect(ladeVertragsdatei(db, id)).toBeNull();
     expect(ladeAnfragen(db)[0].vertrag).toBe("unterschrieben");

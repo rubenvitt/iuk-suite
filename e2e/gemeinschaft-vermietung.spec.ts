@@ -126,7 +126,7 @@ test("Vertrag als PDF ablegen und herunterladen; nur Leitung, nur PDF", async ({
   expect((await hochladen).status()).toBe(200);
   await expect(page.getByText("Vertrag abgelegt.")).toBeVisible();
   // Der Name kommt aus dem Vorgang, nicht aus der hochgeladenen Datei.
-  const name = `Mietvertrag Bar ${tag} – unterschrieben.pdf`;
+  const name = `Mietvertrag Bar ${tag} 18.00 Uhr – unterschrieben.pdf`;
   const download = kasten.getByRole("link", { name });
   await expect(download).toBeVisible();
   const pfad = (await download.getAttribute("href"))!;
