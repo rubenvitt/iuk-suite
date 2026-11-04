@@ -2,7 +2,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { App } from "antd";
-import { clickElement, fillElement, mount, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, fillElement, mount, query, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { AnfrageDTO, SperrzeitDTO } from "../../_lib/vermietungTypen";
 import { zeitpunkt } from "../../_lib/zeit";
 import { Anfragenliste } from "./Anfragenliste";
@@ -42,11 +42,11 @@ const tabellenText = () => queryAll("table").map((t) => t.textContent).join(" ")
 describe("Anfragenliste", () => {
   it("filtert offen/zugesagt/abgelehnt/alle und zeigt Überschneidungen", async () => {
     await mount(<App><Anfragenliste anfragen={ANFRAGEN} sperren={SPERREN} startId={null} /></App>);
-    expect(document.body.textContent).toContain("Offen (2)");
+    expect(query('[role=radio][aria-checked=true]').textContent).toBe("Offen 2");
     expect(tabellenText()).toContain("Vereinstreffen");
     expect(tabellenText()).not.toContain("40. Geburtstag");
     expect(tabellenText()).toContain("Überschneidung");
-    await clickElement(Array.from(document.querySelectorAll<HTMLElement>(".ant-segmented-item")).find((x) => x.textContent?.startsWith("Abgelehnt"))!);
+    await clickElement(query('[role=radio][data-wert="abgelehnt"]'));
     expect(tabellenText()).toContain("Junggesellenabschied");
     expect(tabellenText()).not.toContain("Vereinstreffen");
   });

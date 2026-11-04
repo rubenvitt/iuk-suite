@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { App, Button, Drawer, Popconfirm, Space } from "antd";
+import { Statuschip } from "@/core/status/Statuschip";
 import { flyinBreite } from "@/core/theme/flyin";
 import { sperrzeitLoeschenAction } from "../../_actions/vermietung";
 import type { Eintrag } from "../../_lib/belegung";
@@ -69,7 +70,7 @@ export function Eintragsflyin({ eintrag, anfragen, eintraege, schliessen, entsch
           ) : a ? (
             <>
               <Feld name="Personen">{a.personen}</Feld>
-              <Feld name="Ansprechperson">{a.person} <span className={`${s.chip} ${s.grau}`}>{a.mitglied ? "Mitglied" : "Extern"}</span></Feld>
+              <Feld name="Ansprechperson">{a.person} <Statuschip>{a.mitglied ? "Mitglied" : "Extern"}</Statuschip></Feld>
               <Feld name="Kontakt">{a.kontakt}</Feld>
               {a.hinweis ? <Feld name="Nachricht">{a.hinweis}</Feld> : null}
               {a.begruendung ? <Feld name={a.status === "abgelehnt" ? "Begründung der Absage" : "Begründung"}>{a.begruendung}</Feld> : null}

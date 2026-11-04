@@ -6,25 +6,32 @@
 import Link from "next/link";
 import { Progress } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { Statuschip, type Statuston } from "@/core/status/Statuschip";
 import type { Vertragsstand } from "../../_lib/uebersicht";
 import {
   datumsblock, fortschritt, kalendertagMittel, kuerzel, zeitraumText, type MitgliedWahl, type VorhabenKarteDTO,
 } from "../../_lib/vorhabenTypen";
 import s from "./planung.module.css";
 
-export type Ton = "ok" | "gelb" | "grau";
+export type Ton = "ok" | "gelb" | "grau" | "info";
 
-export function Chip({ ton, children }: { ton: Ton | "projekt"; children: React.ReactNode }) {
-  return <span className={`${s.chip} ${s[ton]}`}>{children}</span>;
+/** Der Statuschip aus `core/status`, mit den Tonnamen der Planung. */
+const TON: Record<Ton, Statuston> = { ok: "ok", gelb: "warnung", grau: "neutral", info: "info" };
+
+export function Chip({ ton, symbol, children }: { ton: Ton; symbol?: React.ReactNode; children: React.ReactNode }) {
+  return <Statuschip ton={TON[ton]} symbol={symbol}>{children}</Statuschip>;
 }
 
+/** Event und Projekt sind Arten, keine Befunde: beide neutral, das Projekt mit Ordnerzeichen. */
 export function ArtChip({ art }: { art: "event" | "projekt" }) {
-  return art === "event" ? <Chip ton="grau">Event</Chip> : <Chip ton="projekt">Projekt</Chip>;
+  return art === "event"
+    ? <Chip ton="grau">Event</Chip>
+    : <Chip ton="grau" symbol={<Icons8Ikone name="folder" groesse={12} />}>Projekt</Chip>;
 }
 
 const VERTRAG: Record<Vertragsstand, { text: string; ton: Ton }> = {
   offen: { text: "Vertrag offen", ton: "gelb" },
-  verschickt: { text: "Vertrag verschickt", ton: "grau" },
+  verschickt: { text: "Vertrag verschickt", ton: "info" },
   unterschrieben: { text: "Vertrag unterschrieben", ton: "ok" },
 };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { Statuschip, type Statuston } from "@/core/status/Statuschip";
 import { konflikte, type Eintrag, type Zustand } from "../../_lib/belegung";
 import { VERTRAG_TEXT, zeitraumText, ZUSTAND_TEXT, type VertragStand } from "../../_lib/vermietungText";
 import s from "./vermietung.module.css";
@@ -13,12 +14,18 @@ export function useTokensAmBody(): void {
   }, []);
 }
 
+/** Zustand einer Anfrage oder Sperrzeit als Ton des Statuschips (`core/status`): kein Rot, auch nicht für „abgelehnt". */
+const ZUSTAND_TON: Record<Zustand, Statuston> = {
+  angefragt: "warnung", zugesagt: "ok", gesperrt: "neutral", abgelehnt: "neutral", zurueckgezogen: "neutral",
+};
+const VERTRAG_TON: Record<VertragStand, Statuston> = { offen: "warnung", verschickt: "info", unterschrieben: "ok" };
+
 export function Zustandschip({ zustand }: { zustand: Zustand }) {
-  return <span className={`${s.chip} ${s[zustand]}`}>{ZUSTAND_TEXT[zustand]}</span>;
+  return <Statuschip ton={ZUSTAND_TON[zustand]}>{ZUSTAND_TEXT[zustand]}</Statuschip>;
 }
 
 export function Vertragschip({ stand }: { stand: VertragStand }) {
-  return <span className={`${s.chip} ${s[stand]}`}>{VERTRAG_TEXT[stand]}</span>;
+  return <Statuschip ton={VERTRAG_TON[stand]}>{VERTRAG_TEXT[stand]}</Statuschip>;
 }
 
 /** Wie ein Eintrag in Listen heißt: Sperrzeit „Grund“, Zusage/Anfrage „Anlass“. */
