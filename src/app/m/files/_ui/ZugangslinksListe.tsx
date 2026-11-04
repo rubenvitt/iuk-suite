@@ -10,6 +10,8 @@ import {
   type AnlegenErgebnis,
   type ZugangslinkFormState,
 } from "../(verwaltung)/zugangslinks/actions";
+import { DruckTitel } from "@/core/druck/DruckTitel";
+import { druckTitel } from "@/core/druck/titel";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachRang, nachText, nachZahl, zustandsFilter } from "@/core/tabelle";
 import styles from "./zugangslinks.module.css";
@@ -154,6 +156,7 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
           qrDateiname={
             zeilen.find((z) => z.id === ausgabe.id)?.qrDateiname ?? QR_DATEINAME_ERSATZ
           }
+          titel={druckTitel(["Abgabelink", zeilen.find((z) => z.id === ausgabe.id)?.name])}
           schliessen={() => setQuittiert(ausgabe.id)}
         />
       )}
@@ -416,11 +419,13 @@ function EinmaligeAusgabe({
   token,
   inboxBasis,
   qrDateiname,
+  titel,
   schliessen,
 }: {
   token: string;
   inboxBasis: string;
   qrDateiname: string;
+  titel: string;
   schliessen: () => void;
 }) {
   const adresse = `${inboxBasis}/u/${token}`;
@@ -431,6 +436,7 @@ function EinmaligeAusgabe({
       className={`${styles.ausgabe} ${styles.druckbereich}`}
       data-testid="files-zugangslink-ausgabe"
     >
+      <DruckTitel titel={titel} />
       <h2>Abgabelink — jetzt notieren oder ausdrucken</h2>
       <p className={styles.hinweis}>
         Dieser Code wird nur dieses eine Mal angezeigt. Danach ist er nirgends mehr abrufbar — wer

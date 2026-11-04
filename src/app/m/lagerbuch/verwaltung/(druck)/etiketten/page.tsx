@@ -97,3 +97,6 @@ export default async function EtikettenSeite() {
     </>
   );
 }
+
+/** Der Titel ist der Dateiname beim „Als PDF speichern“ (`core/druck/titel.ts`). */
+export const metadata = { title: "Artikeletiketten Lagerbuch" };

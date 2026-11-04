@@ -66,7 +66,7 @@ describe("Vorlage", () => {
     expect(anfrageNachCode(db, vorher)?.vertrag).toEqual({ stand: "verschickt", vorlage: sha256(pdf), zeichnen: true, datei: null });
     const danach = zusage(db, "2026-11-14");
     expect(anfrageNachCode(db, danach)?.vertrag?.stand).toBe("verschickt");
-    expect(vertragFuerStatus(db, danach)).toMatchObject({ art: "vorlage", name: "Mietvertrag.pdf" });
+    expect(vertragFuerStatus(db, danach)).toMatchObject({ art: "vorlage", name: "Mietvertrag Bar 2026-11-14.pdf" });
   });
 
   it("ersetzen verwirft das Unterschriftenfeld; entfernen nimmt den Vertrag von der Statusseite", async () => {
@@ -110,19 +110,20 @@ describe("Unterschreiben auf der Statusseite", () => {
     const pdf = await vorlagePdf();
     legeVorlageAb(db, "Mietvertrag.pdf", pdf, sha256(pdf), JETZT);
     const code = zusage(db);
-    const fertig = await unterschriebenePdf(pdf, { seite: 1, x: 300, y: 80, b: 200, h: 60 }, PNG, { name: "Erika Sommer ✓", am: JETZT, zeitraum: "Sa.", anlass: "Geburtstag" });
+    const fertig = await unterschriebenePdf(pdf, { seite: 1, x: 300, y: 80, b: 200, h: 60 }, PNG, { name: "Erika Sommer ✓", am: JETZT, zeitraum: "Sa.", anlass: "Geburtstag", titel: "Mietvertrag Bar 2026-11-07 – unterschrieben" });
     expect((await PDFDocument.load(fertig)).getPageCount()).toBe(2);
+    expect((await PDFDocument.load(fertig)).getTitle()).toBe("Mietvertrag Bar 2026-11-07 – unterschrieben");
     legeUnterschriebenAb(db, code, { name: "v.pdf", inhalt: Buffer.from(fertig), herkunft: "gezeichnet", unterschriebenVon: "Erika Sommer", vorlageStand: sha256(pdf) }, JETZT);
     expect(anfrageNachCode(db, code)?.vertrag).toMatchObject({ stand: "unterschrieben", datei: { am: JETZT, herkunft: "gezeichnet" } });
     expect(ladeAnfragen(db)[0].datei).toMatchObject({ herkunft: "gezeichnet", unterschriebenVon: "Erika Sommer" });
-    expect(vertragFuerStatus(db, code)?.art).toBe("unterschrieben");
+    expect(vertragFuerStatus(db, code)).toMatchObject({ art: "unterschrieben", name: "Mietvertrag Bar 2026-11-07 – unterschrieben.pdf" });
     expect(() => legeUnterschriebenAb(db, code, { name: "x.pdf", inhalt: Buffer.from(fertig), herkunft: "hochgeladen", unterschriebenVon: null, vorlageStand: null }, JETZT))
       .toThrow("schon unterschrieben");
   });
 
   it("ohne Feld kommt eine eigene letzte Seite dazu", async () => {
     const pdf = await vorlagePdf(1);
-    const fertig = await unterschriebenePdf(pdf, null, PNG, { name: "Erika Sommer", am: JETZT, zeitraum: "Sa., 7. Nov. 2026, 18:00–23:00 Uhr", anlass: "Geburtstag" });
+    const fertig = await unterschriebenePdf(pdf, null, PNG, { name: "Erika Sommer", am: JETZT, zeitraum: "Sa., 7. Nov. 2026, 18:00–23:00 Uhr", anlass: "Geburtstag", titel: "Mietvertrag Bar" });
     expect((await PDFDocument.load(fertig)).getPageCount()).toBe(2);
   });
 
@@ -159,8 +160,9 @@ describe("Eingaben", () => {
     expect(pruefeUnterschriebeneDatei("scan.pdf", Buffer.from("%PDF-1.7"))).toMatchObject({ ok: true, art: "pdf", name: "scan.pdf" });
     expect(pruefeUnterschriebeneDatei("IMG_1.jpeg", Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toMatchObject({ ok: true, art: "jpg", name: "IMG_1.pdf" });
     expect(pruefeUnterschriebeneDatei("x.pdf", Buffer.from("<html>"))).toMatchObject({ ok: false, status: 415 });
-    const pdf = await fotoAlsPdf(PNG, "png");
+    const pdf = await fotoAlsPdf(PNG, "png", "Mietvertrag Bar 2026-11-07 – unterschrieben");
     expect((await PDFDocument.load(pdf)).getPageCount()).toBe(1);
+    expect((await PDFDocument.load(pdf)).getTitle()).toBe("Mietvertrag Bar 2026-11-07 – unterschrieben");
   });
   it("PNG mit riesigen Maßen (Dekompressionsbombe) wird vor dem Dekodieren abgelehnt", () => {
     const bombe = Buffer.from(PNG);

@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import { DruckTitel } from "@/core/druck/DruckTitel";
+import { druckTitel } from "@/core/druck/titel";
 import { qrSvg } from "@/core/qr";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../../_db/client";
@@ -20,6 +22,7 @@ export default async function EtikettenSeite({ searchParams }: { searchParams: P
   const codes = await Promise.all(orte.map((o) => qrSvg(ortZiel(basis, o.id))));
   return (
     <>
+      <DruckTitel titel={orte.length === 1 ? druckTitel(["Ortsetikett Verpflegung", orte[0].name]) : "Ortsetiketten Verpflegung"} />
       <div className={s.druckweg}>
         <Seitenkopf titel="Ortsetiketten" aktionen={<DruckKnopf />} />
       </div>

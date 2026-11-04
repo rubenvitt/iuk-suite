@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import { DruckTitel } from "@/core/druck/DruckTitel";
+import { druckTitel } from "@/core/druck/titel";
 import { qrSvg } from "@/core/qr";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../../../_db/client";
@@ -33,6 +35,7 @@ export default async function KistenEtikettenSeite({ searchParams }: { searchPar
   const etiketten = await Promise.all(kisten.map(async (g) => ({ g, qr: await qrSvg(qrZiel(basis, g.id)), inhalt: ladeInhalt(db, g.id) })));
   return (
     <>
+      <DruckTitel titel={kisten.length === 1 ? druckTitel(["Kistenetikett", kisten[0].name]) : druckTitel(["Etiketten Materialkisten", auswahl.wahl.find((w) => w.id === auswahl.gewaehlt)?.name])} />
       <div className={s.druckweg}>
         <Seitenkopf
           zurueck={{ href: "/etiketten", titel: "QR-Etiketten" }}
