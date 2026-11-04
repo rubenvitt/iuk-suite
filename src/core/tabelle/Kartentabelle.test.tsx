@@ -517,6 +517,27 @@ describe("Kartentabelle — Ruhezustand mit Figur", () => {
     expect(document.querySelector('[data-rolle="ruhezustand"]')).toBeNull();
   });
 
+  it("liest `loading` als SpinProps: `spinning: false` lädt nicht, fehlendes `spinning` lädt", async () => {
+    const mitLaden = (loading: TableProps<Zeile>["loading"]) => (
+      <Kartentabelle<Zeile>
+        aria-label="Artikel"
+        rowKey="id"
+        dataSource={[]}
+        columns={SPALTEN}
+        loading={loading}
+        leer={{ nichts: "Noch keine Artikel", figur: "lagerbuch" }}
+      />
+    );
+    await mount(mitLaden({ spinning: false }));
+    expect(document.querySelector('[data-rolle="ruhezustand"]')).toBeTruthy();
+    await unmount();
+    await mount(mitLaden({}));
+    expect(document.querySelector('[data-rolle="ruhezustand"]')).toBeNull();
+    await unmount();
+    await mount(mitLaden({ spinning: true }));
+    expect(document.querySelector('[data-rolle="ruhezustand"]')).toBeNull();
+  });
+
   it("bleibt ohne `figur` beim bisherigen Satz", async () => {
     await mount(
       <Kartentabelle<Zeile> aria-label="Artikel" rowKey="id" dataSource={[]} columns={SPALTEN} leer={{ nichts: "Leer." }} />,

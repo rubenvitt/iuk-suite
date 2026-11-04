@@ -129,6 +129,15 @@ export type KartentabelleProps<T> = Omit<DatentabelleProps<T>, "aria-label" | "l
  * Zwei Steuernde an derselben Spalte ergäben ein Feld, das auf die eigene
  * Bedienung nicht reagiert.
  */
+/**
+ * Ob die Tabelle wirklich lädt. antd nimmt `loading` auch als `SpinProps`: `{ spinning: false }`
+ * lädt NICHT, ein Objekt ohne `spinning` lädt.
+ */
+function laedt(loading: TableProps<object>["loading"]): boolean {
+  if (typeof loading === "object" && loading !== null) return loading.spinning ?? true;
+  return Boolean(loading);
+}
+
 function gesteuert<T>(
   spalten: readonly KartenSpalte<T>[] | undefined,
   filter: FilterZustand,
@@ -322,7 +331,7 @@ export function Kartentabelle<T extends object>({
     );
   }, [karte, aufbau, schluessel, auswahl, gewaehlte, zeilen, rest]);
 
-  if (leer.figur && zeilen.length === 0 && !gefiltert && !rest.loading) {
+  if (leer.figur && zeilen.length === 0 && !gefiltert && !laedt(rest.loading)) {
     return <Ruhezustand figur={leer.figur} titel={leer.nichts} aktion={leer.aktion} />;
   }
 

@@ -24,9 +24,10 @@ type Weiche = (req: NextAuthRequest, event: NextFetchEvent) => NextResponse;
  *  weil jeder Host-Pfad vorher ins Modul umgeschrieben wird. */
 export const KEIN_ZUGRIFF_PFAD = "/kein-zugriff";
 
-/** Ein Seitenaufruf im Browser: GET/HEAD, HTML erwuenscht, kein RSC-Abruf des Client-Routers. */
-export function willSeite(req: Pick<NextRequest, "method" | "headers">): boolean {
+/** Ein Seitenaufruf im Browser: GET/HEAD, HTML erwuenscht, kein RSC-Abruf des Client-Routers, keine API. */
+export function willSeite(req: Pick<NextRequest, "method" | "headers" | "nextUrl">): boolean {
   if (req.method !== "GET" && req.method !== "HEAD") return false;
+  if (/^(?:\/m\/[^/]+)?\/api(?:\/|$)/.test(req.nextUrl.pathname)) return false;
   if (req.headers.get("rsc") !== null || req.headers.get("next-action") !== null) return false;
   return (req.headers.get("accept") ?? "").includes("text/html");
 }
