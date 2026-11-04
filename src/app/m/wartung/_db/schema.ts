@@ -109,6 +109,11 @@ export const geraet = sqliteTable("geraet", {
   seriennr: text("seriennr").notNull().default(""),
   ortArt: text("ort_art", { enum: ["lager", "fahrzeug"] }).notNull(),
   ort: text("ort").notNull(),
+  /**
+   * Das Stammfahrzeug (Modul fahrzeuge, IDA-342), wenn das Gerät auf einem Fahrzeug der Fahrzeugverwaltung
+   * steht; `ort` trägt dann dessen Namen. `null` im Lager und bei einem Fahrzeug, das es dort nicht gibt.
+   */
+  fahrzeugId: text("fahrzeug_id"),
   /** Zuletzt abgelesener Stand; `null`, solange nichts erfasst ist. */
   stunden: integer("stunden"),
   /** Was jeder am Gerät wissen muss, bevor er es benutzt (IDA-300); steht auf dem Steckbrief. */

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4544e508-d32a-44c1-973d-23e1851c33d9",
+  "id": "77365a76-21ce-4f83-ab6f-e6964d74a23d",
   "prevId": "dd21397c-ad25-49ae-a1a7-c0c601ca3c72",
   "tables": {
     "art": {
@@ -65,14 +65,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "kiste": {
-          "name": "kiste",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
         }
       },
       "indexes": {},
@@ -568,6 +560,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "fahrzeug_id": {
+          "name": "fahrzeug_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "stunden": {
           "name": "stunden",
           "type": "integer",
@@ -709,88 +708,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "inhalt": {
-      "name": "inhalt",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "geraet_id": {
-          "name": "geraet_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "soll": {
-          "name": "soll",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "bemerkung": {
-          "name": "bemerkung",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        }
-      },
-      "indexes": {
-        "inhalt_geraet_idx": {
-          "name": "inhalt_geraet_idx",
-          "columns": [
-            "geraet_id",
-            "position"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "inhalt_geraet_id_geraet_id_fk": {
-          "name": "inhalt_geraet_id_geraet_id_fk",
-          "tableFrom": "inhalt",
-          "tableTo": "geraet",
-          "columnsFrom": [
-            "geraet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "inhalt_soll": {
-          "name": "inhalt_soll",
-          "value": "soll >= 1"
-        }
-      }
-    },
     "mangel": {
       "name": "mangel",
       "columns": {
@@ -865,28 +782,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "fehlt": {
-          "name": "fehlt",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "inhalt_id": {
-          "name": "inhalt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "herabgestuft_am": {
-          "name": "herabgestuft_am",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {
@@ -919,19 +814,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "mangel_inhalt_id_inhalt_id_fk": {
-          "name": "mangel_inhalt_id_inhalt_id_fk",
-          "tableFrom": "mangel",
-          "tableTo": "inhalt",
-          "columnsFrom": [
-            "inhalt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

@@ -43,6 +43,8 @@ import feedbackEhrlichGesagtAdresse from "@/app/m/portal/_lib/neuigkeiten/notize
 import wartungGeraetewartung from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-03-geraetewartung";
 import wartungMaterialkisten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-materialkisten";
 import wartungUnterlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-unterlagen";
+import wartungFahrzeugwahl from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-fahrzeugwahl";
+import verpflegungVerpflegungslager from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-04-verpflegungslager";
 import unterkunftUndZelteBerechnen from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-01-unterkunft-und-zelte-berechnen";
 import unterkunftBerechnungDrucken from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-03-berechnung-drucken";
 import lagemonitorEinstellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-27-lagemonitor-einstellen";
@@ -185,6 +187,8 @@ const NOTIZEN: readonly Releasenotiz[] = [
   wartungGeraetewartung,
   wartungMaterialkisten,
   wartungUnterlagen,
+  wartungFahrzeugwahl,
+  verpflegungVerpflegungslager,
   unterkunftUndZelteBerechnen,
   unterkunftBerechnungDrucken,
   lagemonitorEinstellen,

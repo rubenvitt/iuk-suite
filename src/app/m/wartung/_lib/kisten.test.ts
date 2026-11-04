@@ -11,7 +11,7 @@ import { testDb } from "./testDb";
 
 const HEUTE = "2026-11-03";
 const K = { jetzt: Date.UTC(2026, 10, 3, 10), heute: HEUTE, wer: "Helfer A" };
-const basis = { hersteller: "", typ: "", seriennr: "", ortArt: "lager" as const, ort: "Lager I&K, Regal 1", stunden: null, hinweise: "" };
+const basis = { hersteller: "", typ: "", seriennr: "", ortArt: "lager" as const, ort: "Lager I&K, Regal 1", fahrzeugId: null, stunden: null, hinweise: "" };
 
 function mitKiste() {
   const db = testDb();

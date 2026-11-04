@@ -210,3 +210,48 @@ test("Hinweise und Unterlagen am QR-Code", async ({ page, browser }) => {
   await expect(page.getByRole("list", { name: "Unterlagen" }).getByRole("listitem")).toHaveCount(1);
   await page.screenshot({ path: "test-results/wartung-akte-unterlagen.png", fullPage: true });
 });
+
+/**
+ * IDA-342: Steht ein Gerät auf einem Fahrzeug, schlägt das Feld die Fahrzeuge der Fahrzeugverwaltung vor,
+ * auffindbar per Funkrufname; gespeichert wird der Name nach deren Regel. Am Telefon (320 px) ohne Querscrollen.
+ */
+test("Fahrzeug aus der Fahrzeugverwaltung per Funkrufname wählen", async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  const nr = Date.now() % 100_000;
+  const kenner = `98-${nr}-1`;
+  const fahrzeugKontext = await browser.newContext();
+  const fv = await fahrzeugKontext.newPage();
+  const fvUrl = (p: string) => `http://fahrzeuge.localtest.me:${E2E_PORT}${p}`;
+  await devLogin(fv, { host: "fahrzeuge.localtest.me", groups: "fahrzeuge-admin", callbackPath: "/" });
+  await fv.goto(fvUrl("/"));
+  await warteAufGestreamteInhalte(fv);
+  await klickeWennRuhig(fv.getByRole("button", { name: "Fahrzeug anlegen" }));
+  const schublade = fv.getByRole("dialog");
+  await schublade.getByLabel("Typ").fill("GW-Technik");
+  await schublade.getByLabel("Funkrufname").fill(`Rotkreuz Wartungstest ${kenner}`);
+  await schublade.getByLabel("Funkkenner").fill(kenner);
+  await schublade.getByLabel("Standort").fill("Teststadt");
+  await schublade.getByRole("button", { name: "Speichern" }).click();
+  await expect(schublade).toBeHidden();
+  await fahrzeugKontext.close();
+
+  await page.setViewportSize({ width: 320, height: 720 });
+  await devLogin(page, { host: HOST, email: "admin@localtest.me", groups: "wartung-admin", callbackPath: "/geraete" });
+  await page.goto(url("/geraete"));
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Gerät anlegen" }));
+  const dialog = page.getByRole("dialog", { name: "Gerät anlegen" });
+  await dialog.getByText("Technik", { exact: true }).click();
+  await dialog.getByLabel("Bezeichnung").fill(`Lichtmast E2E ${nr}`);
+  await dialog.getByText("Fahrzeug", { exact: true }).click();
+  await dialog.locator("#gw-ort").fill(`wartungstest ${kenner.replaceAll("-", "/")}`);
+  const option = page.locator(".ant-select-item-option").filter({ hasText: `Rotkreuz Wartungstest ${kenner}` });
+  await expect(option).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await option.click();
+  await expect(dialog.locator("#gw-ort")).toHaveValue(`GW-Technik ${kenner}`);
+  await klickeWennRuhig(dialog.getByRole("button", { name: "Speichern" }));
+  await page.waitForURL(/\/geraete\/[0-9a-f-]{36}$/);
+  await warteAufGestreamteInhalte(page);
+  await expect(page.getByText(`GW-Technik ${kenner}`).first()).toBeVisible();
+});

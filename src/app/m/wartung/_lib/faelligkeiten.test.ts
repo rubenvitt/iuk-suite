@@ -12,7 +12,7 @@ const technikVerwalter = sichtSchluessel({ groups: ["wartung-nutzer"], sub: "sub
 
 function zweiGruppen() {
   const db = testDb();
-  const basis = { hersteller: "", typ: "", seriennr: "", ortArt: "lager" as const, ort: "Lager", stunden: null, hinweise: "" };
+  const basis = { hersteller: "", typ: "", seriennr: "", ortArt: "lager" as const, ort: "Lager", fahrzeugId: null, stunden: null, hinweise: "" };
   const technik = geraetAnlegen(db, { ...basis, gruppeId: START.gruppe.technik, artId: START.art.heizung, name: "Zeltheizung" }, JETZT.getTime());
   const iuk = geraetAnlegen(db, { ...basis, gruppeId: START.gruppe.iuk, artId: START.art.it, name: "Laptop" }, JETZT.getTime());
   merkePerson(db, "sub-technik", "Verwalter Technik");

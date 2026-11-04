@@ -1,0 +1,1148 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "3707d9c5-6ef7-41b9-8fde-f5687f5de198",
+  "prevId": "77365a76-21ce-4f83-ab6f-e6964d74a23d",
+  "tables": {
+    "art": {
+      "name": "art",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "einzahl": {
+          "name": "einzahl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ikone": {
+          "name": "ikone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'wrench'"
+        },
+        "stunden_pflicht": {
+          "name": "stunden_pflicht",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kiste": {
+          "name": "kiste",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "audit_outbox": {
+      "name": "audit_outbox",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "module": {
+          "name": "module",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "object_type": {
+          "name": "object_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "object_ref": {
+          "name": "object_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "audit_outbox_occurred_idx": {
+          "name": "audit_outbox_occurred_idx",
+          "columns": [
+            "occurred_at",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "audit_outbox_actor_json": {
+          "name": "audit_outbox_actor_json",
+          "value": "json_valid(\"audit_outbox\".\"actor\")"
+        }
+      }
+    },
+    "checkpunkt": {
+      "name": "checkpunkt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "art_id": {
+          "name": "art_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "hinweis": {
+          "name": "hinweis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "checkpunkt_art_idx": {
+          "name": "checkpunkt_art_idx",
+          "columns": [
+            "art_id",
+            "position"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "checkpunkt_art_id_art_id_fk": {
+          "name": "checkpunkt_art_id_art_id_fk",
+          "tableFrom": "checkpunkt",
+          "tableTo": "art",
+          "columnsFrom": [
+            "art_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "eintrag": {
+      "name": "eintrag",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "geraet_id": {
+          "name": "geraet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "typ": {
+          "name": "typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "frist_id": {
+          "name": "frist_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "am": {
+          "name": "am",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stunden": {
+          "name": "stunden",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "wer": {
+          "name": "wer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "notiz": {
+          "name": "notiz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "ergebnis": {
+          "name": "ergebnis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "antworten": {
+          "name": "antworten",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "maengel": {
+          "name": "maengel",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "eintrag_geraet_idx": {
+          "name": "eintrag_geraet_idx",
+          "columns": [
+            "geraet_id",
+            "am"
+          ],
+          "isUnique": false
+        },
+        "eintrag_frist_idx": {
+          "name": "eintrag_frist_idx",
+          "columns": [
+            "geraet_id",
+            "frist_id",
+            "am"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "eintrag_geraet_id_geraet_id_fk": {
+          "name": "eintrag_geraet_id_geraet_id_fk",
+          "tableFrom": "eintrag",
+          "tableTo": "geraet",
+          "columnsFrom": [
+            "geraet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "eintrag_frist_id_frist_id_fk": {
+          "name": "eintrag_frist_id_frist_id_fk",
+          "tableFrom": "eintrag",
+          "tableTo": "frist",
+          "columnsFrom": [
+            "frist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "eintrag_typ": {
+          "name": "eintrag_typ",
+          "value": "typ IN ('pruefung','erledigt','stunden','mangel','behoben')"
+        },
+        "eintrag_am": {
+          "name": "eintrag_am",
+          "value": "am GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        },
+        "eintrag_ergebnis": {
+          "name": "eintrag_ergebnis",
+          "value": "ergebnis IS NULL OR ergebnis IN ('ok','mangel','defekt')"
+        }
+      }
+    },
+    "frist": {
+      "name": "frist",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "art_id": {
+          "name": "art_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "wer": {
+          "name": "wer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "monate": {
+          "name": "monate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "stunden": {
+          "name": "stunden",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "frist_art_idx": {
+          "name": "frist_art_idx",
+          "columns": [
+            "art_id",
+            "position"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "frist_art_id_art_id_fk": {
+          "name": "frist_art_id_art_id_fk",
+          "tableFrom": "frist",
+          "tableTo": "art",
+          "columnsFrom": [
+            "art_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "frist_wer": {
+          "name": "frist_wer",
+          "value": "wer IN ('intern','fachfirma','elektrofachkraft')"
+        },
+        "frist_intervall": {
+          "name": "frist_intervall",
+          "value": "(monate IS NOT NULL AND monate > 0) OR (stunden IS NOT NULL AND stunden > 0)"
+        }
+      }
+    },
+    "geraet": {
+      "name": "geraet",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gruppe_id": {
+          "name": "gruppe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "art_id": {
+          "name": "art_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "hersteller": {
+          "name": "hersteller",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "typ": {
+          "name": "typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "seriennr": {
+          "name": "seriennr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "ort_art": {
+          "name": "ort_art",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ort": {
+          "name": "ort",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fahrzeug_id": {
+          "name": "fahrzeug_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "stunden": {
+          "name": "stunden",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "hinweise": {
+          "name": "hinweise",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "geraet_gruppe_idx": {
+          "name": "geraet_gruppe_idx",
+          "columns": [
+            "gruppe_id"
+          ],
+          "isUnique": false
+        },
+        "geraet_art_idx": {
+          "name": "geraet_art_idx",
+          "columns": [
+            "art_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "geraet_gruppe_id_gruppe_id_fk": {
+          "name": "geraet_gruppe_id_gruppe_id_fk",
+          "tableFrom": "geraet",
+          "tableTo": "gruppe",
+          "columnsFrom": [
+            "gruppe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "geraet_art_id_art_id_fk": {
+          "name": "geraet_art_id_art_id_fk",
+          "tableFrom": "geraet",
+          "tableTo": "art",
+          "columnsFrom": [
+            "art_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "geraet_ort_art": {
+          "name": "geraet_ort_art",
+          "value": "ort_art IN ('lager','fahrzeug')"
+        },
+        "geraet_stunden": {
+          "name": "geraet_stunden",
+          "value": "stunden IS NULL OR stunden >= 0"
+        }
+      }
+    },
+    "gruppe": {
+      "name": "gruppe",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "inhalt": {
+      "name": "inhalt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "geraet_id": {
+          "name": "geraet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "soll": {
+          "name": "soll",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bemerkung": {
+          "name": "bemerkung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "inhalt_geraet_idx": {
+          "name": "inhalt_geraet_idx",
+          "columns": [
+            "geraet_id",
+            "position"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "inhalt_geraet_id_geraet_id_fk": {
+          "name": "inhalt_geraet_id_geraet_id_fk",
+          "tableFrom": "inhalt",
+          "tableTo": "geraet",
+          "columnsFrom": [
+            "geraet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "inhalt_soll": {
+          "name": "inhalt_soll",
+          "value": "soll >= 1"
+        }
+      }
+    },
+    "mangel": {
+      "name": "mangel",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "geraet_id": {
+          "name": "geraet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "foto": {
+          "name": "foto",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "einsatzbereit": {
+          "name": "einsatzbereit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gemeldet_am": {
+          "name": "gemeldet_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gemeldet_von": {
+          "name": "gemeldet_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "behoben_am": {
+          "name": "behoben_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "behoben_von": {
+          "name": "behoben_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "gepusht_am": {
+          "name": "gepusht_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fehlt": {
+          "name": "fehlt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "inhalt_id": {
+          "name": "inhalt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "herabgestuft_am": {
+          "name": "herabgestuft_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "mangel_geraet_idx": {
+          "name": "mangel_geraet_idx",
+          "columns": [
+            "geraet_id",
+            "behoben_am"
+          ],
+          "isUnique": false
+        },
+        "mangel_offen_idx": {
+          "name": "mangel_offen_idx",
+          "columns": [
+            "behoben_am",
+            "gemeldet_am"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "mangel_geraet_id_geraet_id_fk": {
+          "name": "mangel_geraet_id_geraet_id_fk",
+          "tableFrom": "mangel",
+          "tableTo": "geraet",
+          "columnsFrom": [
+            "geraet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mangel_inhalt_id_inhalt_id_fk": {
+          "name": "mangel_inhalt_id_inhalt_id_fk",
+          "tableFrom": "mangel",
+          "tableTo": "inhalt",
+          "columnsFrom": [
+            "inhalt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "person": {
+      "name": "person",
+      "columns": {
+        "nutzer": {
+          "name": "nutzer",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "unterlage": {
+      "name": "unterlage",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "geraet_id": {
+          "name": "geraet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "typ": {
+          "name": "typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bytes": {
+          "name": "bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "angelegt_von": {
+          "name": "angelegt_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        }
+      },
+      "indexes": {
+        "unterlage_geraet_idx": {
+          "name": "unterlage_geraet_idx",
+          "columns": [
+            "geraet_id",
+            "position"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "unterlage_geraet_id_geraet_id_fk": {
+          "name": "unterlage_geraet_id_geraet_id_fk",
+          "tableFrom": "unterlage",
+          "tableTo": "geraet",
+          "columnsFrom": [
+            "geraet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "unterlage_typ": {
+          "name": "unterlage_typ",
+          "value": "typ IN ('pdf','bild')"
+        }
+      }
+    },
+    "verwalter": {
+      "name": "verwalter",
+      "columns": {
+        "gruppe_id": {
+          "name": "gruppe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nutzer": {
+          "name": "nutzer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "verwalter_nutzer_idx": {
+          "name": "verwalter_nutzer_idx",
+          "columns": [
+            "nutzer"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "verwalter_gruppe_id_gruppe_id_fk": {
+          "name": "verwalter_gruppe_id_gruppe_id_fk",
+          "tableFrom": "verwalter",
+          "tableTo": "gruppe",
+          "columnsFrom": [
+            "gruppe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "verwalter_gruppe_id_nutzer_pk": {
+          "columns": [
+            "gruppe_id",
+            "nutzer"
+          ],
+          "name": "verwalter_gruppe_id_nutzer_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

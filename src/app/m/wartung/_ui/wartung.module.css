@@ -35,6 +35,8 @@
 .mono { font-family: var(--font-mono, ui-monospace, monospace); }
 .quer { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
 .reihe { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Ein Filter mit mehr Arten, als die Breite fasst, wird seitlich gewischt statt die Seite zu verbreitern. */
+.wischleiste { max-width: 100%; min-width: 0; overflow-x: auto; }
 .kicker { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--iuk-gedaempft); }
 
 .chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; vertical-align: middle; }

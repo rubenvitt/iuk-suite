@@ -1,6 +1,6 @@
-import { SignJWT, jwtVerify } from "jose";
+import { helferCookieAttribute, pruefeHelferSitzung, stelleHelferSitzungAus } from "@/core/helferlink/sitzung";
 import { grenzen, helferSitzungGeheimnis } from "./grenzen";
-import { cookiesSicher } from "@/core/lokalHttp";
+// Signieren, Pruefen und Cookie-Attribute teilt das Lagerbuch mit dem Verpflegungslager (`core/helferlink`).
 /**
  * Die Helfer-Sitzung: ein signiertes JWT in einem HOST-ONLY-Cookie.
  * KEIN "use client" (Falle 6) — die Werte lesen Server Components und Route
@@ -46,7 +46,7 @@ export type HelferSitzung = HelferPayload & { laeuftAb: Date };
  * Zeilen aus). Der Bestand macht es bereits richtig (`helferSession.ts:8`:
  * `const secret = () => ...`) — die Form wandert mit.
  */
-const schluessel = () => new TextEncoder().encode(helferSitzungGeheimnis());
+const schluessel = () => helferSitzungGeheimnis();
 
 /**
  * Die Gueltigkeit steht ZWEIMAL in derselben Sitzung: als JWT-`exp` und als
@@ -58,11 +58,11 @@ export function helferGueltigkeitSekunden(): number {
 }
 
 export async function createHelferSitzung(p: HelferPayload): Promise<string> {
-  return new SignJWT({ tokenId: p.tokenId })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime(Math.floor(Date.now() / 1000) + helferGueltigkeitSekunden())
-    .sign(schluessel());
+  return stelleHelferSitzungAus(
+    schluessel(),
+    p.tokenId,
+    helferGueltigkeitSekunden(),
+  );
 }
 
 /**
@@ -91,15 +91,15 @@ export async function createHelferSitzung(p: HelferPayload): Promise<string> {
  * manche Bibliotheken ein Token mit `alg: none`.
  */
 export async function verifyHelferSitzung(value: string): Promise<HelferSitzung | null> {
-  try {
-    const { payload } = await jwtVerify(value, schluessel(), { algorithms: ["HS256"] });
-    const { tokenId, exp } = payload as { tokenId?: unknown; exp?: unknown };
-    if (typeof tokenId !== "string" || tokenId === "") return null;
-    if (typeof exp !== "number") return null;
-    return { tokenId, laeuftAb: new Date(exp * 1000) };
-  } catch {
-    return null;
-  }
+  // Die Pruefung steht seit IDA-316 in `core/helferlink/sitzung.ts`
+  // (`pruefeHelferSitzung`), weil das Verpflegungslager dieselbe Sitzung
+  // ausstellt. Sie haelt die Zusagen dieses Kopfes unveraendert:
+  //  * HS256 ausdruecklich, kein `alg: none`;
+  //  * `tokenId` als nicht leere Zeichenkette, ueberzaehlige Felder egal;
+  //  * ohne `exp` ungueltig;
+  //  * sie wirft nie, ein kaputtes Cookie ergibt `null`.
+  // Die Gegenproben stehen weiter in `helferSitzung.test.ts`.
+  return pruefeHelferSitzung(schluessel(), value);
 }
 
 /**
@@ -135,11 +135,11 @@ export async function verifyHelferSitzung(value: string): Promise<HelferSitzung 
  * diese. Dieselbe Form benutzt `feedback` (`m/feedback/actions.ts:638`).
  */
 export function helferCookieOptionen(gueltigkeitSekunden: number) {
-  return {
-    httpOnly: true as const,
-    sameSite: "lax" as const,
-    path: "/" as const,
-    secure: cookiesSicher(),
-    maxAge: gueltigkeitSekunden,
-  };
+  // Die Attribute stehen seit IDA-316 in `core/helferlink/sitzung.ts`
+  // (`helferCookieAttribute`), dieselben fuer jede Helfer-Sitzung der Suite:
+  // httpOnly, SameSite=Lax, Pfad `/`, KEIN `domain` (siehe oben), `secure`
+  // aus `cookiesSicher`, `maxAge` aus dem Argument. Wer dort etwas aendert,
+  // aendert es fuer Lagerbuch und Verpflegungslager zugleich; die Gegenprobe
+  // der Attributliste steht in `helferSitzung.test.ts`.
+  return helferCookieAttribute(gueltigkeitSekunden);
 }
