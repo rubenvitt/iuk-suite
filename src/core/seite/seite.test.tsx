@@ -45,7 +45,7 @@ describe("Seite", () => {
   });
 
   it("gibt dem Werkzeug am Desktop die volle Höhe, in dvh", () => {
-    expect(CSS).toMatch(/@media \(min-width: 768px\) \{\s*\.werkzeug \{\s*min-block-size: calc\(100dvh - 32px\);/);
+    expect(CSS).toMatch(/@media \(min-width: 768px\) \{\s*\.werkzeug \{\s*min-block-size: calc\(100dvh - 32px - var\(--iuk-rueckmeldung-platz, 0px\)\);/);
     expect(CSS).not.toMatch(/100vh/);
   });
 
