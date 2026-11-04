@@ -106,7 +106,8 @@ test("Zurückziehen mit Rückfrage; unbekannter Code ist eine 404 ohne Details",
 test("Vertrag als PDF ablegen und herunterladen; nur Leitung, nur PDF", async ({ page, browser }) => {
   const anlass = `Abschluss e2e ${Date.now() % 100_000}`;
   const gast = await (await browser.newContext()).newPage();
-  const status = await frageAn(gast, zukunftsTag(202), anlass);
+  const tag = zukunftsTag(202);
+  const status = await frageAn(gast, tag, anlass);
 
   await devLogin(page, { host: HOST, groups: LEITUNG, callbackPath: "/vermietung/anfragen" });
   await oeffne(page, "/vermietung/anfragen");
@@ -124,7 +125,9 @@ test("Vertrag als PDF ablegen und herunterladen; nur Leitung, nur PDF", async ({
   await page.getByTestId("vertrag-datei").setInputFiles({ name: "Mietvertrag Sommer.pdf", mimeType: "application/pdf", buffer: pdf });
   expect((await hochladen).status()).toBe(200);
   await expect(page.getByText("Vertrag abgelegt.")).toBeVisible();
-  const download = kasten.getByRole("link", { name: /Mietvertrag Sommer\.pdf/ });
+  // Der Name kommt aus dem Vorgang, nicht aus der hochgeladenen Datei.
+  const name = `Mietvertrag Bar ${tag} – unterschrieben.pdf`;
+  const download = kasten.getByRole("link", { name });
   await expect(download).toBeVisible();
   const pfad = (await download.getAttribute("href"))!;
 
@@ -132,6 +135,7 @@ test("Vertrag als PDF ablegen und herunterladen; nur Leitung, nur PDF", async ({
   expect(antwort.status()).toBe(200);
   expect(antwort.headers()["content-type"]).toBe("application/pdf");
   expect(antwort.headers()["content-disposition"]).toMatch(/^attachment;/);
+  expect(antwort.headers()["content-disposition"]).toContain(`filename*=UTF-8''${encodeURIComponent(name)}`);
   expect((await antwort.body()).subarray(0, 5).toString()).toBe("%PDF-");
 
   // Keine PDF: abgelehnt. Ohne Anmeldung: 404.

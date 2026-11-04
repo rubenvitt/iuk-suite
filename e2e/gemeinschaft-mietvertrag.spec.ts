@@ -101,7 +101,8 @@ test("Vorlage mit Feld; Unterschrift am Telefon landet im Feld, danach nur noch 
 
   const gast = await (await browser.newContext({ viewport: { width: 390, height: 800 }, hasTouch: true })).newPage();
   const anlass = `Vertrag e2e ${Date.now() % 100_000}`;
-  const status = await frageAn(gast, zukunftsTag(11), anlass);
+  const tag = zukunftsTag(11);
+  const status = await frageAn(gast, tag, anlass);
   await oeffne(gast, status);
   await expect(gast.getByTestId("vertrag-unterschreiben")).toHaveCount(0);
   await sageZu(page, anlass);
@@ -128,7 +129,11 @@ test("Vorlage mit Feld; Unterschrift am Telefon landet im Feld, danach nur noch 
   const fertig = await gast.request.get(url(`${status}/vertrag`));
   expect(fertig.status()).toBe(200);
   expect(fertig.headers()["content-disposition"]).toMatch(/^attachment;/);
-  expect((await PDFDocument.load(await fertig.body())).getPageCount()).toBe(2);
+  // Name und PDF-Titel aus dem Vorgang, nicht aus der Vorlage (sonst hieß er „IDA“).
+  expect(fertig.headers()["content-disposition"]).toContain(`filename*=UTF-8''${encodeURIComponent(`Mietvertrag Bar ${tag} – unterschrieben.pdf`)}`);
+  const fertigPdf = await PDFDocument.load(await fertig.body());
+  expect(fertigPdf.getPageCount()).toBe(2);
+  expect(fertigPdf.getTitle()).toBe(`Mietvertrag Bar ${tag} – unterschrieben`);
 
   // Ein zweites Unterschreiben geht nicht; die Leitung sieht „unterschrieben“ mit Datei.
   const nochmal = await gast.request.post(url(`${status}/vertrag`), { multipart: { datei: { name: "x.pdf", mimeType: "application/pdf", buffer: await vorlage(1) } } });
