@@ -298,7 +298,7 @@ describe("pnpm-Patches im Docker-Build", () => {
   });
 });
 
-describe("Workspace-Mitglied apps/einsatzbuch (Einsatzbuch-Desktop, Spec §2.2)", () => {
+describe("Workspace-Mitglied apps/einsatzbuch (Einsatztagebuch-Desktop, Spec §2.2)", () => {
   it("apps liegt nicht im Docker-Kontext — die Desktop-App gehört nicht ins Suite-Image", () => {
     const muster = ignorierMuster();
     expect(muster.some((m) => m.test("apps/einsatzbuch/package.json"))).toBe(true);

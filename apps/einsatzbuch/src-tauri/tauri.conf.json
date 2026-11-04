@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Einsatzbuch",
+        "title": "Einsatztagebuch",
         "width": 1280,
         "height": 860,
         "minWidth": 1024,

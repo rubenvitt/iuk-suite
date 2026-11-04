@@ -340,7 +340,7 @@ export function releaseNotizen(e, optionen = {}) {
   const { version, tag, basis } = e;
   if (!version || !tag) return "";
   const repo = optionen.repo ?? "";
-  const zeilen = [`Desktop-App des Einsatzbuchs, Version ${version}.`];
+  const zeilen = [`Desktop-App des Einsatztagebuchs, Version ${version}.`];
   for (const [art, titel] of ABSCHNITTE) {
     const eintraege = e.commits.filter((c) => c.art === art);
     if (eintraege.length === 0) continue;

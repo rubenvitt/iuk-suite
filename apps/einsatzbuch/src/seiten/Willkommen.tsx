@@ -34,7 +34,7 @@ export function Willkommen({
       <div className="willkommen-mitte">
         <div className="willkommen-marke">
           <div className="willkommen-balken" aria-hidden="true" />
-          <h1 className="willkommen-titel">EINSATZBUCH</h1>
+          <h1 className="willkommen-titel">EINSATZTAGEBUCH</h1>
           {bereitschaft ? <div className="willkommen-bereitschaft">{bereitschaft}</div> : null}
         </div>
         {/* Der Startknopf ist der eine Zweck dieser Seite, deshalb bekommt er den Fokus. */}

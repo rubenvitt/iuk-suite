@@ -51,7 +51,7 @@ describe("SUCHMODULE", () => {
     expect(SUCHMODULE.map((s) => s.modul).sort()).toEqual(mitSuche);
   });
 
-  it("Einsatzbuch (verschlüsselt) und Helfer (Personaldaten) bleiben draußen", () => {
+  it("Einsatztagebuch (verschlüsselt) und Helfer (Personaldaten) bleiben draußen", () => {
     expect(SUCHMODULE.map((s) => s.modul)).not.toContain("einsatzbuch");
     expect(SUCHMODULE.map((s) => s.modul)).not.toContain("helfer");
   });

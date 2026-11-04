@@ -143,11 +143,11 @@ export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[], re
       continue;
     }
     if (!name) {
-      zeilen.push({ id, name: anzeige, quali, klasse: "fehler", hinweis: "Name zu lang für das Einsatzbuch (höchstens 80 Zeichen)" });
+      zeilen.push({ id, name: anzeige, quali, klasse: "fehler", hinweis: "Name zu lang für das Einsatztagebuch (höchstens 80 Zeichen)" });
       continue;
     }
     if (!quali) {
-      zeilen.push({ id, name, quali: null, klasse: "ohne_quali", hinweis: `Keine Qualifikation des Einsatzbuchs zuzuordnen (in HiOrg: ${qualis}). Einstellbar unter „Qualifikationen aus HiOrg“.` });
+      zeilen.push({ id, name, quali: null, klasse: "ohne_quali", hinweis: `Keine Qualifikation des Einsatztagebuchs zuzuordnen (in HiOrg: ${qualis}). Einstellbar unter „Qualifikationen aus HiOrg“.` });
       continue;
     }
     const alt = nachId.get(id);

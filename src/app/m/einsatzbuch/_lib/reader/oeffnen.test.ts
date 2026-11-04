@@ -55,8 +55,8 @@ describe("leseDatei", () => {
   });
   it.each([["kaputt", "{"], ["fremd", '{"a":1}'], ["leer", ""], ["PNG-Datei", PNG], ["Vorlage v1", JSON.stringify({ ...erwartet.export, version: 1 })],
     ["Zeitpunkt ohne Offset im Kopf", JSON.stringify({ ...erwartet.export, kopf: { ...erwartet.export.kopf, erstellt: "2026-09-24T10:00" } })]])(
-    "%s → keine Einsatzbuch-Datei", (_n, text) => {
-      expect(leseDatei("x.einsatzbuch", text, ZONE)).toEqual({ ok: false, fehler: "„x.einsatzbuch“ ist keine Einsatzbuch-Datei. Erwartet wird eine .einsatzbuch-Datei aus der Verwaltung." });
+    "%s → keine Einsatztagebuch-Datei", (_n, text) => {
+      expect(leseDatei("x.einsatzbuch", text, ZONE)).toEqual({ ok: false, fehler: "„x.einsatzbuch“ ist keine Einsatztagebuch-Datei. Erwartet wird eine .einsatzbuch-Datei aus der Verwaltung." });
     });
 });
 

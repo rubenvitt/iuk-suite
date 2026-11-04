@@ -214,7 +214,7 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
             className={s.versteckt}
             type="file"
             accept=".einsatzbuch,application/json"
-            aria-label="Einsatzbuch-Datei"
+            aria-label="Einsatztagebuch-Datei"
             onChange={gewaehlt}
           />
         </div>

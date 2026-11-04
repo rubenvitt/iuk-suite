@@ -98,7 +98,7 @@ export function Einstellungen(p: EinstellungenProps) {
       </section>
 
       <section aria-labelledby="freigabe" style={{ display: "grid", gap: SPACE.sm }}>
-        <h2 id="freigabe" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Freigabe fürs Einsatzbuch</h2>
+        <h2 id="freigabe" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Freigabe fürs Einsatztagebuch</h2>
         <label style={{ display: "flex", alignItems: "center", gap: SPACE.sm, minHeight: 44 }}>
           <Switch
             checked={p.neueFreigeben}
@@ -106,7 +106,7 @@ export function Einstellungen(p: EinstellungenProps) {
             disabled={laeuft !== null}
             onChange={(wert) => void tue("freigabe", () => neueFreigebenAction(wert), "Gespeichert.")}
           />
-          Neu übernommene Helfer gleich fürs Einsatzbuch freigeben
+          Neu übernommene Helfer gleich fürs Einsatztagebuch freigeben
         </label>
       </section>
 

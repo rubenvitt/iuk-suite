@@ -49,7 +49,7 @@ export const DATEI_SPALTEN: readonly DateiSpalte[] = [
   },
   {
     feld: "qualifikationen", kopf: "Qualifikationen", pflicht: false, auch: ["qualifikation", "qualis", "quali"],
-    hilfe: "Mehrere durch Komma oder Semikolon getrennt, die Kurzform in Klammern, z. B. „Rettungssanitäter (RS)“. Das Einsatzbuch ordnet sie wie die aus HiOrg zu.",
+    hilfe: "Mehrere durch Komma oder Semikolon getrennt, die Kurzform in Klammern, z. B. „Rettungssanitäter (RS)“. Das Einsatztagebuch ordnet sie wie die aus HiOrg zu.",
     beispiel: "Rettungssanitäter (RS)",
   },
 ];

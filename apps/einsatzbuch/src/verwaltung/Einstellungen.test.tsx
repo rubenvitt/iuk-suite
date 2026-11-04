@@ -22,7 +22,7 @@ vi.mock("../befehle", () => ({ befehle }));
 
 import { Einstellungen, type EinstellungenProps } from "./Einstellungen";
 
-const ORDNER = "/Volumes/Sicherung/Einsatzbuch";
+const ORDNER = "/Volumes/Sicherung/Einsatztagebuch";
 const OK: Sicherungsstand = { ordner: ORDNER, letzte: "2026-09-24T18:42:00+02:00", fehler: null, stufe: "ok" };
 const OHNE_ORDNER: Sicherungsstand = { ordner: null, letzte: null, fehler: null, stufe: "gelb" };
 

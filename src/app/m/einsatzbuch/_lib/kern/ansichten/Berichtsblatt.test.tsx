@@ -10,7 +10,7 @@ import { Berichtsblatt } from "./Berichtsblatt";
 afterEach(unmount);
 
 const bloecke = (erwartetJson as unknown as { bloecke: Block[] }).bloecke;
-const EXTRA = { pruefung: "Kette intakt (geprüft im Reader)", quelle: "Einsatzbuch Reader, aus export.einsatzbuch", erzeugt: "24.9.2026", zeitzone: "Europe/Berlin" };
+const EXTRA = { pruefung: "Kette intakt (geprüft im Reader)", quelle: "Einsatztagebuch Reader, aus export.einsatzbuch", erzeugt: "24.9.2026", zeitzone: "Europe/Berlin" };
 /** Derselbe Block als Test-Block — `bericht()` prüft keinen Hash, nur `umgebung` zählt. */
 const testBlock: Block = { ...bloecke[2], kopf: { ...bloecke[2].kopf, umgebung: "test" } };
 
@@ -27,7 +27,7 @@ describe("Berichtsblatt", () => {
     const text = blatt();
     expect(text).not.toContain("TESTDATEN");
     const kopf = query("header").textContent ?? "";
-    expect(kopf).toContain("EINSATZBUCH");
+    expect(kopf).toContain("EINSATZTAGEBUCH");
     expect(kopf).toContain("DRK-Bereitschaft Uelzen");
     expect(kopf).toContain("Einsatzbericht");
     expect(kopf).toContain("2026-043");
@@ -44,7 +44,7 @@ describe("Berichtsblatt", () => {
     expect(text).toContain("3 · versiegelt 23.9.2026, 21:08 Uhr");
     expect(text).toContain(bloecke[2].hash);
     expect(text).toContain("Kette intakt (geprüft im Reader)");
-    expect(query("footer").textContent).toContain("Erzeugt 24.9.2026 · Einsatzbuch Reader, aus export.einsatzbuch");
+    expect(query("footer").textContent).toContain("Erzeugt 24.9.2026 · Einsatztagebuch Reader, aus export.einsatzbuch");
     expect(query("footer").textContent).toContain("Vertraulich — nur für den Dienstgebrauch");
     expect(query("[data-notizen]").textContent).toBe(TESTEINSAETZE[2].notizen);
   });

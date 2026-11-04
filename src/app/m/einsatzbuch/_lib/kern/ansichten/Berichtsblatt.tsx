@@ -17,7 +17,7 @@ export function Berichtsblatt({ daten: d, bereitschaft, unveraendert }: { daten:
         <div className={b.balken} />
         <div className={b.kopfzeile}>
           <div>
-            <div className={b.wortmarke}>EINSATZ<span>BUCH</span></div>
+            <div className={b.wortmarke}>EINSATZ<span>TAGEBUCH</span></div>
             <div className={b.bereitschaft}>{bereitschaft}</div>
           </div>
           {d.test && <div className={b.testdaten} data-testdaten="">TESTDATEN</div>}

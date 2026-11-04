@@ -43,7 +43,7 @@ export function Kopf({ thema, beiThemaWechsel, eingerichtet, sitzung, beiAnmelde
       <div className="kopf-streifen" aria-hidden="true" />
       <header className="kopf-leiste">
         <strong className="wortmarke">
-          EINSATZ<span className="wortmarke-akzent">BUCH</span>
+          EINSATZ<span className="wortmarke-akzent">TAGEBUCH</span>
         </strong>
         <div className="kopf-rechts">
           {sitzung ? (

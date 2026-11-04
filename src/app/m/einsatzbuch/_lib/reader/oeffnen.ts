@@ -7,10 +7,10 @@ import { zeitpunktText } from "../kern/zeit";
 import { kettenzustandAus, type Kettenzustand, type Listeneintrag } from "../kern/ansichten/modell";
 import { einsatzSchema, exportinhaltSchema, exportkopfSchema } from "./pruefung";
 
-export const KEINE_DATEI = (name: string) => `„${name}“ ist keine Einsatzbuch-Datei. Erwartet wird eine .einsatzbuch-Datei aus der Verwaltung.`;
+export const KEINE_DATEI = (name: string) => `„${name}“ ist keine Einsatztagebuch-Datei. Erwartet wird eine .einsatzbuch-Datei aus der Verwaltung.`;
 export const KENNWORT_FALSCH = "Das Kennwort passt nicht. Die Datei bleibt verschlüsselt.";
 export const INHALT_BESCHAEDIGT = "Der Inhalt der Datei ist beschädigt oder hat nicht die erwartete Form.";
-export const ZU_GROSS = "Die Datei ist zu groß für eine Einsatzbuch-Datei.";
+export const ZU_GROSS = "Die Datei ist zu groß für eine Einsatztagebuch-Datei.";
 /** Obergrenze vor `File.text()` — ein Export der Verwaltung bleibt weit darunter. */
 export const MAX_DATEIGROESSE = 50 * 1024 * 1024;
 

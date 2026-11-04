@@ -212,7 +212,7 @@ export const MODULES: ModuleDef[] = [
   // die Zugangsgruppe, nicht über den Suite-Admin: hier liegt die Freigabe der Einsatz-Schlüssel.
   // Den Host hält `_lib/host.ts`. Im Umschalter nur für die Zugangsgruppe
   // (`switcherGroupSources: ["access"]`).
-  { key: "einsatzbuch", title: "Einsatzbuch", icon: "book", shell: "full",
+  { key: "einsatzbuch", title: "Einsatztagebuch", icon: "book", shell: "full",
     requiresAuth: false, requiredGroups: ["einsatzbuch-nutzer"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   // kommplan: Kommunikationspläne (Spec 2026-09-30). requiresAuth:false für die Token-Ansicht (Phase 5); Zugang und Host in _lib/.

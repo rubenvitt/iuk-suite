@@ -123,7 +123,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
     freigabeFehler: optionen.freigabeFehler ?? null,
     // Groß genug, dass in „Automatische Sperre“ die Ruhe-Uhr (10 min) vor dem Tokenablauf greift.
     sitzungAblaufMs: optionen.sitzungAblaufMs ?? 60 * 60_000,
-    sicherungsordnerWahl: optionen.sicherungsordnerWahl === undefined ? "/Volumes/Sicherung/Einsatzbuch" : optionen.sicherungsordnerWahl,
+    sicherungsordnerWahl: optionen.sicherungsordnerWahl === undefined ? "/Volumes/Sicherung/Einsatztagebuch" : optionen.sicherungsordnerWahl,
     sicherungsdatei: optionen.sicherungsdatei ?? null,
     autostart: optionen.autostart ?? true,
     update: optionen.update ?? null,
@@ -262,10 +262,10 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       try {
         wert = JSON.parse(inhalt);
       } catch {
-        throw new Error("Das ist keine Exportdatei des Einsatzbuchs.");
+        throw new Error("Das ist keine Exportdatei des Einsatztagebuchs.");
       }
       const kennung = typeof wert === "object" && wert !== null && !Array.isArray(wert) ? (wert as Record<string, unknown>) : null;
-      if (kennung?.format !== "einsatzbuch-export" || kennung.version !== 2) throw new Error("Das ist keine Exportdatei des Einsatzbuchs.");
+      if (kennung?.format !== "einsatzbuch-export" || kennung.version !== 2) throw new Error("Das ist keine Exportdatei des Einsatztagebuchs.");
       (window as unknown as { __export: unknown }).__export = wert;
       return dateiname.endsWith(".einsatzbuch") ? dateiname : `${dateiname}.einsatzbuch`;
     }
@@ -303,7 +303,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       if (zustand.betrieb !== "echt") throw new Error("Wiederherstellen geht nur im Echtbetrieb.");
       if (zustand.bloecke.length > 0 || zustand.ausstehend) {
         throw new Error(
-          "Auf diesem Rechner gibt es schon Einsätze (Blöcke, einen ausstehenden Einsatz oder vergebene Nummern). Wiederherstellen geht nur auf einem leeren Einsatzbuch.",
+          "Auf diesem Rechner gibt es schon Einsätze (Blöcke, einen ausstehenden Einsatz oder vergebene Nummern). Wiederherstellen geht nur auf einem leeren Einsatztagebuch.",
         );
       }
       const datei = einstellungen.sicherungsdatei;
@@ -461,7 +461,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       pruefeSchritt(bearbeitung, Date.now());
       const letzter = zustand.bloecke[zustand.bloecke.length - 1];
       if (!bearbeitung && letzter && letzter.block >= 10_000) {
-        throw new Error("Das Einsatzbuch ist voll: Mehr als 10 000 Einsätze nimmt dieser Rechner nicht auf. Bitte wende dich an die Verwaltung.");
+        throw new Error("Das Einsatztagebuch ist voll: Mehr als 10 000 Einsätze nimmt dieser Rechner nicht auf. Bitte wende dich an die Verwaltung.");
       }
       if (zustand.ausstehend) {
         zustand.ausstehend = { ...zustand.ausstehend, entwurf };

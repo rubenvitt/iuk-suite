@@ -304,7 +304,7 @@ fn antworte(mut strom: TcpStream, status: u16, text: &str) {
         _ => "",
     };
     let koerper = format!(
-        "<!doctype html>\n<html lang=\"de\"><head><meta charset=\"utf-8\"><title>Einsatzbuch</title></head>\
+        "<!doctype html>\n<html lang=\"de\"><head><meta charset=\"utf-8\"><title>Einsatztagebuch</title></head>\
          <body><p>{text}</p></body></html>\n"
     );
     let kopf = format!(

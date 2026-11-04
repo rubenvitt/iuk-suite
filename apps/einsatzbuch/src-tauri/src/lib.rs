@@ -192,5 +192,5 @@ pub fn run() {
         .setup(richte_ein)
         .invoke_handler(befehle)
         .run(tauri::generate_context!())
-        .expect("die Einsatzbuch-App ließ sich nicht starten");
+        .expect("die Einsatztagebuch-App ließ sich nicht starten");
 }

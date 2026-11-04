@@ -66,7 +66,7 @@ export function BerichtUeberlagerung({ block, einsatz, pruefung, bereitschaft, s
   const unveraendert = knotenFuer(block.kopf.block, kette) === "geprueft";
   const daten = bericht(block, einsatz, {
     pruefung: kette.art === "intakt" ? `${chipText(kette)} (geprüft am Rechner)` : chipText(kette),
-    quelle: `Einsatzbuch Verwaltung, ${sitzungName}`,
+    quelle: `Einsatztagebuch Verwaltung, ${sitzungName}`,
     erzeugt: zeitpunktText(erzeugt, zeitzone),
     zeitzone,
   });

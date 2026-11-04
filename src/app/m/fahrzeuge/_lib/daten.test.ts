@@ -18,7 +18,7 @@ describe("Eingabe eines Fahrzeugs", () => {
     expect(ein({ kennzeichen: " ue-rk  831 " }).kennzeichen).toBe("UE-RK 831");
   });
 
-  it("die Längen des Einsatzbuchs gelten, mit deutschem Feldfehler", () => {
+  it("die Längen des Einsatztagebuchs gelten, mit deutschem Feldfehler", () => {
     const r = fahrzeugEingabe.safeParse({ ...basis, typ: "x".repeat(21), funkrufname: "" });
     expect(r.success).toBe(false);
     const meldungen = r.error!.issues.map((i) => `${i.path.join(".")}: ${i.message}`);

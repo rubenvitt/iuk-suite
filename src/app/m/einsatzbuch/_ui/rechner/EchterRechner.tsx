@@ -34,7 +34,7 @@ export function EchterRechner({ rechner }: { rechner: EchterRechnerStatus | null
   }
 
   return (
-    <Card title="Echter Einsatzbuch-Rechner" className={styles.modul}>
+    <Card title="Echter Einsatztagebuch-Rechner" className={styles.modul}>
       {!rechner ? (
         <p>Noch kein echter Rechner eingerichtet.</p>
       ) : (

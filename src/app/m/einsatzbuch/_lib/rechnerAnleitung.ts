@@ -17,4 +17,4 @@
 export const RECHNER_ANLEITUNG_PFAD = "/m/einsatzbuch/rechner-anleitung.pdf";
 
 /** Der Dateiname beim Herunterladen — sprechend statt `rechner-anleitung.pdf`. */
-export const RECHNER_ANLEITUNG_DATEINAME = "Einsatzbuch-Anleitung-Rechner.pdf";
+export const RECHNER_ANLEITUNG_DATEINAME = "Einsatztagebuch-Anleitung-Rechner.pdf";

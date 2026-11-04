@@ -58,11 +58,11 @@ test("Demo-Modus: Vorschau zeigt Ausgefilterte nur als Zahl, Übernehmen füllt 
   await expect(tabelle).not.toContainText("Fricke, Timo");
 });
 
-test("Freigabe fürs Einsatzbuch umschalten; ohne Admin-Gruppe nur lesend", async ({ page, browser }) => {
+test("Freigabe fürs Einsatztagebuch umschalten; ohne Admin-Gruppe nur lesend", async ({ page, browser }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   await demoAbgleichen(page);
   await oeffne(page, "/");
-  const schalter = page.getByRole("switch", { name: "Jana Albers fürs Einsatzbuch freigeben" }).first();
+  const schalter = page.getByRole("switch", { name: "Jana Albers fürs Einsatztagebuch freigeben" }).first();
   const vorher = await schalter.getAttribute("aria-checked");
   await klickeWennRuhig(schalter);
   await expect(schalter).toHaveAttribute("aria-checked", vorher === "true" ? "false" : "true");
@@ -86,7 +86,7 @@ test("ohne Zugangsgruppe kein Zugang — auch nicht als Suite-Admin", async ({ p
   await expect(page.getByRole("table", { name: "Helfer" })).toHaveCount(0);
 });
 
-test("das Einsatzbuch zeigt Demo-Helfer in der Vorschau, übernimmt sie aber nicht", async ({ page }) => {
+test("das Einsatztagebuch zeigt Demo-Helfer in der Vorschau, übernimmt sie aber nicht", async ({ page }) => {
   // Eine Anmeldung mit beiden Gruppen: die Sitzung gilt über die gemeinsame Cookie-Domain auf beiden Hosts.
   await devLogin(page, { host: HOST, groups: `${ADMIN},einsatzbuch-nutzer`, callbackPath: "/" });
   await demoAbgleichen(page);
@@ -99,7 +99,7 @@ test("das Einsatzbuch zeigt Demo-Helfer in der Vorschau, übernimmt sie aber nic
   await expect(page.getByRole("dialog").getByRole("button", { name: "Übernehmen" })).toBeDisabled();
 });
 
-test("im Einsatzbuch lässt sich eine HiOrg-Qualifikation einem Kürzel zuordnen (IDA-250)", async ({ page }) => {
+test("im Einsatztagebuch lässt sich eine HiOrg-Qualifikation einem Kürzel zuordnen (IDA-250)", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: `${ADMIN},einsatzbuch-nutzer`, callbackPath: "/" });
   await demoAbgleichen(page);
   await page.goto(`http://einsatzbuch.localtest.me:${E2E_PORT}/stammdaten?reiter=personal`);

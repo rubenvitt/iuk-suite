@@ -34,7 +34,7 @@ export default async function HelferSeite() {
       {quelle === "demo" ? <DemoHinweis darfVerwalten={darfVerwalten} /> : null}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: SPACE.lg }}>
         <Card><Statistic title="Helfer" value={liste.length} /></Card>
-        <Card><Statistic title="Fürs Einsatzbuch freigegeben" value={liste.filter((h) => h.fuerEinsatzbuch).length} /></Card>
+        <Card><Statistic title="Fürs Einsatztagebuch freigegeben" value={liste.filter((h) => h.fuerEinsatzbuch).length} /></Card>
         <Card>
           <Statistic title="Letzter Abgleich" value={letzter ? ZEIT.format(new Date(letzter.zeitpunkt)) : "noch keiner"} />
         </Card>

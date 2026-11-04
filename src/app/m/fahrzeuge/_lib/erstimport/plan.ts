@@ -16,7 +16,7 @@ import type { Art } from "../eingabe";
 export type Quelle = Fahrzeugquelle;
 
 export const QUELL_NAMEN: Record<Quelle, string> = {
-  einsatzbuch: "Einsatzbuch",
+  einsatzbuch: "Einsatztagebuch",
   lagerbuch: "Lagerbuch",
   funkgeraete: "Funkgeräte",
 };
