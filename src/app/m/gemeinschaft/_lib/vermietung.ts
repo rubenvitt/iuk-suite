@@ -79,9 +79,9 @@ export function anfrageNachCode(db: GemeinschaftSchreiber, code: string): Status
   if (!z) return null;
   const { stand, dateiAm, herkunft, ...a } = z;
   if (a.status !== "zugesagt") return { ...a, vertrag: null };
-  const v = db.select({ sha256: vertragsvorlage.sha256 }).from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).get();
+  const v = db.select({ sha256: vertragsvorlage.sha256, zeichnen: vertragsvorlage.zeichnen }).from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).get();
   const datei = dateiAm !== null ? { am: dateiAm, herkunft: (herkunft ?? "leitung") as Herkunft } : null;
-  return { ...a, vertrag: { stand, vorlage: v?.sha256 ?? null, datei } };
+  return { ...a, vertrag: { stand, vorlage: v?.sha256 ?? null, zeichnen: v?.zeichnen ?? false, datei } };
 }
 
 /** Wie viele Anfragen seit `ab` eingegangen sind — das Mengenbudget gegen Massenabsenden liegt in der Datenbank. */
@@ -234,13 +234,13 @@ function hatVorlage(tx: GemeinschaftSchreiber): boolean {
 }
 
 export function ladeVorlageInfo(db: GemeinschaftSchreiber): VorlageDTO | null {
-  const v = db.select({ name: vertragsvorlage.name, groesse: vertragsvorlage.groesse, abgelegtAm: vertragsvorlage.abgelegtAm, sha256: vertragsvorlage.sha256, feld: vertragsvorlage.feld })
+  const v = db.select({ name: vertragsvorlage.name, groesse: vertragsvorlage.groesse, abgelegtAm: vertragsvorlage.abgelegtAm, sha256: vertragsvorlage.sha256, feld: vertragsvorlage.feld, zeichnen: vertragsvorlage.zeichnen })
     .from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).get();
   return v ? { ...v, feld: feldAusJson(v.feld) } : null;
 }
 
-export function ladeVorlage(db: GemeinschaftSchreiber): { name: string; inhalt: Buffer; sha256: string; feld: Feld | null } | null {
-  const v = db.select({ name: vertragsvorlage.name, inhalt: vertragsvorlage.inhalt, sha256: vertragsvorlage.sha256, feld: vertragsvorlage.feld })
+export function ladeVorlage(db: GemeinschaftSchreiber): { name: string; inhalt: Buffer; sha256: string; feld: Feld | null; zeichnen: boolean } | null {
+  const v = db.select({ name: vertragsvorlage.name, inhalt: vertragsvorlage.inhalt, sha256: vertragsvorlage.sha256, feld: vertragsvorlage.feld, zeichnen: vertragsvorlage.zeichnen })
     .from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).get();
   return v ? { ...v, feld: feldAusJson(v.feld) } : null;
 }
@@ -260,6 +260,12 @@ export function legeVorlageAb(db: GemeinschaftDb, name: string, inhalt: Buffer, 
 
 export function setzeVorlageFeld(db: GemeinschaftDb, feld: Feld | null): void {
   const r = db.update(vertragsvorlage).set({ feld: feld ? JSON.stringify(feld) : null }).where(eq(vertragsvorlage.raum, RAUM)).run();
+  if (r.changes === 0) throw new NichtGefunden();
+}
+
+/** Schaltet das Zeichnen auf der Statusseite an oder aus; beim Ersetzen der Vorlage bleibt die Wahl stehen. */
+export function setzeVorlageZeichnen(db: GemeinschaftDb, an: boolean): void {
+  const r = db.update(vertragsvorlage).set({ zeichnen: an }).where(eq(vertragsvorlage.raum, RAUM)).run();
   if (r.changes === 0) throw new NichtGefunden();
 }
 

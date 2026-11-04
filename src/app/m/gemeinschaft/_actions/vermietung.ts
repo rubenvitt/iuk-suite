@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb, type GemeinschaftDb } from "../_db/client";
 import {
-  Abgelehnt, entferneVertrag, entferneVorlage, ladeVorlage, legeSperrzeitAn, setzeVorlageFeld, lehneAb, loescheSperrzeit, NichtGefunden, nimmZusageZurueck, sageZu, setzeVertrag,
+  Abgelehnt, entferneVertrag, entferneVorlage, ladeVorlage, legeSperrzeitAn, setzeVorlageFeld, setzeVorlageZeichnen, lehneAb, loescheSperrzeit, NichtGefunden, nimmZusageZurueck, sageZu, setzeVertrag,
 } from "../_lib/vermietung";
 import { begruendungSchema, idSchema, pruefeSperrzeit, vertragSchema, type Ergebnis } from "../_lib/vermietungEingabe";
 import { pruefeFeld, type Feld } from "../_lib/vertragFeld";
@@ -97,6 +97,13 @@ export async function vorlageFeldAction(feld: unknown): Promise<Ergebnis> {
     if (!wert) return { ok: false, fehler: "Das Feld ist zu klein oder liegt nicht ganz auf der Seite." };
   }
   return ohneWert(await alsLeitung(viewer, (db) => setzeVorlageFeld(db, wert)));
+}
+
+/** Digitale Unterschrift auf der Statusseite an oder aus; aus bleibt nur der Upload des unterschriebenen Ausdrucks. */
+export async function vorlageZeichnenAction(an: unknown): Promise<Ergebnis> {
+  const viewer = await requireLeitungAktion();
+  if (typeof an !== "boolean") return { ok: false, fehler: UNGUELTIG };
+  return ohneWert(await alsLeitung(viewer, (db) => setzeVorlageZeichnen(db, an)));
 }
 
 export async function vorlageEntfernenAction(): Promise<Ergebnis> {

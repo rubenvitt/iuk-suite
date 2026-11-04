@@ -219,6 +219,7 @@
   },
   "src/app/m/gemeinschaft/(offen)/status/[code]/vertrag/route.ts#POST": { "kind": "context", "via": "POST" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageFeldAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageZeichnenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageEntfernenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/(leitung)/vermietung/plakat/route.ts#GET": {
     "kind": "excluded",

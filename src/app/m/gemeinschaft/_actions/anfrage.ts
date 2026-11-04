@@ -105,6 +105,7 @@ export async function vertragUnterschreibenAction(code: string, eingabe: { name?
       const a = pruefeUnterschreibbar(db, code);
       const v = ladeVorlage(db);
       if (!v || v.sha256 !== stand) throw new Abgelehnt("Der Vertrag wurde gerade geändert. Bitte die Seite neu laden und noch einmal ansehen.");
+      if (!v.zeichnen) throw new Abgelehnt("Bitte den unterschriebenen Vertrag hochladen.");
       const jetzt = Date.now();
       let pdf: Uint8Array;
       try {

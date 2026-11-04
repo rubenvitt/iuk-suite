@@ -593,6 +593,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "zeichnen": {
+          "name": "zeichnen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
         "abgelegt_am": {
           "name": "abgelegt_am",
           "type": "integer",

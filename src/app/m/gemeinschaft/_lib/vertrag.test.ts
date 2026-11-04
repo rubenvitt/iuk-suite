@@ -5,7 +5,7 @@ import { anfrage } from "../_db/schema";
 import { testDb, type TestDb } from "./testDb";
 import {
   Abgelehnt, anfrageNachCode, entferneVorlage, ladeAnfragen, ladeVertragsdatei, ladeVorlageInfo, legeAnfrageAn, legeUnterschriebenAb,
-  legeVorlageAb, sageZu, setzeVorlageFeld, vertragFuerStatus,
+  legeVorlageAb, sageZu, setzeVorlageFeld, setzeVorlageZeichnen, vertragFuerStatus,
 } from "./vermietung";
 import { feldAusPixeln, feldInPixeln, pruefeFeld } from "./vertragFeld";
 import { fotoAlsPdf, leseVorlage, pruefeUnterschriebeneDatei, sha256, unterschriebenePdf, unterschriftAusDataUrl } from "./vertragUnterschrift";
@@ -60,10 +60,10 @@ describe("Vorlage", () => {
   it("ablegen setzt laufende Zusagen auf „verschickt“, neue Zusagen kommen gleich so an", async () => {
     const db = testDb();
     const vorher = zusage(db);
-    expect(anfrageNachCode(db, vorher)?.vertrag).toEqual({ stand: "offen", vorlage: null, datei: null });
+    expect(anfrageNachCode(db, vorher)?.vertrag).toEqual({ stand: "offen", vorlage: null, zeichnen: false, datei: null });
     const pdf = await vorlagePdf();
     legeVorlageAb(db, "Mietvertrag.pdf", pdf, sha256(pdf), JETZT);
-    expect(anfrageNachCode(db, vorher)?.vertrag).toEqual({ stand: "verschickt", vorlage: sha256(pdf), datei: null });
+    expect(anfrageNachCode(db, vorher)?.vertrag).toEqual({ stand: "verschickt", vorlage: sha256(pdf), zeichnen: true, datei: null });
     const danach = zusage(db, "2026-11-14");
     expect(anfrageNachCode(db, danach)?.vertrag?.stand).toBe("verschickt");
     expect(vertragFuerStatus(db, danach)).toMatchObject({ art: "vorlage", name: "Mietvertrag.pdf" });
@@ -80,6 +80,22 @@ describe("Vorlage", () => {
     const code = zusage(db);
     entferneVorlage(db);
     expect(vertragFuerStatus(db, code)).toBeNull();
+  });
+
+  it("Zeichnen lässt sich ausschalten und bleibt beim Ersetzen der Vorlage aus", async () => {
+    const db = testDb();
+    const pdf = await vorlagePdf();
+    legeVorlageAb(db, "a.pdf", pdf, sha256(pdf), JETZT);
+    const code = zusage(db);
+    setzeVorlageZeichnen(db, false);
+    expect(ladeVorlageInfo(db)?.zeichnen).toBe(false);
+    expect(anfrageNachCode(db, code)?.vertrag?.zeichnen).toBe(false);
+    legeVorlageAb(db, "b.pdf", pdf, sha256(pdf), JETZT);
+    expect(ladeVorlageInfo(db)?.zeichnen).toBe(false);
+    setzeVorlageZeichnen(db, true);
+    expect(anfrageNachCode(db, code)?.vertrag?.zeichnen).toBe(true);
+    entferneVorlage(db);
+    expect(() => setzeVorlageZeichnen(db, true)).toThrow();
   });
 
   it("eine unlesbare PDF taugt nicht als Vorlage", async () => {

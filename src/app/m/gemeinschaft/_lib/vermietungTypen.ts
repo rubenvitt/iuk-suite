@@ -21,10 +21,13 @@ export type AnfrageDTO = {
 export type Herkunft = "leitung" | "gezeichnet" | "hochgeladen";
 
 /** Die Vertragsvorlage für die Verwaltung, ohne Bytes. */
-export type VorlageDTO = { name: string; groesse: number; abgelegtAm: number; sha256: string; feld: Feld | null };
+export type VorlageDTO = { name: string; groesse: number; abgelegtAm: number; sha256: string; feld: Feld | null; zeichnen: boolean };
 
-/** Der Vertrag auf der Statusseite einer Zusage: `vorlage` = Stand (SHA-256) der Vorlage, falls eine liegt. */
-export type VertragStatus = { stand: VertragStand; vorlage: string | null; datei: { am: number; herkunft: Herkunft } | null };
+/**
+ * Der Vertrag auf der Statusseite einer Zusage: `vorlage` = Stand (SHA-256) der Vorlage, falls eine liegt;
+ * `zeichnen` = darf dort gezeichnet werden (sonst nur der Upload).
+ */
+export type VertragStatus = { stand: VertragStand; vorlage: string | null; zeichnen: boolean; datei: { am: number; herkunft: Herkunft } | null };
 
 /** Eine Sperrzeit für die Leitung; `eventId` gesetzt = aus einem Event abgeleitet, hier nicht löschbar. */
 export type SperrzeitDTO = { id: string; von: number; bis: number; grund: string; eventId: string | null };

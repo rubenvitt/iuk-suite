@@ -8,7 +8,7 @@ const notiz: Releasenotiz = {
   titel: "Mietvertrag digital unterschreiben",
   inhalt: [
     absatz(
-      "Unter Vermietung, Mietvertrag lädst du die Vertragsvorlage als PDF hoch und ziehst auf der passenden Seite das Unterschriftenfeld auf. Nach einer Zusage steht er auf der Statusseite der Anfrage und wird dort mit dem Finger unterschrieben oder als Ausdruck hochgeladen.",
+      "Unter Vermietung, Mietvertrag lädst du die Vorlage als PDF hoch und ziehst das Unterschriftenfeld auf. Nach einer Zusage wird der Vertrag auf der Statusseite mit dem Finger unterschrieben oder als Ausdruck hochgeladen; ist Digital unterschreiben aus, nur als Ausdruck.",
     ),
   ],
 };

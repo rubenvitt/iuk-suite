@@ -145,8 +145,17 @@ test("Ausdruck als Foto hochladen; ohne Vorlage kein Vertrag auf der Statusseite
   const status = await frageAn(gast, zukunftsTag(77), anlass);
   await sageZu(page, anlass);
 
+  // Digitale Unterschrift aus: auf der Statusseite bleibt nur der Upload.
+  await oeffne(page, "/vermietung/mietvertrag");
+  const schalter = page.getByTestId("vorlage-zeichnen");
+  await expect(schalter).toHaveAttribute("aria-checked", "true");
+  await klickeWennRuhig(schalter);
+  await expect(schalter).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByTestId("vorlage-flaeche")).toHaveCount(0);
+
   await oeffne(gast, status);
   await expect(gast.getByTestId("vertrag-unterschreiben")).toBeVisible();
+  await expect(gast.getByTestId("unterschrift-flaeche")).toHaveCount(0);
   // Ein 1×1-PNG als „Foto“; der Server macht daraus eine PDF.
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
   const hoch = gast.waitForResponse((r) => r.url().endsWith(`${status}/vertrag`) && r.request().method() === "POST");

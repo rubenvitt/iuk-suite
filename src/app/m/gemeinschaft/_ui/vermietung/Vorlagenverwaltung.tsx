@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { App, Button, Card, Popconfirm, Spin, Tag } from "antd";
+import { App, Button, Card, Popconfirm, Spin, Switch, Tag } from "antd";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { vorlageEntfernenAction, vorlageFeldAction } from "../../_actions/vermietung";
+import { vorlageEntfernenAction, vorlageFeldAction, vorlageZeichnenAction } from "../../_actions/vermietung";
 import { eingangText } from "../../_lib/vermietungText";
 import { feldAusPixeln, feldInPixeln, FELD_MIN, type Feld, type Seitenmass } from "../../_lib/vertragFeld";
 import type { VorlageDTO } from "../../_lib/vermietungTypen";
@@ -47,6 +47,17 @@ export function Vorlagenverwaltung({ vorlage }: { vorlage: VorlageDTO | null }) 
     }
   }
 
+  async function zeichnen(an: boolean) {
+    setLaeuft(true);
+    try {
+      const r = await vorlageZeichnenAction(an);
+      if (!r.ok) { message.warning(r.fehler); return; }
+      router.refresh();
+    } finally {
+      setLaeuft(false);
+    }
+  }
+
   async function entfernen() {
     const r = await vorlageEntfernenAction();
     if (!r.ok) { message.warning(r.fehler); return; }
@@ -68,12 +79,16 @@ export function Vorlagenverwaltung({ vorlage }: { vorlage: VorlageDTO | null }) 
             <Popconfirm title="Vorlage entfernen?" description="Neue Zusagen bekommen dann keinen Vertrag auf die Statusseite." okText="Entfernen" cancelText="Abbrechen" onConfirm={entfernen}>
               <Button type="text" icon={<Icons8Ikone name="trash" groesse={18} />}>Entfernen</Button>
             </Popconfirm>
+            <label className={s.zeile}>
+              <Switch checked={vorlage.zeichnen} loading={laeuft} onChange={(an) => void zeichnen(an)} data-testid="vorlage-zeichnen" />
+              <span>Digital unterschreiben</span>
+            </label>
           </div>
         ) : (
           <Button type="primary" icon={<Icons8Ikone name="upload" groesse={18} />} loading={laeuft} onClick={() => datei.current?.click()}>Vorlage hochladen (PDF)</Button>
         )}
       </Card>
-      {vorlage ? <Feldwahl key={vorlage.sha256} feld={vorlage.feld} /> : null}
+      {vorlage?.zeichnen ? <Feldwahl key={vorlage.sha256} feld={vorlage.feld} /> : null}
     </div>
   );
 }

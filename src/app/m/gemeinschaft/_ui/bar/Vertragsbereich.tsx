@@ -9,7 +9,8 @@ import s from "./bar.module.css";
 
 /**
  * Der Mietvertrag auf der Statusseite einer Zusage (IDA-343): ansehen, dann am Handy unterschreiben oder eine
- * unterschriebene PDF/ein Foto hochladen. Nach dem Unterschreiben nur noch der Download.
+ * unterschriebene PDF/ein Foto hochladen. Hat die Leitung das Zeichnen ausgeschaltet, nur der Upload. Nach dem
+ * Unterschreiben nur noch der Download.
  */
 export function Vertragsbereich({ code, person, v }: { code: string; person: string; v: VertragStatus }) {
   const pfad = `/status/${code}/vertrag`;
@@ -34,10 +35,10 @@ export function Vertragsbereich({ code, person, v }: { code: string; person: str
     );
   }
   if (!v.vorlage) return null;
-  return <Unterschreiben code={code} person={person} stand={v.vorlage} pfad={pfad} />;
+  return <Unterschreiben code={code} person={person} stand={v.vorlage} zeichnen={v.zeichnen} pfad={pfad} />;
 }
 
-function Unterschreiben({ code, person, stand, pfad }: { code: string; person: string; stand: string; pfad: string }) {
+function Unterschreiben({ code, person, stand, zeichnen, pfad }: { code: string; person: string; stand: string; zeichnen: boolean; pfad: string }) {
   const router = useRouter();
   const [name, setName] = useState(person);
   const [einverstanden, setEinverstanden] = useState(false);
@@ -88,6 +89,7 @@ function Unterschreiben({ code, person, stand, pfad }: { code: string; person: s
       <div className="go-knopfzeile" style={{ marginTop: 16 }}>
         <a className={`go-knopf go-knopf-leise ${s.voll}`} href={pfad} target="_blank" rel="noopener">Vertrag ansehen (PDF)</a>
       </div>
+      {zeichnen ? <>
       <label className={s.block} style={{ marginTop: 16 }}>
         <span className="go-label">Name</span>
         <input className="go-feld" autoComplete="name" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
@@ -108,10 +110,11 @@ function Unterschreiben({ code, person, stand, pfad }: { code: string; person: s
           Unterschreiben
         </button>
       </div>
+      </> : null}
       <input ref={datei} type="file" accept="application/pdf,image/jpeg,image/png" hidden aria-hidden="true" data-testid="vertrag-hochladen"
         onChange={(ev) => { const f = ev.target.files?.[0]; if (f) void hochladen(f); }} />
-      <div className="go-knopfzeile" style={{ marginTop: 12 }}>
-        <button type="button" className={`go-knopf go-knopf-leise ${s.voll}`} disabled={laeuft} onClick={() => datei.current?.click()}>
+      <div className="go-knopfzeile" style={{ marginTop: zeichnen ? 12 : 16 }}>
+        <button type="button" className={`go-knopf ${zeichnen ? "go-knopf-leise " : ""}${s.voll}`} disabled={laeuft} onClick={() => datei.current?.click()}>
           Unterschriebenen Vertrag hochladen
         </button>
       </div>

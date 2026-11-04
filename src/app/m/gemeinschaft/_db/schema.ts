@@ -146,5 +146,7 @@ export const vertragsvorlage = sqliteTable("vertragsvorlage", {
   inhalt: blob("inhalt", { mode: "buffer" }).notNull(),
   sha256: text("sha256").notNull(),
   feld: text("feld"),
+  /** Darf auf der Statusseite gezeichnet werden? Aus = nur der Upload des unterschriebenen Ausdrucks. */
+  zeichnen: integer("zeichnen", { mode: "boolean" }).notNull().default(true),
   abgelegtAm: integer("abgelegt_am").notNull(),
 });
