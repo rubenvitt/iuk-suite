@@ -32,7 +32,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       "content-type": u.typ === "pdf" ? "application/pdf" : "image/jpeg",
       "content-disposition": anzeigeKopf(u.titel, u.typ),
       "content-length": String(bytes.byteLength),
-      "cache-control": "private, max-age=300",
+      "cache-control": "no-store",
       "x-content-type-options": "nosniff",
       "content-security-policy": u.typ === "pdf" ? "default-src 'none'; object-src 'self'; frame-ancestors 'self'" : "default-src 'none'; sandbox",
     },

@@ -51,6 +51,6 @@ Unterlagen am Gerät (IDA-300) unter `DATA_DIR/wartung/unterlagen/`; `scripts/ba
 
 ## 4. Was hier bewusst fehlt
 
-- **Unterlagen** (Betriebsanleitung, Kurzanleitung) am Steckbrief kommen mit IDA-300 aus dem Modul Dateien.
+- **Unterlagen** über 9 MB: Hochgeladen wird in einem Stück, der Proxy puffert höchstens 10 MB (IDA-300).
 - **Materialkisten** mit Inhaltsliste folgen in IDA-335.
 - Ein Foto je Mangel; mehrere Fotos gibt es bewusst nicht.

@@ -8,7 +8,7 @@ const notiz: Releasenotiz = {
   titel: "Anleitung und Handbuch am QR-Code",
   inhalt: [
     absatz(
-      "Wer den QR-Code an einem Gerät scannt, sieht jetzt dessen Hinweise und kann Kurzanleitung oder Handbuch direkt öffnen, auch ohne Anmeldung. " +
+      "Scannst du den QR-Code an einem Gerät, siehst du jetzt seine Hinweise und öffnest Kurzanleitung oder Handbuch direkt, auch ohne Anmeldung. " +
         "Als Verwalter lädst du PDFs oder Bilder in der Akte des Geräts unter Unterlagen hoch, die Hinweise trägst du unter Bearbeiten ein.",
     ),
   ],
