@@ -57,7 +57,8 @@ test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verw
   await linkDialog.getByLabel("Anlass").fill(anlass);
   await klickeWennRuhig(linkDialog.getByRole("button", { name: "Anlegen" }));
   const adresse = (await page.locator('[data-rolle="helfer-adresse"]').textContent())!.trim();
-  expect(adresse).toMatch(new RegExp(`^http://${HOST.replace(/\./g, "\\.")}:\\d+/t/[0-9A-Z-]{34}$`));
+  expect(adresse.startsWith(url("/t/"))).toBe(true);
+  expect(adresse.slice(url("/t/").length)).toMatch(/^[0-9A-Z-]{34}$/);
 
   // Am Telefon, ohne Konto.
   const handyKontext = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -104,7 +105,7 @@ test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verw
   await klickeWennRuhig(handy.getByRole("button", { name: "Aussondern", exact: true }));
   await klickeWennRuhig(handy.getByRole("button", { name: "Packung scannen" }));
   await scanneEan(handy, ean);
-  await klickeWennRuhig(handy.getByRole("button", { name: new RegExp(tagIn(90).split("-").reverse().join("\\.")) }));
+  await klickeWennRuhig(handy.getByRole("button", { name: tagIn(90).split("-").reverse().join(".") }));
   await klickeWennRuhig(handy.getByRole("button", { name: "beschädigt", exact: true }));
   await klickeWennRuhig(handy.getByRole("button", { name: "3 Stück aussondern" }));
   await expect(handy.getByRole("status")).toContainText(`3 Stück ${artikel} ausgesondert (beschädigt)`);
