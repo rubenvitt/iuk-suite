@@ -96,6 +96,41 @@ test("Schleife N → Titel → Enter → N in Tippgeschwindigkeit: keine Eingabe
   for (const name of ["EL", "Nord", "Sued", "West", "Ost"]) expect(titel.some((t) => t.startsWith(name)), `${name} in ${JSON.stringify(titel)}`).toBe(true);
 });
 
+test("freie Stelle: steht ohne Linie neben dem Hauptbaum, trägt eigene Unterstellen, kein Überlauf am Telefon (IDA-353)", async ({ page }) => {
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  const id = await neuerPlan(page, "e2e Freie Stelle");
+  await oeffneEditor(page, () => page.goto(url(`/p/${id}?ansicht=diagramm`)));
+  await ersteStelle(page, "Einsatzleitung");
+  await page.keyboard.press("Escape");
+
+  await klickeWennRuhig(page.getByRole("button", { name: "+ Freie Stelle" }));
+  await expect(karten(page)).toHaveCount(2);
+  await expect(flyinTitel(page)).toBeFocused();
+  await speichertNach(page, () => flyinTitel(page).fill("Polizei"));
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("group", { name: "Auswahl: Polizei" })).toBeVisible();
+  await klickeWennRuhig(page.locator('[data-griff="unter"]'));
+  await speichertNach(page, () => flyinTitel(page).fill("Streife"));
+  await page.keyboard.press("Escape");
+
+  await oeffneEditor(page, () => page.reload());
+  await expect(karten(page)).toHaveCount(3);
+  // Zwei Bäume: Linien nur im Netz der freien Stelle, keine von der Einsatzleitung aus.
+  const ids = await karten(page).evaluateAll((k) => k.map((x) => [x.getAttribute("data-karte"), x.textContent ?? ""] as const));
+  const el = ids.find(([, t]) => t.includes("Einsatzleitung"))![0]!;
+  const frei = ids.find(([, t]) => t.includes("Polizei"))![0]!;
+  await expect(page.locator(`.kp-betrachter [data-netz^="${el}>"]`)).toHaveCount(0);
+  await expect(page.locator(`.kp-betrachter [data-netz^="${frei}>"]`).first()).toBeAttached();
+
+  for (const breite of [390, 320]) {
+    await page.setViewportSize({ width: breite, height: 800 });
+    await oeffneEditor(page, () => page.goto(url(`/p/${id}`)));
+    await expect(page.locator(".kp-gliederung").getByRole("button", { name: "+ Freie Stelle" })).toBeVisible();
+    const ueber = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(ueber, `${breite} px`).toBeLessThanOrEqual(0);
+  }
+});
+
 test("Hinweise in der Fläche liegen im Bild — Desktop, Tablet, Telefon, auch bei offenem Flyin (Review Phase 2)", async ({ page, context }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   const id = await neuerPlan(page, "e2e Hinweise");

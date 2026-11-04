@@ -246,6 +246,17 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(karten()).toHaveLength(1);
     expect(existsPortal("[data-flyin-stelle]")).toBe(true);
   });
+  it("„+ Freie Stelle“ legt eine Stelle auf oberster Ebene an und öffnet sie (IDA-353)", async () => {
+    await zeige();
+    await clickElement(knopf("+ Freie Stelle"));
+    const frei = queryAll("[data-karte]").map((k) => k.getAttribute("data-karte")!).filter((id) => !["el", "a", "s"].includes(id));
+    expect(frei).toHaveLength(1);
+    expect(flyinOffen()).toBe(true);
+    await fillElement(flyinFeld(), "Polizei");
+    await taste("Enter", {}, flyinFeld());
+    expect(query(`[data-karte="${frei[0]}"]`).textContent).toContain("Polizei");
+    expect(queryAll("[data-karte]")).toHaveLength(4);
+  });
   it("die letzte Stelle löschen: der Hinweis mit „Rückgängig“ steht auch im leeren Plan (Entscheidung 19)", async () => {
     await zeige(plan(leererPlan()));
     await clickElement(knopf("Erste Stelle anlegen"));

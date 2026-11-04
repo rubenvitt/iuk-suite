@@ -180,6 +180,7 @@
 .kp-g-haupt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 8px; }
 .kp-g-haupt .kp-g-titel { flex: 1 1 8rem; min-width: 0; } /* 8rem: auch neben Chip und fester Verbindungsbreite bleibt „⋯“ in der Zeile */
 .kp-g-neben { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 0 1 auto; }
+.kp-g-frei { margin-top: 8px; }
 .kp-g-meldung { position: sticky; bottom: 12px; margin-top: 8px; z-index: 3; }
 .kp-g-lage .kp-chip { background: var(--kp-g-chip-flaeche); }
 /* Zeichen kompakt (Entscheidung 13): 44 px Ziel, das Zeichen bleibt Papier (weißer Grund auch im Dunkeln). */

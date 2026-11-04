@@ -261,6 +261,15 @@ describe("Gliederung (Spec §6.5)", () => {
     expect(titel()).toEqual([""]);
     expect(aktiv()).toBe(queryAll<HTMLInputElement>('input[name="titel"]')[0]);
   });
+  it("„+ Freie Stelle“ hängt eine Stelle der obersten Ebene ans Ende, Fokus im Titel (IDA-353)", async () => {
+    await zeige();
+    await clickElement([...document.querySelectorAll<HTMLButtonElement>(".kp-gliederung button")].find((b) => b.textContent === "+ Freie Stelle")!);
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2", ""]);
+    const neu = stand.jetzt.stellen.at(-1)!;
+    expect(neu.eltern).toBeNull();
+    expect(neu.verbindungId).toBeNull();
+    expect(aktiv()).toBe(queryAll<HTMLInputElement>('input[name="titel"]').at(-1));
+  });
 });
 
 async function fuegeEin(el: HTMLInputElement, text: string): Promise<boolean> {

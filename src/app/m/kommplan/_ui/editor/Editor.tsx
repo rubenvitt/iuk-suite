@@ -505,7 +505,10 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
                 onEinheit={() => neueEinheit(stelle.id)} onBearbeiten={() => oeffne(stelle.id)} />
             ) : null)}
             leer={<div className="kp-leer"><p>Dieser Plan hat noch keine Stellen.</p><Button type="primary" onClick={() => lege("wurzel", null)}>Erste Stelle anlegen</Button></div>}
-            werkzeuge={eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null} />
+            werkzeuge={<>
+              <Button data-freie-stelle="" onClick={() => lege("wurzel", null)}>+ Freie Stelle</Button>
+              {eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null}
+            </>} />
           <div className={schriftKlasse}><Legende eintraege={eintraege} /></div>
           <Button onClick={() => oeffnePlan("verbindungen")}>Verbindungen bearbeiten</Button>
         </div>
