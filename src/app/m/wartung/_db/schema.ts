@@ -63,6 +63,11 @@ export const art = sqliteTable("art", {
   position: integer("position").notNull().default(0),
   angelegtAm: integer("angelegt_am").notNull(),
   aktualisiertAm: integer("aktualisiert_am").notNull(),
+  /**
+   * Materialkiste (IDA-335): jedes Gerät dieser Art hat eine eigene Inhaltsliste (`inhalt`), und die Prüfung am
+   * Gerät zählt sie durch statt der Checkliste der Art.
+   */
+  kiste: integer("kiste", { mode: "boolean" }).notNull().default(false),
 });
 
 /**
@@ -118,6 +123,22 @@ export const geraet = sqliteTable("geraet", {
 ]);
 
 /**
+ * Die Inhaltsliste einer Materialkiste (IDA-335): je Position die Soll-Menge. Beim Durchzählen wird jede Position
+ * „vollständig“ oder „fehlt“; was fehlt, wird ein Mangel mit `fehlt`.
+ */
+export const inhalt = sqliteTable("inhalt", {
+  id: text("id").primaryKey(),
+  geraetId: text("geraet_id").notNull().references(() => geraet.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  soll: integer("soll").notNull(),
+  bemerkung: text("bemerkung").notNull().default(""),
+  position: integer("position").notNull().default(0),
+}, (t) => [
+  index("inhalt_geraet_idx").on(t.geraetId, t.position),
+  check("inhalt_soll", sql`soll >= 1`),
+]);
+
+/**
  * Der Verlauf eines Geräts. `pruefung` und `erledigt` tragen eine `frist_id` und setzen deren Stand; `titel`
  * hält den Namen der Frist zum Zeitpunkt fest (die Frist kann später umbenannt oder entfernt werden).
  * `antworten` (JSON) ist der Nachweis der Checkliste: `[{ text, ok }]`.
@@ -162,6 +183,8 @@ export const mangel = sqliteTable("mangel", {
   behobenAm: integer("behoben_am"),
   behobenVon: text("behoben_von"),
   gepushtAm: integer("gepusht_am"),
+  /** Beim Durchzählen einer Materialkiste als fehlend gemeldet (IDA-335). */
+  fehlt: integer("fehlt", { mode: "boolean" }).notNull().default(false),
 }, (t) => [
   index("mangel_geraet_idx").on(t.geraetId, t.behobenAm),
   index("mangel_offen_idx").on(t.behobenAm, t.gemeldetAm),

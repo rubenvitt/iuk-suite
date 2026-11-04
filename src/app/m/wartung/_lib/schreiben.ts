@@ -7,8 +7,10 @@
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
-import { art, checkpunkt, eintrag, frist, geraet, gruppe, mangel, verwalter } from "../_db/schema";
-import { artIkone, type ArtEingabe, type ErledigtEingabe, type GeraetEingabe, type GruppeEingabe, type PruefungEingabe } from "./eingabe";
+import { art, checkpunkt, eintrag, frist, geraet, gruppe, inhalt, mangel, verwalter } from "../_db/schema";
+import {
+  artIkone, type ArtEingabe, type ErledigtEingabe, type GeraetEingabe, type GruppeEingabe, type InhaltEingabe, type PruefungEingabe,
+} from "./eingabe";
 
 export class Abgelehnt extends Error {
   constructor(text: string, readonly feld?: string) {
@@ -65,7 +67,7 @@ export function gruppeLoeschen(db: WartungDb, id: string): void {
 export function artSpeichern(db: WartungDb, id: string | null, e: ArtEingabe, jetzt: number): string {
   return db.transaction((tx) => {
     const artId = id ?? neueId();
-    const werte = { name: e.name, einzahl: e.einzahl, ikone: artIkone(e.ikone), stundenPflicht: e.stundenPflicht, aktualisiertAm: jetzt };
+    const werte = { name: e.name, einzahl: e.einzahl, ikone: artIkone(e.ikone), stundenPflicht: e.stundenPflicht, kiste: e.kiste, aktualisiertAm: jetzt };
     if (id) {
       const r = tx.update(art).set(werte).where(eq(art.id, id)).run();
       if (r.changes === 0) throw new Abgelehnt("Diese Geräteart gibt es nicht mehr.");
@@ -118,6 +120,37 @@ export function geraetAendern(db: WartungDb, id: string, e: GeraetEingabe, jetzt
 
 export function geraetAktiv(db: WartungDb, id: string, aktiv: boolean, jetzt: number): void {
   db.update(geraet).set({ aktiv, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
+}
+
+/**
+ * Ersetzt die Inhaltsliste einer Materialkiste (IDA-335). Bekannte Positionen behalten ihre ID, neue bekommen
+ * eine; was fehlt, geht weg. Der Verlauf hält den Text zum Zeitpunkt jeder Prüfung selbst fest.
+ */
+export function inhaltSpeichern(db: WartungDb, geraetId: string, liste: InhaltEingabe): void {
+  db.transaction((tx) => {
+    const g = aktivesGeraet(tx, geraetId);
+    if (!tx.select({ kiste: art.kiste }).from(art).where(eq(art.id, g.artId)).get()?.kiste) {
+      throw new Abgelehnt("Nur eine Materialkiste hat eine Inhaltsliste.");
+    }
+    const bestehend = new Set(tx.select({ id: inhalt.id }).from(inhalt).where(eq(inhalt.geraetId, geraetId)).all().map((x) => x.id));
+    const behalten = liste.map((p) => p.id).filter((x): x is string => x !== null && bestehend.has(x));
+    tx.delete(inhalt).where(behalten.length ? and(eq(inhalt.geraetId, geraetId), notInArray(inhalt.id, behalten)) : eq(inhalt.geraetId, geraetId)).run();
+    liste.forEach((p, position) => {
+      const w = { text: p.text, soll: p.soll, bemerkung: p.bemerkung, position };
+      if (p.id && bestehend.has(p.id)) tx.update(inhalt).set(w).where(eq(inhalt.id, p.id)).run();
+      else tx.insert(inhalt).values({ id: neueId(), geraetId, ...w }).run();
+    });
+  });
+}
+
+/** Die Punkte der Prüfung am Gerät: die Checkliste der Art, bei einer Materialkiste ihre Inhaltsliste. */
+function pruefpunkte(db: WartungSchreiber, g: { id: string; artId: string }, kiste: boolean) {
+  if (kiste) {
+    return db.select().from(inhalt).where(eq(inhalt.geraetId, g.id)).orderBy(inhalt.position).all()
+      .map((p) => ({ id: p.id, text: p.text, soll: p.soll as number | null }));
+  }
+  return db.select().from(checkpunkt).where(eq(checkpunkt.artId, g.artId)).orderBy(checkpunkt.position).all()
+    .map((p) => ({ id: p.id, text: p.text, soll: null as number | null }));
 }
 
 /** Wartung oder Elektroprüfung, von der Verwaltung eingetragen. */
@@ -195,6 +228,9 @@ export function schonGesendet(
  * dem Foto, das die Route schon abgelegt hat). „In Ordnung“ geht nur ohne Mangel, und ein schlechteres Ergebnis
  * ohne einzelnen Punkt braucht eine Bemerkung: sie wird dann der Mangel — sonst stünde ein Gerät auf „mit
  * Mangel“, das niemand beheben kann.
+ *
+ * Bei einer Materialkiste (IDA-335) sind die Punkte ihre Inhaltsliste: „fehlt“ braucht keinen Text, denn die
+ * Position sagt schon, was fehlt; der Mangel trägt `fehlt` und erscheint so in „Was steht an“.
  */
 export function pruefungAbschliessen(
   db: WartungDb,
@@ -206,37 +242,40 @@ export function pruefungAbschliessen(
   return db.transaction((tx) => {
     const g = aktivesGeraet(tx, geraetId);
     const a = tx.select().from(art).where(eq(art.id, g.artId)).get()!;
-    const punkte = tx.select().from(checkpunkt).where(eq(checkpunkt.artId, g.artId)).orderBy(checkpunkt.position).all();
+    const punkte = pruefpunkte(tx, g, a.kiste);
+    if (a.kiste && punkte.length === 0) throw new Abgelehnt("Die Kiste hat noch keine Inhaltsliste.");
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));
-    if (punkte.some((pk) => !antwort.has(pk.id))) throw new Abgelehnt("Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.");
+    const meldung = a.kiste ? "Die Inhaltsliste hat sich geändert. Bitte neu durchzählen." : "Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.";
+    if (punkte.some((pk) => !antwort.has(pk.id))) throw new Abgelehnt(meldung);
     if (a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
     pruefeStunden(p.stunden, g.stunden);
 
     const mitMangel = punkte.filter((pk) => !antwort.get(pk.id)!.ok);
-    if (mitMangel.some((pk) => !antwort.get(pk.id)!.text)) throw new Abgelehnt("Bei jedem Mangel kurz beschreiben, was los ist.");
+    if (!a.kiste && mitMangel.some((pk) => !antwort.get(pk.id)!.text)) throw new Abgelehnt("Bei jedem Mangel kurz beschreiben, was los ist.");
     if (mitMangel.length > 0 && p.ergebnis === "ok") throw new Abgelehnt("Mit Mangel ist das Ergebnis nicht „In Ordnung“.", "ergebnis");
     if (mitMangel.length === 0 && p.ergebnis !== "ok" && !p.notiz) {
       throw new Abgelehnt("Bitte in der Bemerkung beschreiben, was nicht stimmt.", "notiz");
     }
 
-    const maengel: NeuerMangel[] = mitMangel.map((pk) => {
+    const maengel: (NeuerMangel & { fehlt: boolean })[] = mitMangel.map((pk) => {
       const x = antwort.get(pk.id)!;
       const id = fotos.get(pk.id) ?? neueId();
-      return { id, text: `${pk.text}: ${x.text}`, foto: fotos.has(pk.id) };
+      const text = a.kiste ? `Fehlt: ${pk.text} (Soll ${pk.soll})${x.text ? ` – ${x.text}` : ""}` : `${pk.text}: ${x.text}`;
+      return { id, text, foto: fotos.has(pk.id), fehlt: a.kiste };
     });
-    if (mitMangel.length === 0 && p.ergebnis !== "ok") maengel.push({ id: neueId(), text: p.notiz, foto: false });
+    if (mitMangel.length === 0 && p.ergebnis !== "ok") maengel.push({ id: neueId(), text: p.notiz, foto: false, fehlt: false });
 
     const pruefFrist = tx.select().from(frist).where(and(eq(frist.artId, g.artId), eq(frist.wer, "intern"))).get();
     tx.insert(eintrag).values({
       id: p.sendung, geraetId, typ: "pruefung", fristId: pruefFrist?.id ?? null, titel: pruefFrist?.name ?? "Prüfung",
       am: k.heute, stunden: p.stunden, wer: k.wer, notiz: p.notiz, ergebnis: p.ergebnis,
-      antworten: JSON.stringify(punkte.map((pk) => ({ text: pk.text, ok: antwort.get(pk.id)!.ok }))),
+      antworten: JSON.stringify(punkte.map((pk) => ({ text: pk.soll === null ? pk.text : `${pk.soll} × ${pk.text}`, ok: antwort.get(pk.id)!.ok }))),
       maengel: maengel.length, angelegtAm: k.jetzt,
     }).run();
     if (p.stunden !== null) tx.update(geraet).set({ stunden: p.stunden, aktualisiertAm: k.jetzt }).where(eq(geraet.id, geraetId)).run();
     for (const m of maengel) {
       tx.insert(mangel).values({
-        id: m.id, geraetId, text: m.text, foto: m.foto, einsatzbereit: p.ergebnis !== "defekt", gemeldetAm: k.jetzt, gemeldetVon: k.wer,
+        id: m.id, geraetId, text: m.text, foto: m.foto, einsatzbereit: p.ergebnis !== "defekt", gemeldetAm: k.jetzt, gemeldetVon: k.wer, fehlt: m.fehlt,
       }).run();
     }
     return { maengel: maengel.length };

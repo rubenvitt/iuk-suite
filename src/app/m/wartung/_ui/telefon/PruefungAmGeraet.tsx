@@ -16,13 +16,18 @@ import s from "../wartung.module.css";
 type Antwort = { ok: boolean; text: string; foto: File | null };
 const NETZ = "Keine Verbindung. Deine Angaben sind noch da, bitte gleich noch einmal senden.";
 
+/**
+ * Die Prüfung am Gerät mit der Checkliste der Art. Bei einer Materialkiste (`kiste`, IDA-335) sind die Punkte ihre
+ * Inhaltsliste: je Position „Vollständig“ oder „Fehlt“, ohne Pflichttext, und ohne Betriebsstunden.
+ */
 export function PruefungAmGeraet({
-  geraetId, geraetName, titel, checkliste, stundenPflicht, stundenZuletzt,
+  geraetId, geraetName, titel, checkliste, kiste = false, stundenPflicht, stundenZuletzt,
 }: {
   geraetId: string;
   geraetName: string;
   titel: string;
   checkliste: CheckpunktDTO[];
+  kiste?: boolean;
   stundenPflicht: boolean;
   stundenZuletzt: number | null;
 }) {
@@ -41,7 +46,7 @@ export function PruefungAmGeraet({
   const gewaehlt: Zustand = ergebnis === "ok" && maengel.length > 0 ? "mangel" : ergebnis ?? (maengel.length ? "mangel" : "ok");
   const stundenFehlt = stundenPflicht && stunden === null;
   const zuKlein = stunden !== null && stundenZuletzt !== null && stunden < stundenZuletzt;
-  const ohneText = maengel.some((c) => !antworten[c.id].text.trim());
+  const ohneText = !kiste && maengel.some((c) => !antworten[c.id].text.trim());
   const ohneBemerkung = maengel.length === 0 && gewaehlt !== "ok" && !notiz.trim();
   const bereit = erledigt === checkliste.length && !stundenFehlt && !zuKlein && !ohneText && !ohneBemerkung;
   const setze = (id: string, teil: Partial<Antwort>) =>
@@ -87,6 +92,8 @@ export function PruefungAmGeraet({
     );
   }
 
+  const wahlText = kiste ? { ok: "Vollständig", mangel: "Fehlt" } : { ok: "In Ordnung", mangel: "Mangel" };
+
   return (
     <div className={s.telefon}>
       <section className={s.karte}>
@@ -95,7 +102,7 @@ export function PruefungAmGeraet({
         <Progress percent={Math.round((erledigt / Math.max(1, checkliste.length)) * 100)} format={() => `${erledigt} von ${checkliste.length}`} aria-label="Fortschritt" />
       </section>
 
-      <section className={s.karte}>
+      {!kiste && <section className={s.karte}>
         <Kicker className={s.karteTitel}>Betriebsstunden</Kicker>
         <InputNumber
           aria-label="Betriebsstunden am Zähler"
@@ -111,21 +118,24 @@ export function PruefungAmGeraet({
         <div className={`${s.neben} ${s.klein}`} style={{ marginTop: 4 }} aria-live="polite">
           {zuKlein ? `Kleiner als der letzte Stand (${stundenZuletzt} h). Bitte noch einmal ablesen.` : stundenZuletzt !== null ? `Zuletzt ${stundenZuletzt} h` : null}
         </div>
-      </section>
+      </section>}
 
       {checkliste.map((c, i) => {
         const a = antworten[c.id];
         return (
           <section key={c.id} className={s.karte} data-rolle="pruefpunkt">
             <div className={s.quer} style={{ alignItems: "flex-start" }}>
-              <strong><span className={s.ziffern}>{i + 1}.</span> {c.text}</strong>
-              {c.hinweis && (
+              <strong>
+                {c.soll !== undefined ? <span className={s.ziffern}>{c.soll} ×</span> : <span className={s.ziffern}>{i + 1}.</span>} {c.text}
+              </strong>
+              {c.hinweis && !kiste && (
                 <Button type="text" aria-expanded={offenerHinweis === c.id} onClick={() => setOffenerHinweis(offenerHinweis === c.id ? null : c.id)} icon={<Icons8Ikone name="help" groesse={20} />}>
                   So geht’s
                 </Button>
               )}
             </div>
-            {offenerHinweis === c.id && <p className={s.hinweis}>{c.hinweis}</p>}
+            {kiste && c.hinweis && <p className={s.hinweis}>{c.hinweis}</p>}
+            {!kiste && offenerHinweis === c.id && <p className={s.hinweis}>{c.hinweis}</p>}
             <div className={s.wahl} role="radiogroup" aria-label={c.text}>
               {(["ok", "mangel"] as const).map((wert) => (
                 <label key={wert}>
@@ -136,7 +146,7 @@ export function PruefungAmGeraet({
                     checked={a ? (a.ok ? "ok" : "mangel") === wert : false}
                     onChange={() => setze(c.id, { ok: wert === "ok" })}
                   />
-                  <Icons8Ikone name={wert === "ok" ? "checkmark" : "warning"} groesse={20} /> {wert === "ok" ? "In Ordnung" : "Mangel"}
+                  <Icons8Ikone name={wert === "ok" ? "checkmark" : "warning"} groesse={20} /> {wahlText[wert]}
                 </label>
               ))}
             </div>
@@ -146,9 +156,9 @@ export function PruefungAmGeraet({
                   value={a.text}
                   maxLength={NOTIZ_MAX}
                   onChange={(e) => setze(c.id, { text: e.target.value })}
-                  placeholder="Was ist los?"
-                  autoSize={{ minRows: 2 }}
-                  aria-label={`Mangel bei ${c.text}`}
+                  placeholder={kiste ? "Wie viele fehlen?" : "Was ist los?"}
+                  autoSize={{ minRows: kiste ? 1 : 2 }}
+                  aria-label={kiste ? `Fehlt bei ${c.text}` : `Mangel bei ${c.text}`}
                 />
                 <FotoWahl name={`foto-${c.id}`} datei={a.foto} setDatei={(f) => setze(c.id, { foto: f })} />
               </div>
@@ -191,14 +201,16 @@ export function PruefungAmGeraet({
           <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} aria-live="polite" role={fehler ? "alert" : undefined}>
             {fehler ?? [
               stundenFehlt ? "Betriebsstunden fehlen." : null,
-              erledigt < checkliste.length ? `Noch ${checkliste.length - erledigt} ${checkliste.length - erledigt === 1 ? "Punkt" : "Punkte"} offen.` : null,
+              erledigt < checkliste.length
+                ? `Noch ${checkliste.length - erledigt} ${checkliste.length - erledigt === 1 ? (kiste ? "Position" : "Punkt") : (kiste ? "Positionen" : "Punkte")} offen.`
+                : null,
               ohneText ? "Bei jedem Mangel beschreiben, was los ist." : null,
               ohneBemerkung ? "Bitte in der Bemerkung beschreiben, was nicht stimmt." : null,
             ].filter(Boolean).join(" ")}
           </div>
         )}
         <Button type="primary" block disabled={!bereit} loading={laeuft} onClick={() => void senden()}>
-          Prüfung abschließen
+          {kiste ? "Durchzählen abschließen" : "Prüfung abschließen"}
         </Button>
       </div>
     </div>

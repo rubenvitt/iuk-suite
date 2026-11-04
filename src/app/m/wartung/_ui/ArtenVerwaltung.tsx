@@ -19,13 +19,13 @@ const WER_WAHL = (Object.keys(WER_TEXT) as Wer[]).map((w) => ({ value: w, label:
 function entwurfAus(a: ArtDTO | null): Entwurf {
   if (!a) {
     return {
-      id: null, name: "", einzahl: "", ikone: "wrench", stundenPflicht: false,
+      id: null, name: "", einzahl: "", ikone: "wrench", stundenPflicht: false, kiste: false,
       fristen: [{ id: null, name: "Quartalsprüfung", wer: "intern", monate: 3, stunden: null }],
       checkliste: [{ id: null, text: "Sichtprüfung", hinweis: "" }],
     };
   }
   return {
-    id: a.id, name: a.name, einzahl: a.einzahl, ikone: a.ikone, stundenPflicht: a.stundenPflicht,
+    id: a.id, name: a.name, einzahl: a.einzahl, ikone: a.ikone, stundenPflicht: a.stundenPflicht, kiste: a.kiste,
     fristen: a.fristen.map((f) => ({ id: f.id, name: f.name, wer: f.wer, monate: f.monate, stunden: f.stunden })),
     checkliste: a.checkliste.map((p) => ({ id: p.id, text: p.text, hinweis: p.hinweis })),
   };
@@ -77,7 +77,8 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
             ))}
           </ul>
           {a.stundenPflicht && <p className={s.neben}>Betriebsstunden bei jeder Prüfung Pflicht.</p>}
-          {a.checkliste.length > 0 && (
+          {a.kiste && <p className={s.neben}>Materialkiste mit Inhaltsliste.</p>}
+          {!a.kiste && a.checkliste.length > 0 && (
             <>
               <Kicker>Checkliste der Prüfung am Gerät</Kicker>
               <ol style={{ margin: "8px 0 0", paddingInlineStart: 20 }}>
@@ -122,6 +123,9 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
             <Form.Item label="Betriebsstunden bei jeder Prüfung Pflicht">
               <Switch checked={e.stundenPflicht} onChange={(v) => setze({ stundenPflicht: v })} aria-label="Betriebsstunden bei jeder Prüfung Pflicht" />
             </Form.Item>
+            <Form.Item label="Materialkiste mit Inhaltsliste">
+              <Switch checked={e.kiste} onChange={(v) => setze({ kiste: v })} aria-label="Materialkiste mit Inhaltsliste" />
+            </Form.Item>
 
             <Kicker>Fristen</Kicker>
             {feldFehler.fristen && <div className={s.textRot}>{feldFehler.fristen}</div>}
@@ -146,35 +150,39 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
               Frist hinzufügen
             </Button>
 
-            <Kicker>Checkliste der Prüfung am Gerät</Kicker>
-            {feldFehler.checkliste && <div className={s.textRot}>{feldFehler.checkliste}</div>}
-            <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {e.checkliste.map((p, i) => {
-                const setzePunkt = (teil: Partial<typeof p>) => setze({ checkliste: e.checkliste.map((x, j) => (j === i ? { ...x, ...teil } : x)) });
-                return (
-                  <li key={p.id ?? `neu-${i}`} className={s.punkt}>
-                    <span className={s.nummer}>{i + 1}</span>
-                    <div className={s.felder}>
-                      <Input value={p.text} maxLength={PUNKT_MAX} onChange={(x) => setzePunkt({ text: x.target.value })} aria-label={`Punkt ${i + 1}`} status={feldFehler[`checkliste.${i}.text`] ? "error" : undefined} />
-                      <Input.TextArea value={p.hinweis} maxLength={NOTIZ_MAX} autoSize={{ minRows: 1, maxRows: 4 }} placeholder="So geht’s" onChange={(x) => setzePunkt({ hinweis: x.target.value })} aria-label={`So geht Punkt ${i + 1}`} />
-                    </div>
-                    <div className={s.knoepfe}>
-                      <Button type="text" aria-label={`Punkt ${i + 1} nach oben`} disabled={i === 0} onClick={() => verschiebe(i, -1)} icon={<Icons8Ikone name="arrow-up" groesse={16} />} />
-                      <Button type="text" aria-label={`Punkt ${i + 1} nach unten`} disabled={i === e.checkliste.length - 1} onClick={() => verschiebe(i, 1)} icon={<Icons8Ikone name="arrow-down" groesse={16} />} />
-                      <Button type="text" aria-label={`Punkt ${i + 1} entfernen`} onClick={() => setze({ checkliste: e.checkliste.filter((_, j) => j !== i) })} icon={<Icons8Ikone name="trash" groesse={16} />} />
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-            <Button
-              type="dashed"
-              icon={<Icons8Ikone name="plus" groesse={16} />}
-              style={{ marginTop: 8 }}
-              onClick={() => setze({ checkliste: [...e.checkliste, { id: null, text: "", hinweis: "" }] })}
-            >
-              Punkt hinzufügen
-            </Button>
+            {!e.kiste && (
+              <>
+                <Kicker>Checkliste der Prüfung am Gerät</Kicker>
+                {feldFehler.checkliste && <div className={s.textRot}>{feldFehler.checkliste}</div>}
+                <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {e.checkliste.map((p, i) => {
+                    const setzePunkt = (teil: Partial<typeof p>) => setze({ checkliste: e.checkliste.map((x, j) => (j === i ? { ...x, ...teil } : x)) });
+                    return (
+                      <li key={p.id ?? `neu-${i}`} className={s.punkt}>
+                        <span className={s.nummer}>{i + 1}</span>
+                        <div className={s.felder}>
+                          <Input value={p.text} maxLength={PUNKT_MAX} onChange={(x) => setzePunkt({ text: x.target.value })} aria-label={`Punkt ${i + 1}`} status={feldFehler[`checkliste.${i}.text`] ? "error" : undefined} />
+                          <Input.TextArea value={p.hinweis} maxLength={NOTIZ_MAX} autoSize={{ minRows: 1, maxRows: 4 }} placeholder="So geht’s" onChange={(x) => setzePunkt({ hinweis: x.target.value })} aria-label={`So geht Punkt ${i + 1}`} />
+                        </div>
+                        <div className={s.knoepfe}>
+                          <Button type="text" aria-label={`Punkt ${i + 1} nach oben`} disabled={i === 0} onClick={() => verschiebe(i, -1)} icon={<Icons8Ikone name="arrow-up" groesse={16} />} />
+                          <Button type="text" aria-label={`Punkt ${i + 1} nach unten`} disabled={i === e.checkliste.length - 1} onClick={() => verschiebe(i, 1)} icon={<Icons8Ikone name="arrow-down" groesse={16} />} />
+                          <Button type="text" aria-label={`Punkt ${i + 1} entfernen`} onClick={() => setze({ checkliste: e.checkliste.filter((_, j) => j !== i) })} icon={<Icons8Ikone name="trash" groesse={16} />} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <Button
+                  type="dashed"
+                  icon={<Icons8Ikone name="plus" groesse={16} />}
+                  style={{ marginTop: 8 }}
+                  onClick={() => setze({ checkliste: [...e.checkliste, { id: null, text: "", hinweis: "" }] })}
+                >
+                  Punkt hinzufügen
+                </Button>
+              </>
+            )}
           </Form>
         )}
       </Modal>

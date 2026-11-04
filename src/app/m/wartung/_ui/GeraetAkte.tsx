@@ -10,7 +10,7 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { erledigtEintragenAction, geraetAendernAction, geraetAktivAction, mangelBehebenAction } from "../_actions/verwaltung";
 import { NAME_MAX, NOTIZ_MAX } from "../_lib/eingabe";
 import { ERGEBNIS_TEXT, intervallText, WER_TEXT, type FristStand } from "../_lib/fristen";
-import type { EintragDTO, GeraetZeile, MangelDTO } from "../_lib/typen";
+import type { EintragDTO, GeraetZeile, InhaltDTO, MangelDTO } from "../_lib/typen";
 import { GeraetFormular } from "./GeraetFormular";
 import { MangelEintrag } from "./MangelEintrag";
 import { Chip, datum, FristChip, OrtText, stundenText, ZUSTAND_FARBE, ZustandChip } from "./teile";
@@ -20,9 +20,11 @@ import s from "./wartung.module.css";
 type Erledigt = { am: string; stunden: number | null; wer: string; notiz: string };
 
 export function GeraetAkte({
-  g, maengel, verlauf, qr, heute, arten, gruppen, orte,
+  g, inhalt, maengel, verlauf, qr, heute, arten, gruppen, orte,
 }: {
   g: GeraetZeile;
+  /** Nur bei einer Materialkiste (IDA-335). */
+  inhalt: InhaltDTO[];
   maengel: MangelDTO[];
   verlauf: EintragDTO[];
   qr: string;
@@ -124,7 +126,7 @@ export function GeraetAkte({
                       </div>
                       {v.notiz && <div>{v.notiz}</div>}
                       {v.antworten && v.antworten.some((a) => !a.ok) && (
-                        <div className={s.neben}>Mangel bei: {v.antworten.filter((a) => !a.ok).map((a) => a.text).join(", ")}</div>
+                        <div className={s.neben}>{g.kiste ? "Fehlt" : "Mangel bei"}: {v.antworten.filter((a) => !a.ok).map((a) => a.text).join(", ")}</div>
                       )}
                     </div>
                   </li>
@@ -144,13 +146,30 @@ export function GeraetAkte({
                 { key: "s", label: "Seriennummer", children: <span className={s.mono}>{g.seriennr || "—"}</span> },
                 { key: "o", label: g.ortArt === "fahrzeug" ? "Fahrzeug" : "Standort", children: <OrtText ortArt={g.ortArt} ort={g.ort} /> },
                 { key: "b", label: "Betriebsstunden", children: <span className={s.ziffern}>{g.stunden !== null ? stundenText(g.stunden) : "nicht erfasst"}</span> },
-              ]}
+              ].filter((z) => !g.kiste || (z.key === "h" ? Boolean(g.hersteller || g.typ) : z.key === "s" ? Boolean(g.seriennr) : z.key === "b" ? g.stunden !== null : true))}
             />
           </Card>
+          {g.kiste && (
+            <Card
+              title={`Inhalt (${inhalt.length})`}
+              extra={g.aktiv && <Button href={`/g/${g.id}/inhalt`} icon={<Icons8Ikone name="pencil" groesse={16} />}>Bearbeiten</Button>}
+            >
+              {inhalt.length === 0 ? <p className={s.neben} style={{ margin: 0 }}>Noch keine Inhaltsliste.</p> : (
+                <ul className={s.inhaltListe} aria-label="Inhalt">
+                  {inhalt.map((p) => (
+                    <li key={p.id} className={s.inhaltPosten}>
+                      <span className={s.soll}>{p.soll} ×</span>
+                      <span>{p.text}{p.bemerkung && <span className={s.neben}> · {p.bemerkung}</span>}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          )}
           <Card title="QR-Etikett">
             <div className={s.qrRahmen}>
               <div className={s.qr} dangerouslySetInnerHTML={{ __html: qr }} />
-              <Link href={`/etiketten?geraet=${g.id}`}>Etikett drucken</Link>
+              <Link href={g.kiste ? `/etiketten/kisten?geraet=${g.id}` : `/etiketten?geraet=${g.id}`}>Etikett drucken</Link>
             </div>
           </Card>
         </div>

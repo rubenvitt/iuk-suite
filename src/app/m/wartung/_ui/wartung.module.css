@@ -136,3 +136,15 @@ a.zeile:hover { background: var(--iuk-flaeche-aktiv); }
 .fotoVorschau { position: relative; display: inline-block; }
 .fotoWeg { position: absolute; top: 6px; inset-inline-end: 6px; }
 .meldung { padding: 10px 12px; border-radius: 8px; color: var(--gw-gelb-text); background: var(--gw-gelb-flaeche); }
+
+/* Materialkisten (IDA-335): Inhaltsliste am Telefon und in der Akte */
+.inhaltListe { list-style: none; margin: 0; padding: 0; }
+.inhaltZeile { display: grid; gap: 8px; padding: 12px 0; }
+.inhaltZeile:first-child { padding-top: 0; }
+.inhaltZeile + .inhaltZeile { border-top: 1px solid var(--iuk-linie); }
+.inhaltZeile .knoepfe { justify-content: flex-end; }
+.inhaltFelder { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 8px; }
+.soll { min-width: 3ch; text-align: end; font-variant-numeric: tabular-nums; font-weight: 600; }
+.inhaltPosten { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: baseline; padding: 6px 0; }
+.inhaltPosten + .inhaltPosten { border-top: 1px solid var(--iuk-linie); }
+.inhaltPosten > span:last-child { overflow-wrap: anywhere; }
