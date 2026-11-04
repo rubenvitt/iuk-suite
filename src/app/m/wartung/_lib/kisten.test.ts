@@ -167,6 +167,27 @@ describe("Materialkisten (IDA-335)", () => {
     expect(ladeGeraet(db, id, HEUTE)).toMatchObject({ offeneMaengel: 1, fehlend: 0 });
   });
 
+  it("Antworten zu einer inzwischen entfernten Position machen die Zählung ungültig", () => {
+    const { db, id, liste } = mitKiste();
+    const angezeigt = zaehlung(liste);
+    inhaltSpeichern(db, id, [liste[0]]);
+    expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten: angezeigt }, new Map(), K))
+      .toThrow(/Inhaltsliste hat sich geändert/);
+  });
+
+  it("ein umbenannter Inhalt behebt den Fehlt-Mangel der alten Position nicht", () => {
+    const { db, id, liste } = mitKiste();
+    zaehle(db, id, liste, { 1: "" });
+    inhaltSpeichern(db, id, [liste[0], { ...liste[1], text: "USB-C-Dock" }]);
+    expect(offen(db, id)).toMatchObject([{ fehlt: true, inhaltId: null }]);
+    expect(zaehle(db, id, ladeInhalt(db, id)).maengel).toBe(0);
+    expect(offen(db, id)).toHaveLength(1);
+    // Nur der Wortlaut zählt: Menge oder Bemerkung geändert, bleibt der Bezug.
+    zaehle(db, id, ladeInhalt(db, id), { 0: "" });
+    inhaltSpeichern(db, id, [{ ...liste[0], soll: 4, bemerkung: "neu" }, ladeInhalt(db, id)[1]]);
+    expect(offen(db, id).filter((m) => m.inhaltId === liste[0].id)).toHaveLength(1);
+  });
+
   it("eine Materialkiste hat keine Betriebsstunden-Pflicht", () => {
     const art = { name: "Kisten", einzahl: "Kiste", ikone: "package", kiste: true, checkliste: [],
       fristen: [{ id: null, name: "Quartalsprüfung", wer: "intern" as const, monate: 3, stunden: null }] };

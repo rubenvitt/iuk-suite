@@ -132,13 +132,17 @@ export function inhaltSpeichern(db: WartungDb, geraetId: string, liste: InhaltEi
     if (!tx.select({ kiste: art.kiste }).from(art).where(eq(art.id, g.artId)).get()?.kiste) {
       throw new Abgelehnt("Nur eine Materialkiste hat eine Inhaltsliste.");
     }
-    const bestehend = new Set(tx.select({ id: inhalt.id }).from(inhalt).where(eq(inhalt.geraetId, geraetId)).all().map((x) => x.id));
+    const bestehend = new Map(tx.select({ id: inhalt.id, text: inhalt.text }).from(inhalt).where(eq(inhalt.geraetId, geraetId)).all().map((x) => [x.id, x.text]));
     const behalten = liste.map((p) => p.id).filter((x): x is string => x !== null && bestehend.has(x));
     tx.delete(inhalt).where(behalten.length ? and(eq(inhalt.geraetId, geraetId), notInArray(inhalt.id, behalten)) : eq(inhalt.geraetId, geraetId)).run();
     liste.forEach((p, position) => {
       const w = { text: p.text, soll: p.soll, bemerkung: p.bemerkung, position };
-      if (p.id && bestehend.has(p.id)) tx.update(inhalt).set(w).where(eq(inhalt.id, p.id)).run();
-      else tx.insert(inhalt).values({ id: neueId(), geraetId, ...w }).run();
+      if (p.id && bestehend.has(p.id)) {
+        // Neuer Wortlaut ist eine andere Sache: ein offener Fehlt-Mangel der alten löst sich wie bei einer
+        // gelöschten Position von ihr und bleibt offen, statt durch die Zählung der neuen behoben zu werden.
+        if (bestehend.get(p.id) !== p.text) tx.update(mangel).set({ inhaltId: null }).where(and(eq(mangel.inhaltId, p.id), isNull(mangel.behobenAm))).run();
+        tx.update(inhalt).set(w).where(eq(inhalt.id, p.id)).run();
+      } else tx.insert(inhalt).values({ id: neueId(), geraetId, ...w }).run();
     });
   });
 }
@@ -283,7 +287,7 @@ export function pruefungAbschliessen(
     if (a.kiste && punkte.length === 0) throw new Abgelehnt("Die Kiste hat noch keine Inhaltsliste.");
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));
     const meldung = a.kiste ? "Die Inhaltsliste hat sich geändert. Bitte neu durchzählen." : "Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.";
-    if (punkte.some((pk) => !antwort.has(pk.id))) throw new Abgelehnt(meldung);
+    if (punkte.some((pk) => !antwort.has(pk.id)) || (a.kiste && antwort.size !== punkte.length)) throw new Abgelehnt(meldung);
     // Gezählt wurde gegen Menge und Wortlaut auf dem Bildschirm; hat sie jemand inzwischen geändert, gilt die Zählung nicht.
     if (a.kiste && punkte.some((pk) => antwort.get(pk.id)!.soll !== pk.soll || antwort.get(pk.id)!.punkt !== pk.text)) throw new Abgelehnt(meldung);
     if (!a.kiste && a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
