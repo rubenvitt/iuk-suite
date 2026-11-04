@@ -49,8 +49,9 @@ export function artikelAendern(db: VerpflegungDb, id: string, e: ArtikelEingabe,
   const alt = db.select({ einheit: artikel.einheit }).from(artikel).where(eq(artikel.id, id)).get();
   if (!alt) throw new Abgelehnt("Diesen Artikel gibt es nicht mehr.");
   eanFrei(db, e.ean, id);
-  if (alt.einheit !== e.einheit && db.select({ id: charge.id }).from(charge).where(eq(charge.artikelId, id)).limit(1).get()) {
-    throw new Abgelehnt("Die Einheit lässt sich nur ändern, solange nichts davon im Lager liegt.", "einheit");
+  // Gegen Buchungen geprüft, nicht gegen Chargen: das Journal zeigt die Einheit des Artikels, auch rückwirkend.
+  if (alt.einheit !== e.einheit && db.select({ id: buchung.id }).from(buchung).where(eq(buchung.artikelId, id)).limit(1).get()) {
+    throw new Abgelehnt("Die Einheit lässt sich nur ändern, solange nichts darauf gebucht ist.", "einheit");
   }
   db.update(artikel).set({ ...e, vorlaeufig: false, aktualisiertAm: jetzt }).where(eq(artikel.id, id)).run();
 }
@@ -132,36 +133,41 @@ function pruefeMenge(m: number, einheit: string): void {
 
 /** Eingang: gleiche Ware, gleicher Ort, gleiches MHD wird zur selben Charge zusammengezählt. */
 export function eingang(db: VerpflegungDb, e: { artikelId: string; ortId: string; mhd: string; menge: number }, w: Wer): { chargeId: string } {
+  const menge = runde(e.menge);
   return db.transaction((tx) => {
     const a = aktiverArtikel(tx, e.artikelId);
     const o = tx.select({ aktiv: lagerort.aktiv }).from(lagerort).where(eq(lagerort.id, e.ortId)).get();
     if (!o || !o.aktiv) throw new Abgelehnt("Diesen Lagerort gibt es nicht mehr.");
-    pruefeMenge(e.menge, a.einheit);
+    pruefeMenge(menge, a.einheit);
+    if (menge <= 0) throw new Abgelehnt("Mindestens 0,001.", "menge");
     if (tageBis(e.mhd, w.heute) < 0) throw new Abgelehnt("Dieses Datum liegt in der Vergangenheit. Abgelaufene Ware nicht einbuchen.", "mhd");
     const da = tx.select({ id: charge.id, menge: charge.menge }).from(charge)
       .where(and(eq(charge.artikelId, e.artikelId), eq(charge.ortId, e.ortId), eq(charge.mhd, e.mhd))).get();
     let chargeId: string;
     if (da) {
       chargeId = da.id;
-      tx.update(charge).set({ menge: runde(da.menge + e.menge), aktualisiertAm: w.jetzt }).where(eq(charge.id, da.id)).run();
+      tx.update(charge).set({ menge: runde(da.menge + menge), aktualisiertAm: w.jetzt }).where(eq(charge.id, da.id)).run();
     } else {
       chargeId = neueId();
-      tx.insert(charge).values({ id: chargeId, artikelId: e.artikelId, ortId: e.ortId, mhd: e.mhd, menge: runde(e.menge), eingang: w.heute, angelegtAm: w.jetzt, aktualisiertAm: w.jetzt }).run();
+      tx.insert(charge).values({ id: chargeId, artikelId: e.artikelId, ortId: e.ortId, mhd: e.mhd, menge, eingang: w.heute, angelegtAm: w.jetzt, aktualisiertAm: w.jetzt }).run();
     }
-    tx.insert(buchung).values({ id: neueId(), zeit: w.jetzt, art: "eingang", artikelId: e.artikelId, ortId: e.ortId, mhd: e.mhd, menge: runde(e.menge), wer: w.wer, linkId: w.linkId }).run();
+    tx.insert(buchung).values({ id: neueId(), zeit: w.jetzt, art: "eingang", artikelId: e.artikelId, ortId: e.ortId, mhd: e.mhd, menge, wer: w.wer, linkId: w.linkId }).run();
     return { chargeId };
   });
 }
 
 function abbuchen(
-  db: VerpflegungDb, chargeId: string, menge: number, w: Wer, art: "ausgabe" | "aussonderung", extra: { grund?: string; ziel?: string },
+  db: VerpflegungDb, chargeId: string, roh: number, w: Wer, art: "ausgabe" | "aussonderung", extra: { grund?: string; ziel?: string },
 ): { name: string; einheit: string; mhd: string; menge: number } {
+  // Einmal gerundet: Prüfung, Restbestand und Journal rechnen mit derselben Zahl.
+  const menge = runde(roh);
   return db.transaction((tx) => {
     const c = tx.select().from(charge).where(eq(charge.id, chargeId)).get();
     if (!c) throw new Abgelehnt("Diese Packung ist nicht mehr im Bestand. Bitte neu laden.");
     const a = tx.select().from(artikel).where(eq(artikel.id, c.artikelId)).get();
     if (!a) throw new Abgelehnt("Diesen Artikel gibt es nicht mehr.");
     pruefeMenge(menge, a.einheit);
+    if (menge <= 0) throw new Abgelehnt("Mindestens 0,001.", "menge");
     if (menge > c.menge + 1e-9) throw new Abgelehnt(`Es liegen nur ${zahlText(c.menge)} ${einheitText(c.menge, a.einheit)} da.`, "menge");
     if (art === "ausgabe" && mhdStatus(c.mhd, a, w.heute).gesperrt) {
       throw new Abgelehnt("Das Verbrauchsdatum ist überschritten. Diese Packung nicht ausgeben, sondern aussondern.");
@@ -170,10 +176,10 @@ function abbuchen(
     if (rest <= 0) tx.delete(charge).where(eq(charge.id, c.id)).run();
     else tx.update(charge).set({ menge: rest, aktualisiertAm: w.jetzt }).where(eq(charge.id, c.id)).run();
     tx.insert(buchung).values({
-      id: neueId(), zeit: w.jetzt, art, artikelId: c.artikelId, ortId: c.ortId, mhd: c.mhd, menge: runde(menge), wer: w.wer, linkId: w.linkId,
+      id: neueId(), zeit: w.jetzt, art, artikelId: c.artikelId, ortId: c.ortId, mhd: c.mhd, menge, wer: w.wer, linkId: w.linkId,
       grund: extra.grund ?? null, ziel: extra.ziel ?? null,
     }).run();
-    return { name: a.name, einheit: a.einheit, mhd: c.mhd, menge: runde(menge) };
+    return { name: a.name, einheit: a.einheit, mhd: c.mhd, menge };
   });
 }
 

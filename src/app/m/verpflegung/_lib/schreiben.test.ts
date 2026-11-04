@@ -71,6 +71,15 @@ describe("Ein- und Ausbuchen", () => {
     aussondern(db, { chargeId, menge: 1, grund: "Sonstiges", freitext: "Dose aufgebläht" }, W);
     expect(ladeBuchungen(db).find((b) => b.art === "aussonderung")?.grund).toBe("Sonstiges: Dose aufgebläht");
   });
+
+  it("rechnet Bestand und Journal mit derselben gerundeten Menge", () => {
+    const { db, ort } = lager();
+    const mehl = artikelAnlegen(db, { name: "Mehl", ean: null, kategorie: "Trockenware", einheit: "kg", mhdArt: "mhd", rotTage: 7, gelbTage: 30, mindest: null }, W.jetzt);
+    const { chargeId } = eingang(db, { artikelId: mehl, ortId: ort, mhd: "2027-03-01", menge: 1.235 }, W);
+    expect(ausgabe(db, { chargeId, menge: 1.2345, ziel: "Küche" }, W)).toMatchObject({ menge: 1.235 });
+    expect(db.select().from(charge).all()).toHaveLength(0);
+    expect(fehler(() => eingang(db, { artikelId: mehl, ortId: ort, mhd: "2027-03-01", menge: 0.0004 }, W))).toMatch(/0,001/);
+  });
 });
 
 describe("Artikel und Orte", () => {
@@ -89,6 +98,14 @@ describe("Artikel und Orte", () => {
     expect(ladeSicht(db, HEUTE).artikel.find((a) => a.id === id)).toMatchObject({ vorlaeufig: true, rotTage: 7, gelbTage: 30 });
     artikelAendern(db, id, { name: "Linseneintopf 800 g", ean: "4000000000024", kategorie: "Konserven", einheit: "Dose", mhdArt: "mhd", rotTage: 7, gelbTage: 30, mindest: null }, W.jetzt);
     expect(ladeSicht(db, HEUTE).artikel.find((a) => a.id === id)?.vorlaeufig).toBe(false);
+  });
+
+  it("ändert die Einheit nur, solange nichts darauf gebucht ist", () => {
+    const { db, ort, dose } = lager();
+    const neu = { name: "Erbsensuppe 800 g", ean: "4000000000017", kategorie: "Konserven", einheit: "Karton", mhdArt: "mhd", rotTage: 7, gelbTage: 30, mindest: 10 } as const;
+    const { chargeId } = eingang(db, { artikelId: dose, ortId: ort, mhd: "2027-03-01", menge: 1 }, W);
+    ausgabe(db, { chargeId, menge: 1, ziel: "Einsatz" }, W);
+    expect(fehler(() => artikelAendern(db, dose, neu, W.jetzt))).toMatch(/gebucht/);
   });
 
   it("deaktiviert Artikel und Orte nur, wenn nichts mehr daliegt", () => {
