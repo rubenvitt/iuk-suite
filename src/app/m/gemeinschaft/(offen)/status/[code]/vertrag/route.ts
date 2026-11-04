@@ -8,6 +8,7 @@ import { Abgelehnt, legeUnterschriebenAb, NichtGefunden, pruefeUnterschreibbar, 
 import { anhangKopf, ansichtKopf, VERTRAG_MAX_BYTES } from "../../../../_lib/vermietungPdf";
 import { jsonAntwort, leseDatei, NICHT_DA, pdfAntwort } from "../../../../_lib/uploadLesen";
 import { scanneVertrag, scanSatz } from "../../../../_lib/vertragScan";
+import { vertragDateiname, vertragTitel } from "../../../../_lib/vertragName";
 import { fotoAlsPdf, pruefeUnterschriebeneDatei } from "../../../../_lib/vertragUnterschrift";
 
 /**
@@ -46,8 +47,9 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 
   return withAuditContext({ actor: { kind: "anonymous" } }, async () => {
     const db = getDb();
+    let a: ReturnType<typeof pruefeUnterschreibbar>;
     try {
-      pruefeUnterschreibbar(db, code);
+      a = pruefeUnterschreibbar(db, code);
     } catch (e) {
       if (e instanceof NichtGefunden) return NICHT_DA();
       if (e instanceof Abgelehnt) return jsonAntwort(409, { ok: false, fehler: e.message });
@@ -61,12 +63,12 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     if (scan.art !== "clean") return jsonAntwort(scan.art === "infected" ? 422 : 503, { ok: false, fehler: scanSatz(scan) ?? "" });
     let inhalt: Buffer;
     try {
-      inhalt = p.art === "pdf" ? d.bytes : Buffer.from(await fotoAlsPdf(d.bytes, p.art));
+      inhalt = p.art === "pdf" ? d.bytes : Buffer.from(await fotoAlsPdf(d.bytes, p.art, vertragTitel(a.von, true)));
     } catch {
       return jsonAntwort(415, { ok: false, fehler: "Dieses Foto lässt sich nicht lesen. Bitte als JPG oder PNG speichern." });
     }
     try {
-      legeUnterschriebenAb(db, code, { name: p.name, inhalt, herkunft: "hochgeladen", unterschriebenVon: null, vorlageStand: null }, Date.now());
+      legeUnterschriebenAb(db, code, { name: vertragDateiname(a.von, true), inhalt, herkunft: "hochgeladen", unterschriebenVon: null, vorlageStand: null }, Date.now());
     } catch (e) {
       if (e instanceof NichtGefunden) return NICHT_DA();
       if (e instanceof Abgelehnt) return jsonAntwort(409, { ok: false, fehler: e.message });

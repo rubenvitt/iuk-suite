@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
+import { DruckTitel } from "@/core/druck/DruckTitel";
+import { druckTitel } from "@/core/druck/titel";
 import { getGroup } from "../../../_db/queries";
 import { guardPage } from "../../../_lib/guardPage";
 import { buildToken } from "../../../_lib/token";
@@ -72,6 +74,7 @@ export default async function Aushang({
         {/* Träger 2 von zwei für Suite-Rot: das Wortzeichen. */}
         <span className="fb-aushang-wortzeichen">IDA</span>
       </footer>
+      <DruckTitel titel={druckTitel(["Aushang Feedback", group.name])} />
       <Drucken />
     </main>
   );

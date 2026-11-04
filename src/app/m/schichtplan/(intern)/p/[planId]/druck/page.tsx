@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import { DruckTitel } from "@/core/druck/DruckTitel";
+import { druckTitel } from "@/core/druck/titel";
 import { getDb } from "../../../../_db/client";
 import { stammHelfer, tempAlsPlanHelfer } from "../../../../_lib/bestand";
 import { requireSchichtplanHost } from "../../../../_lib/host";
@@ -21,6 +23,8 @@ export default async function PlanungDruck({ params, searchParams }: {
   const sicht = q.sicht === "helfer" ? "helfer" : "abschnitt";
   const auswahl = typeof q.auswahl === "string" ? q.auswahl : null;
   return (
+    <>
+    <DruckTitel titel={druckTitel(["Schichtplan", planung.name, sicht === "helfer" ? "Helfer" : (auswahl && planung.einheiten.find((e) => e.id === auswahl)?.name) || "Abschnitte"], planung.von)} />
     <Druckansicht
       planung={planung}
       helfer={[...stammHelfer(), ...tempAlsPlanHelfer(planung.temporaere)]}
@@ -28,5 +32,6 @@ export default async function PlanungDruck({ params, searchParams }: {
       auswahl={auswahl}
       jetzt={new Date().getTime()}
     />
+    </>
   );
 }
