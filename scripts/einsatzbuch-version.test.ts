@@ -213,7 +213,7 @@ describe("berechneEinsatzbuchVersion — an einer echten Historie", () => {
     const e = berechneEinsatzbuchVersion(repo);
     const sha = (betreff: string) => e.commits.find((c) => c.betreff === betreff)!.commit.slice(0, 7);
     const text = releaseNotizen(e, { repo: "o/r" });
-    expect(text).toContain("Desktop-App des Einsatzbuchs, Version 1.1.0.");
+    expect(text).toContain("Desktop-App des Einsatztagebuchs, Version 1.1.0.");
     // Der direkte Push hat keinen PR, die Commits aus dem Merge den des Merges.
     expect(text).toContain(`### Neu\n\n- Kern kann mehr (${sha("feat(einsatzbuch): Kern kann mehr")}, #3)`);
     expect(text).toContain(`### Behoben\n\n- Kleinigkeit (${sha("fix(einsatzbuch): Kleinigkeit")})\n`);
@@ -322,7 +322,7 @@ describe("berechneEinsatzbuchVersion — an einer echten Historie", () => {
       expect(inhalt.startsWith("release=true\nversion=2.0.0\ntag=einsatzbuch-v2.0.0\n")).toBe(true);
       // Die Notizen mehrzeilig mit Begrenzer: `name<<ENDE`, Text, `ENDE`.
       const m = /\nnotizen<<(NOTIZEN_[\w-]+)\n([\s\S]*)\n\1\n$/.exec(inhalt);
-      expect(m?.[2]).toContain("Desktop-App des Einsatzbuchs, Version 2.0.0.");
+      expect(m?.[2]).toContain("Desktop-App des Einsatztagebuchs, Version 2.0.0.");
       const falsch = spawnSync(process.execPath, [skript, "--tag", "einsatzbuch-v2"], { cwd: repo, encoding: "utf8" });
       expect(falsch.status).toBe(1);
       expect(falsch.stdout).toMatch(/^::error::Kein Einsatzbuch-Versionstag/);

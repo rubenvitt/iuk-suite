@@ -67,7 +67,7 @@ export function DruckOverlay({ block, einsatz, kette, unveraendert, dateiname, b
   const daten = bericht(block, einsatz, {
     // Wie die Vorlage: der Zusatz nur, wenn die Prüfung bestanden ist.
     pruefung: kette.art === "intakt" ? `${chipText(kette)} (geprüft im Reader)` : chipText(kette),
-    quelle: `Einsatzbuch Reader, aus ${dateiname}`,
+    quelle: `Einsatztagebuch Reader, aus ${dateiname}`,
     erzeugt,
     zeitzone,
   });

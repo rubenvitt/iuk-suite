@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { ausEinsatzbuch, ausFunkgeraeten, ausLagerbuch } from "./quellen";
 
 describe("Umrechnung der App-Zeilen", () => {
-  it("Einsatzbuch: Typ, Ruf und Standort, der Funkkenner aus der Kennung", () => {
+  it("Einsatztagebuch: Typ, Ruf und Standort, der Funkkenner aus der Kennung", () => {
     expect(ausEinsatzbuch({ id: "e1", typ: "RTW", kennung: "11/83-1", ruf: "Rotkreuz Uelzen 11-83-1", standort: "Uelzen", aktiv: false })).toMatchObject({
-      quelle: "einsatzbuch", quellId: "e1", anzeige: "RTW 11/83-1", funkkenner: "11-83-1", standort: "Uelzen", hinweis: "im Einsatzbuch deaktiviert",
+      quelle: "einsatzbuch", quellId: "e1", anzeige: "RTW 11/83-1", funkkenner: "11-83-1", standort: "Uelzen", hinweis: "im Einsatztagebuch deaktiviert",
     });
   });
 

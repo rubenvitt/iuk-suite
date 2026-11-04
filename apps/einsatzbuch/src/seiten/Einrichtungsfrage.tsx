@@ -58,7 +58,7 @@ export function Einrichtungsfrage({ suiteVorgabe, entwicklung, beiEinrichten, be
             <label className="radiokarte">
               <input type="radio" name="art" value="echt" checked={art === "echt"} onChange={() => waehleArt("echt")} />
               <span className="radiokarte-text">
-                <span className="radiokarte-titel">Echter Einsatzbuch-Rechner</span>
+                <span className="radiokarte-titel">Echter Einsatztagebuch-Rechner</span>
                 <span className="radiokarte-hilfe">
                   Genau ein Rechner führt die echte Einsatzkette. Eine neue Einrichtung ersetzt den bisherigen.
                 </span>

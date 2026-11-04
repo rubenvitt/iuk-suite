@@ -56,7 +56,7 @@ describe("BerichtUeberlagerung", () => {
     expect(existsPortal("[data-bericht]")).toBe(true);
     expect(text()).toContain("Unverändert seit der Versiegelung");
     expect(text()).toContain("Kette intakt (geprüft am Rechner)");
-    expect(text()).toContain("Erzeugt 25.9.2026, 10:15 Uhr · Einsatzbuch Verwaltung, Ruben Vitt");
+    expect(text()).toContain("Erzeugt 25.9.2026, 10:15 Uhr · Einsatztagebuch Verwaltung, Ruben Vitt");
     expect(text()).toContain("DRK-Bereitschaft Uelzen");
   });
 

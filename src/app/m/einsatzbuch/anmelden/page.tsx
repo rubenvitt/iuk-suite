@@ -46,7 +46,7 @@ export default async function AnmeldenPage({
           <Result
             status="error"
             title={<h1 className={s.titel}>Anmeldung nicht möglich</h1>}
-            subTitle="Die Adresse ist unvollständig. Starte die Anmeldung erneut am Einsatzbuch-Rechner."
+            subTitle="Die Adresse ist unvollständig. Starte die Anmeldung erneut am Einsatztagebuch-Rechner."
           />
         </Card>
       </div>
@@ -64,11 +64,11 @@ export default async function AnmeldenPage({
         <Card className={s.karte}>
           <Result
             status="warning"
-            title={<h1 className={s.titel}>Kein Zugang zum Einsatzbuch</h1>}
-            subTitle="Dein Konto ist nicht in der Gruppe für das Einsatzbuch. Bitte wende dich an die Leitung."
+            title={<h1 className={s.titel}>Kein Zugang zum Einsatztagebuch</h1>}
+            subTitle="Dein Konto ist nicht in der Gruppe für das Einsatztagebuch. Bitte wende dich an die Leitung."
             extra={
               <a className={s.knopf} href={rueckrufUrl(p, { fehler: "kein_zugang" })}>
-                Zurück zum Einsatzbuch-Rechner
+                Zurück zum Einsatztagebuch-Rechner
               </a>
             }
           />

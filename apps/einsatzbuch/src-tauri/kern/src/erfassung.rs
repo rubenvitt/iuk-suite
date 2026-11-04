@@ -97,7 +97,7 @@ pub enum ErfassungFehler {
     SchonAbgesendet,
     /// Die Kette hat schon `grenzen::BLOECKE` Blöcke. Ein Export mit mehr Blöcken ließe sich im
     /// Reader nicht öffnen; ein weiterer Einsatz wird deshalb gar nicht erst angenommen.
-    #[error("Das Einsatzbuch ist voll: Mehr als 10 000 Einsätze nimmt dieser Rechner nicht auf. Bitte wende dich an die Verwaltung.")]
+    #[error("Das Einsatztagebuch ist voll: Mehr als 10 000 Einsätze nimmt dieser Rechner nicht auf. Bitte wende dich an die Verwaltung.")]
     KetteVoll,
     #[error(transparent)]
     Buch(#[from] BuchFehler),

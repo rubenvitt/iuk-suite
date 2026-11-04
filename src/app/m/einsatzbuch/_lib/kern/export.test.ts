@@ -87,7 +87,7 @@ describe("Export", () => {
   it("kaputtes Base64 im Salt meldet sich als Formatfehler, nicht als falsches Kennwort", async () => {
     const fehler = await entschluesseleExport({ ...datei, kdf: { ...datei.kdf, salt: "!!" } }, "richtiges-kennwort").catch((e: unknown) => e);
     expect(fehler).not.toBeInstanceOf(KennwortFalsch);
-    expect((fehler as Error).message).toBe("Keine gültige Exportdatei des Einsatzbuchs");
+    expect((fehler as Error).message).toBe("Keine gültige Exportdatei des Einsatztagebuchs");
   });
 
   it("eine IV mit falscher Länge wird schon vor dem Kennwort abgelehnt", async () => {

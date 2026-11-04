@@ -110,7 +110,7 @@ async function rechnerAnlegen(
   return { geraeteToken: einrichtenKoerper.geraeteToken, sitzungstoken: tauschKoerper.sitzungstoken, rechnerId: einrichtenKoerper.rechnerId };
 }
 
-test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
+test.describe("Anmeldeseite des Einsatztagebuch-Rechners", () => {
   test("mit Sitzung und Gruppe: Weiterleitung mit code und state auf 127.0.0.1, echter 307", async ({ page }) => {
     await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
     const port = zufallsPort();
@@ -137,7 +137,7 @@ test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
     expect(direkt.headers()["location"]).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/rueckruf\\?code=.+&state=${st2}$`));
   });
 
-  test("ohne Gruppe: Kein Zugang zum Einsatzbuch, keine Weiterleitung", async ({ page }) => {
+  test("ohne Gruppe: Kein Zugang zum Einsatztagebuch, keine Weiterleitung", async ({ page }) => {
     await devLogin(page, { host: HOST, groups: "admin", callbackPath: "/login" });
     const port = zufallsPort();
     const rueckruf = loopbackServer(port);
@@ -145,9 +145,9 @@ test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
       await page.goto(url(`/anmelden?port=${port}&state=${state()}&challenge=${challengeRoh()}`));
       // Ein echtes `<h1>` (Stufe 6, Task 7), nicht nur Text: `Result`s String-Titel rendert als
       // `<div>` ohne Überschriften-Rolle, das fände `getByRole` nicht.
-      await expect(page.getByRole("heading", { name: "Kein Zugang zum Einsatzbuch" })).toBeVisible();
-      await expect(page.getByText("Dein Konto ist nicht in der Gruppe für das Einsatzbuch. Bitte wende dich an die Leitung.")).toBeVisible();
-      await expect(page.getByRole("link", { name: "Zurück zum Einsatzbuch-Rechner" })).toHaveAttribute(
+      await expect(page.getByRole("heading", { name: "Kein Zugang zum Einsatztagebuch" })).toBeVisible();
+      await expect(page.getByText("Dein Konto ist nicht in der Gruppe für das Einsatztagebuch. Bitte wende dich an die Leitung.")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Zurück zum Einsatztagebuch-Rechner" })).toHaveAttribute(
         "href", new RegExp(`^http://127\\.0\\.0\\.1:${port}/rueckruf\\?state=.+&fehler=kein_zugang$`),
       );
       // Keine Anfrage auf 127.0.0.1: die Seite hat NICHT weitergeleitet, nur einen Link angeboten.
@@ -218,7 +218,7 @@ test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
  * Stufe 5, Task 5: die Verwaltungsseite „Rechner" (Widerruf, Test-Rechner löschen) und die
  * Rechnerstatus-Karten der Übersicht.
  */
-test.describe("Rechnerseite der Einsatzbuch-Verwaltung", () => {
+test.describe("Rechnerseite der Einsatztagebuch-Verwaltung", () => {
   test("listet einen Test-Rechner und löscht ihn nach Bestätigung", async ({ page, request }) => {
     await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
     const name = `Testrechner ${Date.now()}`;
@@ -280,7 +280,7 @@ test.describe("Rechnerseite der Einsatzbuch-Verwaltung", () => {
   });
 });
 
-test.describe("Übersicht der Einsatzbuch-Verwaltung", () => {
+test.describe("Übersicht der Einsatztagebuch-Verwaltung", () => {
   test("zeigt Rechnerstatus", async ({ page, request }) => {
     await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
     await rechnerAnlegen(page, request, { art: "test", name: `Statusrechner ${Date.now()}` });

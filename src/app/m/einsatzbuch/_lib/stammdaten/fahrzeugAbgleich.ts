@@ -99,7 +99,7 @@ function soll(s: BereitgestelltesFahrzeug, kennung: string): Soll {
 
 function hinweisOhneKenner(s: BereitgestelltesFahrzeug): string {
   return s.art === "anhaenger"
-    ? "Anhänger ohne Funkkenner — im Einsatzbuch nur nötig, wenn er einen bekommt"
+    ? "Anhänger ohne Funkkenner — im Einsatztagebuch nur nötig, wenn er einen bekommt"
     : "Ohne Funkkenner — in der Fahrzeugverwaltung ergänzen";
 }
 

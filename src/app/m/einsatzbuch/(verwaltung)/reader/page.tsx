@@ -19,7 +19,7 @@ export default async function ReaderSeite() {
   await requireEinsatzbuchZugang();
   return (
     <>
-      <Seitenkopf titel="Einsatzbuch-Datei öffnen" />
+      <Seitenkopf titel="Einsatztagebuch-Datei öffnen" />
       <Reader bereitschaft={leseEinstellungen(getDb()).bereitschaft} />
     </>
   );

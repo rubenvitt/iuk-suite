@@ -109,7 +109,7 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: Quell
     }
     modal.confirm({
       title: `${weg} Helfer werden gelöscht`,
-      content: "Sie kommen nicht mehr durch den Filter oder stehen nicht mehr in der Quelle. Im Einsatzbuch werden sie beim nächsten Abgleich deaktiviert.",
+      content: "Sie kommen nicht mehr durch den Filter oder stehen nicht mehr in der Quelle. Im Einsatztagebuch werden sie beim nächsten Abgleich deaktiviert.",
       okText: "Übernehmen und löschen",
       cancelText: "Abbrechen",
       onOk: () => uebernehmen(),

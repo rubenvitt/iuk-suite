@@ -13,7 +13,7 @@ export function ausEinsatzbuch(f: EinsatzbuchFahrzeug): Kandidat {
   return {
     quelle: "einsatzbuch", quellId: f.id, anzeige: `${f.typ} ${f.kennung}`, typ: f.typ, funkrufname: f.ruf,
     funkkenner: kennerAus(f.kennung) ?? f.kennung, kennzeichen: null, standort: f.standort, aktiv: f.aktiv,
-    hinweis: f.aktiv ? null : "im Einsatzbuch deaktiviert",
+    hinweis: f.aktiv ? null : "im Einsatztagebuch deaktiviert",
   };
 }
 
@@ -45,7 +45,7 @@ export function leseKandidaten(): { kandidaten: Kandidat[]; fehler: string[] } {
       fehler.push(name);
     }
   };
-  lies("Einsatzbuch", () => einsatzbuchFahrzeuge().map(ausEinsatzbuch));
+  lies("Einsatztagebuch", () => einsatzbuchFahrzeuge().map(ausEinsatzbuch));
   lies("Lagerbuch", () => lagerbuchFahrzeuge().map(ausLagerbuch));
   lies("Funkgeräte", () => funkgeraeteOrte().map(ausFunkgeraeten));
   return { kandidaten, fehler };

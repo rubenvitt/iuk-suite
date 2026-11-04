@@ -72,7 +72,7 @@ export function istExportdatei(x: unknown): x is Exportdatei {
  * *irgendeinem* Schlüssel erzeugt wurde, nicht dass er kanonisches JSON im erwarteten Format ist.
  */
 export async function entschluesseleExport(datei: Exportdatei, kennwort: string): Promise<Exportinhalt> {
-  if (!istExportdatei(datei)) throw new Error("Keine gültige Exportdatei des Einsatzbuchs");
+  if (!istExportdatei(datei)) throw new Error("Keine gültige Exportdatei des Einsatztagebuchs");
 
   let salt: Bytes;
   let iv: Bytes;
@@ -82,7 +82,7 @@ export async function entschluesseleExport(datei: Exportdatei, kennwort: string)
     iv = mitLaenge(ausBase64(datei.chiffre.iv), 12, "iv");
     daten = ausBase64(datei.daten);
   } catch {
-    throw new Error("Keine gültige Exportdatei des Einsatzbuchs");
+    throw new Error("Keine gültige Exportdatei des Einsatztagebuchs");
   }
 
   const schluessel = await kennwortSchluessel(kennwort, salt, EXPORT_ITERATIONEN);

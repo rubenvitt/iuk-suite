@@ -45,7 +45,7 @@ test.use(cloudTauglichUse({ channel: "chromium", launchOptions: { args: [`--unsa
 const vektor = (JSON.parse(readFileSync("src/app/m/einsatzbuch/_lib/kern/testvektoren/erwartet.json", "utf8")) as { export: Exportdatei }).export;
 
 async function oeffne(page: Page, datei: Exportdatei, kennwort = KW): Promise<void> {
-  await page.getByLabel("Einsatzbuch-Datei").setInputFiles({
+  await page.getByLabel("Einsatztagebuch-Datei").setInputFiles({
     name: "probe.einsatzbuch", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(datei)),
   });
   await page.getByRole("region", { name: "Kennwort" }).locator("input").fill(kennwort);

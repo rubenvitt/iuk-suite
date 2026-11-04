@@ -100,7 +100,7 @@ export function HelferListe({ liste, darfVerwalten }: { liste: HelferDTO[]; darf
       render: (_: unknown, h: HelferDTO) => STATUS_TEXT[h.status] ?? h.status,
     },
     {
-      title: "Einsatzbuch",
+      title: "Einsatztagebuch",
       key: "einsatzbuch",
       ...zustandsFilter<HelferDTO>([
         { wert: "ja", text: "freigegeben", trifft: (h) => h.fuerEinsatzbuch },
@@ -114,7 +114,7 @@ export function HelferListe({ liste, darfVerwalten }: { liste: HelferDTO[]; darf
               loading={laeuft === h.id}
               disabled={laeuft !== null && laeuft !== h.id}
               onChange={(wert) => void setze([h.id], wert, h.id)}
-              aria-label={`${h.vorname} ${h.nachname} fürs Einsatzbuch freigeben`}
+              aria-label={`${h.vorname} ${h.nachname} fürs Einsatztagebuch freigeben`}
             />
             {h.fuerEinsatzbuch ? "freigegeben" : "nicht freigegeben"}
           </label>
@@ -131,10 +131,10 @@ export function HelferListe({ liste, darfVerwalten }: { liste: HelferDTO[]; darf
       return;
     }
     modal.confirm({
-      title: wert ? `${ids.length} fürs Einsatzbuch freigeben?` : `${ids.length} nicht mehr fürs Einsatzbuch bereitstellen?`,
+      title: wert ? `${ids.length} fürs Einsatztagebuch freigeben?` : `${ids.length} nicht mehr fürs Einsatztagebuch bereitstellen?`,
       content: wert
-        ? "Sie stehen nach dem nächsten Abgleich im Einsatzbuch zur Auswahl."
-        : "Im Einsatzbuch werden sie beim nächsten Abgleich deaktiviert. Versiegelte Einsätze behalten ihren Stand.",
+        ? "Sie stehen nach dem nächsten Abgleich im Einsatztagebuch zur Auswahl."
+        : "Im Einsatztagebuch werden sie beim nächsten Abgleich deaktiviert. Versiegelte Einsätze behalten ihren Stand.",
       okText: wert ? "Freigeben" : "Nicht mehr bereitstellen",
       cancelText: "Abbrechen",
       onOk: () => setze(ids, wert, "alle"),

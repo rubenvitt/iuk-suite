@@ -90,7 +90,7 @@ pub enum BuchFehler {
     /// ausstehender Einsatz und keine vergebene Nummer.
     #[error(
         "Auf diesem Rechner gibt es schon Einsätze (Blöcke, einen ausstehenden Einsatz oder \
-         vergebene Nummern). Wiederherstellen geht nur auf einem leeren Einsatzbuch."
+         vergebene Nummern). Wiederherstellen geht nur auf einem leeren Einsatztagebuch."
     )]
     KetteNichtLeer,
     /// Im Testbetrieb gibt es keine Sicherung, also auch nichts wiederherzustellen.

@@ -67,7 +67,7 @@ export async function einsatzbuchZugang(): Promise<{ ok: true; viewer: Viewer } 
   }
   if (!hatEinsatzbuchZugang(viewer.groups)) {
     auditDenied("einsatzbuch", auditActor(viewer));
-    return { ok: false, response: Response.json({ error: { code: "forbidden", message: "Kein Zugang zum Einsatzbuch" } }, { status: 403 }) };
+    return { ok: false, response: Response.json({ error: { code: "forbidden", message: "Kein Zugang zum Einsatztagebuch" } }, { status: 403 }) };
   }
   return { ok: true, viewer };
 }

@@ -48,7 +48,7 @@ const NAME_UNGUELTIG: &str = "Der Name des Rechners muss 1 bis 60 Zeichen lang s
 const ADRESSE_UNGUELTIG: &str = "Die Suite-Adresse muss mit https:// oder http:// beginnen.";
 const ANMELDUNG_LAEUFT: &str = "Es läuft schon eine Anmeldung.";
 const EINRICHTUNG_LAEUFT: &str = "Es läuft schon eine Einrichtung. Warte, bis sie fertig ist.";
-const KEIN_ZUGANG: &str = "Kein Zugang zum Einsatzbuch — dir fehlt die Gruppe in der Suite.";
+const KEIN_ZUGANG: &str = "Kein Zugang zum Einsatztagebuch — dir fehlt die Gruppe in der Suite.";
 const ANMELDUNG_ABGEBROCHEN: &str = "Anmeldung abgebrochen.";
 pub(crate) const SITZUNG_ABGELAUFEN: &str = "Die Sitzung ist abgelaufen. Bitte neu anmelden.";
 const LESEN_BRAUCHT_VERBINDUNG: &str = "Lesen braucht Verbindung zur Suite.";
@@ -720,7 +720,7 @@ pub fn richte_neu_ein(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) 
         if !a.widerrufen {
             return Err(NEU_NUR_NACH_WIDERRUF.into());
         }
-        let name = if a.rechner_name.trim().is_empty() { "Einsatzbuch-Rechner".to_string() } else { a.rechner_name };
+        let name = if a.rechner_name.trim().is_empty() { "Einsatztagebuch-Rechner".to_string() } else { a.rechner_name };
         (e.suite_url, name, e.schluessel_id)
     };
     let mut sitzung = melde_an_der_suite(z, &suite_url, Some((Umgebung::Echt, &name)), None, oeffne)?;

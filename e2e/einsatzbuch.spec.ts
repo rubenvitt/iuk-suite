@@ -14,7 +14,7 @@ test("mit der Gruppe öffnet sich die Übersicht in der Suite-Hülle", async ({ 
   await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
   const antwort = await page.goto(url("/"));
   expect(antwort?.status()).toBe(200);
-  await expect(page.getByRole("heading", { level: 1, name: "Einsatzbuch" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Einsatztagebuch" })).toBeVisible();
   await expect(page.getByTestId("suite-header")).toHaveCount(1);
 });
 

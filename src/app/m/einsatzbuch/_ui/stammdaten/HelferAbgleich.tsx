@@ -150,7 +150,7 @@ export function HelferAbgleich({ onSchliessen }: { onSchliessen: () => void }) {
         </p>
         {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
         {anzahl("demo") > 0 ? (
-          <Alert type="info" showIcon title="Das Helferverzeichnis läuft im Demo-Modus" description="Die Demo-Personen sind erfunden und werden nicht ins Einsatzbuch übernommen." />
+          <Alert type="info" showIcon title="Das Helferverzeichnis läuft im Demo-Modus" description="Die Demo-Personen sind erfunden und werden nicht ins Einsatztagebuch übernommen." />
         ) : null}
         {plan ? (
           <Tabs
@@ -168,7 +168,7 @@ export function HelferAbgleich({ onSchliessen }: { onSchliessen: () => void }) {
                       aria-label="Vorschau des Abgleichs mit dem Helferverzeichnis"
                       dataSource={sichtbar}
                       leer={{
-                        nichts: "Im Helferverzeichnis ist niemand fürs Einsatzbuch freigegeben.",
+                        nichts: "Im Helferverzeichnis ist niemand fürs Einsatztagebuch freigegeben.",
                         gefiltert: "Keine Zeile passt zu Auswahl und Suche.",
                         aktiv: zeilen.length > 0,
                       }}

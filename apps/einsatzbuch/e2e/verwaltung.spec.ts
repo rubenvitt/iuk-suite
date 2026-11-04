@@ -225,7 +225,7 @@ test("Einstellungen: „Ordner wählen“ zeigt danach die letzte Sicherung, der
   const statusVorher = (await aufrufe(page, "status")).length;
   await karte.getByRole("button", { name: "Ordner wählen" }).click();
   await expect(karte.getByText(/^Letzte Sicherung: \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2} Uhr$/)).toBeVisible();
-  await expect(karte.getByText("/Volumes/Sicherung/Einsatzbuch")).toBeVisible();
+  await expect(karte.getByText("/Volumes/Sicherung/Einsatztagebuch")).toBeVisible();
   expect((await aufrufe(page, "status")).length).toBeGreaterThan(statusVorher);
 
   const schalter = karte.getByRole("switch", { name: "Beim Anmelden am Rechner starten" });

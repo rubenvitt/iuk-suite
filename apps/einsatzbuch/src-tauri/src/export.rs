@@ -23,7 +23,7 @@ pub(crate) const FORMAT: &str = "einsatzbuch-export";
 pub(crate) const VERSION: u64 = 2;
 /// Dateiendung des Speichern-Dialogs und der Vorschlagsnamen (Vorlage `exportieren`).
 const ENDUNG: &str = "einsatzbuch";
-const FREMDES_FORMAT: &str = "Das ist keine Einsatzbuch-Exportdatei.";
+const FREMDES_FORMAT: &str = "Das ist keine Einsatztagebuch-Exportdatei.";
 /// Pfad des Readers unterhalb von `/m/einsatzbuch` (Entscheidung 7: „Im Reader öffnen“).
 const READER_PFAD: &str = "/reader";
 
@@ -66,7 +66,7 @@ pub async fn export_speichern(app: AppHandle, inhalt: String, dateiname: String)
             .file()
             .set_title("Export speichern")
             .set_file_name(mit_endung(&dateiname))
-            .add_filter("Einsatzbuch-Export", &[ENDUNG])
+            .add_filter("Einsatztagebuch-Export", &[ENDUNG])
             .blocking_save_file()
         else {
             return Ok(None);
