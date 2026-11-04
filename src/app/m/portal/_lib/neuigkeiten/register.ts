@@ -35,6 +35,7 @@ import zeichenGrosserTextUndBeschriftungAussen from "@/app/m/portal/_lib/neuigke
 import neueSchriftUndWeitereZeichen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-18-neue-schrift-und-weitere-zeichen";
 import typischeEinsatzmittel from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-03-typische-einsatzmittel";
 import freieStellen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-05-freie-stellen";
+import verweisAufPlan from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-05-verweis-auf-plan";
 import helferAusHiorg from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-20-helfer-aus-hiorg";
 import helferAusExcel from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-24-helfer-aus-excel";
 import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-10-21-fahrzeuge-als-stammdaten";
@@ -345,6 +346,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   neueSchriftUndWeitereZeichen,
   typischeEinsatzmittel,
   freieStellen,
+  verweisAufPlan,
 ];
 
 /**

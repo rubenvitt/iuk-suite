@@ -4,7 +4,7 @@ import { GRENZE, KONTAKT_ARTEN, LAENGE, VERBINDUNGS_ARTEN, ZU_GROSS, ZU_TIEF, in
 
 const stelle = (id: string, eltern: string | null, rest: Partial<Stelle> = {}): Stelle => ({
   id, eltern, lage: "unter", reihenfolge: 0, zeichen: null, titel: id, leiter: null, hervorheben: false,
-  verbindungId: null, kanaele: [], kontakte: [], einheiten: [], ...rest,
+  verbindungId: null, kanaele: [], kontakte: [], einheiten: [], planVerweis: null, ...rest,
 });
 const plan = (stellen: Stelle[], verbindungen: PlanInhalt["verbindungen"] = []): unknown => ({
   schema: 1,
@@ -22,6 +22,14 @@ describe("planInhaltSchema", () => {
       [stelle("a", null), stelle("b", "a", { verbindungId: "v1" }), stelle("c", "a", { lage: "links" })],
       [{ id: "v1", art: "tmo", bezeichnung: "R_UE_2" }],
     ))).toEqual([]);
+  });
+  it("Verweis auf einen anderen Plan (IDA-355): fehlt er, ist er null; Kennung und Titel werden geprüft", () => {
+    const { planVerweis: _weg, ...alt } = stelle("a", null);
+    const r = leseInhalt(plan([alt as Stelle]));
+    expect(r.ok && r.inhalt.stellen[0].planVerweis).toBeNull();
+    expect(fehler(plan([stelle("a", null, { planVerweis: { id: "p-2", titel: "Nord" } })]))).toEqual([]);
+    expect(fehler(plan([stelle("a", null, { planVerweis: { id: "../x", titel: "Nord" } })]))).not.toEqual([]);
+    expect(fehler(plan([stelle("a", null, { planVerweis: { id: "p", titel: "x".repeat(LAENGE.titel + 1) } })]))).not.toEqual([]);
   });
   it("nimmt einen leeren Plan und mehrere Wurzeln an", () => {
     expect(fehler(plan([]))).toEqual([]);

@@ -6,7 +6,7 @@ import { textBreite } from "./text";
 
 const stelle = (rest: Partial<Stelle> = {}): Stelle => ({
   id: "s", eltern: null, lage: "unter", reihenfolge: 0, zeichen: "rezept:D.1.4", titel: "Einsatzleitung",
-  leiter: null, hervorheben: false, verbindungId: null, kanaele: [], kontakte: [], einheiten: [], ...rest,
+  leiter: null, hervorheben: false, verbindungId: null, kanaele: [], kontakte: [], einheiten: [], planVerweis: null, ...rest,
 });
 const mass = (s: Partial<Stelle> = {}, e: Partial<Omit<KartenEingabe, "stelle">> = {}) =>
   kartenMass({ stelle: stelle(s), leerzeilen: false, darstellung: "normal", versteckt: 0, anzahlGruppen: 0, kanaele: [], ...e });
@@ -159,5 +159,23 @@ describe("kartenMass", () => {
     expect(m.abzeichen?.text.text).toBe("+5 Stellen");
     expect(m.blockHoehe).toBeGreaterThan(m.hoehe);
     expect(mass({}, { versteckt: 1 }).abzeichen?.text.text).toBe("+1 Stelle");
+  });
+});
+
+describe("Verweis auf einen anderen Plan (IDA-355)", () => {
+  const eingabe = (st: Stelle) => ({ stelle: st, leerzeilen: false, darstellung: "normal" as const, versteckt: 0, anzahlGruppen: 0, kanaele: [] });
+  it("eine Zeile „→ Titel“ unter den Kontakten, die Karte wird um genau diese Zeile höher", () => {
+    const ohne = kartenMass(eingabe(stelle()));
+    const mit = kartenMass(eingabe(stelle({ planVerweis: { id: "p2", titel: "Abschnitt Nord" } })));
+    expect(mit.planVerweis).toMatchObject({ planId: "p2", y: ohne.hoehe, hoehe: KARTE.kontaktHoehe });
+    expect(mit.planVerweis!.zeile.text).toBe("→ Abschnitt Nord");
+    expect(mit.hoehe).toBeCloseTo(ohne.hoehe + KARTE.kontaktHoehe);
+    expect(ohne.planVerweis).toBeNull();
+  });
+  it("ein langer Titel wird gekürzt und bleibt in der Karte", () => {
+    const m = kartenMass(eingabe(stelle({ planVerweis: { id: "p2", titel: "Kommunikationsplan Großschadenslage Abschnitt Süd mit Bereitstellungsraum" } })));
+    const z = m.planVerweis!.zeile;
+    expect(z.text.endsWith("…")).toBe(true);
+    expect(z.x + textBreite(z.text, z.groesse, true)).toBeLessThanOrEqual(KARTE.breite);
   });
 });

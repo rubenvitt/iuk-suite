@@ -42,6 +42,8 @@ import { flaechenBefehl, globalerBefehl, istTextfeld } from "./tasten";
 import { kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, verwirf, wiederholen, type Verlauf } from "./verlauf";
 import { leseZuletzt } from "./zuletzt";
 import { useEingeklappt } from "../betrachter/einklappen";
+import { PlanVerweisLink } from "../betrachter/PlanVerweisLink";
+import type { PlanZiel } from "../../_lib/plan/verweis";
 import { fokusVerloren } from "../fokus";
 
 /** Was „Teilen" braucht — nur für wer den Plan verwaltet (`_lib/rechte.ts`); ohne steht der Knopf nicht da. */
@@ -98,7 +100,7 @@ function vorfahren(p: PlanInhalt, id: string | null): string[] {
  * - Zwei Ansichten auf denselben Zustand (Phase 3): Diagramm und Gliederung bleiben montiert;
  *   `data-editoransicht` und CSS entscheiden, was zu sehen ist; Fokus kehrt über `fokusZurueck` in die sichtbare zurück.
  */
-export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null, kopieHinweis, bibliothek = LEERE_BIBLIOTHEK, bibliothekPflegen = true, teilen }: {
+export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null, kopieHinweis, bibliothek = LEERE_BIBLIOTHEK, bibliothekPflegen = true, teilen, verweise }: {
   plan: EditorPlan; symbole: Symbolsatz; zeichenIndex: ZeichenIndexEintrag[]; schrift: string;
   /** Aus `?ansicht=`; `null` = CSS wählt am Breakpoint (Phase 3, Entscheidung 1). */
   ansicht?: EditorAnsicht | null;
@@ -110,6 +112,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   bibliothek?: Bibliothek;
   /** Einträge in die Bibliothek übernehmen — nur Modul-Admins (`darfKommplanBearbeiten`); kopieren daraus darf jeder. */
   bibliothekPflegen?: boolean;
+  /** Verweise auf andere Pläne (IDA-355): wählbare Ziele und die schon gespeicherten, die dieser Betrachter öffnen darf. */
+  verweise?: { ziele: PlanZiel[]; erreichbar: string[] };
   /** Nur für wer den Plan verwaltet und nicht archivierte Pläne — die Seite lädt sie (Phase 5, Entscheidung 17). */
   teilen?: EditorTeilen;
 }) {
@@ -128,6 +132,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const [planAbschnitt, setPlanAbschnitt] = useState<"angaben" | "verbindungen">("angaben");
   const [fokus, setFokus] = useState<{ ziel: "titel" | "einheit"; stelle: string | null; n: number }>({ ziel: "titel", stelle: null, n: 0 });
   const { eingeklappt, setEingeklappt, umschalten } = useEingeklappt();
+  // Was im Flyin wählbar ist, darf der Bearbeitende auch öffnen — so wird ein eben gewählter Verweis sofort klickbar.
+  const verweisErreichbar = useMemo(() => new Set([...(verweise?.erreichbar ?? []), ...(verweise?.ziele ?? []).map((z) => z.id)]), [verweise]);
   const [hinweis, setHinweis] = useState<Hinweis | null>(() => (kopieHinweis
     ? { text: kopieHinweis.text, bestaetigt: kopieHinweis.bestaetigt, aktion: { text: "Angaben ändern", tu: () => { setPlanAbschnitt("angaben"); setFlyin("plan"); } } }
     : null));
@@ -497,7 +503,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
           <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
             griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzOben={GRIFF_RAND.oben} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
             flyinGrund={flyinGrund} defs={false}
-            zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
+            zusatz={(k) => <><Umschalter k={k} onUmschalten={umschalten} /><PlanVerweisLink k={k} erreichbar={verweisErreichbar} /></>}
             onKarteKlick={klick} onTaste={taste} meldung={meldung}
             ueberlagerung={(a, f) => (auswahlKarte && stelle ? (
               <Griffe karte={auswahlKarte} ansicht={a} flaeche={f} seitenstelle={stelle.lage !== "unter"}
@@ -530,7 +536,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
           <Button {...VERLAUFSKNOPF} onClick={() => perVerlaufsknopf(rueck)} disabled={!kannRueckgaengig(verlauf)}>Rückgängig</Button>
         </div>
         {gewaehlt !== null ? (
-          <StelleFlyin offen={flyin === "stelle"} onSchliessen={brecheAb} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
+          <StelleFlyin verweisZiele={verweise?.ziele} offen={flyin === "stelle"} onSchliessen={brecheAb} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
             symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} fokus={fokus} titelRef={titelRef}
             onLoeschen={() => loesche(gewaehlt)} onFertig={schliesseFlyin} />
         ) : null}

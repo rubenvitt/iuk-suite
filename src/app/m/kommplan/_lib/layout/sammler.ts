@@ -24,7 +24,7 @@ export class Sammler {
     this.elemente.karten.push({
       id: stelle.id, x, y, breite: m.breite, hoehe: m.hoehe, kopfHoehe: m.kopfHoehe, art: m.art,
       hervorheben: stelle.hervorheben, zeichen: stelle.zeichen, titel: m.titel, titelVoll: m.titelVoll,
-      gekuerzt: m.gekuerzt, leiter: m.leiter, kontakte: m.kontakte, verweis: m.verweis, ...zustand,
+      gekuerzt: m.gekuerzt, leiter: m.leiter, kontakte: m.kontakte, verweis: m.verweis, planVerweis: m.planVerweis, ...zustand,
     });
     for (const e of m.einheiten) this.elemente.einheiten.push({ ...e, stelleId: stelle.id, x: x + e.x, y: y + e.y });
     if (m.abzeichen) this.elemente.abzeichen.push({ ...m.abzeichen, stelleId: stelle.id, x: x + m.abzeichen.x, y: y + m.abzeichen.y });

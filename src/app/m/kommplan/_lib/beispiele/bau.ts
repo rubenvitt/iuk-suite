@@ -1,7 +1,7 @@
 import { KONTAKT_REIHENFOLGE } from "../plan/kontakte";
 import {
   planInhaltSchema, type Einheit, type Kontakt, type KontaktArt, type Lage, type PlanInhalt, type PlanOptionen,
-  type Stelle, type Verbindung,
+  type PlanVerweis, type Stelle, type Verbindung,
 } from "../plan/schema";
 
 /**
@@ -14,6 +14,7 @@ export type StelleEingabe = {
   hervorheben?: boolean; verbindung?: string | null; kanaele?: string[];
   kontakte?: Partial<Record<KontaktArt, string | string[]>>;
   einheiten?: EinheitEingabe[];
+  planVerweis?: PlanVerweis | null;
 };
 
 function einheitAus(stelleId: string, e: EinheitEingabe, i: number): Einheit {
@@ -39,7 +40,7 @@ export function baue(eingabe: { optionen?: Partial<PlanOptionen>; verbindungen?:
     return {
       id: e.id, eltern, lage, reihenfolge, zeichen: e.zeichen ?? null, titel: e.titel, leiter: e.leiter ?? null,
       hervorheben: e.hervorheben ?? false, verbindungId: e.verbindung ?? null, kanaele: e.kanaele ?? [], kontakte,
-      einheiten: (e.einheiten ?? []).map((x, i) => einheitAus(e.id, x, i)),
+      einheiten: (e.einheiten ?? []).map((x, i) => einheitAus(e.id, x, i)), planVerweis: e.planVerweis ?? null,
     };
   });
   return planInhaltSchema.parse({

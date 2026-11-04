@@ -131,6 +131,31 @@ test("freie Stelle: steht ohne Linie neben dem Hauptbaum, trägt eigene Unterste
   }
 });
 
+test("Verweis auf einen anderen Plan: im Flyin wählen, Karte zeigt den Titel, Klick öffnet den Plan (IDA-355)", async ({ page }) => {
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  const id = await neuerPlan(page, "e2e Planverweis");
+  await oeffneEditor(page, () => page.goto(url(`/p/${id}?ansicht=diagramm`)));
+  await ersteStelle(page, "Abschnitt Nord");
+  const wahl = page.locator(".kp-flyin [data-planverweis-wahl]").getByLabel("Plan", { exact: true });
+  await wahl.scrollIntoViewIfNeeded();
+  await klickeWennRuhig(wahl);
+  await wahl.fill("22.02.2026");
+  await speichertNach(page, () => klickeWennRuhig(page.locator(".ant-select-item-option", { hasText: "Einsatz 22.02.2026" })));
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".kp-betrachter [data-karte]")).toContainText("→ Kommunikationsplan Einsatz");
+
+  for (const breite of [390, 320]) {
+    await page.setViewportSize({ width: breite, height: 800 });
+    const ueber = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(ueber, `${breite} px`).toBeLessThanOrEqual(0);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await oeffneEditor(page, () => page.reload());
+  await klickeWennRuhig(page.getByRole("button", { name: "Einpassen" }));
+  await page.locator(".kp-betrachter [data-planverweis]").click();
+  await page.waitForURL(/\/p\/beispiel-einsatz-2026-02-22$/);
+});
+
 test("Hinweise in der Fläche liegen im Bild — Desktop, Tablet, Telefon, auch bei offenem Flyin (Review Phase 2)", async ({ page, context }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   const id = await neuerPlan(page, "e2e Hinweise");

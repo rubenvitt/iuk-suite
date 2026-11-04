@@ -16,6 +16,8 @@ import type { Aendere } from "./aendere";
 import { useBibliothek } from "./bibliothekKontext";
 import { EinheitenListe } from "./EinheitenListe";
 import { KontaktZeilen } from "./KontaktZeilen";
+import { PlanVerweisWahl } from "./PlanVerweisWahl";
+import type { PlanZiel } from "../../_lib/plan/verweis";
 import { StellenLage } from "./StellenLage";
 import { VerbindungWahl } from "./VerbindungWahl";
 import { ZeichenWahl } from "./ZeichenWahl";
@@ -27,6 +29,8 @@ export interface StelleFormularProps {
   fokus: { ziel: "titel" | "einheit"; stelle: string | null; n: number }; titelRef: RefObject<InputRef | null>; onLoeschen: () => void;
   /** Enter im Titelfeld: „fertig" — der Editor schließt das Flyin und gibt der Fläche den Fokus (Entscheidung 17). */
   onFertig: () => void;
+  /** Pläne, auf die eine Stelle verweisen kann (IDA-355); ohne Liste kein Abschnitt. */
+  verweisZiele?: readonly PlanZiel[];
 }
 
 /** Grundbreite des Flyins; die Fläche rechnet mit derselben Zahl den verdeckten Teil heraus (Entscheidung 18). */
@@ -100,6 +104,7 @@ export function StelleFormular(p: StelleFormularProps) {
       <StellenLage key={`lage:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} />
       <VerbindungWahl key={`verbindung:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} />
       <EinheitenListe key={`einheiten:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} fokus={fokus} ladeSymbole={p.ladeSymbole} />
+      {p.verweisZiele ? <PlanVerweisWahl key={`planverweis:${s.id}`} stelle={s} ziele={p.verweisZiele} aendere={aendere} /> : null}
 
       {aktiv && pflegen ? <InBibliothek key={`inbib:${s.id}`} stelle={s} /> : null}
       {/* Eine eigene Zeile: Meldungen von „In Bibliothek übernehmen“ verschieben den Löschknopf nicht (Review Phase 4). */}

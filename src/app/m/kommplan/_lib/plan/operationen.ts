@@ -47,7 +47,7 @@ export function fuegeStelleEin(inhalt: PlanInhalt, neu: NeueStelle): PlanInhalt 
     reihenfolge: neu.reihenfolge ?? naechsteReihenfolge(inhalt, eltern, lage),
     zeichen: neu.zeichen ?? null, titel: neu.titel, leiter: neu.leiter ?? null,
     hervorheben: neu.hervorheben ?? false, verbindungId: neu.verbindungId ?? null,
-    kanaele: neu.kanaele ?? [], kontakte: neu.kontakte ?? [], einheiten: neu.einheiten ?? [],
+    kanaele: neu.kanaele ?? [], kontakte: neu.kontakte ?? [], einheiten: neu.einheiten ?? [], planVerweis: neu.planVerweis ?? null,
   };
   return gueltig({ ...inhalt, stellen: [...inhalt.stellen, stelle] });
 }
@@ -66,7 +66,7 @@ export function stelleOder(inhalt: PlanInhalt, id: string): Stelle {
 export function leereStelle(id: string, eltern: string | null, lage: Lage, reihenfolge: number, verbindungId: string | null): Stelle {
   return {
     id, eltern, lage, reihenfolge, zeichen: null, titel: "", leiter: null, hervorheben: false,
-    verbindungId, kanaele: [], kontakte: [], einheiten: [],
+    verbindungId, kanaele: [], kontakte: [], einheiten: [], planVerweis: null,
   };
 }
 
@@ -93,7 +93,7 @@ export function fuegeSeitenstelleEin(inhalt: PlanInhalt, elternId: string, seite
   return gueltig({ ...inhalt, stellen: [...inhalt.stellen, leereStelle(id, elternId, seite, naechsteReihenfolge(inhalt, elternId, seite), null)] });
 }
 
-export type StellenAenderung = Partial<Pick<Stelle, "titel" | "leiter" | "hervorheben" | "zeichen" | "kontakte" | "kanaele" | "verbindungId">>;
+export type StellenAenderung = Partial<Pick<Stelle, "titel" | "leiter" | "hervorheben" | "zeichen" | "kontakte" | "kanaele" | "verbindungId" | "planVerweis">>;
 
 export function aendereStelle(inhalt: PlanInhalt, id: string, aenderung: StellenAenderung): PlanInhalt {
   stelleOder(inhalt, id);

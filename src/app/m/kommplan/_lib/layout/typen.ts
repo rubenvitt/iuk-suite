@@ -11,7 +11,10 @@ export interface KarteL {
   art: "normal" | "anker" | "verweis"; hervorheben: boolean; zeichen: string | null;
   titel: TextZeile[]; titelVoll: string; gekuerzt: boolean; leiter: TextZeile | null;
   kontakte: KontaktZeileL[]; verweis: TextZeile | null; einklappbar: boolean; eingeklappt: boolean;
+  /** Zeile „→ Plantitel“ unter den Kontakten (IDA-355); `y`/`hoehe` relativ zur Karte. */
+  planVerweis: PlanVerweisL | null;
 }
+export interface PlanVerweisL { planId: string; y: number; hoehe: number; zeile: TextZeile }
 export interface EinheitL { id: string; stelleId: string; x: number; y: number; breite: number; hoehe: number; zeilen: TextZeile[]; voll: string; zeichen: string | null }
 export interface Strecke { netz: string; x1: number; y1: number; x2: number; y2: number; duenn: boolean }
 export type SechseckForm = "funk" | "leitung" | "mobil";

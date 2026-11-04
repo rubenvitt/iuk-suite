@@ -122,4 +122,14 @@ describe("Betrachter", () => {
     await mount(<Betrachter inhalt={inhalt} symbole={{}} titel="x" schrift="Arimo" />);
     expect(queryAll(".kp-legende li").map((li) => li.textContent)).toEqual(["Reserve Standleitung"]);
   });
+  it("Verweis auf einen anderen Plan: Link nur, wenn der Server ihn als erreichbar meldet (IDA-355)", async () => {
+    const inhalt = baue({ stellen: [
+      { id: "a", titel: "Polizei", planVerweis: { id: "p-nord", titel: "Abschnitt Nord" } },
+      { id: "b", titel: "Krankenhaus", planVerweis: { id: "p-geheim", titel: "Privat" } },
+    ] });
+    await mount(<Betrachter inhalt={inhalt} symbole={{}} titel="T" schrift="Arimo" verweiseErreichbar={["p-nord"]} />);
+    expect(query('[data-karte="a"]').textContent).toContain("→ Abschnitt Nord");
+    expect(query('[data-karte="b"]').textContent).toContain("→ Privat");
+    expect(queryAll("[data-planverweis]").map((a) => a.getAttribute("href"))).toEqual(["/p/p-nord"]);
+  });
 });

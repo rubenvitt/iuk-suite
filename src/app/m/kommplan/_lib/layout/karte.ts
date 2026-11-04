@@ -3,7 +3,7 @@ import type { Stelle, Verbindung } from "../plan/schema";
 import { ABZEICHEN, EINHEIT, KANAL, KARTE, SCHRIFT, SECHSECK, STIEL, zeilenhoehe } from "./masse";
 import { sechseckMass, type SechseckMass } from "./sechseck";
 import { grundlinie, kuerze, textBreite, umbrechen } from "./text";
-import type { AbzeichenL, Darstellung, EinheitL, KarteL, KontaktZeileL, TextZeile } from "./typen";
+import type { AbzeichenL, Darstellung, EinheitL, KarteL, KontaktZeileL, PlanVerweisL, TextZeile } from "./typen";
 
 export interface KartenEingabe {
   stelle: Stelle; leerzeilen: boolean; darstellung: Darstellung; versteckt: number; anzahlGruppen: number;
@@ -13,7 +13,7 @@ export interface KartenEingabe {
 export interface KartenMass {
   breite: number; hoehe: number; kopfHoehe: number; art: KarteL["art"];
   titel: TextZeile[]; titelVoll: string; gekuerzt: boolean; leiter: TextZeile | null;
-  kontakte: KontaktZeileL[]; verweis: TextZeile | null;
+  kontakte: KontaktZeileL[]; verweis: TextZeile | null; planVerweis: PlanVerweisL | null;
   einheiten: Omit<EinheitL, "stelleId">[];
   abzeichen: Omit<AbzeichenL, "stelleId"> | null;
   kanalSechsecke: { verbindung: Verbindung; mass: SechseckMass; x: number; y: number }[];
@@ -91,7 +91,15 @@ export function kartenMass(e: KartenEingabe): KartenMass {
       kontakte.push({ art: k.art, y: hoehe, hoehe: zh, zeilen });
       hoehe += zh;
     }
-  } else if (art === "verweis" && typeof e.darstellung === "object") {
+  }
+  let planVerweis: PlanVerweisL | null = null;
+  if (art === "normal" && stelle.planVerweis) {
+    const text = kuerze(`→ ${stelle.planVerweis.titel.trim() || "(ohne Titel)"}`, KARTE.breite - KARTE.rand - KARTE.innenRechts, SCHRIFT.verweis, true).text;
+    planVerweis = { planId: stelle.planVerweis.id, y: hoehe, hoehe: KARTE.kontaktHoehe,
+      zeile: zeile(text, KARTE.rand, grundlinie(hoehe, KARTE.kontaktHoehe, SCHRIFT.verweis), SCHRIFT.verweis, true) };
+    hoehe += KARTE.kontaktHoehe;
+  }
+  if (art === "verweis" && typeof e.darstellung === "object") {
     verweis = zeile(`→ Blatt ${e.darstellung.verweisAufBlatt}`, KARTE.rand, grundlinie(hoehe, KARTE.kontaktHoehe, SCHRIFT.verweis), SCHRIFT.verweis, true);
     hoehe += KARTE.kontaktHoehe;
   }
@@ -162,5 +170,5 @@ export function kartenMass(e: KartenEingabe): KartenMass {
   }
 
   return { breite: KARTE.breite, hoehe, kopfHoehe, art, titel, titelVoll, gekuerzt: umbruch.gekuerzt, leiter,
-    kontakte, verweis, einheiten, abzeichen, kanalSechsecke, kanalLinien, blockBreite, blockHoehe, gasse };
+    kontakte, verweis, planVerweis, einheiten, abzeichen, kanalSechsecke, kanalLinien, blockBreite, blockHoehe, gasse };
 }
