@@ -74,7 +74,7 @@ export async function seedLokalVerpflegung(db: VerpflegungDb, jetzt = Date.now()
     id: neueId(), code, name: "Dienstabend",
     gueltigBis: jetzt + 7 * 24 * 3_600_000, aktiv: true, angelegtAm: jetzt, angelegtVon: "Leitung Verpflegung",
   }).run();
-  const tagZeit = (tage: number, std: number) => jetzt - tage * 86_400_000 - ((new Date(jetzt).getUTCHours() - std + 24) % 24) * 3_600_000;
+  const tagZeit = (tage: number, std: number) => { const d = new Date(jetzt - tage * 86_400_000); d.setUTCHours(std, 0, 0, 0); return d.getTime(); };
   const B: [tage: number, std: number, art: "eingang" | "ausgabe" | "aussonderung", a: string, o: string, mhd: number, menge: number, wer: string, rest: { grund?: string; ziel?: string }][] = [
     [6, 9, "ausgabe", "a10", "o4", 1, 30, "Helfer-Link Stadtfest", { ziel: "Sanitätsdienst" }],
     [4, 18, "aussonderung", "a12", "o1", -2, 1, "Helfer-Link Küche", { grund: "verdorben" }],

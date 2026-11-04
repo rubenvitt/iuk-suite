@@ -8,11 +8,10 @@ const notiz: Releasenotiz = {
   titel: "Getränke und Lebensmittel mit Haltbarkeit im Blick",
   inhalt: [
     absatz(
-      "In der neuen App Verpflegungslager steht jede Packung mit ihrem Haltbarkeitsdatum auf den Tag genau. " +
-        "Am Telefon scannst du den Strichcode, buchst ein, gibst aus oder sonderst aus; was zuerst abläuft, wird zuerst angeboten. " +
-        "Was bald abläuft, steht unter MHD-Kontrolle und Was steht an.",
+      "Im neuen Verpflegungslager steht jede Packung mit ihrem Haltbarkeitsdatum; was bald abläuft, zeigen MHD-Kontrolle und Was steht an. " +
+        "Am Telefon scannst du den Strichcode und buchst ein, gibst aus oder sonderst aus. " +
+        "Helfer ohne Konto buchen über einen Helfer-Link der Verwaltung.",
     ),
-    absatz("Helfer ohne Konto buchen über einen Helfer-Link, den die Verwaltung für einen Anlass anlegt."),
   ],
 };
 

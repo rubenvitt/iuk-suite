@@ -12,7 +12,7 @@ const tag = z.string().refine(istKalendertag, "Bitte ein gültiges Datum wählen
 /** EAN-8, UPC-A, EAN-13 oder EAN-14 (GTIN): nur Ziffern. Leer = ohne Strichcode. */
 export const eanSchema = z.string().trim().regex(/^(\d{8}|\d{12,14})$/, "8 oder 12 bis 14 Ziffern.");
 
-export const menge = z.number().finite().positive("Mehr als 0.").max(100_000);
+export const menge = z.number().finite().min(0.001, "Mindestens 0,001.").max(100_000);
 
 export const artikelEingabe = z.object({
   name: name(120),

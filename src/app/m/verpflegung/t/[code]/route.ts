@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { AblehnungsDrossel } from "@/core/audit/drossel";
 import { auditAccessActor, auditDenied, auditEvent } from "@/core/audit/server";
 import { helferCookieAttribute } from "@/core/helferlink/sitzung";
 import { getDb } from "../../_db/client";
@@ -6,6 +7,9 @@ import { HELFER_COOKIE, loeseEin } from "../../_lib/helfer";
 import { hostAbweisung } from "../../_lib/host";
 
 export const dynamic = "force-dynamic";
+
+/** Abgelehnte Codes: je Minute höchstens 10 Audit-Zeilen, dann eine `access_throttled` (`core/audit/drossel.ts`). */
+const ablehnungen = new AblehnungsDrossel({ max: 10, windowMs: 60_000 });
 
 /**
  * Der Helfer-Link `/t/<code>`: löst den Code ein, setzt die Sitzung und schickt aufs Telefon. Ein ungültiger,
@@ -19,7 +23,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
   const { code } = await ctx.params;
   const r = await loeseEin(getDb(), code, Date.now());
   if (!r) {
-    auditDenied("verpflegung");
+    const entscheid = ablehnungen.entscheiden();
+    if (entscheid === "einzeln") auditDenied("verpflegung");
+    else if (entscheid === "gedrosselt") auditDenied("verpflegung", { kind: "anonymous" }, "access_throttled");
     return new NextResponse(null, { status: 303, headers: { Location: "/h?grund=link" } });
   }
   const antw = new NextResponse(null, { status: 303, headers: { Location: "/h" } });
