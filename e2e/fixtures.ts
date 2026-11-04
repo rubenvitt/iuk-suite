@@ -414,11 +414,16 @@ export async function oeffneAlleApps(page: Page): Promise<Locator> {
   if ((await knopf.getAttribute("aria-expanded")) !== "true") await knopf.click();
   await expect(knopf).toHaveAttribute("aria-expanded", "true");
   const panel = menue.getByTestId(menueTestId(page, "app-panel"));
+  // Der Rueckgabewert ist der Befund: faellt die Probe, steht in der Meldung,
+  // WO die Ebene stand (Versatz, Deckkraft, Scrollstand der Spur).
   await expect.poll(() => panel.evaluate((el) => {
-    const spur = el.parentElement!.getBoundingClientRect();
-    return Math.abs(el.getBoundingClientRect().left - spur.left) < 1
-      && getComputedStyle(el).opacity === "1";
-  }), { message: "Die Ebene „Alle Apps“ ist noch nicht hereingeschoben" }).toBe(true);
+    const spur = el.parentElement!;
+    const versatz = Math.round(el.getBoundingClientRect().left - spur.getBoundingClientRect().left);
+    const deckkraft = getComputedStyle(el).opacity;
+    return versatz === 0 && deckkraft === "1"
+      ? "da"
+      : `Versatz ${versatz}px, Deckkraft ${deckkraft}, Spur scrollLeft ${spur.scrollLeft}`;
+  }), { message: "Die Ebene „Alle Apps“ ist noch nicht hereingeschoben" }).toBe("da");
   return panel;
 }
 

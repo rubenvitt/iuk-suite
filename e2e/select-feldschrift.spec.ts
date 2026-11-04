@@ -81,8 +81,9 @@ test.describe("Auswahlfeld: 16px Schrift, Hoehe auf der Bediendichte", () => {
       );
 
       // UND DAS EINGABEFELD DANEBEN — an der HUELLE gemessen, nicht am inneren
-      // `input` (DRK-392). Rundung ja, drei Pixel nein.
-      const huelle = page.locator(".ant-input-affix-wrapper").first();
+      // `input` (DRK-392). Rundung ja, drei Pixel nein. In `main`: das Feld
+      // „Springen zu" im Menue ist auch eine Affix-Huelle (am Telefon verborgen).
+      const huelle = page.locator("main .ant-input-affix-wrapper").first();
       await expect(huelle).toBeVisible();
       const eingabe = (await huelle.boundingBox())!.height;
       expect(eingabe, `Eingabefeld ${eingabe}px`).toBeCloseTo(ARBEITSDICHTE.token!.controlHeight!, 0);
