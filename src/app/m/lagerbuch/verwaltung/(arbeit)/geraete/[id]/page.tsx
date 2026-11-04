@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Col, Row } from "antd";
+import { Seite } from "@/core/seite/Seite";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { lagerortOptionen } from "../../../../_lib/lesepfade/bz";
@@ -26,7 +27,7 @@ export function geraetSeitenInhalt(db: DB, id: string, jetzt: Date): ReactNode {
   const faelligTon = chip ? chip.ton : "ok";
 
   return (
-    <>
+    <Seite typ="formular">
       <SeitenKopf
         titel={geraet.name}
         beschreibung={chip ? undefined : "Für diese Klasse ist kein Datum gepflegt."}
@@ -80,7 +81,7 @@ export function geraetSeitenInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         }}
         lagerorte={lagerortOptionen(db)}
       />
-    </>
+    </Seite>
   );
 }
 

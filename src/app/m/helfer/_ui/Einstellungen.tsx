@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, App, Button, Radio, Switch } from "antd";
+import { FELD_BREIT, Felder } from "@/core/seite/Seite";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { alleLoeschenAction, neueFreigebenAction, quelleAction, trennenAction } from "../_actions/verwaltung";
@@ -54,8 +55,8 @@ export function Einstellungen(p: EinstellungenProps) {
   }
 
   return (
-    <div style={{ display: "grid", gap: SPACE.xl, maxWidth: 720 }}>
-      {p.rueckmeldung ? <Alert type={p.rueckmeldung.art === "erfolg" ? "success" : "warning"} showIcon title={p.rueckmeldung.text} /> : null}
+    <Felder style={{ rowGap: SPACE.xl }}>
+      {p.rueckmeldung ? <Alert className={FELD_BREIT} type={p.rueckmeldung.art === "erfolg" ? "success" : "warning"} showIcon title={p.rueckmeldung.text} /> : null}
 
       <section aria-labelledby="quelle" style={{ display: "grid", gap: SPACE.sm }}>
         <h2 id="quelle" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Quelle</h2>
@@ -109,7 +110,7 @@ export function Einstellungen(p: EinstellungenProps) {
         </label>
       </section>
 
-      <section aria-labelledby="loeschen" className={styles.gefahrenzone}>
+      <section aria-labelledby="loeschen" className={`${styles.gefahrenzone} ${FELD_BREIT}`}>
         <h2 id="loeschen" className={styles.gefahrenTitel}>Alle Helferdaten löschen</h2>
         <p style={{ margin: 0 }}>
           Löscht alle {p.anzahl} Helfer und das Abgleichprotokoll.
@@ -132,6 +133,6 @@ export function Einstellungen(p: EinstellungenProps) {
           </Button>
         </div>
       </section>
-    </div>
+    </Felder>
   );
 }

@@ -10,6 +10,7 @@ import { Alert, Button, DatePicker, Form, Input, Radio, Select } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useRouter } from "next/navigation";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
+import { Felder } from "@/core/seite/Seite";
 import { SPACE } from "@/core/theme/tokens";
 import { geraetSpeichern } from "../../../../_actions/geraete";
 import { standortMeta } from "../../../../_lib/konstanten";
@@ -158,66 +159,68 @@ export function GeraetForm({
       }}
       onFinish={speichern}
       // 20 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und hat keine
-      // Geschwisterzeile in dieser Datei; bleibt Literal.
-      style={{ maxWidth: 760, marginBlockStart: 20 }}
+      // Geschwisterzeile in dieser Datei; bleibt Literal. Die Breite trägt die Seite (`formular`).
+      style={{ marginBlockStart: 20 }}
     >
-      <Form.Item name="typ" label="Klasse">
-        <Radio.Group
-          options={[
-            { value: "medizin", label: "Medizinisches Gerät" },
-            { value: "objekt", label: "Objekt" },
-          ]}
-        />
-      </Form.Item>
-      <Form.Item name="name" label="Bezeichnung">
-        <Input aria-label="Bezeichnung" placeholder="z. B. Corpuls C3" />
-      </Form.Item>
-      <Form.Item name="barcode" label="Barcode (optional)">
-        <Input aria-label="Barcode" placeholder="Barcode / Seriennummer" />
-      </Form.Item>
-      <Form.Item name="lagerortId" label="Standort">
-        <Select<string, LagerortSelectOption>
-          aria-label="Standort"
-          showSearch
-          placeholder="Standort wählen…"
-          options={standorte}
-          filterOption={lagerortFilter}
-        />
-      </Form.Item>
-
-      {typ === "medizin" ? (
-        <Form.Item name="mtkFaellig" label="Nächste MTK (optional)">
-          <DatePicker
-            popupAlign={WAEHLER_IM_BILD}
-            aria-label="Nächste MTK"
-            allowClear
-            format="YYYY-MM-DD"
-            onKeyDown={enterUebernimmtNurDasFeld}
+      <Felder>
+        <Form.Item name="typ" label="Klasse">
+          <Radio.Group
+            options={[
+              { value: "medizin", label: "Medizinisches Gerät" },
+              { value: "objekt", label: "Objekt" },
+            ]}
           />
         </Form.Item>
-      ) : (
-        <>
-          <Form.Item name="beschreibung" label="Beschreibung (optional)">
-            <Input
-              aria-label="Beschreibung"
-              placeholder="z. B. Spineboard mit Gurtspinne"
-            />
-          </Form.Item>
-          <Form.Item name="ablaufdatum" label="Ablaufdatum (optional)">
+        <Form.Item name="name" label="Bezeichnung">
+          <Input aria-label="Bezeichnung" placeholder="z. B. Corpuls C3" />
+        </Form.Item>
+        <Form.Item name="barcode" label="Barcode (optional)">
+          <Input aria-label="Barcode" placeholder="Barcode / Seriennummer" />
+        </Form.Item>
+        <Form.Item name="lagerortId" label="Standort">
+          <Select<string, LagerortSelectOption>
+            aria-label="Standort"
+            showSearch
+            placeholder="Standort wählen…"
+            options={standorte}
+            filterOption={lagerortFilter}
+          />
+        </Form.Item>
+
+        {typ === "medizin" ? (
+          <Form.Item name="mtkFaellig" label="Nächste MTK (optional)">
             <DatePicker
               popupAlign={WAEHLER_IM_BILD}
-              aria-label="Ablaufdatum"
+              aria-label="Nächste MTK"
               allowClear
               format="YYYY-MM-DD"
               onKeyDown={enterUebernimmtNurDasFeld}
             />
           </Form.Item>
-        </>
-      )}
+        ) : (
+          <>
+            <Form.Item name="beschreibung" label="Beschreibung (optional)">
+              <Input
+                aria-label="Beschreibung"
+                placeholder="z. B. Spineboard mit Gurtspinne"
+              />
+            </Form.Item>
+            <Form.Item name="ablaufdatum" label="Ablaufdatum (optional)">
+              <DatePicker
+                popupAlign={WAEHLER_IM_BILD}
+                aria-label="Ablaufdatum"
+                allowClear
+                format="YYYY-MM-DD"
+                onKeyDown={enterUebernimmtNurDasFeld}
+              />
+            </Form.Item>
+          </>
+        )}
 
-      <Form.Item name="anmerkung" label="Anmerkung (optional)">
-        <Input aria-label="Anmerkung" placeholder="Freitext" />
-      </Form.Item>
+        <Form.Item name="anmerkung" label="Anmerkung (optional)">
+          <Input aria-label="Anmerkung" placeholder="Freitext" />
+        </Form.Item>
+      </Felder>
       <Button type="primary" htmlType="submit" loading={laeuft}>
         Speichern
       </Button>

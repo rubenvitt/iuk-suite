@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Alert, App, Button, Input, InputNumber, Switch } from "antd";
+import { Felder } from "@/core/seite/Seite";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { einstellungenSpeichernAction } from "../_actions/einstellungen";
@@ -51,38 +52,40 @@ export function EinstellungenFormular({ start }: { start: Einstellungen }) {
   }
 
   return (
-    <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.lg, maxWidth: 480 }}>
+    <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.lg }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
-      <Feld id="einstellung-frist" label="Änderungsfrist nach dem Absenden" fehler={feldFehler.fristMinuten}>
-        <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
-          <InputNumber
-            id="einstellung-frist"
-            precision={0}
-            value={frist}
-            status={feldFehler.fristMinuten ? "error" : undefined}
-            aria-describedby={feldFehler.fristMinuten ? "einstellung-frist-fehler" : undefined}
-            onChange={(wert) => setFrist(typeof wert === "number" ? wert : null)}
+      <Felder style={{ rowGap: SPACE.lg }}>
+        <Feld id="einstellung-frist" label="Änderungsfrist nach dem Absenden" fehler={feldFehler.fristMinuten}>
+          <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
+            <InputNumber
+              id="einstellung-frist"
+              precision={0}
+              value={frist}
+              status={feldFehler.fristMinuten ? "error" : undefined}
+              aria-describedby={feldFehler.fristMinuten ? "einstellung-frist-fehler" : undefined}
+              onChange={(wert) => setFrist(typeof wert === "number" ? wert : null)}
+            />
+            <span>Minuten</span>
+          </div>
+          <div style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>1 bis 120 Minuten</div>
+        </Feld>
+
+        <Feld id="einstellung-bereitschaft" label="Name der Bereitschaft" fehler={feldFehler.bereitschaft}>
+          <Input
+            id="einstellung-bereitschaft"
+            value={bereitschaft}
+            status={feldFehler.bereitschaft ? "error" : undefined}
+            aria-describedby={feldFehler.bereitschaft ? "einstellung-bereitschaft-fehler" : undefined}
+            onChange={(e) => setBereitschaft(e.target.value)}
           />
-          <span>Minuten</span>
-        </div>
-        <div style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>1 bis 120 Minuten</div>
-      </Feld>
+        </Feld>
 
-      <label style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
-        <Switch checked={besatzung} onChange={setBesatzung} />
-        Personal Fahrzeugen zuordnen
-      </label>
-
-      <Feld id="einstellung-bereitschaft" label="Name der Bereitschaft" fehler={feldFehler.bereitschaft}>
-        <Input
-          id="einstellung-bereitschaft"
-          value={bereitschaft}
-          status={feldFehler.bereitschaft ? "error" : undefined}
-          aria-describedby={feldFehler.bereitschaft ? "einstellung-bereitschaft-fehler" : undefined}
-          onChange={(e) => setBereitschaft(e.target.value)}
-        />
-      </Feld>
+        <label style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
+          <Switch checked={besatzung} onChange={setBesatzung} />
+          Personal Fahrzeugen zuordnen
+        </label>
+      </Felder>
 
       <div>
         <Button type="primary" htmlType="submit" loading={laeuft}>

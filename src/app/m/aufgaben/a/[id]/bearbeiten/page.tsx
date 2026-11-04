@@ -1,5 +1,6 @@
 import { auditActor, auditDenied } from "@/core/audit/server";
 import { notFound } from "next/navigation";
+import { Seite } from "@/core/seite/Seite";
 import { getDb } from "../../../_db/client";
 import { aufgabe } from "../../../_db/queries";
 import type { AufgabeRow } from "../../../_db/schema";
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
  */
 export function bearbeitenInhalt(task: AufgabeRow) {
   return (
-    <>
+    <Seite typ="formular">
       <SeitenKopf
         brotkrume={[
           { label: "Aufgaben", href: "/" },
@@ -35,7 +36,7 @@ export function bearbeitenInhalt(task: AufgabeRow) {
         hilfe="aufgabe"
       />
       <AufgabeFormular darfFuerAndere={false} bestand={task} />
-    </>
+    </Seite>
   );
 }
 
