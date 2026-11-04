@@ -35,6 +35,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { mount, unmount, query, exists, fill, click, submitForm } from "@/app/m/qr/_lib/test-dom";
+import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import { AUSWAHL_MAX } from "../_lib/auswahl";
 import { VORSCHLAG_MIN_ZEICHEN } from "../_db/leihen";
 import { AusleihVorgang, type AuswahlGeraet } from "./AusleihVorgang";
@@ -158,6 +159,9 @@ async function eingabetaste(selektor: string): Promise<boolean> {
 }
 
 beforeEach(() => {
+  // IDA-358: der Name liegt im Entwurf auf dem Geraet — jeder Fall beginnt leer.
+  localStorage.clear();
+  vergissFluechtig();
   ausleiheAnlegenMock.mockResolvedValue(undefined);
   entleiherVorschlaegeMock.mockResolvedValue([]);
   erneuereSitzungMock.mockResolvedValue({ ok: true });
@@ -531,21 +535,44 @@ describe("radio-AusleihVorgang: das Ergebnis der Action", () => {
     ).not.toContain("ON_LOAN");
   });
 
-  it("faengt einen Wurf der Action ab und nennt denselben Satz wie der Server", async () => {
+  it("IDA-358: ein Wurf der Action haelt den Vorgang auf dem Geraet und zeigt die Statuszeile", async () => {
     /*
-     * ⛔ `?? null` IST DER ERFOLGSPFAD und das `catch` die drei Ausnahmelagen
-     * (`_ui/GateFormular.tsx:32-62`). ⛔ DER SATZ WIRD NICHT NEU ERFUNDEN: er kommt aus
-     * `ausleihText({ grund: "unbekannt" })`, also aus derselben Datei wie der Serversatz —
-     * ein zweiter Wortlaut waere die Fehlerform, die `_lib/bauform.test.ts` („kein
-     * Rueckfalltext hinter gateMeldung") modulweit verbietet.
+     * Bis IDA-358 wurde ein Wurf hier zu `grund: "unbekannt"`, und nach dem Neuladen war der
+     * Name weg. Jetzt ist ein Wurf „nicht angekommen": `useEntwurf` haelt den Vorgang fest und
+     * versucht ihn erneut — die Statuszeile des Kerns statt eines Fehlersatzes, und KEINE
+     * technische Fehlerseite (`_ui/AusleihVorgang.tsx`, `sendeAusleihe`).
      */
     ausleiheAnlegenMock.mockRejectedValue(new Error("Verbindung weg"));
     await rendere(DREI, ["g-1"], "Max Mustermann");
 
     await submitForm();
 
-    const { ausleihText } = await import("../_lib/meldungen");
-    expect(query(AKTIONSFEHLER).textContent).toBe(ausleihText({ grund: "unbekannt" }));
+    expect(query("[data-rolle='entwurf-hinweis']").textContent).toMatch(/^Nicht gesendet\. Neuer Versuch in \d+ s\.$/);
+    expect(exists(AKTIONSFEHLER)).toBe(false);
+    expect(ladeEntwurf("radio:ausleihe:neu")?.sendung?.nutzlast).toEqual({ auswahl: ["g-1"], name: "Max Mustermann" });
+  });
+
+  it("IDA-358: nach dem Neuladen geht der liegende Vorgang von selbst raus", async () => {
+    ausleiheAnlegenMock.mockRejectedValue(new Error("Verbindung weg"));
+    await rendere(DREI, ["g-1"], "Max Mustermann");
+    await submitForm();
+    await unmount();
+
+    ausleiheAnlegenMock.mockReset();
+    ausleiheAnlegenMock.mockResolvedValue(undefined);
+    await rendere(DREI, ["g-1"], null);
+    expect(ausleiheAnlegenMock).toHaveBeenCalledTimes(1);
+    const formular = ausleiheAnlegenMock.mock.calls[0][1] as FormData;
+    expect(formular.get("entleiher")).toBe("Max Mustermann");
+    expect(ladeEntwurf("radio:ausleihe:neu")).toBeNull();
+  });
+
+  it("IDA-358: der getippte Name uebersteht ein Neuladen", async () => {
+    await rendere(DREI, ["g-1"], null);
+    await fill(NAMENSFELD, "Rita Roth");
+    await unmount();
+    await rendere(DREI, ["g-1"], null);
+    expect(query<HTMLInputElement>(NAMENSFELD).value).toBe("Rita Roth");
   });
 
   it("zeigt die Inline-Erneuerung bei grund sitzung und nicht bei grund gesperrt", async () => {

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { App, Button, Form, Input, InputNumber, Modal, Segmented, Select } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachText, trifftWert, werteAlsFilter } from "@/core/tabelle";
@@ -39,12 +41,30 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
   const [offen, setOffen] = useState<ArtikelDTO | "neu" | null>(null);
   const [suche, setSuche] = useState(false);
   const [form] = Form.useForm<Werte>();
+  /*
+   * IDA-358: die Eingaben im Dialog liegen je Artikel auf dem Gerät, bis das Speichern bestätigt ist; das nächste
+   * Öffnen desselben Artikels stellt sie wieder her. `geaendert` ist `null`, solange nichts getippt ist — das
+   * Formular ist für alle Artikel dasselbe (`forceRender`), also beginnt jedes Öffnen ohne Entwurf.
+   * Nicht `useFormEntwurf`: dessen Stand ließe sich beim Wechsel auf einen anderen Artikel nicht leeren.
+   */
+  const [geaendert, setGeaendert] = useState<Werte | null>(null);
+  const ausgang = offen === null ? null : offen === "neu" ? NEU : werteAus(offen);
+  const entwurf = useEntwurf<Werte | null>({
+    schluessel: offen === null ? null : `verpflegung:artikel:${offen === "neu" ? "neu" : offen.id}`,
+    stand: geaendert,
+    wiederherstellen: (w) => {
+      if (w) form.setFieldsValue(w);
+      else if (ausgang) form.setFieldsValue(ausgang);
+      setGeaendert(w);
+    },
+  });
   const zeilen = artikel.filter((a) => (sicht === "inaktiv" ? !a.aktiv : a.aktiv && (sicht === "aktiv" || a.vorlaeufig)));
   const vorlaeufig = artikel.filter((a) => a.aktiv && a.vorlaeufig).length;
 
   const oeffne = (a: ArtikelDTO | "neu") => {
     setFeldFehler({});
     form.setFieldsValue(a === "neu" ? NEU : werteAus(a));
+    setGeaendert(null);
     setOffen(a);
   };
 
@@ -56,6 +76,7 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
       const fund = await nachschlagenAction(ean);
       if (!fund) { message.info("In der Lebensmitteldatenbank nicht gefunden."); return; }
       form.setFieldsValue({ name: fund.name, ...(fund.kategorie ? { kategorie: fund.kategorie } : {}), ...(fund.einheit ? { einheit: fund.einheit } : {}) });
+      setGeaendert(form.getFieldsValue()); // `setFieldsValue` meldet kein `onValuesChange` (IDA-358)
     } catch {
       message.error("Die Lebensmitteldatenbank ist gerade nicht erreichbar.");
     } finally {
@@ -69,7 +90,7 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
     fuehreAus(
       () => (ziel === "neu" || ziel === null ? artikelAnlegenAction(eingabe) : artikelAendernAction(ziel.id, eingabe)),
       ziel === "neu" ? "Artikel angelegt." : "Gespeichert.",
-      () => setOffen(null),
+      () => { entwurf.verwerfen(); setOffen(null); },
     );
   };
 
@@ -146,7 +167,8 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
         onCancel={() => setOffen(null)}
         forceRender
       >
-        <Form<Werte> form={form} layout="vertical" onFinish={speichern} requiredMark={false}>
+        <Form<Werte> form={form} layout="vertical" onFinish={speichern} requiredMark={false} onValuesChange={(_g, alle) => setGeaendert(alle)}>
+          <EntwurfHinweis entwurf={entwurf} />
           <Form.Item label="EAN (Strichcode)" {...fehler("ean")}>
             <span className={s.reihe} style={{ flexWrap: "nowrap" }}>
               <Form.Item name="ean" noStyle><Input inputMode="numeric" autoComplete="off" maxLength={14} /></Form.Item>

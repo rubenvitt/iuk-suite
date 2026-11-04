@@ -99,6 +99,7 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../../_lib/quelltextScan";
+import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import { FELD_ETIKETTEN } from "../../../../_lib/lesepfade/ereignisse";
 import type { GeraetFormWerte, Vorschlagsfeld } from "../../../../_lib/lesepfade/geraete";
 import { GERAETE_MODI, STATUS_OPTIONEN } from "../../../../_lib/geraeteFelder";
@@ -189,6 +190,9 @@ function formularWerte(gespeichert: GeraetFormWerte): FormularWerte {
 }
 
 beforeEach(() => {
+  // IDA-358: das Formular legt seine Eingaben auf dem Geraet ab — jeder Fall beginnt leer.
+  localStorage.clear();
+  vergissFluechtig();
   aendernMock.mockReset();
   notizMock.mockReset();
   loeschenMock.mockReset();
@@ -1039,6 +1043,32 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
     expect(quelle, "innere Pfadform im href — sie gehoert allein revalidatePath").not.toMatch(
       /href=\{?["'`]?\/m\/radio/,
     );
+  });
+});
+
+describe("radio-Geraetakte: Entwurf auf dem Geraet (IDA-358)", () => {
+  const formular = (teil: Partial<GeraetFormWerte> = {}) => mount(
+    <GeraetFormular geraet={werte(teil)} rolle="admin" vorschlaege={LEERE_VORSCHLAEGE} versionen={["FW 1", "FW 2"]} />,
+  );
+
+  it("eine ungespeicherte Eingabe uebersteht ein Neuladen, die Update-Anmerkung nicht", async () => {
+    await formular();
+    await fill("#tei", "TEI-4711");
+    await fill("#updateNote", "nicht ablegen");
+    expect(ladeEntwurf<Record<string, unknown>>("radio:geraet:g-1")?.stand).not.toHaveProperty("updateNote");
+    await unmount();
+    await formular();
+    expect(document.querySelector<HTMLInputElement>("#tei")!.value).toBe("TEI-4711");
+    expect(document.querySelector("[data-rolle='entwurf-hinweis']")?.textContent).toContain("Eingaben wiederhergestellt.");
+  });
+
+  it("nach bestaetigtem Speichern ist der Entwurf geloescht, die Werte bleiben stehen", async () => {
+    aendernMock.mockResolvedValue({ ok: true });
+    await formular();
+    await fill("#tei", "TEI-4711");
+    await click('[data-rolle="radio-formular-speichern"]');
+    expect(ladeEntwurf("radio:geraet:g-1")).toBeNull();
+    expect(document.querySelector<HTMLInputElement>("#tei")!.value).toBe("TEI-4711");
   });
 });
 

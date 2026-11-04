@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import dayjs, { type Dayjs } from "dayjs";
 import { AutoComplete, Button, Checkbox, Col, DatePicker, Form, Input, Row, Select } from "antd";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
+import { loescheEntwurf } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
 import { geraetAendernAction } from "../../../actions";
 import type { GeraetPatch } from "../../../actions";
 import type { GeraetFormWerte, Vorschlagsfeld } from "../../../../_lib/lesepfade/geraete";
@@ -452,6 +455,18 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
     form.setFieldValue("updateNote", geraet.updateNote);
   }, [form, geraet.updateNote, notizImFormular]);
 
+  /*
+   * IDA-358 — DIE UNGESPEICHERTEN EINGABEN LIEGEN AUF DEM GERAET (`core/entwurf`): Neuladen, ein Rollout oder
+   * ein gescheitertes Speichern kosten sie nicht; der naechste Aufbau stellt sie wieder her.
+   * ⛔ OHNE `updateNote`: die Spalte ist append-only (siehe oben) — ein wiederhergestellter alter Stand
+   * loeschte beim Speichern, was `NotizFeld` inzwischen angehaengt hat.
+   * ⚠️ NACH DEM SPEICHERN NUR LOESCHEN, NICHT `verwerfen()`: das setzte per `resetFields` auf die
+   * `initialValues` des ersten Aufbaus zurueck, also auf den Stand VOR dem Speichern.
+   */
+  const entwurfSchluessel = `radio:geraet:${geraet.id}`;
+  const entwurf = useFormEntwurf<FormularWerte>(form, entwurfSchluessel, { ohne: ["updateNote"] });
+  const [gespeichert, setGespeichert] = useState(false);
+
   const absenden = async (eingabe: FormularWerte) => {
     const patch = baueGeaenderteFelder(geraet, eingabe);
     /*
@@ -468,6 +483,10 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
     const ergebnis = await geraetAendernAction(geraet.id, patch);
     setLaeuft(false);
     setFehler(ergebnis.ok ? null : ergebnis.fehler);
+    if (ergebnis.ok) {
+      loescheEntwurf(entwurfSchluessel);
+      setGespeichert(true);
+    }
   };
 
   return (
@@ -476,8 +495,10 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
       layout="vertical"
       initialValues={anfangswerte}
       onFinish={absenden}
+      onValuesChange={(g, alle) => { setGespeichert(false); entwurf.onValuesChange(g, alle); }}
       requiredMark
     >
+      {!gespeichert && <EntwurfHinweis entwurf={entwurf} />}
       <Abschnitt>Identität</Abschnitt>
       <Row gutter={[16, 0]}>
         <Col {...SPALTE}>

@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App, Button, Input, InputNumber } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { randomId } from "@/core/zufallsId";
 import { inhaltSpeichernAction } from "../../_actions/verwaltung";
 import { INHALT_MAX, KURZ_MAX, PUNKT_MAX, SOLL_MAX } from "../../_lib/eingabe";
 import type { InhaltDTO } from "../../_lib/typen";
@@ -13,8 +16,8 @@ import s from "../wartung.module.css";
 
 type Zeile = { schluessel: string; id: string | null; text: string; soll: number | null; bemerkung: string };
 
-let zaehler = 0;
-const neuerSchluessel = () => `neu-${++zaehler}`;
+// Zufällig statt gezählt: Zeilen aus einem wiederhergestellten Entwurf (IDA-358) tragen Schlüssel eines früheren Aufbaus.
+const neuerSchluessel = () => `neu-${randomId()}`;
 
 /**
  * Die Inhaltsliste einer Materialkiste bearbeiten (IDA-335) — gebaut fürs Telefon in der Halle: Kiste auf,
@@ -28,6 +31,16 @@ export function InhaltAmGeraet({ geraetId, geraetName, inhalt, stand }: { geraet
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<Record<string, string>>({});
   const [laeuft, starte] = useTransition();
+  /*
+   * IDA-358: die getippte Liste übersteht ein Neuladen. Der Schlüssel trägt den Stand der Liste auf dem Server:
+   * hat sich die Liste dort bewegt (auch durch dieses Speichern, dessen Antwort verloren ging), passt der Entwurf
+   * nicht mehr und wird nicht wiederhergestellt — sonst kämen neue Zeilen beim nächsten Speichern doppelt.
+   */
+  const entwurf = useEntwurf<Zeile[]>({
+    schluessel: `wartung:inhalt:${geraetId}:${stand}`,
+    stand: zeilen,
+    wiederherstellen: setZeilen,
+  });
 
   const setze = (i: number, teil: Partial<Zeile>) => setZeilen((z) => z.map((x, j) => (j === i ? { ...x, ...teil } : x)));
   const verschiebe = (i: number, d: number) => setZeilen((z) => {
@@ -49,6 +62,7 @@ export function InhaltAmGeraet({ geraetId, geraetName, inhalt, stand }: { geraet
       try {
         const r = await inhaltSpeichernAction(geraetId, zeilen.map((z) => ({ id: z.id, text: z.text, soll: z.soll, bemerkung: z.bemerkung })), stand);
         if (r.ok) {
+          entwurf.verwerfen();
           message.success("Gespeichert.");
           router.push(`/g/${geraetId}`);
         } else {
@@ -119,6 +133,7 @@ export function InhaltAmGeraet({ geraetId, geraetName, inhalt, stand }: { geraet
       </Button>
 
       <div className={s.fuss}>
+        <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
         {fehler && <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} role="alert">{fehler}</div>}
         <Button type="primary" block disabled={unvollstaendig} loading={laeuft} onClick={speichern}>Speichern</Button>
       </div>

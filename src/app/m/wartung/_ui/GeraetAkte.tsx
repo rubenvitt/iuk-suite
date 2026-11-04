@@ -4,6 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button, Card, DatePicker, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Progress } from "antd";
 import dayjs from "dayjs";
+import { loescheEntwurf } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -41,6 +44,12 @@ export function GeraetAkte({
   const [eintragen, setEintragen] = useState<FristStand | null>(null);
   const [erledigt, setErledigt] = useState<Erledigt>({ am: heute, stunden: g.stunden, wer: "", notiz: "" });
   const [aendern, setAendern] = useState(false);
+  // IDA-358: die Angaben zu „… eintragen" liegen je Gerät und Frist auf dem Gerät, bis das Eintragen bestätigt ist.
+  const erledigtEntwurf = useEntwurf<Erledigt>({
+    schluessel: eintragen ? `wartung:erledigt:${g.id}:${eintragen.vorlage.id}` : null,
+    stand: erledigt,
+    wiederherstellen: setErledigt,
+  });
 
   const oeffneErledigt = (f: FristStand) => {
     setFeldFehler({});
@@ -190,11 +199,12 @@ export function GeraetAkte({
         onCancel={() => setEintragen(null)}
         onOk={() => {
           if (!eintragen) return;
-          fuehreAus(() => erledigtEintragenAction(g.id, { fristId: eintragen.vorlage.id, ...erledigt }), `${eintragen.vorlage.name} eingetragen.`, () => setEintragen(null));
+          fuehreAus(() => erledigtEintragenAction(g.id, { fristId: eintragen.vorlage.id, ...erledigt }), `${eintragen.vorlage.name} eingetragen.`, () => { erledigtEntwurf.verwerfen(); setEintragen(null); });
         }}
         destroyOnHidden
       >
         <Form layout="vertical" component="div">
+          <EntwurfHinweis entwurf={erledigtEntwurf} />
           <Form.Item label="Erledigt am" htmlFor="gw-am" {...fehler("am")}>
             <DatePicker
               id="gw-am"
@@ -222,6 +232,7 @@ export function GeraetAkte({
       </Modal>
 
       {aendern && <GeraetFormular
+        entwurfSchluessel={`wartung:geraet:${g.id}`}
         offen
         titel="Gerät bearbeiten"
         start={{ gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise }}
@@ -232,7 +243,7 @@ export function GeraetAkte({
         laeuft={laeuft}
         feldFehler={feldFehler}
         onAbbrechen={() => setAendern(false)}
-        onSpeichern={(w) => fuehreAus(() => geraetAendernAction(g.id, w), "Gespeichert.", () => setAendern(false))}
+        onSpeichern={(w) => fuehreAus(() => geraetAendernAction(g.id, w), "Gespeichert.", () => { loescheEntwurf(`wartung:geraet:${g.id}`); setAendern(false); })}
       />}
     </>
   );

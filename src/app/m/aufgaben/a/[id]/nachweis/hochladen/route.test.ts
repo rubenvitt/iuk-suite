@@ -244,6 +244,20 @@ describe("POST /a/<id>/nachweis/hochladen — legt Datei UND/ODER Nachweis an", 
     expect(t.db.select().from(dateien).all()).toHaveLength(0);
   });
 
+  it("IDA-358: dieselbe Sendung zweimal legt EINEN Nachweis an, die Wiederholung antwortet 200", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, zugewiesenAn: bufdi.id, status: "in_arbeit", nachweisArt: "text" });
+    anmelden(bufdi);
+    const sendung = "0b0e0c0a-0000-4000-8000-000000000001";
+
+    expect((await ruf(task.id, form({ text: "Erledigt.", sendung }))).status).toBe(200);
+    const zweite = await ruf(task.id, form({ text: "Erledigt.", sendung }));
+    expect(zweite.status).toBe(200);
+    expect(await zweite.json()).toEqual({ ok: true });
+    expect(t.db.select().from(nachweise).all().map((n) => n.id)).toEqual([sendung]);
+  });
+
   it("eine ungueltige Datei (falsches Format) wird VOR jedem Insert abgelehnt — kein verwaister Datensatz", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
     const bufdi = legePerson("dev:alina@test", "bufdi");

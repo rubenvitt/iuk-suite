@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fill, mount, query, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 
 /*
  * SEIT FIX-RUNDE 1 KEIN `useActionState` MEHR (`NachweisFormular.tsx`s Kopfkommentar): der Upload
@@ -21,6 +22,9 @@ type Antwort = { status: number; koerper?: unknown; redirected?: boolean; werfen
 let antwortGeber: () => Antwort;
 
 beforeEach(() => {
+  // IDA-358: der Text liegt im Entwurf auf dem Geraet — jeder Fall beginnt leer.
+  localStorage.clear();
+  vergissFluechtig();
   aufrufe = [];
   refreshMock.mockClear();
   antwortGeber = () => ({ status: 200, koerper: { ok: true } });
@@ -166,5 +170,36 @@ describe("NachweisFormular — eine Zugriffsablehnung (404, kein Feldfehler-Koer
     await fill("textarea[name='text']", "Erledigt.");
     await absenden();
     expect(document.body.textContent).toContain("HTTP 404");
+  });
+});
+
+describe("NachweisFormular — Entwurf auf dem Geraet (IDA-358)", () => {
+  it("der getippte Text uebersteht ein Neuladen", async () => {
+    await mount(<NachweisFormular aufgabeId="a1" nachweisArt="text" maxBytes={1024} />);
+    await fill("#nf-text", "Fahrzeug gewaschen");
+    await unmount();
+    await mount(<NachweisFormular aufgabeId="a1" nachweisArt="text" maxBytes={1024} />);
+    expect(query<HTMLTextAreaElement>("#nf-text").value).toBe("Fahrzeug gewaschen");
+  });
+
+  it("ohne Antwort der Route (502) bleibt der Nachweis liegen und geht nach dem Neuladen mit derselben Sendung", async () => {
+    antwortGeber = () => ({ status: 502, koerper: null });
+    await mount(<NachweisFormular aufgabeId="a1" nachweisArt="text" maxBytes={1024} />);
+    await fill("#nf-text", "Fahrzeug gewaschen");
+    await absenden();
+    expect(document.body.textContent).toMatch(/Nicht gesendet\. Neuer Versuch in \d+ s\./);
+    expect(document.querySelector("[role='alert']")).toBeNull();
+    const erste = (aufrufe[0].init?.body as FormData).get("sendung");
+    expect(ladeEntwurf("aufgaben:nachweis:a1")?.sendung?.id).toBe(erste);
+    await unmount();
+
+    aufrufe = [];
+    antwortGeber = () => ({ status: 200, koerper: { ok: true } });
+    await mount(<NachweisFormular aufgabeId="a1" nachweisArt="text" maxBytes={1024} />);
+    expect(aufrufe).toHaveLength(1);
+    expect((aufrufe[0].init?.body as FormData).get("sendung")).toBe(erste);
+    expect((aufrufe[0].init?.body as FormData).get("text")).toBe("Fahrzeug gewaschen");
+    expect(refreshMock).toHaveBeenCalled();
+    expect(ladeEntwurf("aufgaben:nachweis:a1")).toBeNull();
   });
 });

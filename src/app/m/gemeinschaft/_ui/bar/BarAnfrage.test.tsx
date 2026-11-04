@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { clickElement, exists, fill, mount, query, queryAll, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import { zeitpunkt } from "../../_lib/zeit";
 import { BarAnfrage } from "./BarAnfrage";
 import { Statusansicht } from "./Statusansicht";
@@ -16,6 +17,8 @@ const BELEGT = [{ von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11
 const knopf = (text: string) => queryAll<HTMLButtonElement>("button, a").find((b) => b.textContent === text)!;
 const tag = (t: string) => query<HTMLButtonElement>(`[data-tag="${t}"]`);
 
+// IDA-358: die Anfrage liegt im Entwurf auf dem Gerät — jeder Fall beginnt leer.
+beforeEach(() => { localStorage.clear(); vergissFluechtig(); });
 afterEach(async () => { await unmount(); aktion.senden.mockReset(); aktion.zurueck.mockReset(); aktion.refresh.mockReset(); });
 
 describe("Bar anfragen", () => {
@@ -67,6 +70,39 @@ describe("Bar anfragen", () => {
     expect(document.body.textContent).toContain("Danke.");
     expect(query('[data-testid="statuslink"]').textContent).toMatch(/\/status\/abcdefghijklmnopqrstuv$/);
     expect(knopf("Zum Stand deiner Anfrage").getAttribute("href")).toBe("/status/abcdefghijklmnopqrstuv");
+  });
+});
+
+describe("Bar anfragen — Entwurf auf dem Gerät (IDA-358)", () => {
+  const ansicht = () => mount(<BarAnfrage belegt={[]} heute="2026-11-03" vorbelegung={null} anmeldeHref="/login" />);
+
+  it("das offene Formular samt Eingaben übersteht ein Neuladen", async () => {
+    await ansicht();
+    await clickElement(knopf("Bar anfragen"));
+    await fill('input[autocomplete="name"]', "Erika Sommer");
+    await unmount();
+    await ansicht();
+    expect(query<HTMLInputElement>('input[autocomplete="name"]').value).toBe("Erika Sommer");
+  });
+
+  it("ein Wurf hält die Anfrage fest; nach dem Neuladen geht sie mit derselben Sendung raus", async () => {
+    aktion.senden.mockRejectedValue(new Error("offline"));
+    await ansicht();
+    await clickElement(knopf("Bar anfragen"));
+    await fill('input[autocomplete="name"]', "Erika Sommer");
+    await submitForm();
+    expect(query('[data-rolle="entwurf-hinweis"]').textContent).toMatch(/^Nicht gesendet\./);
+    expect(exists('[role="alert"]')).toBe(false);
+    const erste = (aktion.senden.mock.calls[0][0] as { sendung: string }).sendung;
+    await unmount();
+
+    aktion.senden.mockReset();
+    aktion.senden.mockResolvedValue({ ok: true, wert: { code: "abcdefghijklmnopqrstuv" } });
+    await act(async () => { window.scrollTo = () => {}; });
+    await ansicht();
+    expect(aktion.senden).toHaveBeenCalledWith(expect.objectContaining({ person: "Erika Sommer", sendung: erste }));
+    expect(document.body.textContent).toContain("Danke.");
+    expect(ladeEntwurf("gemeinschaft:bar-anfrage:neu")).toBeNull();
   });
 });
 

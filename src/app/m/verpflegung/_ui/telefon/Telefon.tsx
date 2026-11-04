@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useTransition, type HTMLAttributes, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
 import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
 import {
   ausgebenAction, aussondernAmTelefonAction, einbuchenAction, nachschlagenAmTelefonAction, vorlaeufigAnlegenAction,
@@ -36,30 +38,56 @@ export interface TelefonDaten {
 
 const NICHT_GESPEICHERT = "Ob gebucht wurde, ist unklar. Bitte unter Bestand nachsehen, bevor du es noch einmal versuchst.";
 
-/** Eine Buchung mit Sperre gegen Doppeltippen; nach Erfolg holt `router.refresh()` den neuen Bestand. */
-function useBuchen() {
+/**
+ * Eine Buchung am Telefon — IDA-358. Die Eingaben (`stand`) liegen auf dem Gerät, und die Buchung bleibt dort, bis
+ * der Server sie bestätigt: scheitert sie (Netz, Rollout), versucht `useEntwurf` es erneut, auch nach dem Neuladen
+ * (dafür merkt sich `Reiter` die offene Artikelseite). Die Sendungs-ID wird die ID der Buchung
+ * (`_lib/schreiben.ts`, `frueherGebucht`) — eine Wiederholung bucht nicht doppelt. Nach Erfolg holt
+ * `router.refresh()` den neuen Bestand.
+ */
+function useBuchung<S, N extends object>({ schluessel, stand, wiederherstellen, aktion, erfolgText }: {
+  schluessel: string;
+  stand: S;
+  wiederherstellen: (s: S) => void;
+  aktion: (n: N & { sendung: string }) => Promise<Ergebnis>;
+  /** Nach Erfolg: der Satz, und das Formular für die nächste Buchung zurücksetzen. */
+  erfolgText: (r: Extract<Ergebnis, { ok: true }>) => string;
+}) {
   const router = useRouter();
-  const [laeuft, starte] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
   const [erfolg, setErfolg] = useState<string | null>(null);
-  const sperre = useRef(false);
-  const buche = (aktion: () => Promise<Ergebnis>, danach: (r: Extract<Ergebnis, { ok: true }>) => string) => {
-    if (sperre.current) return;
-    sperre.current = true;
+  const entwurf = useEntwurf<S, N, Ergebnis>({
+    schluessel,
+    stand,
+    wiederherstellen,
+    senden: (n, sendung) => aktion({ ...n, sendung }),
+    antwort: (r) => {
+      if (!r.ok) {
+        setFehler(r.fehler);
+        return false;
+      }
+      setErfolg(erfolgText(r));
+      router.refresh();
+      return true;
+    },
+  });
+  const meldung = useEntwurfMeldung(entwurf);
+  const laeuft = entwurf.zustand === "sendet";
+  const buche = (n: N) => {
+    if (laeuft) return;
     setFehler(null);
     setErfolg(null);
-    starte(async () => {
-      try {
-        const r = await aktion();
-        if (r.ok) { setErfolg(danach(r)); router.refresh(); } else setFehler(r.fehler);
-      } catch {
-        setFehler(NICHT_GESPEICHERT);
-      } finally {
-        sperre.current = false;
-      }
-    });
+    entwurf.sende(n);
   };
-  return { laeuft, fehler, erfolg, setErfolg, buche };
+  const status = meldung && (
+    <div className={`${s.hinweis} ${meldung.art === "nicht-gesendet" ? s.gelb : s.grau}`} role="status" data-rolle="entwurf-hinweis" data-art={meldung.art}>
+      {meldung.text}
+      {meldung.art === "wiederhergestellt" && (
+        <>{" "}<button type="button" className={s.entwurfVerwerfen} onClick={entwurf.verwerfen}>Verwerfen</button></>
+      )}
+    </div>
+  );
+  return { laeuft, fehler, erfolg, setErfolg, buche, status };
 }
 
 function Erfolg({ text }: { text: string | null }) {
@@ -146,10 +174,16 @@ function ChargenWahl({ chargen, art, wahl, setWahl, zuerst, sperrtGesperrte, mit
 }
 
 function Ausgeben({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; chargen: ChargeSicht[]; ort: OrtDTO | null; onZurueck: () => void }) {
-  const { laeuft, fehler, erfolg, buche } = useBuchen();
   const [wahl, setWahl] = useState<string | null>(null);
   const [menge, setMenge] = useState(1);
   const [ziel, setZiel] = useState<string>("Dienstabend");
+  const { laeuft, fehler, erfolg, buche, status } = useBuchung({
+    schluessel: `verpflegung:ausgeben:${art.id}`,
+    stand: { wahl, menge, ziel },
+    wiederherstellen: (w) => { setWahl(w.wahl); setMenge(w.menge); setZiel(w.ziel); },
+    aktion: ausgebenAction,
+    erfolgText: (r) => { setMenge(1); return r.text ?? "Ausgegeben."; },
+  });
   const sortiert = fefo(chargen);
   const zuerst = fefoVorschlag(sortiert);
   const gewaehlt = (wahl !== null ? sortiert.find((c) => c.id === wahl && !c.status.gesperrt) : undefined) ?? zuerst;
@@ -176,11 +210,12 @@ function Ausgeben({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; chargen: 
             {frueher.length > 0 && <div className={`${s.hinweis} ${s.gelb}`}>Früheres MHD liegt noch da: {datumLang(frueher[0].mhd)}.</div>}
             {gewaehlt.status.abgelaufen && <div className={`${s.hinweis} ${s.gelb}`}>MHD überschritten. Nur nach Sichtprüfung ausgeben.</div>}
             <Fehler text={fehler} />
+            {status}
             <button
               type="button"
               className={`${s.knopf} ${s.knopfRot} ${s.breit} ${s.block}`}
               disabled={laeuft}
-              onClick={() => buche(() => ausgebenAction({ chargeId: gewaehlt.id, menge: m, ziel }), (r) => { setMenge(1); return r.text ?? "Ausgegeben."; })}
+              onClick={() => buche({ chargeId: gewaehlt.id, menge: m, ziel })}
             >
               {mengeText(m, art.einheit)} ausgeben
             </button>
@@ -198,10 +233,20 @@ function Ausgeben({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; chargen: 
 function Einbuchen({ art, chargen, ort, orte, heute, onZurueck }: {
   art: ArtikelDTO; chargen: ChargeSicht[]; ort: OrtDTO | null; orte: OrtDTO[]; heute: string; onZurueck: () => void;
 }) {
-  const { laeuft, fehler, erfolg, setErfolg, buche } = useBuchen();
   const [mhd, setMhd] = useState("");
   const [menge, setMenge] = useState(1);
   const [wohin, setWohin] = useState<string | null>(ort?.id ?? (orte.length === 1 ? orte[0].id : null));
+  const { laeuft, fehler, erfolg, setErfolg, buche, status } = useBuchung({
+    schluessel: `verpflegung:einbuchen:${art.id}`,
+    stand: { mhd, menge, wohin },
+    wiederherstellen: (w) => { setMhd(w.mhd); setMenge(w.menge); setWohin(w.wohin); },
+    aktion: einbuchenAction,
+    erfolgText: (r) => {
+      const text = `${mengeText(menge, art.einheit)} ${art.name} ${r.text ?? "eingebucht"}`;
+      setMhd(""); setMenge(1);
+      return text;
+    },
+  });
   const tage = mhd ? tageBis(mhd, heute) : null;
   const vorhanden = mhd && wohin ? chargen.find((c) => c.ortId === wohin && c.mhd === mhd) : undefined;
   return (
@@ -227,17 +272,13 @@ function Einbuchen({ art, chargen, ort, orte, heute, onZurueck }: {
           </div>
         )}
         <Fehler text={fehler} />
+        {status}
         <button
           type="button"
           className={`${s.knopf} ${s.knopfRot} ${s.breit} ${s.block}`}
           disabled={!mhd || !wohin || (tage !== null && tage < 0) || laeuft}
           onClick={() => {
-            if (!wohin) return;
-            const n = menge;
-            buche(() => einbuchenAction({ artikelId: art.id, ortId: wohin, mhd, menge: n }), (r) => {
-              setMhd(""); setMenge(1);
-              return `${mengeText(n, art.einheit)} ${art.name} ${r.text ?? "eingebucht"}`;
-            });
+            if (wohin) buche({ artikelId: art.id, ortId: wohin, mhd, menge });
           }}
         >
           {mengeText(menge, art.einheit)} einbuchen
@@ -250,13 +291,19 @@ function Einbuchen({ art, chargen, ort, orte, heute, onZurueck }: {
 }
 
 function Aussondern({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; chargen: ChargeSicht[]; ort: OrtDTO | null; onZurueck: () => void }) {
-  const { laeuft, fehler, erfolg, buche } = useBuchen();
   const sortiert = fefo(chargen);
   const [wahl, setWahl] = useState<string | null>((sortiert.find((c) => c.status.abgelaufen) ?? sortiert[0])?.id ?? null);
   const gewaehlt = sortiert.find((c) => c.id === wahl) ?? sortiert[0];
   const [menge, setMenge] = useState(gewaehlt?.menge ?? 1);
   const [grund, setGrund] = useState<AussonderGrund>(gewaehlt?.status.abgelaufen ? "abgelaufen" : "beschädigt");
   const [freitext, setFreitext] = useState("");
+  const { laeuft, fehler, erfolg, buche, status } = useBuchung({
+    schluessel: `verpflegung:aussondern:${art.id}`,
+    stand: { wahl, menge, grund, freitext },
+    wiederherstellen: (w) => { setWahl(w.wahl); setMenge(w.menge); setGrund(w.grund); setFreitext(w.freitext); },
+    aktion: aussondernAmTelefonAction,
+    erfolgText: (r) => { setFreitext(""); return r.text ?? "Ausgesondert."; },
+  });
   const m = gewaehlt ? Math.min(menge, gewaehlt.menge) : menge;
   const waehle = (id: string | null) => {
     const c = sortiert.find((x) => x.id === id);
@@ -277,11 +324,12 @@ function Aussondern({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; chargen
               <Stepper wert={m} setWert={setMenge} max={gewaehlt.menge} einheit={art.einheit} />
             </div>
             <Fehler text={fehler} />
+            {status}
             <button
               type="button"
               className={`${s.knopf} ${s.knopfRot} ${s.breit} ${s.block}`}
               disabled={(grund === "Sonstiges" && !freitext.trim()) || laeuft}
-              onClick={() => buche(() => aussondernAmTelefonAction({ chargeId: gewaehlt.id, menge: m, grund, freitext }), (r) => { setFreitext(""); return r.text ?? "Ausgesondert."; })}
+              onClick={() => buche({ chargeId: gewaehlt.id, menge: m, grund, freitext })}
             >
               {mengeText(m, art.einheit)} aussondern
             </button>
@@ -413,6 +461,11 @@ type Ansicht = { art: "liste" } | { art: "artikel"; id: string } | { art: "unbek
 
 function Reiter(p: { tab: Tab; d: TelefonDaten; ort: OrtDTO | null; onOrt: () => void }) {
   const [ansicht, setAnsicht] = useState<Ansicht>({ art: "liste" });
+  /*
+   * IDA-358: die offene Seite des Reiters übersteht das Neuladen — sonst stünde eine nicht gesendete Buchung auf
+   * einer Artikelseite, die nach dem Neuladen niemand mehr aufbaut, und ihr erneuter Versuch käme nie.
+   */
+  useEntwurf<Ansicht>({ schluessel: `verpflegung:telefon:ansicht:${p.tab}`, stand: ansicht, wiederherstellen: setAnsicht });
   const anker = useRef<HTMLSpanElement>(null);
   // Ein Wechsel zwischen Liste und Artikelseite beginnt oben, sonst steht die neue Seite mitten im alten Scroll.
   useEffect(() => { anker.current?.closest("main")?.scrollTo(0, 0); }, [ansicht]);
@@ -532,6 +585,8 @@ function OrtWahl({ orte, ortId, onWahl, onZu }: { orte: OrtDTO[]; ortId: string 
 
 export function Telefon({ d }: { d: TelefonDaten }) {
   const [tab, setTab] = useState<Tab>("ausgeben");
+  // IDA-358: der Reiter übersteht das Neuladen, damit `Reiter` dort seine offene Seite wieder aufbaut.
+  useEntwurf<Tab>({ schluessel: "verpflegung:telefon:reiter", stand: tab, wiederherstellen: setTab });
   const [ortId, setOrtId] = useState<string | null>(d.orte.find((o) => o.id === d.startOrt)?.id ?? null);
   const [ortWahl, setOrtWahl] = useState(false);
   const [schluessel, setSchluessel] = useState(0);

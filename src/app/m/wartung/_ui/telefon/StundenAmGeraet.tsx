@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App, Button, InputNumber } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { stundenEintragenAction } from "../../_actions/telefon";
 import { Kicker } from "../teile";
@@ -14,20 +16,30 @@ export function StundenAmGeraet({ geraetId, geraetName, zuletzt }: { geraetId: s
   const router = useRouter();
   const [wert, setWert] = useState<number | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [laeuft, starte] = useTransition();
   const zuKlein = wert !== null && zuletzt !== null && wert < zuletzt;
+
+  // IDA-358: der abgelesene Stand bleibt auf dem Telefon, bis der Server ihn bestätigt; `sendung` hält Doppelte fern.
+  const entwurf = useEntwurf<{ wert: number | null }, { stunden: number }, Awaited<ReturnType<typeof stundenEintragenAction>>>({
+    schluessel: `wartung:stunden:${geraetId}`,
+    stand: { wert },
+    wiederherstellen: (w) => setWert(w.wert),
+    senden: (d, sendung) => stundenEintragenAction(geraetId, { ...d, sendung }),
+    antwort: (r) => {
+      if (!r.ok) {
+        setFehler(r.fehler);
+        return false;
+      }
+      message.success("Gespeichert.");
+      router.push(`/g/${geraetId}`);
+      return true;
+    },
+  });
+  const laeuft = entwurf.zustand === "sendet";
 
   const speichern = () => {
     if (wert === null || zuKlein || laeuft) return;
-    starte(async () => {
-      const r = await stundenEintragenAction(geraetId, { stunden: wert });
-      if (r.ok) {
-        message.success("Gespeichert.");
-        router.push(`/g/${geraetId}`);
-      } else {
-        setFehler(r.fehler);
-      }
-    });
+    setFehler(null);
+    entwurf.sende({ stunden: wert });
   };
 
   return (
@@ -55,6 +67,7 @@ export function StundenAmGeraet({ geraetId, geraetName, zuletzt }: { geraetId: s
         </div>
       </section>
       <div className={s.fuss}>
+        <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
         <Button type="primary" block disabled={wert === null || zuKlein} loading={laeuft} onClick={speichern}>Speichern</Button>
       </div>
     </div>

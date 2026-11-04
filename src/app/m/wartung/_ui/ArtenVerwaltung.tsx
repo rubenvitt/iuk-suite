@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Switch } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { serialisiere } from "@/core/entwurf/ablage";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { artLoeschenAction, artSpeichernAction } from "../_actions/verwaltung";
@@ -35,7 +38,19 @@ function entwurfAus(a: ArtDTO | null): Entwurf {
 export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
   const { laeuft, feldFehler, setFeldFehler, fuehreAus } = useAktion();
   const [e, setE] = useState<Entwurf | null>(null);
-  const oeffne = (a: ArtDTO | null) => { setFeldFehler({}); setE(entwurfAus(a)); };
+  const [ausgang, setAusgang] = useState<Entwurf | null>(null);
+  const oeffne = (a: ArtDTO | null) => { setFeldFehler({}); const x = entwurfAus(a); setAusgang(x); setE(x); };
+  /*
+   * IDA-358: die Eingaben im Dialog liegen je Geräteart auf dem Gerät, bis das Speichern bestätigt ist; das
+   * nächste Öffnen stellt sie wieder her. Abgelegt wird nur, was vom Stand beim Öffnen abweicht (`null` = nichts
+   * geändert) — sonst stünde schon das bloße Öffnen als Entwurf da.
+   */
+  const geaendert = e && ausgang && serialisiere(e) !== serialisiere(ausgang) ? e : null;
+  const entwurf = useEntwurf<Entwurf | null>({
+    schluessel: e ? `wartung:art:${e.id ?? "neu"}` : null,
+    stand: geaendert,
+    wiederherstellen: (w) => setE(w ?? ausgang),
+  });
   const setze = (teil: Partial<Entwurf>) => setE((alt) => (alt ? { ...alt, ...teil } : alt));
   const fehler = (feld: string) => (feldFehler[feld] ? { validateStatus: "error" as const, help: feldFehler[feld] } : {});
   const verschiebe = (i: number, d: number) => {
@@ -100,12 +115,13 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
         onOk={() => {
           if (!e) return;
           const { id, ...eingabe } = e;
-          fuehreAus(() => artSpeichernAction(id, eingabe), "Gespeichert.", () => setE(null));
+          fuehreAus(() => artSpeichernAction(id, eingabe), "Gespeichert.", () => { entwurf.verwerfen(); setE(null); });
         }}
         destroyOnHidden
       >
         {e && (
           <Form layout="vertical" component="div">
+            <EntwurfHinweis entwurf={entwurf} />
             <Form.Item label="Name (Mehrzahl)" htmlFor="gw-art-name" {...fehler("name")}>
               <Input id="gw-art-name" autoFocus value={e.name} maxLength={KURZ_MAX} onChange={(x) => setze({ name: x.target.value })} />
             </Form.Item>

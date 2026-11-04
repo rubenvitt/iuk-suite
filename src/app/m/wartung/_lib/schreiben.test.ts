@@ -113,6 +113,15 @@ describe("Verwaltung", () => {
     expect(db.select().from(eintrag).where(eq(eintrag.typ, "stunden")).all()).toHaveLength(1);
   });
 
+  it("Stunden ablesen: dieselbe Sendung zweimal bucht einmal (IDA-358)", () => {
+    const { db, id } = mitStromerzeuger();
+    const sendung = neueId();
+    stundenEintragen(db, id, 130, K, sendung);
+    stundenEintragen(db, id, 130, K, sendung);
+    const e = db.select().from(eintrag).where(eq(eintrag.typ, "stunden")).all();
+    expect(e.map((x) => x.id)).toEqual([sendung]);
+  });
+
   it("„Behoben“ setzt das Gerät zurück, wenn nichts anderes offen ist", () => {
     const { db, id } = mitStromerzeuger();
     const a = neueId();

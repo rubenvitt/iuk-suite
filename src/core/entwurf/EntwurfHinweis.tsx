@@ -13,7 +13,8 @@ import { useEntwurfMeldung } from "./useEntwurfMeldung";
  * „wiederhergestellt" ist reine Information (Falle 3: Rot nur für Fehler).
  */
 export function EntwurfHinweis({ entwurf, verwerfbar = true }: {
-  entwurf: Entwurf<unknown>;
+  // Ohne `sende`: dessen Parameter machte jedes `Entwurf<X>` unvereinbar mit `Entwurf<unknown>`.
+  entwurf: Omit<Entwurf<unknown>, "sende">;
   /** „Verwerfen" anbieten, solange ein wiederhergestellter Entwurf ruht. */
   verwerfbar?: boolean;
 }) {

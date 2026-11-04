@@ -38,6 +38,19 @@ describe("Ein- und Ausbuchen", () => {
     expect(db.select().from(buchung).all()).toHaveLength(2);
   });
 
+  it("IDA-358: dieselbe Sendung zweimal bucht einmal und antwortet wie beim ersten Mal", () => {
+    const { db, ort, dose } = lager();
+    const ein = "a0000000-0000-4000-8000-000000000001";
+    const aus = "a0000000-0000-4000-8000-000000000002";
+    const { chargeId } = eingang(db, { artikelId: dose, ortId: ort, mhd: "2027-03-01", menge: 3, sendung: ein }, W);
+    expect(eingang(db, { artikelId: dose, ortId: ort, mhd: "2027-03-01", menge: 3, sendung: ein }, W).chargeId).toBe(chargeId);
+    const erste = ausgabe(db, { chargeId, menge: 3, ziel: "Einsatz", sendung: aus }, W);
+    // Die Charge ist nach der ersten Ausgabe leer und weg — die Wiederholung wird trotzdem nicht abgewiesen.
+    expect(ausgabe(db, { chargeId, menge: 3, ziel: "Einsatz", sendung: aus }, W)).toEqual(erste);
+    expect(db.select().from(buchung).all().map((b) => b.id).sort()).toEqual([ein, aus]);
+    expect(fehler(() => aussondern(db, { chargeId, menge: 1, grund: "abgelaufen", freitext: "", sendung: ein }, W))).toMatch(/nicht vollständig/);
+  });
+
   it("lehnt ein MHD in der Vergangenheit und halbe Dosen ab", () => {
     const { db, ort, dose } = lager();
     expect(fehler(() => eingang(db, { artikelId: dose, ortId: ort, mhd: "2026-11-03", menge: 1 }, W))).toMatch(/Vergangenheit/);

@@ -175,6 +175,8 @@ export function useEntwurf<S, N = unknown, R = unknown>(opt: EntwurfOptionen<S, 
     if (!schluessel) return;
     raeumeAuf();
     const e = ladeEntwurf<S>(schluessel);
+    // Ein neuer Schlüssel erbt keine Sendung des vorigen (ein Dialog für mehrere Gegenstände).
+    sendung.current = e?.sendung ?? null;
     if (e) {
       const gelesen = serialisiere(e.stand);
       if (gelesen !== anfang) {
@@ -183,7 +185,6 @@ export function useEntwurf<S, N = unknown, R = unknown>(opt: EntwurfOptionen<S, 
         // eslint-disable-next-line react-hooks/set-state-in-effect -- Rückmeldung über einen Speicher außerhalb von React, einmal je Aufbau
         setWiederhergestellt(true);
       }
-      sendung.current = e.sendung;
     }
     bereit.current = true;
     if (sendung.current) versuchRef.current();
