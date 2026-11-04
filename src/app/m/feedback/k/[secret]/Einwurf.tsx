@@ -120,7 +120,7 @@ function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, abholen, turn
               Es lesen nur: <b>{leser}</b>
             </p>
           ) : null}
-          <p className={s.vertrag}>Anonym oder mit Namen · etwa zwei Minuten</p>
+          <p className={s.vertrag}>Anonym oder mit Namen</p>
         </>
       }
     >
