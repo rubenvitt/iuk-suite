@@ -71,6 +71,15 @@ describe("Berichtsblatt", () => {
     expect(blatt()).not.toContain("Patienten ·");
   });
 
+  it("zeigt den verknüpften Suchlage-Einsatz im Raster (IDA-359), ohne Verknüpfung nichts", async () => {
+    await mount(<Berichtsblatt daten={bericht(bloecke[2], TESTEINSAETZE[2], EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);
+    expect(blatt()).toContain("Suchlage-Einsatz");
+    expect(query("[data-umsystem='suchlage']").textContent).toBe("Personensuche „Waldweg\" Ebstorf");
+    await unmount();
+    await mount(<Berichtsblatt daten={bericht(bloecke[1], TESTEINSAETZE[1], EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);
+    expect(queryAll("[data-umsystem]").length).toBe(0);
+  });
+
   it("leere Listen", async () => {
     const leer = { ...TESTEINSAETZE[0], fahrzeuge: [], personal: [], notizen: "", patienten: undefined };
     await mount(<Berichtsblatt daten={bericht(bloecke[0], leer, EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);

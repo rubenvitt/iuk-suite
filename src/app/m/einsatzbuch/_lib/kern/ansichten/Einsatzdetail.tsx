@@ -1,8 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { Einsatz } from "../format";
-import { einsatzTexte, patientenZeilen } from "../bericht";
+import { einsatzTexte, patientenZeilen, umsystemZeilen } from "../bericht";
 import { zeitpunktText } from "../zeit";
 import s from "./ansichten.module.css";
 
@@ -52,6 +52,7 @@ export function Einsatzdetail({ block, einsatz: e, zeitzone, dritteKennzahl, mit
       </dl>
       <dl className={s.raster}>
         {e.leitstellenNummer && <><dt>Leitstelle</dt><dd data-leitstelle="">{e.leitstellenNummer}</dd></>}
+        {umsystemZeilen(e).map((u) => <Fragment key={u.system}><dt>{u.titel}</dt><dd data-umsystem={u.system}>{u.einsatz}</dd></Fragment>)}
         <dt>Beginn</dt><dd>{t.beginn}</dd>
         <dt>Ende</dt><dd>{t.ende}</dd>
         {mitDauerzeile && <><dt>Dauer</dt><dd>{t.dauer}</dd></>}

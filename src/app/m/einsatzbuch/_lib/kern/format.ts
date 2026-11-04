@@ -16,6 +16,13 @@ export type Patientenart = "vorOrt" | "transport";
  * `vorOrt` immer leer.
  */
 export interface PatientStand { art: Patientenart; einsatznummer: string; durch: string }
+/**
+ * Ein Einsatz in einem Umsystem, mit dem dieser Einsatz verknüpft ist (IDA-359), als Schnappschuss
+ * beim Versiegeln: Das Umsystem darf seinen Einsatz später löschen. `system` ist eine Kennung
+ * (heute nur `"suchlage"`) und bewusst kein fester Wertebereich, damit ein weiteres Umsystem ohne
+ * Formatänderung dazukommt; `id` ist die Einsatz-ID dort, als Text.
+ */
+export interface UmsystemEinsatz { system: string; id: string; name: string }
 
 export interface Einsatz {
   v: 1;
@@ -46,6 +53,12 @@ export interface Einsatz {
    * Ist er da, steht je gezähltem Patient genau eine Zeile darin (Reader: `einsatzSchema`).
    */
   patienten?: PatientStand[];
+  /**
+   * Optional und nie leer, wie `patienten`: Fehlt der Schlüssel, ist der Einsatz mit keinem
+   * Umsystem verknüpft und byte-gleich zu dem, was Versionen vor dem Feld versiegelt haben.
+   * Gelesen ab diesem Stand, geschrieben erst ein Release später (Zwei-Schritt-Regel).
+   */
+  umsysteme?: UmsystemEinsatz[];
 }
 
 export type Umgebung = "echt" | "test";
@@ -102,10 +115,11 @@ const EINSATZ_SCHLUESSEL = [
   "strasse", "ort", "objekt", "fahrzeuge", "personal", "vorOrt", "transport", "notizen",
 ] as const;
 /** Schlüssel, die ein Einsatz tragen darf, aber nicht muss — fehlen sie, ist der Einsatz im ersten Format. Ein vorhandener ist nie leer. */
-const EINSATZ_SCHLUESSEL_OPTIONAL = ["leitstellenNummer", "patienten"] as const;
+const EINSATZ_SCHLUESSEL_OPTIONAL = ["leitstellenNummer", "patienten", "umsysteme"] as const;
 const FAHRZEUG_SCHLUESSEL = ["id", "typ", "kennung", "ruf", "standort"] as const;
 const PERSON_SCHLUESSEL = ["id", "name", "quali", "ov", "fahrzeugId"] as const;
 const PATIENT_SCHLUESSEL = ["art", "einsatznummer", "durch"] as const;
+const UMSYSTEM_SCHLUESSEL = ["system", "id", "name"] as const;
 const BLOCKKOPF_SCHLUESSEL = ["v", "block", "prev", "versiegelt", "schluesselId", "umgebung"] as const;
 const UMSCHLAG_SCHLUESSEL = ["epk", "iv", "ct"] as const;
 const BLOCK_SCHLUESSEL = ["kopf", "iv", "daten", "umschlag", "hash"] as const;
@@ -136,6 +150,10 @@ function istPatientStand(x: unknown): x is PatientStand {
   return (x.art === "vorOrt" || x.art === "transport") && typeof x.einsatznummer === "string" && typeof x.durch === "string";
 }
 
+function istUmsystemEinsatz(x: unknown): x is UmsystemEinsatz {
+  return istObjekt(x) && hatGenauSchluessel(x, UMSYSTEM_SCHLUESSEL) && UMSYSTEM_SCHLUESSEL.every((k) => typeof x[k] === "string");
+}
+
 /**
  * Formprüfung für einen entschlüsselten Klartext. Ein GCM-Rundlauf beweist nur, dass jemand
  * mit dem CEK diesen Klartext erzeugt hat — nicht, dass er wohlgeformt ist: Der öffentliche
@@ -151,6 +169,7 @@ export function istEinsatz(x: unknown): x is Einsatz {
   // Ein leeres `patienten` schreibt der Kern nie (Rust: `skip_serializing_if`), und der
   // Rundlauf in `oeffne_block` lehnt es ab — hier genauso.
   if (Object.hasOwn(x, "patienten") && (!Array.isArray(x.patienten) || x.patienten.length === 0 || !x.patienten.every(istPatientStand))) return false;
+  if (Object.hasOwn(x, "umsysteme") && (!Array.isArray(x.umsysteme) || x.umsysteme.length === 0 || !x.umsysteme.every(istUmsystemEinsatz))) return false;
   for (const feld of ["nummer", "stichwort", "beginnDatum", "beginnZeit", "strasse", "ort", "objekt", "notizen"] as const) {
     if (typeof x[feld] !== "string") return false;
   }

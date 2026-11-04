@@ -290,6 +290,7 @@ mod tests {
             notizen: String::new(),
             leitstellen_nummer: None,
             patienten: Vec::new(),
+            umsysteme: Vec::new(),
         }
     }
 

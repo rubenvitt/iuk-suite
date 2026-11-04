@@ -41,6 +41,9 @@ export function Berichtsblatt({ daten: d, bereitschaft, unveraendert }: { daten:
         {d.leitstellenNummer && (
           <div className={b.breit}><dt className={b.kicker}>Einsatznummer Leitstelle</dt><dd data-leitstelle="">{d.leitstellenNummer}</dd></div>
         )}
+        {d.umsysteme.map((u) => (
+          <div key={u.system} className={b.breit}><dt className={b.kicker}>{`${u.titel}-Einsatz`}</dt><dd data-umsystem={u.system}>{u.einsatz}</dd></div>
+        ))}
       </dl>
 
       <dl className={b.zahlen}>

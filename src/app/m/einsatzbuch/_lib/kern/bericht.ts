@@ -33,6 +33,23 @@ export function patientenZeilen(e: Einsatz): Patientenzeile[] {
   }));
 }
 
+export interface Umsystemzeile { system: string; titel: string; einsatz: string }
+
+/** Anzeigenamen bekannter Umsysteme; eine unbekannte Kennung erscheint, wie sie ist. */
+const UMSYSTEM_NAMEN: Record<string, string> = { suchlage: "Suchlage" };
+
+/**
+ * Die verknüpften Umsysteme (IDA-359) als Text, leer ohne `umsysteme`. Geteilt mit
+ * `ansichten/Einsatzdetail.tsx`. Ohne Namen trägt die Zeile die Einsatz-ID des Umsystems.
+ */
+export function umsystemZeilen(e: Einsatz): Umsystemzeile[] {
+  return (e.umsysteme ?? []).map((u) => ({
+    system: u.system,
+    titel: Object.hasOwn(UMSYSTEM_NAMEN, u.system) ? UMSYSTEM_NAMEN[u.system] : u.system,
+    einsatz: u.name || `Einsatz ${u.id}`,
+  }));
+}
+
 export interface Berichtsdaten {
   /** Spec §12: Das Berichtsblatt trägt dann „TESTDATEN" im Kopf. */
   test: boolean;
@@ -50,6 +67,7 @@ export interface Berichtsdaten {
   transport: number;
   gesamt: number;
   patienten: Patientenzeile[];
+  umsysteme: Umsystemzeile[];
   fahrzeuge: { typ: string; ruf: string; besatzung: string }[];
   personal: { name: string; quali: string; fahrzeug: string }[];
   notizen: string;
@@ -88,6 +106,7 @@ export function bericht(
     transport: e.transport,
     gesamt: e.vorOrt + e.transport,
     patienten: patientenZeilen(e),
+    umsysteme: umsystemZeilen(e),
     fahrzeuge,
     personal,
     notizen: e.notizen,

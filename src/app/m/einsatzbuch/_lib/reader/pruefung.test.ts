@@ -23,3 +23,21 @@ describe("einsatzSchema: Angaben je Patient", () => {
     expect(mit(1, 0, [{ ...vorOrt, durch: "RTW" }])).toBe(false);
   });
 });
+
+describe("einsatzSchema: verknüpfte Umsysteme (IDA-359)", () => {
+  const suchlage = { system: "suchlage", id: "42", name: "Vermisste Person Ebstorf" };
+  const mit = (umsysteme: unknown[]) => einsatzSchema.safeParse({ ...beispielEinsatz(), umsysteme }).success;
+
+  it("ein Eintrag je Umsystem ist gültig, auch ein heute unbekanntes", () => {
+    expect(mit([suchlage])).toBe(true);
+    expect(mit([suchlage, { system: "anderes-system", id: "7", name: "" }])).toBe(true);
+  });
+  it("leer, doppelt, ohne ID, zu lang oder mit fremdem Schlüssel ist ungültig", () => {
+    expect(mit([])).toBe(false);
+    expect(mit([suchlage, { ...suchlage, id: "43" }])).toBe(false);
+    expect(mit([{ ...suchlage, id: "" }])).toBe(false);
+    expect(mit([{ ...suchlage, name: "x".repeat(201) }])).toBe(false);
+    expect(mit([{ ...suchlage, system: "Suchlage" }])).toBe(false);
+    expect(mit([{ ...suchlage, fremd: "x" }])).toBe(false);
+  });
+});
