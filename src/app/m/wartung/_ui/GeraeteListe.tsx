@@ -3,7 +3,8 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { App, Button, Segmented } from "antd";
+import { App, Button } from "antd";
+import { Filterchips } from "@/core/filterchips/Filterchips";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachRang, nachText } from "@/core/tabelle";
@@ -84,14 +85,12 @@ export function GeraeteListe({
         <div className={s.reihe}>
           <GruppenFilter wahl={gruppenWahl} gewaehlt={gewaehlt} />
           {artWahl.length > 1 && (
-            <div className={s.wischleiste}>
-              <Segmented
-                aria-label="Geräteart"
-                value={art}
-                onChange={(v) => setArt(String(v))}
-                options={[{ label: "Alle Arten", value: "alle" }, ...artWahl.map((a) => ({ label: a.name, value: a.id }))]}
-              />
-            </div>
+            <Filterchips<string>
+              aria-label="Geräteart"
+              wert={art}
+              onChange={setArt}
+              optionen={[{ label: "Alle Arten", wert: "alle" }, ...artWahl.map((a) => ({ label: a.name, wert: a.id }))]}
+            />
           )}
         </div>
       )}
