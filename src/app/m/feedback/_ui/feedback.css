@@ -313,7 +313,8 @@
   .fb-sticky {
     position: sticky;
     top: 80px;
-    max-height: calc(100dvh - 96px);
+    /* IDA-352: endet über dem schwebenden Rückmeldeknopf (`core/rueckmeldung`). */
+    max-height: calc(100dvh - 96px - var(--iuk-rueckmeldung-platz, 0px));
     overflow-y: auto;
   }
 }
