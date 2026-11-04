@@ -24,6 +24,7 @@ import { leererPlan, setzeOptionen } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import { Editor, GRIFF_RAND, type EditorPlan } from "./Editor";
 import { AUSWAHLLEISTE } from "./Griffe";
+import { offeneSperre } from "@/core/shell/verlassen";
 
 const INHALT = baue({ stellen: [{ id: "el", titel: "EL" }, { id: "a", titel: "EA 1", eltern: "el" }, { id: "s", titel: "KatSL", eltern: "el", lage: "links" }] });
 const plan = (inhalt: PlanInhalt = INHALT): EditorPlan => ({
@@ -214,6 +215,31 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(aktionen.speichereInhaltAction).toHaveBeenLastCalledWith(expect.objectContaining({ version: 7 }));
     expect(document.body.textContent).not.toContain("Jemand anderes hat diesen Plan inzwischen geändert.");
     expect(query("h1").textContent).toBe("Fremdtitel");
+  });
+  it("Konflikt sperrt das Verlassen über das Menü, bis „Neu laden“ oder „Meine Fassung behalten“ ihn auflöst (IDA-357)", async () => {
+    vi.useFakeTimers();
+    const stand = { version: 7, inhalt: INHALT, angaben: plan().angaben, aktualisiertAm: 0, aktualisiertVon: "Ole" };
+    aktionen.speichereInhaltAction
+      .mockResolvedValueOnce({ ok: false, grund: "konflikt", stand })
+      .mockResolvedValueOnce({ ok: true, version: 8, aktualisiertAm: 0 })
+      .mockResolvedValueOnce({ ok: false, grund: "konflikt", stand: { ...stand, version: 9 } });
+    await zeige();
+    expect(offeneSperre()).toBeNull();
+    await waehle("a");
+    await clickElement(query('[data-griff="unter"]'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(offeneSperre()?.titel).toBe("Speicherkonflikt offen");
+    await clickElement(knopf("Meine Fassung behalten"));
+    await act(async () => {});
+    expect(offeneSperre()).toBeNull();
+    await waehle("el");
+    await clickElement(query('[data-griff="unter"]'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(offeneSperre()?.titel).toBe("Speicherkonflikt offen");
+    await clickElement(knopf("Neu laden"));
+    expect(offeneSperre()).toBeNull();
+    await unmount();
+    expect(offeneSperre()).toBeNull();
   });
   it("Browser-Zurück: ist der Serverstand beim Montieren neuer, gilt er still (Entscheidung 21)", async () => {
     const neuer = baue({ stellen: [{ id: "el", titel: "EL neu" }] });

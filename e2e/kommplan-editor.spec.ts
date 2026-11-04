@@ -228,6 +228,40 @@ test("Konflikt zwischen zwei Fenstern: Hinweis, „Neu laden“ zeigt die andere
   await zweite.close();
 });
 
+test("Offener Konflikt: das Menü und „Alle Pläne“ fragen vor dem Verlassen (IDA-357)", async ({ page, context }) => {
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  const id = await neuerPlan(page, "e2e Konflikt verlassen");
+  await ersteStelle(page, "Fassung A");
+  const zweite = await context.newPage();
+  await oeffneEditor(zweite, () => zweite.goto(url(`/p/${id}`)));
+  await speichertNach(page, () => flyinTitel(page).fill("Fassung A2"));
+
+  await klickeWennRuhig(karten(zweite).first());
+  await klickeWennRuhig(zweite.locator('[data-griff="bearbeiten"]'));
+  const antwort = zweite.waitForResponse(istSpeichern);
+  await flyinTitel(zweite).fill("Fassung B");
+  expect((await antwort).status()).toBe(200);
+  await expect(zweite.locator(".kp-speicherstatus")).toHaveText("Konflikt");
+  await zweite.keyboard.press("Escape");
+  await expect(zweite.locator(".kp-flyin")).toBeHidden();
+
+  const dialog = zweite.getByRole("dialog").filter({ hasText: "Speicherkonflikt offen" });
+  await klickeWennRuhig(zweite.getByTestId("modulleiste").getByRole("link", { name: "Archiv" }));
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Bleiben" })).toBeFocused();
+  await dialog.getByRole("button", { name: "Bleiben" }).click();
+  await expect(dialog).toBeHidden();
+  expect(new URL(zweite.url()).pathname).toBe(`/p/${id}`);
+  await expect(zweite.getByText("Jemand anderes hat diesen Plan inzwischen geändert.")).toBeVisible();
+
+  await klickeWennRuhig(zweite.getByTestId("seitenkopf-zurueck"));
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Trotzdem verlassen" }).click();
+  await zweite.waitForURL(url("/"));
+  await expect(zweite.getByRole("heading", { level: 1, name: "Kommunikationspläne" })).toBeVisible();
+  await zweite.close();
+});
+
 test("Browser-Zurück: der Editor zeigt den gespeicherten Stand, die nächste Änderung speichert ohne Konflikt (Entscheidung 21)", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   await neuerPlan(page, "e2e Zurück");
