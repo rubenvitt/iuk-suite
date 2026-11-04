@@ -32,10 +32,13 @@ export function GeraetFormular({
   const [w, setW] = useState<GeraetWerte>(start);
   const setze = (teil: Partial<GeraetWerte>) => setW((alt) => ({ ...alt, ...teil }));
   const verknuepft = w.ortArt === "fahrzeug" ? fahrzeuge.find((f) => f.id === w.fahrzeugId) ?? null : null;
-  // Ein gewählter Vorschlag bleibt verknüpft, solange sein Name im Feld steht (gleiche Namen: IDA-342).
-  const setzeOrt = (ort: string, ortArt = w.ortArt) => setW((alt) => {
-    const bleibt = ortArt === "fahrzeug" ? fahrzeuge.find((f) => f.id === alt.fahrzeugId && f.name === ort.trim()) : undefined;
-    return { ...alt, ort, ortArt, fahrzeugId: ortArt === "fahrzeug" ? (bleibt ?? wahlZuName(fahrzeuge, ort))?.id ?? null : null };
+  // Ein Vorschlag trägt die ID des Fahrzeugs als Wert (gleiche Namen, IDA-342); ein unveränderter Name behält
+  // seinen Verweis, auch wenn das Fahrzeug nicht mehr zur Wahl steht (der Server prüft ihn).
+  const setzeOrt = (eingabe: string, ortArt = w.ortArt) => setW((alt) => {
+    const wahl = eingabe.startsWith(VORSCHLAG) ? fahrzeuge.find((f) => VORSCHLAG + f.id === eingabe) : undefined;
+    const ort = wahl ? wahl.name : eingabe;
+    const fahrzeugId = wahl ? wahl.id : ort.trim() === alt.ort.trim() ? alt.fahrzeugId : wahlZuName(fahrzeuge, ort)?.id ?? null;
+    return { ...alt, ort, ortArt, fahrzeugId };
   });
   const fehler = (feld: string) => (feldFehler[feld] ? { validateStatus: "error" as const, help: feldFehler[feld] } : {});
 
@@ -89,7 +92,6 @@ export function GeraetFormular({
             id="gw-ort"
             value={w.ort}
             onChange={(v: string) => setzeOrt(v)}
-            onSelect={(v: string, o: { fahrzeugId?: string }) => setze({ ort: v, fahrzeugId: o.fahrzeugId ?? wahlZuName(fahrzeuge, v)?.id ?? null })}
             options={ortOptionen(w.ortArt === "fahrzeug" ? fahrzeuge : [], orte[w.ortArt], w.ort)}
             maxLength={NAME_MAX}
           />
@@ -108,7 +110,10 @@ export function GeraetFormular({
 const zeile = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 
 /** Erst die passenden Fahrzeuge der Fahrzeugverwaltung, dann Namen, die schon vorkommen. */
-interface OrtOption { key: string; value: string; label?: ReactNode; fahrzeugId?: string }
+interface OrtOption { key: string; value: string; label?: ReactNode }
+
+/** Wert eines Fahrzeug-Vorschlags; das Feld zeigt danach den Namen. */
+const VORSCHLAG = "fahrzeug:";
 
 function ortOptionen(fahrzeuge: FahrzeugWahl[], bisher: string[], eingabe: string): OrtOption[] {
   const treffer = fahrzeuge.filter((f) => passt(f, eingabe));
@@ -117,8 +122,7 @@ function ortOptionen(fahrzeuge: FahrzeugWahl[], bisher: string[], eingabe: strin
   return [
     ...treffer.map((f) => ({
       key: f.id,
-      fahrzeugId: f.id,
-      value: f.name,
+      value: VORSCHLAG + f.id,
       label: (
         <div>
           <div style={zeile}>{f.name}</div>
