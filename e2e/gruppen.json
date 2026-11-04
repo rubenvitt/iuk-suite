@@ -1,7 +1,7 @@
 [
   {
     "name": "eimer-1",
-    "specs": "e2e/datumswaehler-schmal.spec.ts e2e/gemeinschaft-mitglieder.spec.ts e2e/kommplan-editor.spec.ts e2e/kommplan.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-check-angemeldet.spec.ts e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts e2e/lagerbuch-statistik.spec.ts e2e/radio-kiosk.spec.ts e2e/schichtplan.spec.ts e2e/ueberlauf-mobil.spec.ts"
+    "specs": "e2e/datumswaehler-schmal.spec.ts e2e/gemeinschaft-mitglieder.spec.ts e2e/kommplan-editor.spec.ts e2e/kommplan.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-check-angemeldet.spec.ts e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts e2e/lagerbuch-statistik.spec.ts e2e/radio-kiosk.spec.ts e2e/schichtplan.spec.ts e2e/seitenwechsel.spec.ts e2e/ueberlauf-mobil.spec.ts"
   },
   {
     "name": "eimer-2",
