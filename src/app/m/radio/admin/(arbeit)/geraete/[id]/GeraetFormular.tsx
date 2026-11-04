@@ -464,8 +464,8 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
    * ⚠️ NACH DEM SPEICHERN NUR LOESCHEN, NICHT `verwerfen()`: das setzte per `resetFields` auf die
    * `initialValues` des ersten Aufbaus zurueck, also auf den Stand VOR dem Speichern.
    */
-  // IDA-358: der Serverstand im Schlüssel — ein Entwurf gegen einen älteren Stand findet sich nicht wieder.
-  const entwurfSchluessel = `radio:geraet:${geraet.id}:${fingerabdruck(geraet)}`;
+  // IDA-358: der Serverstand im Schlüssel, ohne `updateNote` (nicht im Entwurf; `NotizFeld` schreibt sie fort).
+  const entwurfSchluessel = `radio:geraet:${geraet.id}:${fingerabdruck({ ...geraet, updateNote: null })}`;
   const entwurf = useFormEntwurf<FormularWerte>(form, entwurfSchluessel, { ohne: ["updateNote"] });
   const [gespeichert, setGespeichert] = useState(false);
 

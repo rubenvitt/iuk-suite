@@ -156,6 +156,27 @@ describe("useEntwurf", () => {
     expect(query("#zustand").textContent).toBe("ruhe");
   });
 
+  it("auch im offenen Tab geht eine zu alte Sendung nicht mehr von selbst raus", async () => {
+    senden = async () => { throw new TypeError("Failed to fetch"); };
+    await mount(<Formular />);
+    await fill("#feld", "offen");
+    await click("#senden");
+    expect(query("#zustand").textContent).toBe("wartet");
+    const s = vi.fn(async () => ({ ok: true }));
+    senden = s;
+    const jetzt = Date.now();
+    const uhr = vi.spyOn(Date, "now").mockReturnValue(jetzt + SELBST_SENDEN_MS + 1);
+    try {
+      await act(async () => { window.dispatchEvent(new Event("online")); });
+    } finally {
+      uhr.mockRestore();
+    }
+    expect(s).not.toHaveBeenCalled();
+    expect(query("#zustand").textContent).toBe("ruhe");
+    expect(gespeichert()?.sendung).toBeNull();
+    expect(query<HTMLInputElement>("#feld").value).toBe("offen");
+  });
+
   it("lädt bei einer nach dem Rollout unbekannten Server Action einmal neu", async () => {
     senden = async () => {
       const e = new Error("not found");

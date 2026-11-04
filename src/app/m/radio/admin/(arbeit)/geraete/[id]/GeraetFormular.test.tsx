@@ -1052,7 +1052,7 @@ describe("radio-Geraetakte: Entwurf auf dem Geraet (IDA-358)", () => {
   );
 
   // Der Serverstand steht im Schluessel (Review zu #502): ein Entwurf gilt nur gegen den Stand, gegen den getippt wurde.
-  const schluessel = (teil: Partial<GeraetFormWerte> = {}) => `radio:geraet:g-1:${fingerabdruck(werte(teil))}`;
+  const schluessel = (teil: Partial<GeraetFormWerte> = {}) => `radio:geraet:g-1:${fingerabdruck({ ...werte(teil), updateNote: null })}`;
 
   it("eine ungespeicherte Eingabe uebersteht ein Neuladen, die Update-Anmerkung nicht", async () => {
     await formular();
@@ -1072,6 +1072,14 @@ describe("radio-Geraetakte: Entwurf auf dem Geraet (IDA-358)", () => {
     await unmount();
     await formular({ rufname: "von jemand anderem" });
     expect(document.querySelector<HTMLInputElement>("#tei")!.value).not.toBe("TEI-4711");
+  });
+
+  it("eine inzwischen fortgeschriebene Update-Anmerkung laesst den Entwurf stehen", async () => {
+    await formular();
+    await fill("#tei", "TEI-4711");
+    await unmount();
+    await formular({ updateNote: "spaeter angehaengt" });
+    expect(document.querySelector<HTMLInputElement>("#tei")!.value).toBe("TEI-4711");
   });
 
   it("nach bestaetigtem Speichern ist der Entwurf geloescht, die Werte bleiben stehen", async () => {
