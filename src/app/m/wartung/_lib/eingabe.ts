@@ -126,9 +126,10 @@ export const pruefungEingabe = z.object({
   stunden,
   antworten: z.array(z.object({
     punktId: idSchema, ok: z.boolean(), text: frei(NOTIZ_MAX),
-    /** Nur beim Durchzählen: Soll-Menge und Wortlaut der Position, gegen die gezählt wurde (IDA-335). */
+    /** Nur beim Durchzählen: Soll-Menge, Wortlaut und Bemerkung der Position, gegen die gezählt wurde (IDA-335). */
     soll: z.number().int().min(1).max(SOLL_MAX).optional(),
     punkt: z.string().max(PUNKT_MAX).optional(),
+    hinweis: z.string().max(KURZ_MAX).optional(),
   })).max(INHALT_MAX)
     .refine((a) => new Set(a.map((x) => x.punktId)).size === a.length, "Jeder Punkt der Checkliste darf nur einmal vorkommen."),
   ergebnis: z.enum(["ok", "mangel", "defekt"]),

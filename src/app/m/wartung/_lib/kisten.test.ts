@@ -26,7 +26,7 @@ function mitKiste() {
 type Liste = ReturnType<typeof ladeInhalt>;
 /** Eine Zählung: `fehlt` nennt die Positionen (Index → Text), die fehlen; gezählt gegen die angezeigte Menge. */
 const zaehlung = (liste: Liste, fehlt: Record<number, string> = {}) =>
-  liste.map((p, i) => ({ punktId: p.id, ok: !(i in fehlt), text: fehlt[i] ?? "", soll: p.soll, punkt: p.text }));
+  liste.map((p, i) => ({ punktId: p.id, ok: !(i in fehlt), text: fehlt[i] ?? "", soll: p.soll, punkt: p.text, hinweis: p.bemerkung }));
 const zaehle = (db: ReturnType<typeof testDb>, id: string, liste: Liste, fehlt: Record<number, string> = {}) =>
   pruefungAbschliessen(db, id, {
     sendung: neueId(), stunden: null, ergebnis: Object.keys(fehlt).length ? "mangel" : "ok", notiz: "", antworten: zaehlung(liste, fehlt),
@@ -145,6 +145,14 @@ describe("Materialkisten (IDA-335)", () => {
     const { db, id, liste } = mitKiste();
     const angezeigt = zaehlung(liste);
     inhaltSpeichern(db, id, [{ ...liste[0], text: "HDMI-Kabel 5 m" }, liste[1]]);
+    expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten: angezeigt }, new Map(), K))
+      .toThrow(/Inhaltsliste hat sich geändert/);
+  });
+
+  it("eine inzwischen geänderte Bemerkung macht die Zählung ungültig", () => {
+    const { db, id, liste } = mitKiste();
+    const angezeigt = zaehlung(liste);
+    inhaltSpeichern(db, id, [liste[0], { ...liste[1], bemerkung: "im Fach links" }]);
     expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten: angezeigt }, new Map(), K))
       .toThrow(/Inhaltsliste hat sich geändert/);
   });

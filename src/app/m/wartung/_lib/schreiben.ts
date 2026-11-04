@@ -162,10 +162,10 @@ export function inhaltSpeichern(db: WartungDb, geraetId: string, liste: InhaltEi
 function pruefpunkte(db: WartungSchreiber, g: { id: string; artId: string }, kiste: boolean) {
   if (kiste) {
     return db.select().from(inhalt).where(eq(inhalt.geraetId, g.id)).orderBy(inhalt.position).all()
-      .map((p) => ({ id: p.id, text: p.text, soll: p.soll as number | null }));
+      .map((p) => ({ id: p.id, text: p.text, soll: p.soll as number | null, bemerkung: p.bemerkung }));
   }
   return db.select().from(checkpunkt).where(eq(checkpunkt.artId, g.artId)).orderBy(checkpunkt.position).all()
-    .map((p) => ({ id: p.id, text: p.text, soll: null as number | null }));
+    .map((p) => ({ id: p.id, text: p.text, soll: null as number | null, bemerkung: "" }));
 }
 
 // ---------------------------------------------------------------- Unterlagen (IDA-300)
@@ -299,8 +299,12 @@ export function pruefungAbschliessen(
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));
     const meldung = a.kiste ? "Die Inhaltsliste hat sich geändert. Bitte neu durchzählen." : "Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.";
     if (punkte.some((pk) => !antwort.has(pk.id)) || (a.kiste && antwort.size !== punkte.length)) throw new Abgelehnt(meldung);
-    // Gezählt wurde gegen Menge und Wortlaut auf dem Bildschirm; hat sie jemand inzwischen geändert, gilt die Zählung nicht.
-    if (a.kiste && punkte.some((pk) => antwort.get(pk.id)!.soll !== pk.soll || antwort.get(pk.id)!.punkt !== pk.text)) throw new Abgelehnt(meldung);
+    // Gezählt wurde gegen Menge, Wortlaut und Bemerkung auf dem Bildschirm; hat sie jemand inzwischen geändert, gilt die Zählung nicht.
+    const anders = (pk: (typeof punkte)[number]) => {
+      const x = antwort.get(pk.id)!;
+      return x.soll !== pk.soll || x.punkt !== pk.text || (x.hinweis ?? "") !== pk.bemerkung;
+    };
+    if (a.kiste && punkte.some(anders)) throw new Abgelehnt(meldung);
     if (!a.kiste && a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
     pruefeStunden(p.stunden, g.stunden);
 
