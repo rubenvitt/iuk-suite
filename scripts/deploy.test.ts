@@ -520,33 +520,31 @@ describe("scripts/deploy.sh", () => {
 });
 
 /*
- * DRK-509: der Rollout tauscht die Stack-Dateien selbst aus — aber nur, wenn die
- * Server-Datei noch der Stand ist, den ein früherer Rollout dort abgelegt hat. Geprüft
- * am GANZEN Skript gegen eine Docker-Attrappe, nicht an Zeichenketten: die Eigenschaft,
- * um die es geht, ist eine Reihenfolge (erst prüfen, dann beiseitelegen, dann ablegen,
- * im Fehlerfall zurücklegen), und die sieht man nur im Lauf.
+ * Die Attrappe beantwortet genau die Aufrufe, die deploy.sh macht. Sie führt die
+ * laufenden suite-Container in `$KLADDE/suite.ids` (anfangs `alt`, beim ersten Rollout
+ * keiner): `up --scale suite=N` legt `neu` dazu, ein nacktes `up -d` ersetzt alles durch
+ * `neu` oder `alt` (je nach Pin), `stop`/`rm` nehmen eine ID heraus. Gesund ist `alt`
+ * immer, `neu` nur ohne GESUND=nein; `neu` meldet die erwartete Revision, ausser bei
+ * FALSCH=ja. `compose config` ahmt die beiden Meldungen nach, die Compose v5.3 wirklich
+ * ausgibt (gemessen): `level=warning msg="The \"X\" variable is not set. …"` (Exit 0)
+ * und `required variable X is missing a value` (Exit 1). Gesteuert über Marken in der
+ * compose-Datei: `# braucht: X` und `# pflicht: X`.
  */
-describe("scripts/deploy.sh — Stack-Dateien ausrollen (DRK-509)", () => {
-  const ERWARTET = "a".repeat(40);
-  const BASIS = "ghcr.io/rubenvitt/iuk-suite";
-  const STACK = ["compose.yaml", "clamd.files.conf", "scripts/backup.sh", "scripts/backup-sidecar.sh"];
-  const sha = (t: string) => createHash("sha256").update(t).digest("hex");
-
-  /*
-   * Die Attrappe beantwortet genau die Aufrufe, die deploy.sh macht. Gesund ist der
-   * Stack nur, solange in der .env NICHT der neue Digest steht und GESUND=nein gesetzt
-   * ist — so lässt sich ein Rollout erzwingen, der zurückrollen muss. `compose config`
-   * ahmt die beiden Meldungen nach, die Compose v5.3 wirklich ausgibt (gemessen):
-   * `level=warning msg="The \"X\" variable is not set. …"` (Exit 0) und
-   * `required variable X is missing a value` (Exit 1). Gesteuert über Marken in der
-   * compose-Datei: `# braucht: X` und `# pflicht: X`.
-   */
-  const ATTRAPPE = String.raw`#!/bin/bash
+const ATTRAPPE = String.raw`#!/bin/bash
 echo "$*" >>"$KLADDE/docker.log"
+IDS="$KLADDE/suite.ids"
+touch "$IDS"
 neu_gepinnt() { grep -q '^SUITE_IMAGE=.*@sha256:neu' .env 2>/dev/null; }
+ohne() { grep -vx "$1" "$IDS" >"$IDS.tmp" || true; mv "$IDS.tmp" "$IDS"; }
+for letztes; do :; done
 case "$1" in
   pull) exit 0 ;;
   logout) exit 0 ;;
+  logs) echo "log neu"; exit 0 ;;
+  stop|rm) ohne "$letztes"; exit 0 ;;
+  exec)
+    if [ "$2" = "neu" ] && [ "$FALSCH" != "ja" ]; then r="$ERWARTET"; else r=alt; fi
+    echo "{\"status\":\"ok\",\"revision\":\"$r\"}"; exit 0 ;;
   image)
     case "$*" in
       *revision*) echo "$ERWARTET" ;;
@@ -557,7 +555,7 @@ case "$1" in
   inspect)
     case "$*" in
       *Health*)
-        if neu_gepinnt && [ "$GESUND" = "nein" ]; then echo unhealthy; else echo healthy; fi ;;
+        if [ "$letztes" = "neu" ] && [ "$GESUND" = "nein" ]; then echo unhealthy; else echo healthy; fi ;;
       *StartedAt*) echo "2000-01-01T00:00:00Z" ;;
       *State.Status*) echo running ;;
       *) echo bild ;;
@@ -570,6 +568,7 @@ case "$1" in
     case "$1" in
       version) exit 0 ;;
       config)
+        if [ "$2" = "--services" ]; then printf 'suite\nclamav\nbackup\n'; exit 0; fi
         for v in $(sed -n 's/^# braucht: //p' "$datei"); do
           grep -q "^$v=" .env || echo "time=\"x\" level=warning msg=\"The \\\"$v\\\" variable is not set. Defaulting to a blank string.\"" >&2
         done
@@ -579,8 +578,23 @@ case "$1" in
           grep -q "^$v=" .env || { echo "required variable $v is missing a value: $v must be set" >&2; echo "user: geheim-geheim" >&2; exit 1; }
         done
         exit 0 ;;
-      ps) echo cid ;;
-      up) echo "up $*" >>"$KLADDE/up.log"; exit 0 ;;
+      ps)
+        case "$*" in
+          *suite*) cat "$IDS" ;;
+          *clamav*) echo clamav-cid ;;
+          *backup*) echo backup-cid ;;
+          *) echo "suite-1 Up (healthy)" ;;
+        esac ;;
+      up)
+        echo "up $*" >>"$KLADDE/up.log"
+        case "$*" in
+          *"--scale suite="*)
+            soll="$(printf '%s' "$*" | sed -n 's/.*--scale suite=\([0-9]*\).*/\1/p')"
+            [ "$(grep -c . "$IDS")" -lt "$soll" ] && echo neu >>"$IDS" ;;
+          "up -d")
+            if neu_gepinnt; then echo neu >"$IDS"; else echo alt >"$IDS"; fi ;;
+        esac
+        exit 0 ;;
       exec)
         if neu_gepinnt; then r="$ERWARTET"; else r=alt; fi
         echo "{\"status\":\"ok\",\"revision\":\"$r\"}" ;;
@@ -591,12 +605,29 @@ esac
 exit 0
 `;
 
+/*
+ * DRK-509: der Rollout tauscht die Stack-Dateien selbst aus — aber nur, wenn die
+ * Server-Datei noch der Stand ist, den ein früherer Rollout dort abgelegt hat. Geprüft
+ * am GANZEN Skript gegen eine Docker-Attrappe, nicht an Zeichenketten: die Eigenschaft,
+ * um die es geht, ist eine Reihenfolge (erst prüfen, dann beiseitelegen, dann ablegen,
+ * im Fehlerfall zurücklegen), und die sieht man nur im Lauf.
+ */
+describe("scripts/deploy.sh — Stack-Dateien ausrollen (DRK-509)", () => {
+  const ERWARTET = "a".repeat(40);
+  const BASIS = "ghcr.io/rubenvitt/iuk-suite";
+  const STACK = ["compose.yaml", "clamd.files.conf", "scripts/backup.sh", "scripts/backup-sidecar.sh"];
+  const sha = (t: string) => createHash("sha256").update(t).digest("hex");
+
   type Lage = {
     repo?: Record<string, string>;
     server?: Record<string, string | null>;
     merkliste?: Record<string, string> | null;
     env?: string;
     gesund?: boolean;
+    /** Läuft vor dem Rollout ein suite-Container? Vorgabe: ja (`alt`). */
+    alt?: boolean;
+    falscheRevision?: boolean;
+    umgebung?: Record<string, string>;
   };
 
   function fahre(lage: Lage) {
@@ -622,6 +653,7 @@ exit 0
       );
     }
     writeFileSync(path.join(stack, ".env"), lage.env ?? `AUTH_SECRET=geheim-geheim\nSUITE_IMAGE=${BASIS}@sha256:alt\n`);
+    writeFileSync(path.join(kladde, "suite.ids"), lage.alt === false ? "" : "alt\n");
     writeFileSync(path.join(bin, "docker"), ATTRAPPE);
     chmodSync(path.join(bin, "docker"), 0o755);
     const p = spawnSync("bash", [path.join(repo, "scripts/deploy.sh")], {
@@ -634,17 +666,22 @@ exit 0
         ERWARTET,
         BASIS,
         GESUND: lage.gesund === false ? "nein" : "ja",
+        FALSCH: lage.falscheRevision ? "ja" : "nein",
+        SUITE_DEPLOY_TRAEFIK_PAUSE: "0",
         SUITE_STACK_DIR: stack,
         SUITE_REVISION_ERWARTET: ERWARTET,
         SUITE_HEALTH_URL: "aus",
         SUITE_BACKUP_CMD: "",
         SUITE_BACKUP_GESUND_FRIST: "0",
         GITHUB_STEP_SUMMARY: "",
+        ...lage.umgebung,
       },
     });
     const lies = (d: string) => (existsSync(path.join(stack, d)) ? readFileSync(path.join(stack, d), "utf8") : null);
     const up = existsSync(path.join(kladde, "up.log")) ? readFileSync(path.join(kladde, "up.log"), "utf8") : "";
-    return { code: p.status, aus: `${p.stdout}${p.stderr}`, lies, up, stack, aufraeumen: () => rmSync(kladde, { recursive: true, force: true }) };
+    const log = existsSync(path.join(kladde, "docker.log")) ? readFileSync(path.join(kladde, "docker.log"), "utf8") : "";
+    const container = readFileSync(path.join(kladde, "suite.ids"), "utf8").split("\n").filter(Boolean);
+    return { code: p.status, aus: `${p.stdout}${p.stderr}`, lies, up, log, container, stack, aufraeumen: () => rmSync(kladde, { recursive: true, force: true }) };
   }
 
   it("alles gleich: Rollout läuft, und die erste Merkliste entsteht", () => {
@@ -667,7 +704,7 @@ exit 0
       expect(l.lies(".rollout-vorher/compose.yaml")).toBe("compose.yaml v1\n");
       expect(l.lies(".rollout-stack.sha256")).toContain(`${sha("compose v2\n")}  compose.yaml`);
       // clamd liest seine Konfiguration nur beim Start — und zwar VOR dem `up -d` der Suite.
-      expect(l.up).toMatch(/--force-recreate clamav[\s\S]*\bup -d\s*$/m);
+      expect(l.up).toMatch(/--force-recreate clamav[\s\S]*--scale suite=2 suite\s*$/m);
       // Was in den Container kommt, muss clamd lesen können, nicht nur der Runner-Nutzer.
       expect(statSync(path.join(l.stack, "clamd.files.conf")).mode & 0o777).toBe(0o644);
     } finally {
@@ -750,6 +787,164 @@ exit 0
       // über einen neuen Container.
       expect((l.up.match(/--force-recreate clamav/g) ?? []).length).toBe(2);
       expect(l.up).toMatch(/--force-recreate backup/);
+      // Übergabe: der alte lief durchgehend weiter, entfernt wurde nur der neue.
+      expect(l.container).toEqual(["alt"]);
+      expect(l.log).not.toMatch(/^(stop|rm)\b.*\balt$/m);
+    } finally {
+      l.aufraeumen();
+    }
+  });
+
+  it("… und ohne alten Container (erster Rollout) wie vor der Übergabe: up -d, Rollback per up -d", () => {
+    const l = fahre({ repo: { "compose.yaml": "compose v2\n" }, gesund: false, alt: false });
+    try {
+      expect(l.code).not.toBe(0);
+      expect(l.aus).toMatch(/ROLLBACK auf/);
+      expect(l.aus).toMatch(/wieder healthy/);
+      expect(l.up).not.toContain("--scale");
+      expect((l.up.match(/^up up -d$/gm) ?? []).length, "einmal ausrollen, einmal zurück").toBe(2);
+      expect(l.lies(".env")).toContain("@sha256:alt");
+      expect(l.lies("compose.yaml")).toBe("compose.yaml v1\n");
+    } finally {
+      l.aufraeumen();
+    }
+  });
+});
+
+/*
+ * Übergabe ohne Ausfallzeit (04.11.2026): bis dahin stoppte `docker compose up -d` den
+ * alten Container, bevor der neue healthy war — 404 auf allen Modul-Hosts, und ein Helfer
+ * konnte einen Fahrzeugcheck nicht absenden. Die Eigenschaft ist eine REIHENFOLGE (der
+ * alte geht erst nach healthy UND Revision des neuen), deshalb am ganzen Skript gemessen.
+ */
+describe("scripts/deploy.sh — Übergabe: der neue startet neben dem alten", () => {
+  const ERWARTET = "a".repeat(40);
+  const BASIS = "ghcr.io/rubenvitt/iuk-suite";
+  const STACK = ["compose.yaml", "clamd.files.conf", "scripts/backup.sh", "scripts/backup-sidecar.sh"];
+
+  it("compose.yaml: `suite` hat weder container_name noch einen festen Host-Port", () => {
+    // Beides machte `--scale suite=2` unmöglich: ein fester Name existiert nur einmal, ein
+    // Host-Port lässt sich nur einmal binden. Der Rollout fiele dann in Schritt 5 auf den
+    // Rückweg — jedes Mal, ohne dass der Grund im Namen der Meldung steht.
+    const suite = rumpf(composeText.split("\n"), "suite", 2).filter((z) => !z.trimStart().startsWith("#"));
+    expect(suite.length, "Dienst `suite` steht in compose.yaml").toBeGreaterThan(10);
+    expect(suite.filter((z) => /^ {4}container_name:/.test(z))).toEqual([]);
+    expect(suite.filter((z) => /^ {4}ports:/.test(z))).toEqual([]);
+    // Und kein `deploy.replicas`, das der Skalierung von aussen widerspräche.
+    expect(suite.filter((z) => /^ {6}replicas:/.test(z))).toEqual([]);
+  });
+
+  function fahreUebergabe(lage: { gesund?: boolean; falscheRevision?: boolean; umgebung?: Record<string, string> }) {
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "deploy-uebergabe-"));
+    const repo = path.join(kladde, "repo");
+    const stack = path.join(kladde, "stack");
+    const bin = path.join(kladde, "bin");
+    for (const d of [path.join(repo, "scripts"), path.join(stack, "scripts"), bin]) mkdirSync(d, { recursive: true });
+    writeFileSync(path.join(repo, "scripts/deploy.sh"), deploySh);
+    for (const d of STACK) {
+      writeFileSync(path.join(repo, d), `${d} v1\n`);
+      writeFileSync(path.join(stack, d), `${d} v1\n`);
+    }
+    writeFileSync(path.join(stack, ".env"), `AUTH_SECRET=geheim-geheim\nSUITE_IMAGE=${BASIS}@sha256:alt\n`);
+    writeFileSync(path.join(kladde, "suite.ids"), "alt\n");
+    writeFileSync(path.join(bin, "docker"), ATTRAPPE);
+    chmodSync(path.join(bin, "docker"), 0o755);
+    const p = spawnSync("bash", [path.join(repo, "scripts/deploy.sh")], {
+      encoding: "utf8",
+      timeout: 60_000,
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        KLADDE: kladde,
+        ERWARTET,
+        BASIS,
+        GESUND: lage.gesund === false ? "nein" : "ja",
+        FALSCH: lage.falscheRevision ? "ja" : "nein",
+        SUITE_DEPLOY_TRAEFIK_PAUSE: "0",
+        SUITE_STACK_DIR: stack,
+        SUITE_REVISION_ERWARTET: ERWARTET,
+        SUITE_HEALTH_URL: "aus",
+        SUITE_BACKUP_CMD: "",
+        SUITE_BACKUP_GESUND_FRIST: "0",
+        GITHUB_STEP_SUMMARY: "",
+        ...lage.umgebung,
+      },
+    });
+    const log = readFileSync(path.join(kladde, "docker.log"), "utf8").split("\n");
+    const container = readFileSync(path.join(kladde, "suite.ids"), "utf8").split("\n").filter(Boolean);
+    const env = readFileSync(path.join(stack, ".env"), "utf8");
+    /** Zeilennummer des ersten Aufrufs, auf den das Muster passt (−1: keiner). */
+    const wo = (muster: RegExp) => log.findIndex((z) => muster.test(z));
+    return { code: p.status, aus: `${p.stdout}${p.stderr}`, log, wo, container, env, aufraeumen: () => rmSync(kladde, { recursive: true, force: true }) };
+  }
+
+  it("erfolgreich: der alte geht erst, wenn der neue healthy ist UND die Revision stimmt", () => {
+    const l = fahreUebergabe({});
+    try {
+      expect(l.code, l.aus).toBe(0);
+      const skaliert = l.wo(/^compose up -d --no-deps --no-recreate --scale suite=2 suite$/);
+      const gesund = l.wo(/^inspect .*Health.* neu$/);
+      const revision = l.wo(/^exec neu wget /);
+      const gestoppt = l.wo(/^stop --time 30 alt$/);
+      const entfernt = l.wo(/^rm alt$/);
+      const zurueckAufEins = l.wo(/^compose up -d --no-deps --no-recreate --scale suite=1 suite$/);
+      expect(skaliert, "neben dem alten gestartet").toBeGreaterThan(-1);
+      expect(gesund, "auf GENAU den neuen gewartet").toBeGreaterThan(skaliert);
+      expect(revision, "Revision am neuen geprüft").toBeGreaterThan(gesund);
+      expect(gestoppt, "der alte erst danach gestoppt").toBeGreaterThan(revision);
+      expect(entfernt).toBeGreaterThan(gestoppt);
+      expect(zurueckAufEins).toBeGreaterThan(entfernt);
+      // Kein nacktes `up -d` auf den ganzen Stack: das stoppte den alten vor der Zeit.
+      expect(l.log).not.toContain("compose up -d");
+      // Die übrigen Dienste bekommen eine geänderte compose.yaml trotzdem — ohne die Suite.
+      expect(l.log).toContain("compose up -d --no-deps clamav backup");
+      expect(l.container).toEqual(["neu"]);
+      expect(l.env).toContain("@sha256:neu");
+      expect(l.aus).toMatch(/Übergabe abgeschlossen/);
+    } finally {
+      l.aufraeumen();
+    }
+  });
+
+  it("der neue wird nicht healthy: nur er geht, der alte wird nie angefasst", () => {
+    const l = fahreUebergabe({ gesund: false });
+    try {
+      expect(l.code).not.toBe(0);
+      expect(l.aus).toMatch(/der alte lief\s+durchgehend weiter und ist wieder healthy/);
+      expect(l.wo(/^rm -f neu$/), "der neue ist entfernt").toBeGreaterThan(-1);
+      expect(l.wo(/^(stop|rm)( -f| --time \d+)? alt$/), "der alte nie gestoppt").toBe(-1);
+      expect(l.wo(/^exec /), "keine Revisionsprüfung an einem kranken Container").toBe(-1);
+      expect(l.container).toEqual(["alt"]);
+      expect(l.env).toContain("@sha256:alt");
+      // Der Auszug zeigt NUR das Log des neuen — der alte hatte Verkehr.
+      expect(l.wo(/^logs --timestamps --tail=80 neu$/)).toBeGreaterThan(-1);
+      expect(l.log.some((z) => /^compose logs/.test(z))).toBe(false);
+    } finally {
+      l.aufraeumen();
+    }
+  });
+
+  it("der neue meldet die falsche Revision: auch dann geht nur er", () => {
+    const l = fahreUebergabe({ falscheRevision: true });
+    try {
+      expect(l.code).not.toBe(0);
+      expect(l.aus).toMatch(/erwartet war/);
+      expect(l.wo(/^stop --time 30 neu$/), "der neue bekommt seine Gnadenfrist").toBeGreaterThan(-1);
+      expect(l.wo(/^(stop|rm)( -f| --time \d+)? alt$/)).toBe(-1);
+      expect(l.container).toEqual(["alt"]);
+      expect(l.env).toContain("@sha256:alt");
+    } finally {
+      l.aufraeumen();
+    }
+  });
+
+  it("SUITE_DEPLOY_UEBERGABE=aus: der Neustart von früher, ausdrücklich", () => {
+    const l = fahreUebergabe({ umgebung: { SUITE_DEPLOY_UEBERGABE: "aus" } });
+    try {
+      expect(l.code, l.aus).toBe(0);
+      expect(l.log).toContain("compose up -d");
+      expect(l.log.some((z) => z.includes("--scale"))).toBe(false);
+      expect(l.container).toEqual(["neu"]);
     } finally {
       l.aufraeumen();
     }

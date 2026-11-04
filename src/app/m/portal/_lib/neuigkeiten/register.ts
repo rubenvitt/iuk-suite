@@ -15,6 +15,7 @@ import wasStehtAn from "./notizen/portal/2026-10-31-was-steht-an";
 import modulversionen from "./notizen/portal/2026-11-02-modulversionen";
 import appsAnheften from "./notizen/portal/2026-11-03-apps-anheften";
 import einMenue from "./notizen/portal/2026-11-04-ein-menue";
+import eingabenBleibenErhalten from "./notizen/portal/2026-11-05-eingaben-bleiben-erhalten";
 import sucheUeberAlleModule from "./notizen/portal/2026-10-31-suche-ueber-alle-module";
 import springenMitStrgK from "./notizen/portal/2026-10-31-springen-mit-strg-k";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
@@ -71,6 +72,7 @@ import einsatznummerDerLeitstelle from "@/app/m/portal/_lib/neuigkeiten/notizen/
 import angabenJePatient from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-angaben-je-patient";
 import anleitungFuerDenRechner from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-29-anleitung-fuer-den-rechner";
 import beginnUndEndeNachtragen from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-29-beginn-und-ende-nachtragen";
+import heisstJetztEinsatztagebuch from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-11-04-heisst-jetzt-einsatztagebuch";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
@@ -218,6 +220,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   angabenJePatient,
   anleitungFuerDenRechner,
   beginnUndEndeNachtragen,
+  heisstJetztEinsatztagebuch,
   anleitungJeAnsicht,
   verteilenZweiAnsichten,
   aufgabenBearbeiten,
@@ -312,6 +315,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   modulversionen,
   appsAnheften,
   einMenue,
+  eingabenBleibenErhalten,
   sucheUeberAlleModule,
   springenMitStrgK,
   funkInDerSuite,

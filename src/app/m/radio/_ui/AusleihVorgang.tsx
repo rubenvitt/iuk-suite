@@ -1,8 +1,10 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button, Input } from "antd";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
 import { ausleiheAnlegen } from "../_actions/ausleihe";
 import { AUSWAHL_MAX, AUSWAHL_PARAMETER, auswahlSchreiben } from "../_lib/auswahl";
 import { filtereGeraete } from "../_lib/filter";
@@ -22,11 +24,9 @@ import s from "./ausleihe.module.css";
 /**
  * DIE INSEL DES AUSLEIHVORGANGS (Spec 1 §4.3, `:3417-3553`).
  *
- * ⛔ `"use client"`, und die Gruende sind aufzaehlbar: `useActionState` auf
- * `ausleiheAnlegen`, das Umschalten der Auswahl mit `router.replace`, und das Namensfeld
- * mit seinen Vorschlaegen. Die REINEN Funktionen liegen ausdruecklich NICHT hier, sondern
- * in `_lib/auswahl.ts` und `_lib/filter.ts` OHNE Direktive — beide Seiten der RSC-Grenze
- * lesen sie (Falle 6, `CLAUDE.md`, Punkt 6).
+ * ⛔ `"use client"` fuer den Entwurf um `ausleiheAnlegen`, `router.replace` und das Namensfeld.
+ * Die REINEN Funktionen liegen NICHT hier, sondern in `_lib/auswahl.ts` und `_lib/filter.ts`
+ * OHNE Direktive — beide Seiten der RSC-Grenze lesen sie (Falle 6, `CLAUDE.md`, Punkt 6).
  *
  * ⛔ DIE ACTION WIRD DIREKT IMPORTIERT, nicht als Prop durchgereicht (Falle 9,
  * `CLAUDE.md`). Ein `action`-Prop aus `page.tsx` waere typkorrekt, und `pnpm build`
@@ -121,35 +121,35 @@ const KNOPF_MEHRERE = "Geräte ausleihen";
 const KNOPF_LAEUFT = "Wird gespeichert …";
 
 /**
- * ⚠️ WARUM EIN OERTLICHER UMSCHLAG UM DIE ACTION UND KEIN DIREKTES
- * `useActionState(ausleiheAnlegen, null)` — zwei Gruende, beide schon einmal gemessen und
- * in `_ui/GateFormular.tsx:32-62` ausgeschrieben:
- *
- *   1. `?? null` IST DER ERFOLGSPFAD, NICHT DEFENSIVE ZIER. `ausleiheAnlegen` endet im
- *      Erfolg mit `redirect("/geraete?gebucht=<n>")` (`_actions/ausleihe.ts:218`); der
- *      Client-Aufruf lehnt dafuer NICHT ab, sondern loest mit `undefined` auf. React
- *      rendert danach noch einmal, und ein `zustand.ok` auf `undefined` risse den Baum ab.
- *   2. DAS `catch` FAENGT DREI LAGEN MIT EINEM SATZ: Verbindungsabbruch beim Absenden, den
- *      Wurf von `requireRadioHost` in der Riegelkette und jede echte Serverausnahme. Ohne
- *      das `catch` stiege der Wurf in den Absendeweg hoch, und die Person saehe eine
- *      technische Fehlerseite statt eines Satzes an ihrem Formular — mitsamt der getippten
- *      Auswahl und dem Namen.
- *
- * ⛔ DER SATZ WIRD NICHT NEU ERFUNDEN: `ausleihText({ grund: "unbekannt" })` liefert genau
- * den Satz, den auch der Server fuer diesen Ausgang schickt (`_lib/meldungen.ts`) — ein
- * zweiter Wortlaut fuer dieselbe Lage waere die Fehlerform, gegen die
- * `_lib/bauform.test.ts` („kein Rueckfalltext hinter gateMeldung") modulweit steht.
+ * ⚠️ DER UMSCHLAG UM DIE ACTION, seit IDA-358 unter `useEntwurf` (`core/entwurf`) statt `useActionState`:
+ *   1. `?? null` IST DER ERFOLGSPFAD: `ausleiheAnlegen` endet mit `redirect(...)` (`_actions/ausleihe.ts:218`),
+ *      der Client-Aufruf loest dann mit `undefined` auf — fuer den Entwurf „angekommen" (`antwort` unten).
+ *   2. EIN WURF IST „NICHT ANGEKOMMEN", nicht mehr `grund: "unbekannt"` (Netz, 502, nach dem Rollout unbekannte
+ *      Action-ID): der Vorgang liegt auf dem Geraet und wird erneut versucht, auch nach dem Neuladen.
+ * ⚠️ DOPPELT GEBUCHT WIRD OHNE SENDUNGS-ID NICHTS: kam ein Versuch an und nur die Antwort ging verloren, ist
+ * das Geraet nicht mehr frei, und `bucheAusleihe` lehnt die Wiederholung mit dem Konfliktsatz ab. Die Saetze zu
+ * `ok: false` kommen aus `_lib/meldungen.ts` (`_lib/bauform.test.ts`, „kein Rueckfalltext hinter gateMeldung").
  */
-async function amFormular(
-  vorher: AusleihErgebnis | null,
-  formular: FormData,
-): Promise<AusleihErgebnis | null> {
-  try {
-    const ergebnis: AusleihErgebnis | undefined = await ausleiheAnlegen(vorher, formular);
-    return ergebnis ?? null;
-  } catch {
-    return { ok: false, grund: "unbekannt", text: ausleihText({ grund: "unbekannt" }), betroffen: [] };
-  }
+async function sendeAusleihe(n: { auswahl: readonly string[]; name: string }): Promise<AusleihErgebnis | null> {
+  const formular = new FormData();
+  formular.set(AUSWAHL_PARAMETER, auswahlSchreiben([...n.auswahl]));
+  formular.set("entleiher", n.name);
+  const ergebnis: AusleihErgebnis | undefined = await ausleiheAnlegen(null, formular);
+  return ergebnis ?? null;
+}
+
+/** IDA-358: der Name liegt auf dem Geraet (die Auswahl steht schon in `?geraete=`), der Vorgang bis zur Antwort. */
+function useAusleihEntwurf(name: string, setName: (n: string) => void, setZustand: (z: AusleihErgebnis | null) => void) {
+  return useEntwurf<{ name: string }, { auswahl: readonly string[]; name: string }, AusleihErgebnis | null>({
+    schluessel: "radio:ausleihe:neu",
+    stand: { name },
+    wiederherstellen: (w) => setName(w.name),
+    senden: sendeAusleihe,
+    antwort: (r) => {
+      setZustand(r);
+      return r === null || r.ok;
+    },
+  });
 }
 
 export function AusleihVorgang({
@@ -184,10 +184,10 @@ export function AusleihVorgang({
   const [auswahl, setAuswahl] = useState<readonly string[]>(vorauswahl);
   const [name, setName] = useState(namensVorbelegung ?? "");
   const [suchtext, setSuchtext] = useState("");
-  const [zustand, formAction, laeuft] = useActionState<AusleihErgebnis | null, FormData>(
-    amFormular,
-    null,
-  );
+  const [zustand, setZustand] = useState<AusleihErgebnis | null>(null);
+  const entwurf = useAusleihEntwurf(name, setName, setZustand);
+  const meldung = useEntwurfMeldung(entwurf);
+  const laeuft = entwurf.zustand === "sendet";
 
   /*
    * ⛔ EINE SUCHE, EIN ORT: `filtereGeraete` ist dieselbe Funktion, die die Uebersicht
@@ -243,11 +243,11 @@ export function AusleihVorgang({
     const wert = auswahlSchreiben(neu);
     router.replace(wert === "" ? pfad : `${pfad}?${AUSWAHL_PARAMETER}=${wert}`, { scroll: false });
   }
-
+  const abschicken = (e: FormEvent) => { e.preventDefault(); if (auswahl.length && !nameLeer && !nameZuLang && !laeuft) { setZustand(null); entwurf.sende({ auswahl, name }); } };
   const knopftext = laeuft ? KNOPF_LAEUFT : auswahl.length > 1 ? KNOPF_MEHRERE : KNOPF_EINS;
 
   return (
-    <form className={s.ausleihForm} action={formAction} data-rolle="radio-ausleihform">
+    <form className={s.ausleihForm} onSubmit={abschicken} data-rolle="radio-ausleihform">
       {/*
         ⛔ DIE ZWEI FELDNAMEN SIND DIE DER ACTION. `geraete` kommt aus `AUSWAHL_PARAMETER`
         (`_lib/auswahl.ts:61`), damit der Name nur einmal existiert; `entleiher` steht
@@ -466,10 +466,18 @@ export function AusleihVorgang({
         </>
       )}
 
+      {meldung && meldung.art !== "wiederhergestellt" && (
+        /*
+          IDA-358: die Statuszeile des Entwurfs, am Ort des Fehlersatzes der Action; der
+          Absendeknopf zieht den naechsten Versuch vor. Nur Status, keine Erklaerung.
+        */
+        <p className={s.meldung} role="status" data-rolle="entwurf-hinweis" data-art={meldung.art}>{meldung.text}</p>
+      )}
+
       {/*
         ⛔ SOFORTIGE SPERRE UND BESCHRIFTUNGSWECHSEL BLEIBEN WOERTLICH ERHALTEN
         (`ConfirmLoanButton.tsx:42-66`, Beschriftung `:68` je nach Anzahl) — nur wird aus dem
-        `useState` ein `useActionState`, dessen `laeuft` dasselbe leistet (Spec:3431-3433).
+        `useState` der Sendezustand des Entwurfs (IDA-358), dessen `laeuft` dasselbe leistet (Spec:3431-3433).
         ⚠️ „Wird gespeichert …" statt „Wird gespeichert..." ist die Schreibweise der Spec
         (Spec:3428, Schritt 6) und die Hausform fuer Auslassungspunkte; der Alt-Wortlaut
         (`ConfirmLoanButton.tsx:10`) traegt drei Punkte.

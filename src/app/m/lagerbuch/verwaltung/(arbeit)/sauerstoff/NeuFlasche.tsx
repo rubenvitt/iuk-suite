@@ -13,6 +13,8 @@ import {
   O2_WECHSEL_VORGABE_PROZENT,
 } from "../../../_lib/domain/o2";
 import { Ikone } from "../../../_ui/ikonen";
+import { EntwurfZeile } from "../../../_ui/EntwurfZeile";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
 
 type Werte = {
   name: string;
@@ -51,6 +53,9 @@ export function NeuFlasche({
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
   const [form] = Form.useForm<Werte>();
+  // IDA-358: die Eingaben ueberstehen ein Neuladen; liegt ein Entwurf, steht
+  // der Dialog danach gleich wieder offen — sonst saehe ihn niemand.
+  const entwurf = useFormEntwurf(form, "lagerbuch:neu-flasche");
   const router = useRouter();
   /**
    * ⚠️ DIE BAR-ZAHL WIRD BEI JEDER EINGABE NEU GERECHNET, nicht einmal beim
@@ -71,7 +76,7 @@ export function NeuFlasche({
   const schliessen = () => {
     setFehler(null);
     setOffen(false);
-    form.resetFields();
+    entwurf.verwerfen();
   };
 
   const speichern = (werte: Werte) => {
@@ -106,7 +111,7 @@ export function NeuFlasche({
         Neue Sauerstoffflasche
       </Button>
       <Modal
-        open={offen}
+        open={offen || entwurf.wiederhergestellt}
         title="Neue Sauerstoffflasche"
         okText="Anlegen"
         cancelText="Abbrechen"
@@ -126,8 +131,10 @@ export function NeuFlasche({
           layout="vertical"
           disabled={laeuft}
           onFinish={speichern}
+          onValuesChange={entwurf.onValuesChange}
           data-rolle="neue-o2-flasche"
         >
+          <EntwurfZeile entwurf={entwurf} />
           <Form.Item
             name="name"
             label="Name"

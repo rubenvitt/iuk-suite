@@ -73,6 +73,9 @@ export const NAV_IKONEN: Record<NavIkonName, Icons8Name> = {
   anfragen: "inbox",
   sperrzeiten: "cancel",
   mietvertrag: "document",
+  plaene: "genealogy",
+  archiv: "archive",
+  bibliothek: "book",
 };
 
 /**

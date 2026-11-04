@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { Button, Input } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import type { NachweisArt } from "../_db/schema";
 import { FORM_START, feldFehler, type FormState } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
@@ -39,10 +41,15 @@ import { SPACE } from "@/core/theme/tokens";
  * Kopfkommentar zu ihren vier Textfeldern beschreibt) — bei einem `<form action={...}>` erledigte
  * das bislang React selbst (Formular-Reset nach jedem Aufruf), bei `onSubmit`+`fetch` nicht mehr.
  *
- * DIE DATEIAUSWAHL GEHT WEITERHIN NACH JEDEM ABSENDEN VERLOREN (Brief, unveraendert seit der
- * ersten Fassung): `form.reset()` laeuft nach JEDEM Absendeversuch — Erfolg, Feldfehler UND
- * harter Fehler gleichermassen, dieselbe Zusage wie zuvor. Der Hinweistext unter dem Feld steht
- * deshalb weiterhin STAENDIG da, nicht nur nach einem Fehler.
+ * DIE DATEIAUSWAHL GEHT NACH JEDER ANTWORT VERLOREN: `form.reset()` laeuft nach Erfolg, Feldfehler
+ * UND hartem Fehler gleichermassen. Der Hinweistext unter dem Feld steht deshalb STAENDIG da.
+ *
+ * IDA-358 — DER TEXT LIEGT AUF DEM GERAET, die Sendung bis zur Antwort (`core/entwurf`). Kommt
+ * KEINE Antwort der Route (Netz weg, 502 im Rollout, HTML statt JSON), wirft `senden`, und
+ * `useEntwurf` versucht es erneut, auch nach dem Neuladen; die Sendungs-ID geht als `sendung` mit
+ * und wird die ID des Nachweises (`route.ts`) — eine Wiederholung legt keinen zweiten an. Die
+ * gewaehlte Datei haelt `datei` (Ref) fuer die Versuche derselben Seite; nach dem Neuladen ist
+ * sie weg, und die Route sagt bei Pflichtbild, dass es fehlt.
  *
  * KEIN antd-`Form`, KEIN `@ant-design/icons` (Modulweite Vorgabe, `docs/design/README.md` Fallen 1
  * und 7). `Input.TextArea` ist ein Compound-Zugriff und in einer Server Component verboten — hier,
@@ -67,6 +74,13 @@ export interface NachweisFormularProps {
   primaer?: boolean;
 }
 
+/** Was `senden` aus der Antwort der Route macht — nur eine Antwort, kein Wurf (IDA-358). */
+type NachweisAntwort =
+  | { art: "ok" }
+  | { art: "anmeldung" }
+  | { art: "feld"; zustand: FormState }
+  | { art: "status"; status: number };
+
 function alsMiB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
@@ -82,67 +96,65 @@ export function NachweisFormular({
   const [text, setText] = useState("");
   const [zustand, setZustand] = useState<FormState>(FORM_START);
   const [harterFehler, setHarterFehler] = useState<string | null>(null);
-  const [laeuft, setLaeuft] = useState(false);
+  const datei = useRef<File | null>(null);
+
+  const entwurf = useEntwurf<{ text: string }, { text: string }, NachweisAntwort>({
+    schluessel: `aufgaben:nachweis:${aufgabeId}`,
+    stand: { text },
+    wiederherstellen: (w) => setText(w.text),
+    senden: async (n, sendung) => {
+      const formData = new FormData();
+      formData.set("text", n.text);
+      if (datei.current) formData.set("datei", datei.current);
+      formData.set("sendung", sendung);
+      const antwort = await fetch(`/a/${aufgabeId}/nachweis/hochladen`, { method: "POST", body: formData });
+      // SILENT-SUCCESS-RIEGEL, s. Kopfkommentar — MUSS vor jeder anderen Auswertung stehen.
+      if (antwort.redirected) return { art: "anmeldung" };
+      const koerper: FormState | null = await antwort.json().catch(() => null);
+      if (antwort.ok && koerper?.ok) return { art: "ok" };
+      if (koerper && koerper.ok === false) return { art: "feld", zustand: koerper };
+      // 404 ist die Antwort der Route (`keinZugriff()`); alles andere ohne Koerper kam nicht an.
+      if (antwort.status === 404) return { art: "status", status: 404 };
+      throw new Error(`Keine Antwort der Route (HTTP ${antwort.status})`);
+    },
+    antwort: (a) => {
+      datei.current = null;
+      formularRef.current?.reset();
+      if (a.art === "ok") {
+        setZustand(FORM_START);
+        setText("");
+        router.refresh();
+        return true;
+      }
+      if (a.art === "feld") setZustand(a.zustand);
+      else if (a.art === "anmeldung") {
+        setHarterFehler("Die Anmeldung ist abgelaufen. Bitte neu anmelden — der Nachweis wurde nicht gespeichert.");
+      } else {
+        // KEIN FELDFEHLER-KOERPER: Zugriffsablehnung (404, `route.ts`s `keinZugriff()`) — sollte ueber die
+        // Oberflaeche nicht erreichbar sein, aber LAUT statt STILL, falls doch.
+        setHarterFehler(`Der Nachweis konnte nicht gespeichert werden (HTTP ${a.status}).`);
+      }
+      return false;
+    },
+  });
+  const laeuft = entwurf.zustand === "sendet";
 
   const textFehler = feldFehler(zustand, "text");
   const dateiFehler = feldFehler(zustand, "datei");
 
-  async function absenden(ereignis: FormEvent<HTMLFormElement>): Promise<void> {
+  function absenden(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
-    const formular = ereignis.currentTarget;
-    const formData = new FormData(formular);
-    setLaeuft(true);
+    if (laeuft) return;
+    const gewaehlt = new FormData(ereignis.currentTarget).get("datei");
+    datei.current = gewaehlt instanceof File && gewaehlt.size > 0 ? gewaehlt : datei.current;
     setHarterFehler(null);
-
-    try {
-      const antwort = await fetch(`/a/${aufgabeId}/nachweis/hochladen`, {
-        method: "POST",
-        body: formData,
-      });
-
-      // SILENT-SUCCESS-RIEGEL, s. Kopfkommentar — MUSS vor jeder anderen Auswertung stehen.
-      if (antwort.redirected) {
-        setHarterFehler(
-          "Die Anmeldung ist abgelaufen. Bitte neu anmelden — der Nachweis wurde nicht gespeichert.",
-        );
-        formularRef.current?.reset();
-        return;
-      }
-
-      const koerper: FormState | null = await antwort.json().catch(() => null);
-
-      if (antwort.ok && koerper?.ok) {
-        setZustand(FORM_START);
-        setText("");
-        formularRef.current?.reset();
-        router.refresh();
-        return;
-      }
-
-      if (koerper && koerper.ok === false) {
-        setZustand(koerper);
-        formularRef.current?.reset();
-        return;
-      }
-
-      // KEIN FELDFEHLER-KOERPER: Zugriffsablehnung (404, `route.ts`s `keinZugriff()`) oder ein
-      // unerwarteter Statuscode — sollte ueber die Oberflaeche nicht erreichbar sein
-      // (`optionen.nachweisHochladen` blendet den Knopf sonst schon aus), aber LAUT statt STILL,
-      // falls doch: kein kommentarloses Verschwinden der Anfrage.
-      setHarterFehler(`Der Nachweis konnte nicht gespeichert werden (HTTP ${antwort.status}).`);
-      formularRef.current?.reset();
-    } catch {
-      setHarterFehler("Die Verbindung ist abgebrochen. Bitte erneut versuchen.");
-      formularRef.current?.reset();
-    } finally {
-      setLaeuft(false);
-    }
+    entwurf.sende({ text });
   }
 
   return (
     <form
       ref={formularRef}
-      onSubmit={(ereignis) => void absenden(ereignis)}
+      onSubmit={absenden}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.sm, maxWidth: 480 }}
     >
       <div>
@@ -195,6 +207,7 @@ export function NachweisFormular({
         ) : null}
       </div>
 
+      <EntwurfHinweis entwurf={entwurf} />
       {harterFehler ? (
         <p role="alert" style={{ margin: 0 }}>
           {harterFehler}

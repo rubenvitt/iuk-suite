@@ -85,7 +85,7 @@ describe("Reader", () => {
     await mount(<Reader bereitschaft="B" />);
     await waehle("leer.json", "{}");
     await warte(() => expect(exists('[data-testid="reader-fehler"]')).toBe(true));
-    expect(query('[data-testid="reader-fehler"]').textContent).toContain("„leer.json“ ist keine Einsatzbuch-Datei");
+    expect(query('[data-testid="reader-fehler"]').textContent).toContain("„leer.json“ ist keine Einsatztagebuch-Datei");
     expect(exists("[data-dropzone]")).toBe(true);
     expect(exists('input[type="password"]')).toBe(false);
   });

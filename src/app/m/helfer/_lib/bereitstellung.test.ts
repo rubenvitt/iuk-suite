@@ -46,7 +46,7 @@ describe("bereitgestellteHelfer — was das Modul anderen Modulen herausgibt", (
 });
 
 describe("helferFuerSchichtplanung — der zweite Empfänger", () => {
-  it("alle Helfer, auch ohne Einsatzbuch-Freigabe, mit Fahrerlaubnisklassen", () => {
+  it("alle Helfer, auch ohne Einsatztagebuch-Freigabe, mit Fahrerlaubnisklassen", () => {
     const db = testDb();
     wende(db, "hiorg");
     setzeFreigabe(db, [listeHelfer(db)[0].id], false);

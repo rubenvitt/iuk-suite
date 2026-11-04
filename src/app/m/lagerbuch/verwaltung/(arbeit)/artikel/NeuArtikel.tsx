@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Form, Input, InputNumber, Modal } from "antd";
 import { createArtikel } from "../../../_actions/artikel";
 import { Ikone } from "../../../_ui/ikonen";
+import { EntwurfZeile } from "../../../_ui/EntwurfZeile";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
 import { KategorieEingabe } from "../../../_ui/KategorieEingabe";
 
 type ArtikelWerte = {
@@ -32,6 +34,9 @@ export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[]
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
   const [form] = Form.useForm<ArtikelWerte>();
+  // IDA-358: die Eingaben ueberstehen ein Neuladen; liegt ein Entwurf, steht
+  // der Dialog danach gleich wieder offen — sonst saehe ihn niemand.
+  const entwurf = useFormEntwurf(form, "lagerbuch:neu-artikel");
   const router = useRouter();
 
   function oeffnen(): void {
@@ -42,7 +47,7 @@ export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[]
   function schliessen(): void {
     setFehler(null);
     setOffen(false);
-    form.resetFields();
+    entwurf.verwerfen();
   }
 
   function speichern(werte: ArtikelWerte): void {
@@ -80,7 +85,7 @@ export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[]
         Neuer Artikel
       </Button>
       <Modal
-        open={offen}
+        open={offen || entwurf.wiederhergestellt}
         title="Neuer Artikel"
         okText="Anlegen"
         cancelText="Abbrechen"
@@ -101,8 +106,10 @@ export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[]
           disabled={laeuft}
           initialValues={{ mindestbestand: 0 }}
           onFinish={speichern}
+          onValuesChange={entwurf.onValuesChange}
           data-rolle="neuer-artikel"
         >
+          <EntwurfZeile entwurf={entwurf} />
           <Form.Item
             name="name"
             label="Name"

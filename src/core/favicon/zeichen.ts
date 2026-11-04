@@ -136,7 +136,7 @@ const DROHNE = modulZeichen(
 
 /** Buch mit Rücken und Titelschild. */
 const EINSATZBUCH = modulZeichen(
-  "Einsatzbuch",
+  "Einsatztagebuch",
   `<path class="t" fill-rule="evenodd" d="M12 26h28a4 4 0 0 1 4 4v28a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4V30a4 4 0 0 1 4-4Zm4 0v36h2.5V26Zm7 8v6h15v-6Z"/>`,
 );
 

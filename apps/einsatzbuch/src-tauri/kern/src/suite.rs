@@ -264,7 +264,7 @@ pub enum AnkerErgebnis {
 /// Abgleich, der bis zum Neustart scheitert, wäre schlimmer.
 fn mit_buch<T>(buch: &Mutex<Option<Buch>>, f: impl FnOnce(&mut Buch) -> Result<T, BuchFehler>) -> Result<T, String> {
     let mut wache = buch.lock().unwrap_or_else(PoisonError::into_inner);
-    let offen = wache.as_mut().ok_or_else(|| "Das Einsatzbuch ist nicht geöffnet.".to_string())?;
+    let offen = wache.as_mut().ok_or_else(|| "Das Einsatztagebuch ist nicht geöffnet.".to_string())?;
     f(offen).map_err(|e| e.to_string())
 }
 

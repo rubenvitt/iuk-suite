@@ -11,6 +11,8 @@ import {
 } from "../../../_lib/konstanten";
 import type { StammAuswahl } from "../../../_lib/stammAbgleich";
 import { Ikone } from "../../../_ui/ikonen";
+import { EntwurfZeile } from "../../../_ui/EntwurfZeile";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
 
 type FahrzeugWerte = {
   name: string;
@@ -38,6 +40,9 @@ export function NeuFahrzeug({ stammAuswahl = [] }: { stammAuswahl?: StammAuswahl
   const [laeuft, start] = useTransition();
   const laeuftRef = useRef(false);
   const [form] = Form.useForm<FahrzeugWerte>();
+  // IDA-358: die Eingaben ueberstehen ein Neuladen; liegt ein Entwurf, steht
+  // der Dialog danach gleich wieder offen — sonst saehe ihn niemand.
+  const entwurf = useFormEntwurf(form, "lagerbuch:neu-fahrzeug");
   const router = useRouter();
   const art = Form.useWatch("einheitenart", form);
   const ausStamm = art === "fahrzeug" && stammAuswahl.length > 0;
@@ -51,7 +56,7 @@ export function NeuFahrzeug({ stammAuswahl = [] }: { stammAuswahl?: StammAuswahl
     if (laeuftRef.current) return;
     setFehler(null);
     setOffen(false);
-    form.resetFields();
+    entwurf.verwerfen();
   }
 
   function speichern(werte: FahrzeugWerte): void {
@@ -79,7 +84,7 @@ export function NeuFahrzeug({ stammAuswahl = [] }: { stammAuswahl?: StammAuswahl
 
         setFehler(null);
         setOffen(false);
-        form.resetFields();
+        entwurf.verwerfen();
         router.refresh();
       } catch {
         setFehler("Einheit konnte nicht angelegt werden.");
@@ -99,7 +104,7 @@ export function NeuFahrzeug({ stammAuswahl = [] }: { stammAuswahl?: StammAuswahl
         Neue Einheit
       </Button>
       <Modal
-        open={offen}
+        open={offen || entwurf.wiederhergestellt}
         title="Neue Einheit"
         okText="Anlegen"
         cancelText="Abbrechen"
@@ -116,8 +121,10 @@ export function NeuFahrzeug({ stammAuswahl = [] }: { stammAuswahl?: StammAuswahl
           layout="vertical"
           disabled={laeuft}
           onFinish={speichern}
+          onValuesChange={entwurf.onValuesChange}
           data-rolle="neues-fahrzeug"
         >
+          <EntwurfZeile entwurf={entwurf} />
           {/*
             ⚠️ OHNE VORBELEGUNG, UND DAS IST DIE ANFORDERUNG AUS DRK-309
             („neue Objekte müssen kategorisiert werden").

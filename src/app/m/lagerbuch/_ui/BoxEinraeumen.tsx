@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
-import { NETZ_TEXT_BUCHUNG } from "../_lib/actionTypen";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { SendeStatus } from "./SendeStatus";
 // ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `CLAUDE.md`) — dieselbe
 // Entscheidung wie in `Auffuellen.tsx`, und die dort ausgeschriebene
 // Begruendung gilt hier unveraendert: die Ausnahme in `Entnahme.tsx` und
@@ -128,7 +129,69 @@ export function BoxEinraeumen({
 }) {
   const [wahl, setWahl] = useState<Wahl | null>(null);
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
-  const [laeuft, start] = useTransition();
+
+  /*
+   * IDA-358 — DIE OFFENE ZEILE (samt Grund und abgelesenem Datum) LIEGT AUF DEM
+   * GERAET, die Buchung bis zur Bestaetigung auch. Eine Wiederholung derselben
+   * Sendung bucht nicht doppelt (`_lib/schreibpfade/sendung.ts`) — beim
+   * Aussondern hiesse eine Doppelbuchung Material, das zweimal im Muell liegt.
+   * Solange eine Sendung liegt, bucht kein Knopf etwas Neues: `sende` ersetzte
+   * sonst ihre Nutzlast unter derselben ID.
+   */
+  type Nutzlast =
+    | { art: "aussondern"; artikelName: string; eingabe: { artikelId: string; chargeId: string; menge: number; kommentar: string } }
+    | {
+        art: "einraeumen"; artikelName: string;
+        eingabe: { artikelId: string; chargeId: string; menge: number; zielLagerortId: string; verfall?: string };
+      };
+  type Antwort =
+    | { art: "aussondern"; r: Awaited<ReturnType<typeof aussondernAusEntnahmebox>>; n: Nutzlast }
+    | { art: "einraeumen"; r: Awaited<ReturnType<typeof raeumeAusEntnahmebox>>; n: Nutzlast };
+  const entwurf = useEntwurf<{ wahl: Wahl | null }, Nutzlast, Antwort>({
+    schluessel: "lagerbuch:box-einraeumen",
+    stand: { wahl },
+    wiederherstellen: (w) => setWahl(w.wahl),
+    senden: async (n, sendungId) => n.art === "aussondern"
+      ? { art: "aussondern", r: await aussondernAusEntnahmebox({ ...n.eingabe, sendungId }), n }
+      : { art: "einraeumen", r: await raeumeAusEntnahmebox({ ...n.eingabe, sendungId }), n },
+    antwort: (a) => {
+      // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
+      const abgelehnt = (text: string) => {
+        setRueck({ art: "fehler", text });
+        return false;
+      };
+      if (a.art === "aussondern") {
+        const r = a.r;
+        if (!r.ok) return abgelehnt(r.text);
+        setRueck({ art: "ok", text: `Ausgesondert: ${r.wert.ausgesondert} × ${a.n.artikelName}` });
+        setWahl(null);
+        return true;
+      }
+      const r = a.r;
+      if (!r.ok) return abgelehnt(r.text);
+      /*
+       * DER BELEG NENNT MENGE, ARTIKEL UND ZIEL — und der ZIELNAME kommt aus
+       * der ANTWORT, nicht aus dem Zustand hier: der Server weiss, wohin er
+       * wirklich gebucht hat, und ein inzwischen umbenannter Schrank stuende
+       * sonst unter seinem alten Namen im Beleg.
+       *
+       * ⚠️ „EINGERAEUMT", NICHT „AUFGEFUELLT". Derselbe Unterschied wie im
+       * Journalkommentar (`ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR`): aufgefuellt
+       * wird mit einer Lieferung, hier wurde nur umgeraeumt.
+       */
+      setRueck({
+        art: "ok",
+        text: `Eingeräumt: ${r.wert.eingeraeumt} × ${a.n.artikelName} → ${r.wert.ziel}`
+          + (r.wert.abgelesen ? ` · Verfall ${fmtVerfall(r.wert.abgelesen)}` : ""),
+      });
+      // Die Zeile schliesst nach dem Erfolg — wie in `BoxAbgabe`: sie offen
+      // zu lassen hiesse, ein gefuelltes Mengenfeld ueber einer Liste stehen
+      // zu lassen, deren Zahlen der naechste Serverstand gerade aendert.
+      setWahl(null);
+      return true;
+    },
+  });
+  const laeuft = entwurf.zustand !== "ruhe";
 
   /*
    * ⚠️ VORBELEGT NUR BEI GENAU EINER WAHL — dieselbe Regel wie in
@@ -183,63 +246,23 @@ export function BoxEinraeumen({
     const menge = Math.min(wahl.menge, grenzeVon(p, wahl.chargeId));
     if (menge <= 0) return;
     setRueck(null);
-    start(async () => {
-      try {
-        if (wahl.art === "aussondern") {
-          const r = await aussondernAusEntnahmebox({
+    // Einen Wurf (Netz, Rollout) faengt `useEntwurf` — die Buchung bleibt
+    // liegen und wird wiederholt, `SendeStatus` sagt „Nicht gesendet".
+    entwurf.sende(wahl.art === "aussondern"
+      ? {
+          art: "aussondern", artikelName: p.artikelName,
+          eingabe: { artikelId: p.artikelId, chargeId: wahl.chargeId, menge, kommentar: wahl.grund },
+        }
+      : {
+          art: "einraeumen", artikelName: p.artikelName,
+          eingabe: {
             artikelId: p.artikelId,
             chargeId: wahl.chargeId,
             menge,
-            kommentar: wahl.grund,
-          });
-          if (!r.ok) {
-            setRueck({ art: "fehler", text: r.text });
-            return;
-          }
-          setRueck({
-            art: "ok",
-            text: `Ausgesondert: ${r.wert.ausgesondert} × ${p.artikelName}`,
-          });
-          setWahl(null);
-          return;
-        }
-        const r = await raeumeAusEntnahmebox({
-          artikelId: p.artikelId,
-          chargeId: wahl.chargeId,
-          menge,
-          zielLagerortId: wahl.zielId,
-          ...(mitDatum ? { verfall: wahl.verfall } : {}),
+            zielLagerortId: wahl.zielId,
+            ...(mitDatum ? { verfall: wahl.verfall } : {}),
+          },
         });
-        if (!r.ok) {
-          // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
-          setRueck({ art: "fehler", text: r.text });
-          return;
-        }
-        /*
-         * DER BELEG NENNT MENGE, ARTIKEL UND ZIEL — und der ZIELNAME kommt aus
-         * der ANTWORT, nicht aus dem Zustand hier: der Server weiss, wohin er
-         * wirklich gebucht hat, und ein inzwischen umbenannter Schrank stuende
-         * sonst unter seinem alten Namen im Beleg.
-         *
-         * ⚠️ „EINGERAEUMT", NICHT „AUFGEFUELLT". Derselbe Unterschied wie im
-         * Journalkommentar (`ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR`): aufgefuellt
-         * wird mit einer Lieferung, hier wurde nur umgeraeumt.
-         */
-        setRueck({
-          art: "ok",
-          text: `Eingeräumt: ${r.wert.eingeraeumt} × ${p.artikelName} → ${r.wert.ziel}`
-            + (r.wert.abgelesen ? ` · Verfall ${fmtVerfall(r.wert.abgelesen)}` : ""),
-        });
-        // Die Zeile schliesst nach dem Erfolg — wie in `BoxAbgabe`: sie offen
-        // zu lassen hiesse, ein gefuelltes Mengenfeld ueber einer Liste stehen
-        // zu lassen, deren Zahlen der naechste Serverstand gerade aendert.
-        setWahl(null);
-      } catch {
-        // `"netz"` entsteht ausschliesslich HIER, nie serverseitig (Global
-        // Constraint 12).
-        setRueck({ art: "fehler", text: NETZ_TEXT_BUCHUNG });
-      }
-    });
   }
 
   /** Was die gewaehlte Art zum Absenden braucht: beim Einraeumen ein Ziel
@@ -264,6 +287,8 @@ export function BoxEinraeumen({
         </h1>
       </div>
 
+
+      <SendeStatus entwurf={entwurf} rolle="einraeumen-ergebnis" verwerfbar />
 
       {rueck && (
         <span

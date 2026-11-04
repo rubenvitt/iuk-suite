@@ -59,7 +59,7 @@ import { withAuditContext, auditActor, auditDenied } from "@/core/audit/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/core/auth";
 import { getDb } from "../../../../_db/client";
-import { aufgabe, erstelleDatei, erstelleNachweis, personNachSub } from "../../../../_db/queries";
+import { aufgabe, erstelleDatei, erstelleNachweis, nachweisNachId, personNachSub } from "../../../../_db/queries";
 import { newId } from "../../../../_db/schema";
 import { legeNachweisAb, NACHWEIS_MAX_BYTES } from "../../../../_lib/ablage";
 import { isoTag } from "../../../../_lib/datum";
@@ -100,6 +100,9 @@ function feld(formData: FormData, name: string): string {
  * (s. Kopfkommentar), nur die Toleranz um `NACHWEIS_MAX_BYTES` herum, innerhalb derer eine Anfrage
  * ueberhaupt gepuffert wird.
  */
+/** Die Sendungs-ID des Formulars (`core/entwurf`): eine UUID, sonst wird sie nicht verwendet. */
+const SENDUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const MULTIPART_UEBERHANG_BYTES = 64 * 1024;
 
 function inhaltZuGross(headers: Headers): boolean {
@@ -151,6 +154,24 @@ export async function POST(
       return antwort(400, { ok: false, fieldErrors: {}, values: { text: "" } });
     }
 
+    /*
+     * IDA-358 — DIESELBE SENDUNG ZWEIMAL. Das Formular haelt den Nachweis auf dem Geraet und
+     * wiederholt ihn, bis eine Antwort kommt; ging nur die Antwort verloren, kommt er noch einmal.
+     * `sendung` wird die ID des Nachweises — steht sie schon an DIESER Aufgabe, ist das der
+     * fruehere Nachweis, und die Antwort ist dieselbe wie damals. Optional: offene Seiten von vor
+     * IDA-358 schicken keine.
+     */
+    const sendung = feld(formData, "sendung");
+    const sendungId = SENDUNG.test(sendung) ? sendung : undefined;
+    if (sendungId) {
+      const frueher = nachweisNachId(db, sendungId);
+      if (frueher) {
+        return frueher.aufgabeId === task.id
+          ? antwort(200, { ok: true })
+          : antwort(400, { ok: false, fieldErrors: {}, values: { text: "" } });
+      }
+    }
+
     const text = feld(formData, "text").trim();
     const dateiFeld = formData.get("datei");
     const hatDatei = dateiFeld instanceof File && dateiFeld.size > 0;
@@ -187,6 +208,7 @@ export async function POST(
     }
 
     erstelleNachweis(db, {
+      id: sendungId,
       aufgabeId: task.id,
       art: task.nachweisArt,
       text: text === "" ? null : text,

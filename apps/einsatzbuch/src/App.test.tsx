@@ -271,7 +271,7 @@ describe("Einrichtungsfrage", () => {
     expect(befehle.stammdaten).not.toHaveBeenCalled();
   });
 
-  it("die Suite-Adresse ist bei „Echter Einsatzbuch-Rechner“ schreibgeschützt und bei „Testrechner“ änderbar", async () => {
+  it("die Suite-Adresse ist bei „Echter Einsatztagebuch-Rechner“ schreibgeschützt und bei „Testrechner“ änderbar", async () => {
     await starte(status({ betrieb: null, eingerichtet: false }));
     expect(feld("Suite-Adresse")?.readOnly).toBe(true);
     expect(feld("Suite-Adresse")?.value).toBe("https://einsatzbuch.iuk-ue.de");
@@ -626,7 +626,7 @@ describe("Export und Berichtsblatt in der Verwaltung", () => {
     const huelle = document.body.querySelector(".bericht-ueberlagerung");
     expect(huelle?.getAttribute("aria-label")).toBe("Einsatzbericht · 2026-043");
     expect(huelle?.textContent).toContain("Unverändert seit der Versiegelung");
-    expect(huelle?.textContent).toContain("Erzeugt 25.9.2026, 11:42 Uhr · Einsatzbuch Verwaltung, Ruben Vitt");
+    expect(huelle?.textContent).toContain("Erzeugt 25.9.2026, 11:42 Uhr · Einsatztagebuch Verwaltung, Ruben Vitt");
     befehle.drucken.mockResolvedValue(undefined);
     await clickElement(knopfImDokument("Als PDF speichern")!);
     expect(befehle.drucken).toHaveBeenCalledTimes(1);

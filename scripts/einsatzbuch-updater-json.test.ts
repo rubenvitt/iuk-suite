@@ -18,7 +18,7 @@ const SIG_WIN = "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCB
 
 const eingabe = () => ({
   version: "1.2.3",
-  notes: "Einsatzbuch 1.2.3",
+  notes: "Einsatztagebuch 1.2.3",
   pubDate: new Date("2026-09-25T08:00:00Z"),
   repo: "rubenvitt/iuk-suite",
   tag: "einsatzbuch-v1.2.3",
@@ -34,7 +34,7 @@ describe("baueLatestJson — Tauri-2-Format", () => {
   it("liefert genau version, notes, pub_date und platforms", () => {
     expect(baueLatestJson(eingabe())).toEqual({
       version: "1.2.3",
-      notes: "Einsatzbuch 1.2.3",
+      notes: "Einsatztagebuch 1.2.3",
       pub_date: "2026-09-25T08:00:00.000Z",
       platforms: {
         "darwin-aarch64": { signature: SIG_MAC, url: `${BASIS}/Einsatzbuch.app.tar.gz` },

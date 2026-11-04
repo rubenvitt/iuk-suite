@@ -988,3 +988,28 @@ describe("inventurKorrektur — IDA-276: Übernahme aus „Nicht zugeordnet“",
     expect(inventurBuchungen().some((b) => b.typ === "umlagerung")).toBe(false);
   });
 });
+
+describe("IDA-358 — eine wiederholte Sendung bucht den Lauf nicht doppelt", () => {
+  it("derselbe Abschluss zweimal: EIN Lauf mit der Sendungs-ID, EINE Korrektur, dieselbe Antwort", async () => {
+    const sendungId = "3c2b1a09-8f7e-4d6c-9b5a-4a3b2c1d0e9f";
+    legeArtikelAn("art-w", "Wiederholt");
+    legeChargeAn({ id: "charge-w", artikelId: "art-w", verfall: "2027-01" });
+    buche({ artikelId: "art-w", chargeId: "charge-w", menge: 10 });
+    legeArtikelAn("art-gleich", "Unveraendert");
+    legeChargeAn({ id: "charge-g", artikelId: "art-gleich", verfall: "2027-01" });
+    buche({ artikelId: "art-gleich", chargeId: "charge-g", menge: 3 });
+    const eingabe = {
+      kommentar: "Rollout", sendungId,
+      positionen: [{ artikelId: "art-w", ist: 7 }, { artikelId: "art-gleich", ist: 3 }],
+    };
+
+    const erste = await inventurKorrektur(eingabe, t.db);
+    const zweite = await inventurKorrektur(eingabe, t.db);
+
+    expect(erste).toEqual({ ok: true, wert: { korrigiert: 1, inventurId: sendungId } });
+    expect(zweite).toEqual(erste);
+    expect(t.db.select().from(inventuren).all()).toHaveLength(1);
+    expect(inventurBuchungen()).toHaveLength(1);
+    expect(handlagerBestand("art-w")).toBe(7);
+  });
+});

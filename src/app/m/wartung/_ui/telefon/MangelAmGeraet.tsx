@@ -1,47 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, Input, Result } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
-import { randomId } from "@/core/zufallsId";
 import { NAME_MAX, NOTIZ_MAX } from "../../_lib/eingabe";
 import type { SendeAntwort } from "../../_lib/koerper";
 import { Kicker } from "../teile";
 import { FotoWahl, verkleinere } from "./foto";
+import { sendeAnRoute } from "./senden";
 import s from "../wartung.module.css";
 
 /** `mitName`: ohne Anmeldung gemeldet — dann steht der Name, den man angibt, im Verlauf. */
 export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { geraetId: string; geraetName: string; mitName?: boolean }) {
-  const [sendung] = useState(randomId);
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
   const [bereit, setBereit] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [laeuft, setLaeuft] = useState(false);
   const [fertig, setFertig] = useState(false);
+  const fotoRef = useRef(foto);
+  useLayoutEffect(() => {
+    fotoRef.current = foto;
+  });
 
-  async function senden() {
-    if (laeuft || !text.trim()) return;
-    setFehler(null);
-    setLaeuft(true);
-    try {
+  /*
+   * IDA-358: die Meldung liegt auf dem Telefon, bis die Route sie bestätigt; die Sendungs-ID ist die ID des
+   * Mangels (`mangel/senden`), eine Wiederholung legt ihn nicht doppelt an. Das Foto liegt nicht im Entwurf —
+   * nach dem Neuladen geht die Meldung ohne es (`PruefungAmGeraet.tsx`, `useEntwurf`).
+   */
+  const entwurf = useEntwurf<{ name: string; text: string; bereit: boolean }, { name: string; text: string; bereit: boolean }, SendeAntwort>({
+    schluessel: `wartung:mangel:${geraetId}`,
+    stand: { name, text, bereit },
+    wiederherstellen: (w) => {
+      setName(w.name);
+      setText(w.text);
+      setBereit(w.bereit);
+    },
+    senden: async (d, sendung) => {
       const daten = new FormData();
       daten.set("sendung", sendung);
-      daten.set("text", text);
-      daten.set("einsatzbereit", bereit ? "ja" : "nein");
-      if (mitName) daten.set("name", name);
-      if (foto) daten.set("foto", await verkleinere(foto), "foto.jpg");
-      const r = await fetch(`/g/${geraetId}/mangel/senden`, { method: "POST", body: daten });
-      const a = (await r.json().catch(() => null)) as SendeAntwort | null;
-      if (a?.ok) setFertig(true);
-      else setFehler(a && !a.ok ? a.fehler : "Die Meldung ging nicht durch. Bitte noch einmal senden.");
-    } catch {
-      setFehler("Keine Verbindung. Deine Angaben sind noch da, bitte gleich noch einmal senden.");
-    } finally {
-      setLaeuft(false);
-    }
+      daten.set("text", d.text);
+      daten.set("einsatzbereit", d.bereit ? "ja" : "nein");
+      if (mitName) daten.set("name", d.name);
+      const f = fotoRef.current;
+      if (f) daten.set("foto", await verkleinere(f), "foto.jpg");
+      return sendeAnRoute(`/g/${geraetId}/mangel/senden`, daten);
+    },
+    antwort: (a) => {
+      if (!a.ok) {
+        setFehler(a.fehler);
+        return false;
+      }
+      setFertig(true);
+      return true;
+    },
+  });
+  const laeuft = entwurf.zustand === "sendet";
+
+  function senden() {
+    if (laeuft || !text.trim()) return;
+    setFehler(null);
+    entwurf.sende({ name, text, bereit });
   }
 
   if (fertig) {
@@ -86,8 +108,9 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
         </section>
       )}
       <div className={s.fuss}>
+        <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
         {fehler && <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} role="alert">{fehler}</div>}
-        <Button type="primary" block disabled={!text.trim()} loading={laeuft} onClick={() => void senden()}>Mangel melden</Button>
+        <Button type="primary" block disabled={!text.trim()} loading={laeuft} onClick={senden}>Mangel melden</Button>
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ const block: Block = {
   kopf: { v: 1, block: 7, prev: GENESIS, versiegelt: "2026-09-23T19:08:00Z", schluesselId: "0123456789abcdef", umgebung: "echt" },
   iv: "", daten: "", umschlag: { epk: "", iv: "", ct: "" }, hash: "a".repeat(64),
 };
-const extra = { pruefung: "Kette intakt", quelle: "Einsatzbuch Reader", erzeugt: "24.9.2026, 10:00 Uhr", zeitzone: "Europe/Berlin" };
+const extra = { pruefung: "Kette intakt", quelle: "Einsatztagebuch Reader", erzeugt: "24.9.2026, 10:00 Uhr", zeitzone: "Europe/Berlin" };
 
 describe("bericht", () => {
   it("füllt das Berichtsblatt aus Block und Einsatz", () => {

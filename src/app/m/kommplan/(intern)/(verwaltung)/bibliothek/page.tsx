@@ -23,8 +23,8 @@ export default async function BibliothekSeite({ searchParams }: { searchParams: 
   const zeichen = [...new Set([...bib.stellen, ...bib.einheiten].map((e) => e.zeichen).filter((z): z is string => z !== null).concat(eigene.map((z) => z.schluessel)))];
   const { reiter } = await searchParams;
   return (
-    <Huelle>
-      <Seitenkopf titel="Bibliothek" zurueck={{ titel: "Alle Pläne", href: "/" }} />
+    <Huelle viewer={viewer}>
+      <Seitenkopf titel="Bibliothek" />
       <Bibliothek bibliothek={bib} eigeneZeichen={eigene} zeichenIndex={zeichenIndexMitEigenen(db)} symbole={symboleMitEigenen(db, zeichen)}
         schrift={ZEICHENSCHRIFT.style.fontFamily} reiter={reiter === "zeichen" ? "zeichen" : undefined} />
     </Huelle>

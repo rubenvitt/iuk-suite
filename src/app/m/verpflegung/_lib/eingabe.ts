@@ -46,17 +46,22 @@ export const linkEingabe = z.object({
   stunden: z.number().int().min(1).max(24 * 7),
 });
 
+/** IDA-358: die Sendungs-ID des Telefons, wird die ID der Buchung (`schreiben.ts`, `frueherGebucht`). Optional für alte Seiten. */
+const sendung = idSchema.optional();
+
 export const eingangEingabe = z.object({
   artikelId: idSchema,
   ortId: idSchema,
   mhd: tag,
   menge,
+  sendung,
 });
 
 export const ausgabeEingabe = z.object({
   chargeId: idSchema,
   menge,
   ziel: z.enum(AUSGABE_ZIELE),
+  sendung,
 });
 
 export const aussonderEingabe = z.object({
@@ -64,6 +69,7 @@ export const aussonderEingabe = z.object({
   menge,
   grund: z.enum(AUSSONDER_GRUENDE),
   freitext: z.string().trim().max(200).default(""),
+  sendung,
 }).refine((a) => a.grund !== "Sonstiges" || a.freitext.length > 0, { message: "Bitte kurz sagen, was passiert ist.", path: ["freitext"] });
 
 /** Ganze Zahl, außer in kg und l. */

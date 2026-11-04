@@ -7,6 +7,8 @@ import { geraetSpeichern } from "../../../_actions/bz";
 import { standortMeta } from "../../../_lib/konstanten";
 import type { LagerortOption as Lagerort } from "../../../_lib/lesepfade/bz";
 import { Ikone } from "../../../_ui/ikonen";
+import { EntwurfZeile } from "../../../_ui/EntwurfZeile";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
 
 type Werte = {
   name: string;
@@ -54,6 +56,9 @@ export function NeuBzGeraet({ lagerorte }: { lagerorte: Lagerort[] }) {
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
   const [form] = Form.useForm<Werte>();
+  // IDA-358: die Eingaben ueberstehen ein Neuladen; liegt ein Entwurf, steht
+  // der Dialog danach gleich wieder offen — sonst saehe ihn niemand.
+  const entwurf = useFormEntwurf(form, "lagerbuch:neu-bz-geraet");
   const router = useRouter();
 
   function oeffnen(): void {
@@ -64,7 +69,7 @@ export function NeuBzGeraet({ lagerorte }: { lagerorte: Lagerort[] }) {
   function schliessen(): void {
     setFehler(null);
     setOffen(false);
-    form.resetFields();
+    entwurf.verwerfen();
   }
 
   function speichern(werte: Werte): void {
@@ -99,7 +104,7 @@ export function NeuBzGeraet({ lagerorte }: { lagerorte: Lagerort[] }) {
         Neues BZ-Gerät
       </Button>
       <Modal
-        open={offen}
+        open={offen || entwurf.wiederhergestellt}
         title="Neues BZ-Gerät"
         okText="Anlegen"
         cancelText="Abbrechen"
@@ -119,8 +124,10 @@ export function NeuBzGeraet({ lagerorte }: { lagerorte: Lagerort[] }) {
           layout="vertical"
           disabled={laeuft}
           onFinish={speichern}
+          onValuesChange={entwurf.onValuesChange}
           data-rolle="neues-bz-geraet"
         >
+          <EntwurfZeile entwurf={entwurf} />
           <Form.Item
             name="name"
             label="Name"

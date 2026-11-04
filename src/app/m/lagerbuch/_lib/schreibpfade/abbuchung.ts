@@ -47,6 +47,7 @@ import { buchungen, chargen, newId } from "../../_db/schema";
 import { fefoVerteilung, type ChargeRest, type FefoTeil } from "../domain/fefo";
 import type { Lagerbereich } from "../domain/orte";
 import { handlagerOrte, ortStamm } from "../lesepfade/orte";
+import type { IdQuelle } from "./sendung";
 
 /**
  * Der tx-Typ der Drizzle-Transaktion — 1:1 aus `lagerbuch/src/db/abbuchung.ts:9`.
@@ -85,6 +86,8 @@ export type AbbuchungArgs = {
   kommentar: string | null;
   referenz: string | null;
   typ?: "entnahme" | "korrektur" | "umlagerung";
+  /** IDA-358: die IDs der Journalzeilen (`sendung.ts`); fehlt sie, `newId()`. */
+  neueId?: IdQuelle;
 };
 
 /**
@@ -124,7 +127,7 @@ function abbuchen(
 ): { gebucht: number; teile: Teil[] } {
   const {
     artikelId, menge, chargeId, quelle, kommentar, referenz,
-    typ = "entnahme",
+    typ = "entnahme", neueId = newId,
   } = args;
 
   const chargenPraedikat = chargeId
@@ -174,7 +177,7 @@ function abbuchen(
   const ts = new Date();
   for (const teil of teile) {
     tx.insert(buchungen).values({
-      id: newId(), ts, typ, artikelId, chargeId: teil.chargeId,
+      id: neueId(), ts, typ, artikelId, chargeId: teil.chargeId,
       // DER ORT DES TEILS, nicht die Wurzel des Bereichs.
       lagerortId: teil.vonLagerortId,
       // VORZEICHENBEHAFTET: ein Abgang ist negativ (`schema.ts:98`).

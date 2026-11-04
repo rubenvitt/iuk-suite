@@ -32,6 +32,7 @@ vi.mock("../_actions/sitzung", () => ({ erneuereSitzung: erneuereSitzungMock }))
 
 import { mount, unmount, rerender, queryPortal, existsPortal, clickPortal } from "@/app/m/qr/_lib/test-dom";
 import { ZUSTANDSNOTIZ_MAX, type RueckgabeErgebnis } from "../_lib/meldungen";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 import { RueckgabeDialog, type DialogAusleihe } from "./RueckgabeDialog";
 
 const STYLESHEET = "src/app/m/radio/_ui/ausleihe.module.css";
@@ -132,6 +133,9 @@ function maskenklick(): void {
 }
 
 beforeEach(() => {
+  // IDA-358: die Notiz liegt im Entwurf auf dem Geraet — jeder Fall beginnt leer.
+  localStorage.clear();
+  vergissFluechtig();
   rueckgabeBuchenMock.mockResolvedValue({ ok: true, rufname: "41/12" });
   erneuereSitzungMock.mockResolvedValue({ ok: true });
 });
@@ -485,17 +489,12 @@ describe("radio-RueckgabeDialog: was er an den Aufrufer meldet", () => {
     expect(formular.get("zustandsnotiz")).toBe("Akku schwach");
   });
 
-  it("faengt einen Wurf der Action ab und zeigt den Satz des Moduls", async () => {
+  it("IDA-358: ein Wurf der Action haelt Rueckgabe und Notiz auf dem Geraet", async () => {
     /*
-     * ⛔ DAS `catch` FAENGT DREI LAGEN MIT EINEM SATZ, zeichengleich zu
-     * `_ui/AusleihVorgang.tsx:126-141`: Verbindungsabbruch beim Absenden, den Wurf von
-     * `requireRadioHost` in der Riegelkette und jede echte Serverausnahme. Ohne es stiege
-     * der Wurf in den Absendeweg hoch, und die Person saehe eine technische Fehlerseite
-     * statt eines Satzes an ihrem Formular — mitsamt der getippten Notiz.
-     * ⛔ DER SATZ WIRD NICHT NEU ERFUNDEN: `rueckgabeText({ grund: "unbekannt" })` liefert
-     * genau den, den auch der Server fuer diesen Ausgang schickt. Ein zweiter Wortlaut waere
-     * die Fehlerform, gegen die `_lib/bauform.test.ts:546-583` modulweit steht.
-     * ⛔ UND DIE NOTIZ BLEIBT AUCH HIER STEHEN — es ist derselbe Fehlerschluss.
+     * Bis IDA-358 wurde ein Wurf hier zu `grund: "unbekannt"`; nach dem Neuladen war die Notiz
+     * weg. Jetzt ist er „nicht angekommen" (`_ui/RueckgabeDialog.tsx`, Umschlag um die Action):
+     * die Statuszeile des Kerns statt eines Fehlersatzes, KEINE technische Fehlerseite, und die
+     * Notiz bleibt stehen — derselbe Fehlerschluss wie bei `ok: false`.
      */
     rueckgabeBuchenMock.mockRejectedValue(new Error("Verbindung weg"));
     await rendere();
@@ -503,10 +502,26 @@ describe("radio-RueckgabeDialog: was er an den Aufrufer meldet", () => {
 
     await absenden();
 
-    expect(queryPortal(FEHLER).textContent).toContain("Die Rückgabe ist nicht gespeichert.");
+    expect(queryPortal("[data-rolle='entwurf-hinweis']").textContent).toMatch(/^Nicht gesendet\. Neuer Versuch in \d+ s\.$/);
+    expect(existsPortal(FEHLER)).toBe(false);
     expect(queryPortal<HTMLTextAreaElement>(NOTIZ).value).toBe("Kratzer");
     expect(erledigt).not.toHaveBeenCalled();
     expect(schliessen).not.toHaveBeenCalled();
+  });
+
+  it("IDA-358: nach dem Neuladen steht die Notiz wieder da, und die liegende Rueckgabe geht raus", async () => {
+    rueckgabeBuchenMock.mockRejectedValue(new Error("Verbindung weg"));
+    await rendere();
+    await fuelle(NOTIZ, "Kratzer");
+    await absenden();
+    await unmount();
+
+    rueckgabeBuchenMock.mockReset();
+    rueckgabeBuchenMock.mockResolvedValue({ ok: true, rufname: "41/12" });
+    await rendere();
+    expect(rueckgabeBuchenMock).toHaveBeenCalledTimes(1);
+    expect((rueckgabeBuchenMock.mock.calls[0][1] as FormData).get("zustandsnotiz")).toBe("Kratzer");
+    expect(erledigt).toHaveBeenCalledWith("41/12");
   });
 });
 

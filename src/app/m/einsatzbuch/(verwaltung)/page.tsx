@@ -30,7 +30,7 @@ export default async function EinsatzbuchUebersicht() {
   return (
     <>
       <Seitenkopf
-        titel="Einsatzbuch"
+        titel="Einsatztagebuch"
         aktionen={
           <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
             <Link href="/rechner">Rechner verwalten</Link>

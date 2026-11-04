@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   mount, unmount, query, queryAll, exists, click, clickElement, fill,
@@ -26,6 +26,7 @@ vi.mock("../_actions/entnahmebox", () => ({
 }));
 
 import { BoxEinraeumen, type EinraeumZiel } from "./BoxEinraeumen";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import type { EinraeumPosten } from "../_lib/lesepfade/entnahmebox";
 
@@ -78,6 +79,11 @@ function flaeche(props: Partial<Parameters<typeof BoxEinraeumen>[0]> = {}) {
 const KNOPF = "[data-rolle='einraeumen-buchen']";
 
 afterEach(async () => { await unmount(); vi.clearAllMocks(); });
+// IDA-358: die Insel legt die offene Zeile und die Sendung auf dem Geraet ab.
+beforeEach(() => { localStorage.clear(); vergissFluechtig(); });
+
+/** IDA-358: der Wiederholungsschutz reist in jeder Nutzlast mit (`_lib/schreibpfade/sendung.ts`). */
+const SENDUNG = expect.stringMatching(/^[0-9a-f-]{36}$/);
 
 describe("BoxEinraeumen — was der Schirm sagt", () => {
   it("nennt die GEMELDETE Angabe als solche — DRK-377", async () => {
@@ -277,6 +283,7 @@ describe("BoxEinraeumen — die Buchung", () => {
       chargeId: "ch-1",
       menge: 1,
       zielLagerortId: "handlager",
+      sendungId: SENDUNG,
     });
   });
 
@@ -325,16 +332,45 @@ describe("BoxEinraeumen — die Buchung", () => {
     expect(exists("[data-rolle='einraeum-eingabe']")).toBe(true);
   });
 
-  it("macht aus einem Wurf „keine Verbindung“ — und zwar HIER", async () => {
+  it("IDA-358 — ein Wurf laesst die Buchung liegen: ‚Nicht gesendet', die Zeile bleibt offen", async () => {
     /*
      * ⚠️ `"netz"` ENTSTEHT AUSSCHLIESSLICH IM CLIENT (Global Constraint 12).
-     * Ohne diesen `catch` schluege der Wurf bis zur Fehlerseite durch, und in
-     * Produktion stuende dort ein englischer Satz mit `digest` (Falle 66).
+     * Ohne Fang schluege der Wurf bis zur Fehlerseite durch, und in Produktion
+     * stuende dort ein englischer Satz mit `digest` (Falle 66). Seit IDA-358
+     * faengt ihn `useEntwurf` und wiederholt die Sendung.
      */
     buchenSpion.mockRejectedValue(new Error("offline"));
     await bereitMachen();
     await click(KNOPF);
-    expect(query("[data-rolle='einraeumen-ergebnis']").textContent).toContain("Verbindung");
+    const r = query("[data-rolle='einraeumen-ergebnis']");
+    expect(r.dataset.art).toBe("nicht-gesendet");
+    expect(r.textContent).toMatch(/^Nicht gesendet\./);
+    expect(exists("[data-rolle='einraeum-eingabe']")).toBe(true);
+    expect((query(KNOPF) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("IDA-358 — nach dem Neuladen geht die liegende Buchung mit DERSELBEN Sendungs-ID raus", async () => {
+    buchenSpion.mockRejectedValue(new Error("502"));
+    await bereitMachen();
+    await click(KNOPF);
+    const erste = buchenSpion.mock.calls[0]![0] as { sendungId?: string };
+    await unmount();
+    buchenSpion.mockResolvedValue({ ok: true, wert: { eingeraeumt: 1, ziel: "Handlager (ohne Schrank)" } });
+    await mount(flaeche({ posten: [einzelPosten()], ziele: [ZIELE[0]!] }));
+    expect((buchenSpion.mock.calls[1]![0] as { sendungId?: string }).sendungId).toBe(erste.sendungId);
+    expect(query("[data-rolle='einraeumen-ergebnis']").textContent)
+      .toBe("Eingeräumt: 1 × Kühlkompresse → Handlager (ohne Schrank)");
+  });
+
+  it("IDA-358 — die offene Zeile steht nach dem Neuladen wieder da, ‚Neu beginnen' verwirft sie", async () => {
+    await bereitMachen();
+    await unmount();
+    await mount(flaeche({ posten: [einzelPosten()], ziele: [ZIELE[0]!] }));
+    expect(exists("[data-rolle='einraeum-eingabe']")).toBe(true);
+    expect(query("[data-rolle='einraeumen-ergebnis']").dataset.art).toBe("wiederhergestellt");
+    await click("[data-rolle='entwurf-verwerfen']");
+    expect(exists("[data-rolle='einraeum-eingabe']")).toBe(false);
+    expect(buchenSpion).not.toHaveBeenCalled();
   });
 });
 
@@ -380,7 +416,7 @@ describe("BoxEinraeumen — das Datum auf der Packung (DRK-404)", () => {
 
     expect(buchenSpion).toHaveBeenCalledWith({
       artikelId: "art-1", chargeId: "ch-pseudo", menge: 1,
-      zielLagerortId: "handlager", verfall: "2026-11",
+      zielLagerortId: "handlager", verfall: "2026-11", sendungId: SENDUNG,
     });
     expect(query("[data-rolle='einraeumen-ergebnis']").textContent)
       .toBe("Eingeräumt: 1 × Kühlkompresse → Handlager (ohne Schrank) · Verfall 11/26");
@@ -491,7 +527,7 @@ describe("BoxEinraeumen — der zweite Ausgang: aussondern (DRK-393)", () => {
 
     expect(buchenSpion).not.toHaveBeenCalled();
     expect(aussondernSpion).toHaveBeenCalledWith({
-      artikelId: "art-1", chargeId: "ch-1", menge: 1, kommentar: "abgelaufen",
+      artikelId: "art-1", chargeId: "ch-1", menge: 1, kommentar: "abgelaufen", sendungId: SENDUNG,
     });
     expect(query("[data-rolle='einraeumen-ergebnis']").textContent)
       .toBe("Ausgesondert: 1 × Kühlkompresse");

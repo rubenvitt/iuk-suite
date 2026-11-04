@@ -385,7 +385,7 @@ pub async fn wiederherstellen(app: AppHandle) -> Result<Option<Wiederhergestellt
             .dialog()
             .file()
             .set_title("Sicherung wiederherstellen")
-            .add_filter("Einsatzbuch-Sicherung", &["json"])
+            .add_filter("Einsatztagebuch-Sicherung", &["json"])
             .blocking_pick_file()
         else {
             return Ok(None);

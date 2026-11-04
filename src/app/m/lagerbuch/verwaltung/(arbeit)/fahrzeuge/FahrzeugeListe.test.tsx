@@ -28,6 +28,7 @@ import {
 } from "@/app/m/qr/_lib/test-dom";
 import { checks, lagerorte } from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 import s from "../../../_ui/verwaltung.module.css";
 import {
   FahrzeugeListe,
@@ -131,6 +132,10 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  // IDA-358: der Anlegen-Dialog legt seinen Entwurf ab und oeffnet sich damit
+  // im naechsten Test von selbst.
+  localStorage.clear();
+  vergissFluechtig();
   vi.clearAllMocks();
   mocks.createFahrzeug.mockResolvedValue({ ok: true, wert: { id: "fahrzeug-neu" } });
 });

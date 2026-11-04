@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Form, Input, InputNumber, Modal } from "antd";
 import { createSchrank } from "../../../_actions/lagerorte";
 import { Ikone } from "../../../_ui/ikonen";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
+import { EntwurfZeile } from "../../../_ui/EntwurfZeile";
 import { istFormFeld, leereFormFehler, type SchrankWerte } from "./schrankWerte";
 
 /**
@@ -18,6 +20,9 @@ export function NeuSchrank() {
   const [laeuft, start] = useTransition();
   const laeuftRef = useRef(false);
   const [form] = Form.useForm<SchrankWerte>();
+  // IDA-358: die Eingaben ueberstehen ein Neuladen. Liegt ein Entwurf, steht der
+  // Dialog nach dem Neuladen gleich wieder offen — sonst saehe ihn niemand.
+  const entwurf = useFormEntwurf(form, "lagerbuch:neu-schrank");
   const router = useRouter();
 
   function oeffnen(): void {
@@ -29,7 +34,7 @@ export function NeuSchrank() {
     if (laeuftRef.current) return;
     setFehler(null);
     setOffen(false);
-    form.resetFields();
+    entwurf.verwerfen();
   }
 
   function speichern(werte: SchrankWerte): void {
@@ -55,7 +60,7 @@ export function NeuSchrank() {
 
         setFehler(null);
         setOffen(false);
-        form.resetFields();
+        entwurf.verwerfen();
         router.refresh();
       } catch {
         setFehler("Schrank konnte nicht angelegt werden.");
@@ -75,7 +80,7 @@ export function NeuSchrank() {
         Neuer Schrank
       </Button>
       <Modal
-        open={offen}
+        open={offen || entwurf.wiederhergestellt}
         title="Neuer Schrank"
         okText="Anlegen"
         cancelText="Abbrechen"
@@ -92,8 +97,10 @@ export function NeuSchrank() {
           layout="vertical"
           disabled={laeuft}
           onFinish={speichern}
+          onValuesChange={entwurf.onValuesChange}
           data-rolle="neuer-schrank"
         >
+          <EntwurfZeile entwurf={entwurf} />
           <Form.Item
             name="name"
             label="Name"

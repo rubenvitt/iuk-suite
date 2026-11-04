@@ -89,7 +89,7 @@ export function istNotfalldatei(x: unknown): x is Notfalldatei {
  * (AAD sichert Unversehrtheit, nicht Zugehörigkeit zu einem bestimmten Schlüssel).
  */
 export async function oeffneNotfalldatei(d: Notfalldatei, kennwort: string): Promise<Bytes> {
-  if (!istNotfalldatei(d)) throw new Error("Keine Notfall-Sicherung des Einsatzbuchs");
+  if (!istNotfalldatei(d)) throw new Error("Keine Notfall-Sicherung des Einsatztagebuchs");
   const salt = mitLaenge(ausBase64(d.kdf.salt), 16, "salt");
   const iv = mitLaenge(ausBase64(d.chiffre.iv), 12, "iv");
   let pkcs8: Bytes;
@@ -117,9 +117,9 @@ const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", 
 /** Eine Seite zum Ausdrucken: QR mit der vollständigen Sicherung, Kennung, Datum, Anleitung. Kein Kennwort. */
 export async function notfallDruckseite(d: Notfalldatei): Promise<string> {
   const svg = await qrSvg(notfallText(d));
-  return `<!doctype html><html lang="de"><meta charset="utf-8"><title>Einsatzbuch — Notfall-Sicherung ${esc(d.kopf.schluesselId)}</title>
+  return `<!doctype html><html lang="de"><meta charset="utf-8"><title>Einsatztagebuch — Notfall-Sicherung ${esc(d.kopf.schluesselId)}</title>
 <style>@page{size:210mm 297mm;margin:16mm}body{font-family:system-ui,sans-serif;color:#1a1d20}svg{width:120mm;height:120mm}pre{white-space:pre-wrap;word-break:break-all;font-size:8pt}</style>
-<h1>Einsatzbuch — Notfall-Sicherung des Schlüssels</h1>
+<h1>Einsatztagebuch — Notfall-Sicherung des Schlüssels</h1>
 <p>Schlüssel-Kennung <strong>${esc(d.kopf.schluesselId)}</strong>, erstellt ${esc(d.kopf.erstellt)}.</p>
 <p>Der QR-Code enthält die vollständige, mit dem Notfall-Kennwort verschlüsselte Sicherung. Das Kennwort steht NICHT auf diesem Blatt. Wiederherstellen: QR-Inhalt als Datei speichern und <code>pnpm einsatzbuch:schluessel wiederherstellen &lt;datei&gt;</code> (Runbook „einsatzbuch-schluessel").</p>
 ${svg}

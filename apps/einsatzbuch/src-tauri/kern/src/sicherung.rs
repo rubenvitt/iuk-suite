@@ -71,7 +71,7 @@ pub enum SicherungFehler {
     ZuGross { bytes: u64 },
     #[error("Die Sicherungsdatei ist kein gültiges JSON oder hat unbekannte Felder: {0}")]
     Json(serde_json::Error),
-    #[error("Die Datei ist keine Einsatzbuch-Sicherung (Format oder Version unbekannt).")]
+    #[error("Die Datei ist keine Einsatztagebuch-Sicherung (Format oder Version unbekannt).")]
     FremdesFormat,
 }
 

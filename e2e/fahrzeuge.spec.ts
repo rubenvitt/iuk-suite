@@ -81,7 +81,7 @@ test("Erstimport: Vorschau nur mit Verwaltungsrecht", async ({ page, browser }) 
   await nutzer.close();
 });
 
-test("das Einsatzbuch übernimmt ein Fahrzeug aus der Fahrzeugverwaltung", async ({ page }) => {
+test("das Einsatztagebuch übernimmt ein Fahrzeug aus der Fahrzeugverwaltung", async ({ page }) => {
   const kenner = `98-${Date.now() % 100_000}-1`;
   // Eine Anmeldung mit beiden Gruppen: die Sitzung gilt über die gemeinsame Cookie-Domain auf beiden Hosts.
   await devLogin(page, { host: HOST, groups: "fahrzeuge-admin,einsatzbuch-nutzer", callbackPath: "/" });

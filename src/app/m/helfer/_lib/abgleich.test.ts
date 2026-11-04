@@ -69,7 +69,7 @@ describe("wendeAbgleichAn", () => {
     expect(laeufe[1]).toMatchObject({ vonName: "Ruth Test", vonSub: "sub-ruth", gelesen: 1, neu: 0, geaendert: 1, entfernt: 1 });
   });
 
-  it("die Freigabe fürs Einsatzbuch folgt der Vorgabe und überlebt eine Änderung", () => {
+  it("die Freigabe fürs Einsatztagebuch folgt der Vorgabe und überlebt eine Änderung", () => {
     const db = testDb();
     wende(db, plane(db, [p("a")]), false);
     expect(bestand(db)[0].fuerEinsatzbuch).toBe(false);

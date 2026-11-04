@@ -131,10 +131,33 @@ function pruefeMenge(m: number, einheit: string): void {
   if (!mengePasst(m, einheit)) throw new Abgelehnt(`${einheitText(2, einheit)} nur ganz.`, "menge");
 }
 
+/**
+ * IDA-358 — DIESELBE SENDUNG ZWEIMAL. Das Telefon schickt eine Buchung, bis der Server sie bestätigt; ging nur die
+ * Antwort verloren (Rollout mitten in der Antwort), kommt sie noch einmal. Die Sendungs-ID ist die ID der Buchung:
+ * steht sie schon da, ist das die frühere Buchung. Geprüft VOR jeder fachlichen Prüfung — der Bestand hat sich seit
+ * der ersten Ankunft bewegt und wiese die Wiederholung sonst womöglich ab.
+ */
+function frueherGebucht(tx: Pick<VerpflegungDb, "select">, sendung: string | undefined, art: "eingang" | "ausgabe" | "aussonderung") {
+  if (!sendung) return null;
+  const b = tx.select().from(buchung).where(eq(buchung.id, sendung)).get();
+  if (!b) return null;
+  if (b.art !== art) throw new Abgelehnt("Die Buchung kam nicht vollständig an. Bitte neu laden.");
+  const a = tx.select({ name: artikel.name, einheit: artikel.einheit }).from(artikel).where(eq(artikel.id, b.artikelId)).get();
+  return { name: a?.name ?? "", einheit: a?.einheit ?? "", mhd: b.mhd, menge: b.menge, artikelId: b.artikelId, ortId: b.ortId };
+}
+
 /** Eingang: gleiche Ware, gleicher Ort, gleiches MHD wird zur selben Charge zusammengezählt. */
-export function eingang(db: VerpflegungDb, e: { artikelId: string; ortId: string; mhd: string; menge: number }, w: Wer): { chargeId: string } {
+export function eingang(
+  db: VerpflegungDb, e: { artikelId: string; ortId: string; mhd: string; menge: number; sendung?: string }, w: Wer,
+): { chargeId: string } {
   const menge = runde(e.menge);
   return db.transaction((tx) => {
+    const frueher = frueherGebucht(tx, e.sendung, "eingang");
+    if (frueher) {
+      const c = tx.select({ id: charge.id }).from(charge)
+        .where(and(eq(charge.artikelId, frueher.artikelId), eq(charge.ortId, frueher.ortId), eq(charge.mhd, frueher.mhd))).get();
+      return { chargeId: c?.id ?? "" };
+    }
     const a = aktiverArtikel(tx, e.artikelId);
     const o = tx.select({ aktiv: lagerort.aktiv }).from(lagerort).where(eq(lagerort.id, e.ortId)).get();
     if (!o || !o.aktiv) throw new Abgelehnt("Diesen Lagerort gibt es nicht mehr.");
@@ -151,17 +174,20 @@ export function eingang(db: VerpflegungDb, e: { artikelId: string; ortId: string
       chargeId = neueId();
       tx.insert(charge).values({ id: chargeId, artikelId: e.artikelId, ortId: e.ortId, mhd: e.mhd, menge, eingang: w.heute, angelegtAm: w.jetzt, aktualisiertAm: w.jetzt }).run();
     }
-    tx.insert(buchung).values({ id: neueId(), zeit: w.jetzt, art: "eingang", artikelId: e.artikelId, ortId: e.ortId, mhd: e.mhd, menge, wer: w.wer, linkId: w.linkId }).run();
+    tx.insert(buchung).values({ id: e.sendung ?? neueId(), zeit: w.jetzt, art: "eingang", artikelId: e.artikelId, ortId: e.ortId, mhd: e.mhd, menge, wer: w.wer, linkId: w.linkId }).run();
     return { chargeId };
   });
 }
 
 function abbuchen(
   db: VerpflegungDb, chargeId: string, roh: number, w: Wer, art: "ausgabe" | "aussonderung", extra: { grund?: string; ziel?: string },
+  sendung?: string,
 ): { name: string; einheit: string; mhd: string; menge: number } {
   // Einmal gerundet: Prüfung, Restbestand und Journal rechnen mit derselben Zahl.
   const menge = runde(roh);
   return db.transaction((tx) => {
+    const frueher = frueherGebucht(tx, sendung, art);
+    if (frueher) return { name: frueher.name, einheit: frueher.einheit, mhd: frueher.mhd, menge: frueher.menge };
     const c = tx.select().from(charge).where(eq(charge.id, chargeId)).get();
     if (!c) throw new Abgelehnt("Diese Packung ist nicht mehr im Bestand. Bitte neu laden.");
     const a = tx.select().from(artikel).where(eq(artikel.id, c.artikelId)).get();
@@ -176,20 +202,22 @@ function abbuchen(
     if (rest <= 0) tx.delete(charge).where(eq(charge.id, c.id)).run();
     else tx.update(charge).set({ menge: rest, aktualisiertAm: w.jetzt }).where(eq(charge.id, c.id)).run();
     tx.insert(buchung).values({
-      id: neueId(), zeit: w.jetzt, art, artikelId: c.artikelId, ortId: c.ortId, mhd: c.mhd, menge, wer: w.wer, linkId: w.linkId,
+      id: sendung ?? neueId(), zeit: w.jetzt, art, artikelId: c.artikelId, ortId: c.ortId, mhd: c.mhd, menge, wer: w.wer, linkId: w.linkId,
       grund: extra.grund ?? null, ziel: extra.ziel ?? null,
     }).run();
     return { name: a.name, einheit: a.einheit, mhd: c.mhd, menge };
   });
 }
 
-export function ausgabe(db: VerpflegungDb, e: { chargeId: string; menge: number; ziel: string }, w: Wer) {
-  return abbuchen(db, e.chargeId, e.menge, w, "ausgabe", { ziel: e.ziel });
+export function ausgabe(db: VerpflegungDb, e: { chargeId: string; menge: number; ziel: string; sendung?: string }, w: Wer) {
+  return abbuchen(db, e.chargeId, e.menge, w, "ausgabe", { ziel: e.ziel }, e.sendung);
 }
 
-export function aussondern(db: VerpflegungDb, e: { chargeId: string; menge: number; grund: AussonderGrund; freitext: string }, w: Wer) {
+export function aussondern(
+  db: VerpflegungDb, e: { chargeId: string; menge: number; grund: AussonderGrund; freitext: string; sendung?: string }, w: Wer,
+) {
   const grund = e.grund === "Sonstiges" ? `Sonstiges: ${e.freitext}` : e.grund;
-  return abbuchen(db, e.chargeId, e.menge, w, "aussonderung", { grund });
+  return abbuchen(db, e.chargeId, e.menge, w, "aussonderung", { grund }, e.sendung);
 }
 
 // ---------------------------------------------------------------- Vermerke

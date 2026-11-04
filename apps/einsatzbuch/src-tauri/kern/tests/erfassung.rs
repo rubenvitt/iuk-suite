@@ -347,7 +347,7 @@ fn volle_kette_nimmt_keinen_neuen_einsatz_an() {
     assert!(matches!(ergebnis, Err(ErfassungFehler::KetteVoll)), "{ergebnis:?}");
     assert_eq!(
         ErfassungFehler::KetteVoll.to_string(),
-        "Das Einsatzbuch ist voll: Mehr als 10 000 Einsätze nimmt dieser Rechner nicht auf. Bitte wende dich an die Verwaltung."
+        "Das Einsatztagebuch ist voll: Mehr als 10 000 Einsätze nimmt dieser Rechner nicht auf. Bitte wende dich an die Verwaltung."
     );
     assert!(buch.ausstehend().unwrap().is_none(), "nichts wurde hinterlegt");
 }

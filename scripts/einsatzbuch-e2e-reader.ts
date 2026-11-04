@@ -53,7 +53,7 @@ async function main(): Promise<void> {
     // Falle 10: die ausgelöste Anfrage selbst prüfen, nicht nur ihr Absenden.
     const geoeffnet = page.waitForResponse((r) => r.url() === `${ursprung}/api/audit/browser` && r.request().method() === "POST"
       && r.request().postData()?.includes('"reader_oeffnen"') === true, { timeout: ENTSCHLUESSELT_MS });
-    await page.getByLabel("Einsatzbuch-Datei").setInputFiles(datei);
+    await page.getByLabel("Einsatztagebuch-Datei").setInputFiles(datei);
     await page.getByRole("region", { name: "Kennwort" }).locator("input").fill(kennwort);
     await klickeWennRuhig(page.getByRole("button", { name: "Entschlüsseln" }));
 

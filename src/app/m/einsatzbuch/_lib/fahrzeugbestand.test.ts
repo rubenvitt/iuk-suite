@@ -3,7 +3,7 @@ import { fahrzeug } from "../_db/schema";
 import { einsatzbuchFahrzeuge } from "./fahrzeugbestand";
 import { testDb } from "./testDb";
 
-describe("einsatzbuchFahrzeuge — was das Einsatzbuch der Fahrzeugverwaltung herausgibt", () => {
+describe("einsatzbuchFahrzeuge — was das Einsatztagebuch der Fahrzeugverwaltung herausgibt", () => {
   it("alle Fahrzeuge mit genau diesen Feldern, auch die deaktivierten", () => {
     const db = testDb();
     db.insert(fahrzeug).values([

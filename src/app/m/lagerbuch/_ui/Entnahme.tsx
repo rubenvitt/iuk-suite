@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
-import {
-  ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferGrund,
-} from "../_lib/actionTypen";
+import { ANMELDUNG_TEXT, type HelferGrund } from "../_lib/actionTypen";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { SendeStatus } from "./SendeStatus";
 // ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `CLAUDE.md`):
 // „Server Actions duerfen als einzige ueber die Grenze — aber direkt
 // importiert, nicht als Prop durchgereicht." Dieselbe Form wie in
@@ -130,7 +130,6 @@ export function Entnahme({
 }) {
   const [menge, setMenge] = useState(1);
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
-  const [laeuft, start] = useTransition();
   /*
    * DIE CHARGENLISTE ZEIGT ZUERST, WAS HIER LIEGT — DRK-397.
    *
@@ -231,6 +230,59 @@ export function Entnahme({
   const zielWahlWeg = `/helfer/ziel?returnTo=${encodeURIComponent(artikelPfad)}`;
   const zielName = ziel?.art === "fahrzeug" ? ziel.name : null;
 
+  /*
+   * IDA-358 — DIE BUCHUNG LIEGT AUF DEM GERAET, BIS DER SERVER SIE BESTAETIGT.
+   * Ein Wurf (Netz, Rollout) laesst sie stehen, `useEntwurf` versucht es von
+   * selbst erneut, auch nach dem Neuladen; dieselbe `sendungId` macht aus einer
+   * Wiederholung nach verlorener Antwort keine zweite Entnahme
+   * (`_lib/schreibpfade/sendung.ts`). Menge und Satz von damals reisen in der
+   * Nutzlast mit, damit der Ergebnissatz auch nach dem Neuladen stimmt.
+   *
+   * ⚠️ SOLANGE EINE SENDUNG LIEGT, BUCHT DER KNOPF NICHTS NEUES: `sende` mit
+   * liegender Sendung ersetzte deren Nutzlast unter derselben ID.
+   */
+  type Nutzlast = { eingabe: Parameters<typeof bucheEntnahmeHelfer>[0] & object; angefragt: number; zielName: string | null };
+  const entwurf = useEntwurf<
+    { menge: number; chargeId: string | null },
+    Nutzlast,
+    { r: Awaited<ReturnType<typeof bucheEntnahmeHelfer>>; n: Nutzlast }
+  >({
+    schluessel: `lagerbuch:entnahme:${detail.id}:${schrank?.id ?? "handlager"}`,
+    stand: { menge, chargeId },
+    wiederherstellen: (w) => {
+      setMenge(w.menge);
+      setChargeId(w.chargeId);
+    },
+    senden: async (n, sendungId) => ({ r: await bucheEntnahmeHelfer({ ...n.eingabe, sendungId }), n }),
+    antwort: ({ r, n }) => {
+      if (!r.ok) {
+        // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
+        // Das gilt auch fuer den fuenften Grund `"eingabe"`
+        // (Betreiberentscheidung B4): er traegt seine Botschaft im `text`,
+        // und weil `darfErneuern("eingabe")` false ist, faellt er unten durch
+        // die `sitzung`-Bedingung hindurch — kein Weg zurueck aufs Gate.
+        setRueck({ art: "fehler", text: r.text, grund: r.grund });
+        return false;
+      }
+      const gebucht = r.wert.gebucht;
+      // Das Ziel gehört IN DEN SATZ: ohne es ist eine Buchung aufs Fahrzeug
+      // von einem reinen Verbrauch nicht zu unterscheiden — und der Satz ist
+      // der einzige Beleg, den die Person am Regal zu sehen bekommt.
+      const wohin = n.zielName ? ` → ${n.zielName}` : "";
+      setRueck(
+        gebucht < n.angefragt
+          ? // §7.3, zweiter Zustand: heute ein GRUENER Chip mit der KLEINEREN
+            // Zahl, ohne Hinweis — der Helfer legt fuenf Teile ins Fahrzeug
+            // und das Journal kennt drei.
+            { art: "ok", text: `${gebucht} von ${n.angefragt} gebucht; mehr lag nicht im Handlager.${wohin}` }
+          : { art: "ok", text: `Entnahme gebucht: ${gebucht} × ${detail.name}${wohin}` },
+      );
+      setMenge(1);
+      return true;
+    },
+  });
+  const laeuft = entwurf.zustand !== "ruhe";
+
   function absenden() {
     // ⚠️ OHNE ZIEL WIRD NICHT GEBUCHT. Der Knopf ist dann bereits gesperrt;
     // diese Zeile ist die zweite Hälfte derselben Zusage — ein Tastendruck auf
@@ -240,57 +292,33 @@ export function Entnahme({
     const m = Math.min(menge, hoechstmenge);
     if (m <= 0) return;
     setRueck(null);
-    start(async () => {
-      try {
-        const r = await bucheEntnahmeHelfer({
-          artikelId: detail.id,
-          menge: m,
-          /*
-           * DRK-418 — NUR MITSCHICKEN, WENN GEWAEHLT. Ein `chargeId: null` waere
-           * gleichbedeutend (das Schema ist `nullish`), aber der Schluessel
-           * stuende dann in jeder Nutzlast und legte nahe, die Wahl sei Pflicht.
-           *
-           * ⚠️ `gewaehlteCharge?.id` UND NICHT `chargeId`: verschwindet die
-           * gewaehlte Charge zwischen Wahl und Klick aus dem Handlager — ein
-           * zweites Telefon am selben Regal —, zeigt der Schirm sie nicht mehr
-           * an, und die Nutzlast soll dann auch nicht mehr von ihr sprechen.
-           */
-          ...(gewaehlteCharge ? { chargeId: gewaehlteCharge.id } : {}),
-          ...(schrank ? { ortId: schrank.id } : {}),
-          // Die KENNUNG wandert, nicht der Anzeigename — der Server kennt nur sie.
-          ziel: ziel.art === "fahrzeug" ? { art: "fahrzeug", lagerortId: ziel.lagerortId } : ziel,
-        });
-        if (!r.ok) {
-          // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
-          // Das gilt auch fuer den fuenften Grund `"eingabe"`
-          // (Betreiberentscheidung B4): er traegt seine Botschaft im `text`,
-          // und weil `darfErneuern("eingabe")` false ist, faellt er unten durch
-          // die `sitzung`-Bedingung hindurch — kein Weg zurueck aufs Gate.
-          setRueck({ art: "fehler", text: r.text, grund: r.grund });
-          return;
-        }
-        const gebucht = r.wert.gebucht;
-        // Das Ziel gehört IN DEN SATZ: ohne es ist eine Buchung aufs Fahrzeug
-        // von einem reinen Verbrauch nicht zu unterscheiden — und der Satz ist
-        // der einzige Beleg, den die Person am Regal zu sehen bekommt.
-        const wohin = zielName ? ` → ${zielName}` : "";
-        setRueck(
-          gebucht < m
-            ? // §7.3, zweiter Zustand: heute ein GRUENER Chip mit der KLEINEREN
-              // Zahl, ohne Hinweis — der Helfer legt fuenf Teile ins Fahrzeug
-              // und das Journal kennt drei.
-              { art: "ok", text: `${gebucht} von ${m} gebucht; mehr lag nicht im Handlager.${wohin}` }
-            : { art: "ok", text: `Entnahme gebucht: ${gebucht} × ${detail.name}${wohin}` },
-        );
-        setMenge(1);
-      } catch {
-        // FALLE 62: `HelferEntnahme.tsx:22-30` hat KEIN catch — der Wurf
-        // schlaegt bis zur Fehlerseite durch, und in Produktion steht dort ein
-        // englischer Satz mit `digest` (Falle 66). `"netz"` entsteht
-        // ausschliesslich HIER, nie serverseitig.
-        setRueck({ art: "fehler", text: NETZ_TEXT_BUCHUNG, grund: "netz" });
-        // Die Menge bleibt im Feld, der Knopf wird wieder aktiv (§7.10.3).
-      }
+    /*
+     * FALLE 62: `HelferEntnahme.tsx:22-30` hatte KEIN catch — der Wurf schlug
+     * bis zur Fehlerseite durch (Falle 66). Seit IDA-358 faengt ihn
+     * `useEntwurf`: die Sendung bleibt liegen, `SendeStatus` sagt „Nicht
+     * gesendet", die Menge bleibt im Feld (§7.10.3).
+     */
+    entwurf.sende({
+      eingabe: {
+        artikelId: detail.id,
+        menge: m,
+        /*
+         * DRK-418 — NUR MITSCHICKEN, WENN GEWAEHLT. Ein `chargeId: null` waere
+         * gleichbedeutend (das Schema ist `nullish`), aber der Schluessel
+         * stuende dann in jeder Nutzlast und legte nahe, die Wahl sei Pflicht.
+         *
+         * ⚠️ `gewaehlteCharge?.id` UND NICHT `chargeId`: verschwindet die
+         * gewaehlte Charge zwischen Wahl und Klick aus dem Handlager — ein
+         * zweites Telefon am selben Regal —, zeigt der Schirm sie nicht mehr
+         * an, und die Nutzlast soll dann auch nicht mehr von ihr sprechen.
+         */
+        ...(gewaehlteCharge ? { chargeId: gewaehlteCharge.id } : {}),
+        ...(schrank ? { ortId: schrank.id } : {}),
+        // Die KENNUNG wandert, nicht der Anzeigename — der Server kennt nur sie.
+        ziel: ziel.art === "fahrzeug" ? { art: "fahrzeug", lagerortId: ziel.lagerortId } : ziel,
+      },
+      angefragt: m,
+      zielName,
     });
   }
 
@@ -419,7 +447,9 @@ export function Entnahme({
             Entnahme buchen
           </button>
 
-          {rueck && (
+          <SendeStatus entwurf={entwurf} rolle="entnahme-ergebnis" />
+
+          {rueck && !laeuft && (
             <>
               {/* Der mehrzeilige Ergebnissatz braucht die von `.chip` abweichende Form aus `.rueckmeldung`. */}
               <span

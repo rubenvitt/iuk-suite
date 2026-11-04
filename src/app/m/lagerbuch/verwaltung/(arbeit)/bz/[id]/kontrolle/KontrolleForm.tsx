@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Alert, Button, DatePicker, Form, Input, InputNumber, Radio } from "antd";
 import type { Dayjs } from "dayjs";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
@@ -8,6 +8,8 @@ import { SPACE } from "@/core/theme/tokens";
 import { kontrolleErfassen } from "../../../../../_actions/bz";
 import { monatAusPicker } from "../../../../../_ui/monat";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
+import { EntwurfZeile } from "../../../../../_ui/EntwurfZeile";
 
 export type KontrolleLevelDto = {
   label: string | null;
@@ -71,9 +73,41 @@ export function KontrolleForm({
   beachtungAktiv: boolean;
 }) {
   const [form] = Form.useForm<KontrolleWerte>();
-  const [laeuft, start] = useTransition();
   const [bestanden, setBestanden] = useState<boolean | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+  /*
+   * IDA-358 — DIE KONTROLLE IST EINE MESSUNG MIT DEM GERAET IN DER HAND, also
+   * Modus „senden" (wie der Check), nicht nur Wiederherstellen: die Werte liegen
+   * auf dem Geraet, ein Wurf (Netz, Rollout) wird wiederholt, und die
+   * Sendungs-ID wird die ID der Kontrolle — keine zweite Zeile in der
+   * append-only Tabelle (`_actions/bz.ts`). Solange eine Sendung liegt, ist das
+   * Formular gesperrt: ein zweites Speichern schickte unter derselben ID andere
+   * Werte.
+   */
+  const entwurf = useFormEntwurf<
+    KontrolleWerte,
+    Parameters<typeof kontrolleErfassen>[0] & object,
+    Awaited<ReturnType<typeof kontrolleErfassen>>
+  >(form, `lagerbuch:bz-kontrolle:${geraetId}`, {
+    senden: (nutzlast, sendungId) => kontrolleErfassen({ ...nutzlast, sendungId }),
+    antwort: (ergebnis) => {
+      if (!ergebnis.ok) {
+        if (ergebnis.feldFehler) {
+          form.setFields(Object.entries(ergebnis.feldFehler)
+            .filter((eintrag): eintrag is [keyof KontrolleWerte, string] => (
+              istFormFeld(eintrag[0])
+            ))
+            .map(([name, text]) => ({ name, errors: [text] })));
+        }
+        setFehler(ergebnis.fehler);
+        return false;
+      }
+      setBestanden(ergebnis.wert.bestanden);
+      entwurf.verwerfen();
+      return true;
+    },
+  });
+  const laeuft = entwurf.zustand !== "ruhe";
   const level1Text = levelLabel(level1, "Level 1");
   const level2Text = levelLabel(level2, "Level 2");
 
@@ -81,29 +115,12 @@ export function KontrolleForm({
     setBestanden(null);
     setFehler(null);
     form.setFields(Array.from(FORM_FELDER, (name) => ({ name, errors: [] })));
-    start(async () => {
-      try {
-        const ergebnis = await kontrolleErfassen({
-          geraetId,
-          ...werte,
-          kompresseVerfall: monatAusPicker(werte.kompresseVerfall),
-        });
-        if (!ergebnis.ok) {
-          if (ergebnis.feldFehler) {
-            form.setFields(Object.entries(ergebnis.feldFehler)
-              .filter((eintrag): eintrag is [keyof KontrolleWerte, string] => (
-                istFormFeld(eintrag[0])
-              ))
-              .map(([name, text]) => ({ name, errors: [text] })));
-          }
-          setFehler(ergebnis.fehler);
-          return;
-        }
-        setBestanden(ergebnis.wert.bestanden);
-        form.resetFields();
-      } catch {
-        setFehler("Kontrolle konnte nicht gespeichert werden.");
-      }
+    // Ein Wurf (Netz, Rollout) faengt `useFormEntwurf`; `EntwurfHinweis` sagt
+    // „Nicht gesendet". Der feste Satz fuer den Wurf ist damit ersetzt.
+    entwurf.sende({
+      geraetId,
+      ...werte,
+      kompresseVerfall: monatAusPicker(werte.kompresseVerfall),
     });
   }
 
@@ -112,6 +129,7 @@ export function KontrolleForm({
       form={form}
       layout="vertical"
       disabled={laeuft}
+      onValuesChange={entwurf.onValuesChange}
       initialValues={{
         sticks: 0,
         lanzetten: 0,
@@ -128,6 +146,7 @@ export function KontrolleForm({
       onFinish={speichern}
       aria-label="BZ-Kontrolle erfassen"
     >
+      <EntwurfZeile entwurf={entwurf} />
       {level1 ? (
         <Form.Item name="level1Wert" label={level1Text}>
           <InputNumber
@@ -222,7 +241,7 @@ export function KontrolleForm({
           ]}
         />
       </Form.Item>
-      <Button type="primary" htmlType="submit" loading={laeuft}>
+      <Button type="primary" htmlType="submit" loading={entwurf.zustand === "sendet"}>
         Kontrolle speichern
       </Button>
       {bestanden !== null ? (

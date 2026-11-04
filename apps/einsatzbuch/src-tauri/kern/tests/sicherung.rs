@@ -314,7 +314,7 @@ fn lies_lehnt_fremdes_format_ab() {
     fs::write(&pfad, serde_json::to_vec(&mit_feld("format", "einsatzbuch-export".into())).unwrap()).unwrap();
     let fehler = sicherung::lies(&pfad).unwrap_err();
     assert!(matches!(fehler, SicherungFehler::FremdesFormat), "{fehler:?}");
-    assert_eq!(fehler.to_string(), "Die Datei ist keine Einsatzbuch-Sicherung (Format oder Version unbekannt).");
+    assert_eq!(fehler.to_string(), "Die Datei ist keine Einsatztagebuch-Sicherung (Format oder Version unbekannt).");
 }
 
 /// serde liest eine Struktur auch aus einem Array in Feldreihenfolge. Eine Sicherung ist aber

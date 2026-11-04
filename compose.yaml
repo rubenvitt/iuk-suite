@@ -145,11 +145,11 @@ services:
       start_period: 40s
       # Takt der Probe INNERHALB von `start_period` (Docker Engine >= 25). Ohne die Zeile
       # probt Docker auch in der Startphase nur alle `interval` = 30s — und Traefik nimmt
-      # einen Container erst in die Route, wenn er `healthy` ist. Jeder Rollout war dadurch
-      # bis zu ~30s lang 404 auf ALLEN Modul-Hosts, obwohl Next.js nach wenigen Sekunden
-      # antwortet. Mit 2s ist die Lücke etwa die Bootzeit. Nach `start_period` gilt wieder
-      # `interval`; die Probe ist ein lokales wget (gemessen ~0,15s), der kurze Takt kostet
-      # also nichts. Kein echtes Rolling Update: alter und neuer Container laufen nie parallel.
+      # einen Container erst in die Route, wenn er `healthy` ist. Seit 04.11.2026 startet
+      # `scripts/deploy.sh` den neuen NEBEN dem alten (`--scale suite=2`, Schritt 5–7b): der
+      # Takt bestimmt, wie lange beide laufen, nicht mehr eine 404-Lücke. `--scale` verbietet
+      # hier `container_name` und `ports:` (deploy.test.ts). Nach `start_period` gilt `interval`;
+      # die Probe ist ein lokales wget (gemessen ~0,15s), der kurze Takt kostet also nichts.
       start_interval: 2s
     labels:
       - traefik.enable=true

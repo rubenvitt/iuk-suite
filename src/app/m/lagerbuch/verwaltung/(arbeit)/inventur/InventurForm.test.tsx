@@ -34,6 +34,10 @@ import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
 import { zaehlOrtWert, type ZaehlOrt } from "../../../_lib/inventurOrt";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { InventurForm } from "./InventurForm";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
+
+/** IDA-358: der Wiederholungsschutz reist in jeder Nutzlast mit (`_actions/inventur.ts`). */
+const SENDUNG = expect.stringMatching(/^[0-9a-f-]{36}$/);
 
 const ORTE: ZaehlOrt[] = [
   { id: null, label: "Ganzer Handlager" },
@@ -91,6 +95,9 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  // IDA-358: die Leiste legt Zaehlstand und Kommentar auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   vi.clearAllMocks();
   mocks.inventurKorrektur.mockResolvedValue({
     ok: true,
@@ -304,6 +311,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
         { artikelId: "a1", ist: 12 },
         { artikelId: "a2", ist: 0 },
       ],
+      sendungId: SENDUNG,
     });
   });
 });
@@ -339,9 +347,55 @@ describe("InventurForm — asynchroner Abschluss", () => {
     expect(knopf.disabled).toBe(true);
   });
 
+  it("IDA-358 — ein Wurf laesst den Abschluss liegen: ‚Nicht gesendet', Zaehlung und Kommentar bleiben, kein Innentext", async () => {
+    mocks.inventurKorrektur.mockImplementation(async () => { throw new Error("SQLITE geheim"); });
+    await mount(<Formular zeilen={ZEILEN} />);
+    await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
+    await fill("input[aria-label='Kommentar']", "Fehlerretention");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => queryAll("[data-rolle='entwurf-hinweis']").length === 1, "Statuszeile");
+
+    expect(query("[data-rolle='entwurf-hinweis']").getAttribute("data-art")).toBe("nicht-gesendet");
+    expect(query("[data-rolle='entwurf-hinweis']").textContent).toMatch(/^Nicht gesendet\./);
+    expect(document.body.textContent).not.toContain("SQLITE geheim");
+    expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']").value).toBe("11");
+    expect(query<HTMLInputElement>("input[aria-label='Kommentar']").value).toBe("Fehlerretention");
+    // Solange der Abschluss liegt, ist die Seite gesperrt — Begruendung in `Abschlussleiste.tsx`.
+    expect(query<HTMLInputElement>("input[aria-label='Kommentar']").disabled).toBe(true);
+  });
+
+  it("IDA-358 — Zaehlung und Kommentar stehen nach dem Neuladen wieder da", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
+    await fill("input[aria-label='Kommentar']", "Quartal");
+    await unmount();
+    await mount(<Formular zeilen={ZEILEN} />);
+    await warte();
+    expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']").value).toBe("11");
+    expect(query<HTMLInputElement>("input[aria-label='Kommentar']").value).toBe("Quartal");
+    expect(query("[data-rolle='entwurf-hinweis']").getAttribute("data-art")).toBe("wiederhergestellt");
+    expect(mocks.inventurKorrektur).not.toHaveBeenCalled();
+  });
+
+  it("IDA-358 — ein liegender Abschluss geht nach dem Neuladen mit DERSELBEN Sendungs-ID raus", async () => {
+    mocks.inventurKorrektur.mockImplementation(async () => { throw new Error("502"); });
+    await mount(<Formular zeilen={ZEILEN} />);
+    await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
+    await fill("input[aria-label='Kommentar']", "Rollout");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "erster Versuch");
+    const erste = mocks.inventurKorrektur.mock.calls[0]![0] as { sendungId?: string };
+    await unmount();
+
+    mocks.inventurKorrektur.mockResolvedValue({ ok: true, wert: { korrigiert: 1, inventurId: "lauf-1" } });
+    await mount(<Formular zeilen={ZEILEN} />);
+    await warteAuf(() => queryAll(".ant-alert-success").length === 1, "Erfolgsmeldung");
+    expect((mocks.inventurKorrektur.mock.calls[1]![0] as { sendungId?: string }).sendungId).toBe(erste.sendungId);
+    expect(query<HTMLInputElement>("input[aria-label='Kommentar']").value).toBe("");
+  });
+
   it.each([
     ["ok:false", async () => ({ ok: false as const, fehler: "interner Fachdiensttext" })],
-    ["Reject", async () => { throw new Error("SQLITE geheim"); }],
   ])("behält bei %s Position und Kommentar und zeigt nur den festen Warning-Text", async (_fall, antwort) => {
     mocks.inventurKorrektur.mockImplementationOnce(antwort);
     await mount(<Formular zeilen={ZEILEN} />);
@@ -383,6 +437,7 @@ describe("InventurForm — Zeile und Filter", () => {
       ortId: null,
       umfang: { kategorien: [], faecher: ["A1"] },
       positionen: [{ artikelId: "a2", ist: 3 }],
+      sendungId: SENDUNG,
     });
   });
 
@@ -403,6 +458,7 @@ describe("InventurForm — Zeile und Filter", () => {
       ortId: null,
       umfang: { kategorien: ["Hygiene"], faecher: [] },
       positionen: [{ artikelId: "a1", ist: 11 }],
+      sendungId: SENDUNG,
     });
   });
 
@@ -475,6 +531,7 @@ describe("InventurForm — Zeile und Filter", () => {
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Charge", ortId: null, umfang: null,
       positionen: [{ artikelId: "a1", chargen: [{ chargeId: "c1", ist: 9 }], neu: [] }],
+      sendungId: SENDUNG,
     });
   });
 
@@ -556,6 +613,7 @@ describe("InventurForm — „Stimmt“, „Offen“ und Suche (IDA-237)", () =>
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Quartalsinventur", ortId: null, umfang: null,
       positionen: [{ artikelId: "a2", ist: 4 }],
+      sendungId: SENDUNG,
     });
   });
 
@@ -702,6 +760,7 @@ describe("±-Knöpfe", () => {
       ortId: null,
       umfang: null,
       positionen: [{ artikelId: "a1", ist: 12 }],
+      sendungId: SENDUNG,
     });
   });
 
@@ -790,6 +849,7 @@ describe("InventurForm — Zählort (DRK-337)", () => {
       ortId: "schrank-1",
       umfang: null,
       positionen: [{ artikelId: "a2", ist: 6 }],
+      sendungId: SENDUNG,
     });
   });
 

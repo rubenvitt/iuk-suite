@@ -164,7 +164,7 @@ function hauptprogramm(argv) {
   const version = /** @type {string} */ (values.version);
   const manifest = baueLatestJson({
     version,
-    notes: values.notes ?? `Einsatzbuch ${version}`,
+    notes: values.notes ?? `Einsatztagebuch ${version}`,
     pubDate: values["pub-date"] ?? new Date(),
     repo: values.repo ?? process.env.GITHUB_REPOSITORY ?? "",
     tag: /** @type {string} */ (values.tag),

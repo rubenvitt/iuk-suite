@@ -35,6 +35,7 @@ vi.mock("../_actions/buchung", () => ({
 }));
 
 import { Entnahme, type EntnahmeDetail } from "./Entnahme";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 
 /** Die Signatur, die die Insel von der Action erwartet — frueher der Prop-Typ
  *  `BuchungsAktion`, heute die Form, auf die der Spion antwortet. */
@@ -250,6 +251,10 @@ afterEach(async () => {
  * `antwortet(...)` VOR dem `mount`.
  */
 beforeEach(() => {
+  // IDA-358: die Insel legt Menge und Sendung auf dem Geraet ab — ohne das
+  // stellte der naechste Fall den Stand des vorigen wieder her.
+  localStorage.clear();
+  vergissFluechtig();
   antwortet(async () => ({ ok: true, wert: { gebucht: 1 } }));
 });
 
@@ -720,20 +725,75 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
     expect(exists("[data-rolle='entnahme-zum-gate']")).toBe(false);
   });
 
-  it("ein GEWORFENER Fehler wird gefangen: ‚Keine Verbindung', Menge bleibt, Knopf wieder aktiv", async () => {
-    // Falle 62: HelferEntnahme.tsx:22-30 hat KEIN catch — der Wurf schlaegt bis
-    // zur Fehlerseite durch, und in Produktion steht dort ein ENGLISCHER Satz
-    // (Falle 66).
+  it("IDA-358 — ein GEWORFENER Fehler laesst die Buchung liegen: ‚Nicht gesendet', Menge bleibt", async () => {
+    // Falle 62: HelferEntnahme.tsx:22-30 hatte KEIN catch — der Wurf schlug bis
+    // zur Fehlerseite durch (Falle 66). Bis IDA-358 stand dann „Keine
+    // Verbindung. Die Buchung wurde nicht gespeichert." da, und die Buchung war
+    // weg. Jetzt liegt sie auf dem Geraet und wird von selbst wiederholt.
     antwortet(async () => { throw new Error("offline"); });
     await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     for (let i = 0; i < 4; i++) await click(PLUS);
     await click(BUCHEN);
-    expect(query(ERGEBNIS).textContent).toBe("Keine Verbindung. Die Buchung wurde nicht gespeichert.");
-    expect(ton(query(ERGEBNIS))).toBe("rot");
+    const r = query(ERGEBNIS);
+    expect(r.dataset.art).toBe("nicht-gesendet");
+    expect(r.textContent).toMatch(/^Nicht gesendet\. Neuer Versuch in \d+ s\./);
+    expect(ton(r)).toBe("rot");
     expect(query<HTMLInputElement>(MENGE).value).toBe("5");
-    expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(false);
+    // Solange die Sendung liegt, bucht der Knopf nichts NEUES — er ersetzte
+    // sonst ihre Nutzlast unter derselben ID.
+    expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(true);
     // `"netz"` ist ein CLIENT-Grund: er fuehrt zu keinem Gate-Weg.
     expect(exists("[data-rolle='entnahme-zum-gate']")).toBe(false);
+  });
+
+  it("IDA-358 — ‚Jetzt senden' wiederholt MIT DERSELBEN Sendungs-ID und zeigt danach den Erfolg", async () => {
+    antwortet(async () => { throw new Error("offline"); });
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click(PLUS);
+    await click(BUCHEN);
+    const erste = buchenSpion.mock.calls[0]![0] as { sendungId?: string; menge: number };
+    expect(erste.sendungId).toMatch(/^[0-9a-f-]{36}$/);
+    antwortet(async () => ({ ok: true, wert: { gebucht: 2 } }));
+    await click("[data-rolle='entwurf-jetzt-senden']");
+    const zweite = buchenSpion.mock.calls[1]![0] as { sendungId?: string; menge: number };
+    expect(zweite.sendungId).toBe(erste.sendungId);
+    expect(zweite.menge).toBe(2);
+    expect(query(ERGEBNIS).textContent).toBe("Entnahme gebucht: 2 × Kompresse 10×10");
+    expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(false);
+  });
+
+  it("IDA-358 — eine liegende Buchung uebersteht das Neuladen und geht beim naechsten Aufbau raus", async () => {
+    antwortet(async () => { throw new Error("502"); });
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    for (let i = 0; i < 2; i++) await click(PLUS);
+    await click(BUCHEN);
+    const erste = buchenSpion.mock.calls[0]![0] as { sendungId?: string };
+    await unmount();
+
+    antwortet(async () => ({ ok: true, wert: { gebucht: 3 } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    const zweite = buchenSpion.mock.calls[1]![0] as { sendungId?: string; menge: number };
+    expect(zweite.sendungId).toBe(erste.sendungId);
+    expect(zweite.menge).toBe(3);
+    expect(query(ERGEBNIS).textContent).toBe("Entnahme gebucht: 3 × Kompresse 10×10");
+  });
+
+  it("IDA-358 — die eingestellte Menge steht nach dem Neuladen wieder da", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    for (let i = 0; i < 3; i++) await click(PLUS);
+    await unmount();
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    expect(query<HTMLInputElement>(MENGE).value).toBe("4");
+    expect(buchenSpion).not.toHaveBeenCalled();
+  });
+
+  it("IDA-358 — eine ABGELEHNTE Buchung wird nicht wiederholt, der Text bleibt stehen", async () => {
+    antwortet(async () => ({ ok: false as const, grund: "leer" as const, text: "Nichts mehr da." }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click(BUCHEN);
+    await unmount();
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    expect(buchenSpion).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -1045,14 +1105,15 @@ describe("Entnahme — Bauform", () => {
     expect(q, "kein `buchen`-Prop mehr").not.toMatch(/\bbuchen[?]?:/);
   });
 
-  it("faengt JEDEN Action-Aufruf in try/catch", () => {
-    // Der Verhaltensnachweis steht oben („ein GEWORFENER Fehler wird
-    // gefangen"). Dieser Scan haelt einen anderen Fall: einen ZWEITEN
-    // Aufrufort, den kein DOM-Test erreicht.
+  it("ruft die Action NUR ueber `useEntwurf` (`senden`) — kein zweiter, ungeschuetzter Aufrufort", () => {
+    // Der Verhaltensnachweis steht oben („ein GEWORFENER Fehler laesst die
+    // Buchung liegen"). Dieser Scan haelt einen anderen Fall: einen ZWEITEN
+    // Aufrufort, den kein DOM-Test erreicht und den kein Wurf-Fang deckt.
+    // Seit IDA-358 faengt `useEntwurf` den Wurf, nicht ein try/catch hier.
     const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
     const aufrufe = q.match(/\bbucheEntnahmeHelfer\(/g) ?? [];
     expect(aufrufe.length).toBe(1);
-    expect(q).toMatch(/try \{[\s\S]*?await bucheEntnahmeHelfer\([\s\S]*?\} catch/);
+    expect(q).toMatch(/senden: async \(n, sendungId\) => \(\{ r: await bucheEntnahmeHelfer\(\{ \.\.\.n\.eingabe, sendungId \}\)/);
   });
 
   it("ist eine Client-Insel ohne antd, ohne lucide, ohne Plakette", () => {

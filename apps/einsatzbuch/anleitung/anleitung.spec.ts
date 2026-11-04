@@ -49,7 +49,7 @@ async function bild(page: Page, bilder: Map<string, Buffer>, name: string, ziele
   for (const z of ziele) await z.evaluate((e) => e.removeAttribute("data-anleitung"));
 }
 
-test("Anleitung für den Einsatzbuch-Rechner erzeugen", async ({ page }) => {
+test("Anleitung für den Einsatztagebuch-Rechner erzeugen", async ({ page }) => {
   const bilder = new Map<string, Buffer>();
   // Echter Betrieb, damit kein Testband im Bild steht; 15 Minuten wie in der Praxis.
   await installiereStub(page, { betrieb: "echt", fristSekunden: 15 * 60 });

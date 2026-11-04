@@ -8,6 +8,8 @@ import { geraetSpeichern } from "../../../_actions/geraete";
 import { standortMeta } from "../../../_lib/konstanten";
 import type { LagerortOption as Lagerort } from "../../../_lib/lesepfade/bz";
 import { Ikone } from "../../../_ui/ikonen";
+import { EntwurfZeile } from "../../../_ui/EntwurfZeile";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 type Werte = {
@@ -62,12 +64,15 @@ export function NeuGeraet({
   const [laeuft, setLaeuft] = useState(false);
   const submitLaeuft = useRef(false);
   const [form] = Form.useForm<Werte>();
+  // IDA-358: die Eingaben ueberstehen ein Neuladen; liegt ein Entwurf, steht
+  // der Dialog danach gleich wieder offen — sonst saehe ihn niemand.
+  const entwurf = useFormEntwurf(form, "lagerbuch:neu-geraet");
   const router = useRouter();
   const typ = Form.useWatch("typ", form) ?? "medizin";
 
   function oeffnen(): void {
     setFehler(null);
-    form.resetFields();
+    entwurf.verwerfen();
     setOffen(true);
   }
 
@@ -75,7 +80,7 @@ export function NeuGeraet({
     if (submitLaeuft.current) return;
     setFehler(null);
     setOffen(false);
-    form.resetFields();
+    entwurf.verwerfen();
   }
 
   function speichern(werte: Werte): void {
@@ -111,7 +116,7 @@ export function NeuGeraet({
           return;
         }
         setOffen(false);
-        form.resetFields();
+        entwurf.verwerfen();
         router.refresh();
       } catch {
         setFehler("Gerät konnte nicht angelegt werden.");
@@ -132,7 +137,7 @@ export function NeuGeraet({
         Neues Gerät
       </Button>
       <Modal
-        open={offen}
+        open={offen || entwurf.wiederhergestellt}
         title="Neues Gerät"
         okText="Gerät anlegen"
         cancelText="Abbrechen"
@@ -154,8 +159,10 @@ export function NeuGeraet({
           disabled={laeuft}
           initialValues={{ typ: "medizin" }}
           onFinish={speichern}
+          onValuesChange={entwurf.onValuesChange}
           data-rolle="neues-geraet"
         >
+          <EntwurfZeile entwurf={entwurf} />
           <Form.Item
             name="typ"
             label="Klasse"

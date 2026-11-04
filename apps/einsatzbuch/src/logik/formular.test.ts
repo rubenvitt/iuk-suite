@@ -200,7 +200,7 @@ it("Fristsatz", () => {
   expect(fristSatz(1)).toBe("Nach dem Absenden 1 Minute änderbar, danach nicht mehr einsehbar");
 });
 
-it("leerer Entwurf schlägt keinen Beginn vor: Das Einsatzbuch wird hinterher ausgefüllt (IDA-290)", () => {
+it("leerer Entwurf schlägt keinen Beginn vor: Das Einsatztagebuch wird hinterher ausgefüllt (IDA-290)", () => {
   expect(leererEntwurf()).toMatchObject({ beginnDatum: "", beginnZeit: "", endeDatum: "", endeZeit: "" });
 });
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { utf8 } from "./bytes";
 import { ausKanonischemJson, kanonisch } from "./kanonisch";
 
-describe("kanonisch (RFC 8785 für die Werte des Einsatzbuchs)", () => {
+describe("kanonisch (RFC 8785 für die Werte des Einsatztagebuchs)", () => {
   it("sortiert Schlüssel, lässt Leerraum weg, verschachtelt", () => {
     expect(kanonisch({ b: 1, a: [true, null, "x"], c: { z: "", y: -3 } })).toBe('{"a":[true,null,"x"],"b":1,"c":{"y":-3,"z":""}}');
   });

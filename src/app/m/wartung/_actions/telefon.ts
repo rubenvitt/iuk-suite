@@ -19,7 +19,7 @@ export async function stundenEintragenAction(geraetId: string, eingabe: unknown)
   if (!idSchema.safeParse(geraetId).success || !e.success) return { ok: false, fehler: "Bitte ganze Stunden eingeben.", feldFehler: { stunden: "Bitte ganze Stunden eingeben." } };
   return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Ergebnis> => {
     try {
-      stundenEintragen(getDb(), geraetId, e.data.stunden, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer) });
+      stundenEintragen(getDb(), geraetId, e.data.stunden, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer) }, e.data.sendung);
     } catch (f) {
       if (f instanceof Abgelehnt) return { ok: false, fehler: f.message, feldFehler: f.feld ? { [f.feld]: f.message } : undefined };
       throw f;

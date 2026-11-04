@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { falte } from "../_lib/suche";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
-import {
-  ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferGrund,
-} from "../_lib/actionTypen";
+import { ANMELDUNG_TEXT, type HelferGrund } from "../_lib/actionTypen";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { SendeStatus } from "./SendeStatus";
 // ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `CLAUDE.md`):
 // „Server Actions duerfen als einzige ueber die Grenze — aber direkt
 // importiert, nicht als Prop durchgereicht." Dieselbe Form wie in
@@ -165,7 +165,6 @@ export function BoxAbgabe({
   const [abgelegt, setAbgelegt] = useState<Abgelegt[]>([]);
   const [belegOffen, setBelegOffen] = useState(false);
   const [q, setQ] = useState("");
-  const [laeuft, start] = useTransition();
   const belegRef = useRef<HTMLDivElement>(null);
 
   // `trim()` VOR `falte()` — dieselbe Form wie `ArtikelSuche`.
@@ -184,6 +183,56 @@ export function BoxAbgabe({
     return [...je.values()];
   }, [abgelegt]);
   const letzte = abgelegt.at(-1);
+
+  /*
+   * IDA-358 — DIE ABLAGE LIEGT AUF DEM GERAET, BIS DER SERVER SIE BESTAETIGT.
+   * Ein Wurf (Netz, Rollout) laesst sie stehen, `useEntwurf` wiederholt sie,
+   * auch nach dem Neuladen; dieselbe `sendungId` macht aus einer Wiederholung
+   * nach verlorener Antwort keine zweite Umlagerung
+   * (`_lib/schreibpfade/sendung.ts`). Was im Beleg steht, reist in der
+   * Nutzlast mit — nach dem Neuladen kennt die Insel den Posten sonst nicht.
+   *
+   * ⚠️ SOLANGE EINE SENDUNG LIEGT, LEGT KEIN KNOPF ETWAS NEUES AB: `sende` mit
+   * liegender Sendung ersetzte deren Nutzlast unter derselben ID — die erste
+   * Ablage ginge verloren.
+   */
+  type Nutzlast = {
+    eingabe: { fahrzeugId: string; artikelId: string; menge: number; chargeId: string | null };
+    anzeige: { artikelId: string; artikelName: string; einheit: string };
+  };
+  const entwurf = useEntwurf<
+    { wahl: Wahl | null },
+    Nutzlast,
+    { r: Awaited<ReturnType<typeof bucheInEntnahmebox>>; n: Nutzlast }
+  >({
+    schluessel: `lagerbuch:box-abgabe:${einheit.id}`,
+    stand: { wahl },
+    wiederherstellen: (w) => setWahl(w.wahl),
+    senden: async (n, sendungId) => ({ r: await bucheInEntnahmebox({ ...n.eingabe, sendungId }), n }),
+    antwort: ({ r, n }) => {
+      if (!r.ok) {
+        // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
+        setFehler({ artikelId: n.anzeige.artikelId, text: r.text, grund: r.grund });
+        return false;
+      }
+      setAbgelegt((vorher) => [...vorher, { ...n.anzeige, menge: r.wert.gebucht }]);
+      // Die Zeile schliesst nach dem Erfolg. Sie offen zu lassen hiesse, ein
+      // gefuelltes Mengenfeld ueber einer Liste stehen zu lassen, deren Zahlen
+      // der naechste Serverstand gerade aendert — ein zweiter Tipp buchte
+      // dann gegen einen Bestand, der nicht mehr auf dem Schirm steht.
+      setWahl(null);
+      // Und die Suche leert sich: der naechste Griff ist fast immer ein
+      // ANDERER Artikel (IDA-220). Was gerade gebucht wurde, sagt die Leiste.
+      setQ("");
+      // Ein kurzes Rucken in der Hand — in der Halle schaut niemand
+      // ununterbrochen aufs Telefon. Wo es das nicht gibt (iOS), passiert nichts.
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate(40);
+      }
+      return true;
+    },
+  });
+  const laeuft = entwurf.zustand !== "ruhe";
 
   function oeffnen(p: BoxPosten): void {
     setFehler(null);
@@ -215,41 +264,11 @@ export function BoxAbgabe({
     const menge = Math.min(wahl.menge, grenze);
     if (menge <= 0) return;
     setFehler(null);
-    start(async () => {
-      try {
-        const r = await bucheInEntnahmebox({
-          fahrzeugId: einheit.id,
-          artikelId: p.artikelId,
-          menge,
-          chargeId: wahl.chargeId,
-        });
-        if (!r.ok) {
-          // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
-          setFehler({ artikelId: p.artikelId, text: r.text, grund: r.grund });
-          return;
-        }
-        setAbgelegt((vorher) => [...vorher, {
-          artikelId: p.artikelId, artikelName: p.artikelName, einheit: p.einheit, menge: r.wert.gebucht,
-        }]);
-        // Die Zeile schliesst nach dem Erfolg. Sie offen zu lassen hiesse, ein
-        // gefuelltes Mengenfeld ueber einer Liste stehen zu lassen, deren Zahlen
-        // der naechste Serverstand gerade aendert — ein zweiter Tipp buchte
-        // dann gegen einen Bestand, der nicht mehr auf dem Schirm steht.
-        setWahl(null);
-        // Und die Suche leert sich: der naechste Griff ist fast immer ein
-        // ANDERER Artikel (IDA-220). Was gerade gebucht wurde, sagt die Leiste.
-        setQ("");
-        // Ein kurzes Rucken in der Hand — in der Halle schaut niemand
-        // ununterbrochen aufs Telefon. Wo es das nicht gibt (iOS), passiert nichts.
-        if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
-          navigator.vibrate(40);
-        }
-      } catch {
-        // FALLE 62: ohne `catch` schlaegt der Wurf bis zur Fehlerseite durch,
-        // und in Produktion steht dort ein englischer Satz mit `digest`
-        // (Falle 66). `"netz"` entsteht ausschliesslich HIER, nie serverseitig.
-        setFehler({ artikelId: p.artikelId, text: NETZ_TEXT_BUCHUNG, grund: "netz" });
-      }
+    // FALLE 62 / IDA-358: einen Wurf faengt `useEntwurf` — die Buchung bleibt
+    // liegen und wird wiederholt, die Leiste unten sagt „Nicht gesendet".
+    entwurf.sende({
+      eingabe: { fahrzeugId: einheit.id, artikelId: p.artikelId, menge, chargeId: wahl.chargeId },
+      anzeige: { artikelId: p.artikelId, artikelName: p.artikelName, einheit: p.einheit },
     });
   }
 
@@ -479,7 +498,7 @@ export function BoxAbgabe({
                     data-rolle="box-buchen"
                     style={{ marginTop: 10 }}
                   >
-                    {laeuft ? "Wird abgelegt…" : "In die Entnahmebox legen"}
+                    {entwurf.zustand === "sendet" ? "Wird abgelegt…" : "In die Entnahmebox legen"}
                   </button>
 
                   {fehler?.artikelId === p.artikelId && (
@@ -528,6 +547,7 @@ export function BoxAbgabe({
         manchen ueberhoert.
       */}
       <div role="status" aria-live="polite" data-rolle="box-beleg-bereich">
+        <SendeStatus entwurf={entwurf} rolle="box-sendung" />
         {letzte && (
           <div className={s.abschluss} data-rolle="box-beleg" ref={belegRef}>
             <span className={s.belegHaken} aria-hidden="true">

@@ -35,6 +35,14 @@ describe("Anfrage stellen", () => {
     expect(a).toMatchObject({ status: "angefragt", mitglied: true, anlass: "Geburtstag", vertrag: "offen", datei: null, eingegangenAm: JETZT });
   });
 
+  it("IDA-358: dieselbe Sendung zweimal legt eine Anfrage an und gibt denselben Link-Code zurück", () => {
+    const db = testDb();
+    const sendung = "c0de0000-0000-4000-8000-000000000001";
+    const code = legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), false, JETZT, sendung);
+    expect(legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), false, JETZT, sendung)).toBe(code);
+    expect(ladeAnfragen(db)).toHaveLength(1);
+  });
+
   it("offene Anfragen blockieren nicht — zwei Anfragen für denselben Abend gehen", () => {
     const db = testDb();
     legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), false, JETZT);

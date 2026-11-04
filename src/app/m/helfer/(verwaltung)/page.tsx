@@ -34,7 +34,7 @@ export default async function HelferSeite() {
       {quelle === "demo" ? <DemoHinweis darfVerwalten={darfVerwalten} /> : null}
       <Kennzahlen>
         <Kennzahl wert={liste.length} label="Helfer" />
-        <Kennzahl wert={liste.filter((h) => h.fuerEinsatzbuch).length} label="Fürs Einsatzbuch freigegeben" />
+        <Kennzahl wert={liste.filter((h) => h.fuerEinsatzbuch).length} label="Fürs Einsatztagebuch freigegeben" />
         <Kennzahl wert={letzter ? ZEIT.format(new Date(letzter.zeitpunkt)) : "noch keiner"} label="Letzter Abgleich" text />
       </Kennzahlen>
       <HelferListe liste={liste} darfVerwalten={darfVerwalten} />

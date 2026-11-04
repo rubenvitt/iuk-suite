@@ -43,7 +43,7 @@ export default async function PlanAnsicht({ params, searchParams }: {
     const ansicht = leseEditorAnsicht(suche.ansicht);
     const kopie = kopieHinweis(typeof suche.kopie === "string" ? suche.kopie : undefined, kalendertag(plan.datum) ?? "heute");
     return (
-      <Huelle>
+      <Huelle viewer={viewer}>
         {/* Kein Container mit der Zeichenschrift um den Editor: Kopfleiste, Status und Hinweise stehen in der Suite-Schrift
             wie im Betrachter-Zweig; die Zeichnung setzt ihre Familie selbst, die Legende bekommt die Klasse. */}
         <Editor key={plan.id} symbole={symboleFuerPlan(getDb(), plan.inhalt)} zeichenIndex={zeichenIndexMitEigenen(getDb())} schrift={ZEICHENSCHRIFT.style.fontFamily} schriftKlasse={ZEICHENSCHRIFT.className} ansicht={ansicht} kopieHinweis={kopie} bibliothek={ladeBibliothek(getDb())}
@@ -57,7 +57,7 @@ export default async function PlanAnsicht({ params, searchParams }: {
     );
   }
   return (
-    <Huelle>
+    <Huelle viewer={viewer}>
       <Seitenkopf
         titel={plan.titel}
         zurueck={{ titel: "Alle Pläne", href: "/" }}
