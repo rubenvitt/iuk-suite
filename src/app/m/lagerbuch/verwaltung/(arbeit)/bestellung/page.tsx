@@ -38,3 +38,5 @@ export default function BestellungSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Bestellung" };

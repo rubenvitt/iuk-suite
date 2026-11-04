@@ -535,3 +535,5 @@ export default async function CheckSeite({
     </HelferRahmen>
   );
 }
+
+export const metadata = { title: "Check durchführen" };

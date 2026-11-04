@@ -79,3 +79,5 @@ export default async function ArchivPage({
   const { prioritaet } = await searchParams;
   return archivInhalt(db, akteur, heute, prioritaet);
 }
+
+export const metadata = { title: "Archiv" };

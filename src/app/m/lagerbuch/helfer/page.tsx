@@ -126,3 +126,5 @@ export default async function HelferSeite({
     </HelferRahmen>
   );
 }
+
+export const metadata = { title: "Entnahme" };

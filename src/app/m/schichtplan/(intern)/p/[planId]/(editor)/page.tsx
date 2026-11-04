@@ -22,3 +22,5 @@ export default async function PlanungSeite({ params }: { params: Promise<{ planI
     />
   );
 }
+
+export const metadata = { title: "Planung" };

@@ -319,3 +319,5 @@ function Zitat({ text }: { text: string }) {
     </p>
   );
 }
+
+export const metadata = { title: "Auswertung" };

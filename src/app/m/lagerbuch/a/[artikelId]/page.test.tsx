@@ -590,11 +590,11 @@ describe("Bauform", () => {
     expect(quelle()).toMatch(/export const dynamic = "force-dynamic"/);
   });
 
-  it("exportiert NUR `default` und `dynamic`", () => {
+  it("exportiert NUR `default`, `dynamic` und den Seitentitel `metadata`", () => {
     const namen = [...quelle().matchAll(/^export (?:const|async function|function) (\w+)/gm)].map(
       (m) => m[1],
     );
-    expect(namen).toEqual(["dynamic"]);
+    expect(namen).toEqual(["dynamic", "metadata"]);
     expect(quelle()).toMatch(/^export default async function/m);
   });
 

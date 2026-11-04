@@ -36,3 +36,5 @@ export default async function UnterkunftDruck({ searchParams }: { searchParams: 
     </main>
   );
 }
+
+export const metadata = { title: "Druck" };

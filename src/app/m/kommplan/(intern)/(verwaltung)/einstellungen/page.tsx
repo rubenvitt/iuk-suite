@@ -28,3 +28,5 @@ export default async function Einstellungen() {
     </Huelle>
   );
 }
+
+export const metadata = { title: "Einstellungen" };

@@ -33,3 +33,5 @@ export default async function GeraeteSeite({ searchParams }: { searchParams: Pro
     />
   );
 }
+
+export const metadata = { title: "Geräte" };

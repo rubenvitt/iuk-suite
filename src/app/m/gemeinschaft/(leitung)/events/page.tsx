@@ -17,3 +17,5 @@ export default async function GemeinschaftEvents() {
   const { kommend, vorbei } = eventKarten(db, jetzt);
   return <VorhabenListe art="event" kommend={kommend} vorbei={vorbei} daten={formularDaten(db, jetzt)} />;
 }
+
+export const metadata = { title: "Events" };

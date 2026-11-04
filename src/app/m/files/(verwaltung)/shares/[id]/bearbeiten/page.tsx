@@ -138,3 +138,5 @@ export default async function ShareBearbeitenSeite({
     </div>
   );
 }
+
+export const metadata = { title: "Freigabe bearbeiten" };

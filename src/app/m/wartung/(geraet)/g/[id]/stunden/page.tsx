@@ -7,3 +7,5 @@ export default async function StundenSeite({ params }: { params: Promise<{ id: s
   const { g } = await geraetOder404(params, "stunden");
   return <StundenAmGeraet geraetId={g.id} geraetName={g.name} zuletzt={g.stunden} />;
 }
+
+export const metadata = { title: "Betriebsstunden" };

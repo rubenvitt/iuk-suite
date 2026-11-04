@@ -14,3 +14,5 @@ export default function ImportSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Import" };

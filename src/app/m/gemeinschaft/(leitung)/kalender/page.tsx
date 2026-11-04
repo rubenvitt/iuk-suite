@@ -20,3 +20,5 @@ export default async function GemeinschaftKalender({ searchParams }: { searchPar
   // `key`: ein anderer Monat ist ein frischer Kalender mit dem Tag aus der Adresse.
   return <Kalender key={tag.slice(0, 7)} tag={tag} heute={heute} eintraege={kalenderEintraege(getDb(), von, bis)} />;
 }
+
+export const metadata = { title: "Kalender" };

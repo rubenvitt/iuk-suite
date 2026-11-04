@@ -159,3 +159,5 @@ export default async function GeraeteUebersichtPage({
     </AusleihRahmen>
   );
 }
+
+export const metadata = { title: "Geräte" };

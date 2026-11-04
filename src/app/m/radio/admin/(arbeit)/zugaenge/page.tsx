@@ -128,3 +128,5 @@ export default async function RadioZugaengeSeite() {
     </>
   );
 }
+
+export const metadata = { title: SEITEN_TEXTE.titel };

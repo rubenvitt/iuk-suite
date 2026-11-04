@@ -92,3 +92,5 @@ export default async function GeraetblattSeite({
   const { id } = await params;
   return geraetSeitenInhalt(getDb(), id, new Date());
 }
+
+export const metadata = { title: "Gerät" };

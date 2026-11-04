@@ -120,3 +120,5 @@ export default async function RadioGeraetEreignissePage({
     </>
   );
 }
+
+export const metadata = { title: "Änderungen" };

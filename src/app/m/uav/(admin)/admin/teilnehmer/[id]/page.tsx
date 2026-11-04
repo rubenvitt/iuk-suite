@@ -73,3 +73,5 @@ export default async function AdminTeilnehmerDetailPage({
   }
   return teilnehmerDetailInhalt(detail);
 }
+
+export const metadata = { title: "Teilnehmer" };

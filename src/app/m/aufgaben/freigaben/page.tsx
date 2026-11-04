@@ -60,3 +60,5 @@ export default async function FreigabenPage() {
   }
   return freigabenInhalt(db, akteur, heute);
 }
+
+export const metadata = { title: "Freigaben" };

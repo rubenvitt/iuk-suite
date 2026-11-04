@@ -90,3 +90,5 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
     </div>
   );
 }
+
+export const metadata = { title: "Einstellungen" };

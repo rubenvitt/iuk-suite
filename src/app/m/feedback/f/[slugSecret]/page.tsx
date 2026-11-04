@@ -368,3 +368,5 @@ export default async function ParticipatePage({
     </Huelle>
   );
 }
+
+export const metadata = { title: "Rückmeldung zum Dienstabend" };

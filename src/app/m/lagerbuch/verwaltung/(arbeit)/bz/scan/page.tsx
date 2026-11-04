@@ -33,3 +33,5 @@ export default function BzScanSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Gerät scannen" };

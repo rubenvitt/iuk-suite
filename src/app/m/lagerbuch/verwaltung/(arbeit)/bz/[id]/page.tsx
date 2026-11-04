@@ -236,3 +236,5 @@ export default async function BzGeraetPage({
   const { id } = await params;
   return bzGeraetInhalt(getDb(), id, new Date());
 }
+
+export const metadata = { title: "BZ-Kontrolle" };

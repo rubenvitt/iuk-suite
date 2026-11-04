@@ -171,3 +171,5 @@ export default async function AusleihenPage({
     </AusleihRahmen>
   );
 }
+
+export const metadata = { title: "Gerät ausleihen" };

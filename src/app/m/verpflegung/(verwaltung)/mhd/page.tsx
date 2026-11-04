@@ -11,3 +11,5 @@ export default async function MhdSeite() {
   await requireZugang("/mhd");
   return <ChargenListe titel="MHD-Kontrolle" chargen={ladeSicht(getDb(), heute()).chargen} kontrolle />;
 }
+
+export const metadata = { title: "MHD-Kontrolle" };

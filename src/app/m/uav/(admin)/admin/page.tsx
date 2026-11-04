@@ -62,3 +62,5 @@ export default async function AdminTeilnehmerPage() {
   const zeilen = teilnehmerUebersicht(getDb());
   return teilnehmerInhalt(zeilen);
 }
+
+export const metadata = { title: "Teilnehmer" };

@@ -80,3 +80,5 @@ export default async function PlanAnsicht({ params, searchParams }: {
     </Huelle>
   );
 }
+
+export const metadata = { title: "Plan" };

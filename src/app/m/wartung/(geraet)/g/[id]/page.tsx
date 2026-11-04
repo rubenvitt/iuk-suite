@@ -149,3 +149,5 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
     </div>
   );
 }
+
+export const metadata = { title: "Gerät" };

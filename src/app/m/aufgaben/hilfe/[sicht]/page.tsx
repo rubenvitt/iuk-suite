@@ -43,3 +43,5 @@ export default async function HilfeKapitelPage({
   if (!gefunden) notFound();
   return kapitelInhalt(gefunden, akteur);
 }
+
+export const metadata = { title: "Anleitung" };

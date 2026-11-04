@@ -20,3 +20,5 @@ export default async function PruefungSeite({ params }: { params: Promise<{ id: 
     />
   );
 }
+
+export const metadata = { title: "Prüfung" };

@@ -110,3 +110,5 @@ export default async function EinraeumenSeite() {
     </AuffuellRahmen>
   );
 }
+
+export const metadata = { title: "Entnahmebox" };

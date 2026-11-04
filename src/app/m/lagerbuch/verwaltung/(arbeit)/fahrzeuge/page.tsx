@@ -102,3 +102,5 @@ export default function FahrzeugeSeite() {
   const db = getDb();
   return fahrzeugeSeitenInhalt(db, new Date(), stammAuswahl(db));
 }
+
+export const metadata = { title: "Fahrzeuge & Taschen" };

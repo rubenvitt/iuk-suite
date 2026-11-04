@@ -10,3 +10,5 @@ export default async function BestandSeite() {
   await requireZugang("/bestand");
   return <ChargenListe titel="Bestand" chargen={ladeSicht(getDb(), heute()).chargen} />;
 }
+
+export const metadata = { title: "Bestand" };

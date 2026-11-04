@@ -8,3 +8,5 @@ export default function AufgabePage() {
     </Suspense>
   );
 }
+
+export const metadata = { title: "Aufgabe" };

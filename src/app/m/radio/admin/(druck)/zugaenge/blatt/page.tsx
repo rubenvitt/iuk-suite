@@ -211,5 +211,5 @@ export default async function RadioZugangsblattSeite() {
   );
 }
 
-/** Der Titel ist der Dateiname beim „Als PDF speichern“ (`core/druck/titel.ts`). */
-export const metadata = { title: BLATT_TEXTE.titel };
+/** Der Titel ist der Dateiname beim „Als PDF speichern“ (`core/druck/titel.ts`), deshalb ohne „· App“. */
+export const metadata = { title: { absolute: BLATT_TEXTE.titel } };

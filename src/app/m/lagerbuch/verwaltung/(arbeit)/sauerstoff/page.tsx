@@ -71,3 +71,5 @@ export function sauerstoffSeitenInhalt(db: Leser): ReactNode {
 export default function SauerstoffSeite() {
   return sauerstoffSeitenInhalt(getDb());
 }
+
+export const metadata = { title: "Sauerstoff" };

@@ -188,3 +188,5 @@ export default async function EntnahmeboxSeite({
   const { von } = await searchParams;
   return entnahmeboxInhalt(getDb(), von, new Date());
 }
+
+export const metadata = { title: "Entnahmebox" };

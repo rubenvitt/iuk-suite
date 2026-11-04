@@ -20,3 +20,5 @@ export default async function Archiv() {
     </Huelle>
   );
 }
+
+export const metadata = { title: "Archiv" };

@@ -142,3 +142,5 @@ export default async function SauerstoffFlaschePage({
   const { id } = await params;
   return o2FlascheInhalt(getDb(), id);
 }
+
+export const metadata = { title: "Sauerstoffflasche" };

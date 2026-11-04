@@ -28,3 +28,5 @@ export default async function StatistikSeite({
     </>
   );
 }
+
+export const metadata = { title: "Statistik" };

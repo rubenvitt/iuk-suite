@@ -331,3 +331,5 @@ export default async function RadioGeraetAktePage({
     </div>
   );
 }
+
+export const metadata = { title: "Gerät" };

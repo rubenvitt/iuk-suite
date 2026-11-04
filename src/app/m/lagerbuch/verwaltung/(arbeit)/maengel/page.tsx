@@ -50,3 +50,5 @@ export default function MaengelSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Mängel" };

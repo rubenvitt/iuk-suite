@@ -9,3 +9,5 @@ export default async function GruppenSeite() {
   await requireAdmin();
   return <GruppenVerwaltung gruppen={ladeGruppen(getDb())} />;
 }
+
+export const metadata = { title: "Gruppen" };

@@ -133,3 +133,5 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
 export default function VerfallSeite() {
   return verfallSeitenInhalt(getDb(), new Date());
 }
+
+export const metadata = { title: "Verfall" };

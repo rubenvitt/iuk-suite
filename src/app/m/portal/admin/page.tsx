@@ -69,3 +69,5 @@ export default async function PortalAdminPage() {
     </div>
   );
 }
+
+export const metadata = { title: "Dienste verwalten" };

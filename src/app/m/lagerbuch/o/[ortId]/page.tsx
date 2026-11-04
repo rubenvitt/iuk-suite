@@ -128,3 +128,5 @@ export default async function OrtDeepLink({
    */
   redirect(ortZielPfad(etikettOrt(db, ortId), zugang.fahrzeugBindung));
 }
+
+export const metadata = { title: "Lagerort" };

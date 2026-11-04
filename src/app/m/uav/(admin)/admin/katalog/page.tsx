@@ -31,3 +31,5 @@ export default async function AdminKatalogPage() {
   const aufgaben = alleTasks(getDb(), true);
   return katalogInhalt(aufgaben);
 }
+
+export const metadata = { title: "Aufgabenkatalog" };

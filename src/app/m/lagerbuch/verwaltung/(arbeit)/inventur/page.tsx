@@ -125,3 +125,5 @@ export default async function InventurSeite({
 }) {
   return inventurSeitenInhalt(getDb(), new Date(), await searchParams);
 }
+
+export const metadata = { title: "Inventur" };

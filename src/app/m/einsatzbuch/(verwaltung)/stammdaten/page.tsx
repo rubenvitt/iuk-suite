@@ -21,3 +21,5 @@ export default async function StammdatenSeite({ searchParams }: { searchParams: 
   const start: Reiter = REITER.includes(reiter as Reiter) ? (reiter as Reiter) : "fahrzeuge";
   return <Stammdaten reiter={start} fahrzeuge={listeFahrzeuge(db)} personal={listePersonal(db)} stichworte={listeStichworte(db)} qualifikationen={listeQualifikationen(db)} />;
 }
+
+export const metadata = { title: "Stammdaten" };

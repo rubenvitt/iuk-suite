@@ -147,3 +147,5 @@ export default async function FilesZugangslinksSeite() {
 
   return <ZugangslinksListe zeilen={zeilen} inboxBasis={inboxBasis} />;
 }
+
+export const metadata = { title: "Abgabelinks" };

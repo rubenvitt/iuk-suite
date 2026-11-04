@@ -25,3 +25,5 @@ export default async function EhrlichAushang() {
     </main>
   );
 }
+
+export const metadata = { title: "Aushang Ehrlich gesagt" };

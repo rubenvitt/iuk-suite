@@ -16,3 +16,5 @@ export default async function GemeinschaftProjekte() {
   const jetzt = new Date().getTime();
   return <VorhabenListe art="projekt" kommend={projektKarten(db, jetzt)} daten={formularDaten(db, jetzt)} />;
 }
+
+export const metadata = { title: "Projekte" };

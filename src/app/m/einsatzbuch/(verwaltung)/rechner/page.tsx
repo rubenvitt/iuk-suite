@@ -52,3 +52,5 @@ export default async function RechnerSeite() {
     </div>
   );
 }
+
+export const metadata = { title: "Rechner" };

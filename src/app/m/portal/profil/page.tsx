@@ -51,3 +51,5 @@ export default async function ProfilPage() {
     </>
   );
 }
+
+export const metadata = { title: "Profil" };

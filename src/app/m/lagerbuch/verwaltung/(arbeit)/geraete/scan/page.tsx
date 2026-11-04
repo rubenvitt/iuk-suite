@@ -30,3 +30,5 @@ export default function GeraetScanSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Gerät scannen" };

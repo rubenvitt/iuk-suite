@@ -91,3 +91,5 @@ export default async function MangelSeite({
     </HelferRahmen>
   );
 }
+
+export const metadata = { title: "Mangel melden" };

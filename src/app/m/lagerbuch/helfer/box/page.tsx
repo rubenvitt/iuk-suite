@@ -280,3 +280,5 @@ export default async function BoxSeite({
     </HelferRahmen>
   );
 }
+
+export const metadata = { title: "Einheit wählen" };

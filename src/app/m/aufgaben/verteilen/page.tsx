@@ -238,3 +238,5 @@ export default async function VerteilenPage({
   const { ansicht } = await searchParams;
   return verteilenInhalt(db, heute, akteur, ansicht);
 }
+
+export const metadata = { title: "Verteilen" };

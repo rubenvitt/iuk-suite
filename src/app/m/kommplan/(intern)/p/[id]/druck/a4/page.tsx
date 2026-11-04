@@ -26,3 +26,5 @@ export default async function DruckA4({ params, searchParams }: {
   return <><DruckTitel titel={druckTitel(["Kommunikationsplan", plan.titel])} /><Druckseite schrift={{ familie: ZEICHENSCHRIFT.style.fontFamily, klasse: ZEICHENSCHRIFT.className }} daten={await interneDruckdaten(db, plan, rechte.verwalten, "a4-quer", new Date().getTime())}
     automatisch={(await searchParams).export !== "svg"} /></>;
 }
+
+export const metadata = { title: "Druck A4" };

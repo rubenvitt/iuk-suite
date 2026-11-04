@@ -50,3 +50,5 @@ export default async function NeuPage() {
   const heute = isoTag(new Date());
   return neuInhalt(akteur, heute);
 }
+
+export const metadata = { title: "Aufgabe einstellen" };

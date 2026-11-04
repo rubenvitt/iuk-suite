@@ -40,3 +40,5 @@ export default async function ThanksPage({
     </Huelle>
   );
 }
+
+export const metadata = { title: "Danke" };

@@ -63,3 +63,5 @@ export default async function InventurLaufSeite({
   const { id } = await params;
   return laufDetailInhalt(getDb(), id);
 }
+
+export const metadata = { title: "Inventur" };

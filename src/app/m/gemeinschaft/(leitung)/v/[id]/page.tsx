@@ -33,3 +33,5 @@ export default async function GemeinschaftVorhaben({ params }: { params: Promise
   }
   return <VorhabenSeite v={v} heute={tagInZone(jetzt)} daten={formularDaten(db, jetzt)} />;
 }
+
+export const metadata = { title: "Event oder Projekt" };

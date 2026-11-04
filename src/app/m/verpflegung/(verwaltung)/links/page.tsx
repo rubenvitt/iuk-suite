@@ -11,3 +11,5 @@ export default async function LinksSeite() {
   await requireAdmin("/links");
   return <LinksVerwaltung links={await linkZeilen(getDb(), linkBasisAus(await headers()))} />;
 }
+
+export const metadata = { title: "Helfer-Links" };

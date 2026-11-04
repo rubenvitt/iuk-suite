@@ -61,3 +61,5 @@ export default async function AufgabeBearbeitenPage({ params }: { params: Promis
   if (!darf.erlaubt) notFound();
   return bearbeitenInhalt(task);
 }
+
+export const metadata = { title: "Aufgabe ändern" };

@@ -300,3 +300,5 @@ export default async function VerwaltungUebersicht() {
 
   return verwaltungInhalt(getDb(), new Date());
 }
+
+export const metadata = { title: "Übersicht" };

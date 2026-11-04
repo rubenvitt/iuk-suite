@@ -33,3 +33,5 @@ export default async function EhrlichGesagtSeite({
     </div>
   );
 }
+
+export const metadata = { title: "Ehrlich gesagt" };

@@ -406,3 +406,5 @@ export default async function ShareDetailSeite({
     </div>
   );
 }
+
+export const metadata = { title: "Freigabe" };

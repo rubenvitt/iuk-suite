@@ -68,3 +68,5 @@ export default async function AbgleichSeite() {
     </div>
   );
 }
+
+export const metadata = { title: "Abgleich" };

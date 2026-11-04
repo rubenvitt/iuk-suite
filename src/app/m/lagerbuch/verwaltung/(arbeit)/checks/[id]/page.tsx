@@ -463,3 +463,5 @@ export default async function CheckDetailSeite({
   const { alle } = await searchParams;
   return checkDetailInhalt(check, alleAusAdresse(alle));
 }
+
+export const metadata = { title: "Check" };

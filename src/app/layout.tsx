@@ -8,6 +8,7 @@ import { zeitzone } from "@/core/zeit";
 import { appleIconFuer, faviconFuer } from "@/core/favicon";
 import { moduleForHost } from "@/core/registry";
 import { resolveHost } from "@/core/routing";
+import { metadatenFuerHost } from "@/core/vorschau";
 import {
   THEME_PREF_COOKIE,
   THEME_SYSTEM_COOKIE,
@@ -182,10 +183,11 @@ export default async function RootLayout({
  * über `cookies()` ohnehin dynamisch, `headers()` kostet nichts dazu.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const modul = moduleForHost(resolveHost(await headers()));
+  const host = resolveHost(await headers());
+  const modul = moduleForHost(host);
   return {
-    title: "IDA",
-    description: "Interne Dienste und Anwendungen",
+    // Titelvorlage „<Seite> · <App>“ und Linkvorschau je Host (`core/vorschau`).
+    ...metadatenFuerHost(host),
     icons: { icon: faviconFuer(modul?.key), apple: appleIconFuer(modul?.key) },
   };
 }

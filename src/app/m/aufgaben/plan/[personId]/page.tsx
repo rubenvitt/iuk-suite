@@ -164,3 +164,5 @@ export default async function PlanPage({
   const sp = await searchParams;
   return planInhalt(db, betrachter, ziel, heute, sp);
 }
+
+export const metadata = { title: "Zeitplan" };

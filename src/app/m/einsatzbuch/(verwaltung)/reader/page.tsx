@@ -24,3 +24,5 @@ export default async function ReaderSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Reader" };
