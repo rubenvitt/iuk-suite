@@ -59,6 +59,7 @@ const AUSSTEHEND: Ausstehend = {
     notizen: "",
     leitstellenNummer: "",
     patienten: [],
+    umsysteme: [],
   },
   abgesendetAm: "2026-09-24T10:00:00+02:00",
   fristBis: "2026-09-24T10:15:00+02:00",

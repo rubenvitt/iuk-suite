@@ -39,6 +39,13 @@ pub const NUMMER: usize = 40;
 /// Höchstlänge der Einsatznummer der Leitstelle (`leitstellenNummer`, IDA-284).
 pub const LEITSTELLEN_NUMMER: usize = 40;
 
+/// Verknüpfte Umsysteme (`umsysteme`, IDA-359): höchstens so viele je Einsatz, und je Eintrag die
+/// Längen von Kennung, Einsatz-ID und Name.
+pub const UMSYSTEME: usize = 10;
+pub const UMSYSTEM_SYSTEM: usize = 40;
+pub const UMSYSTEM_ID: usize = 80;
+pub const UMSYSTEM_NAME: usize = 200;
+
 /// Höchstzahl der Blöcke in einem Export; ein Rechner hängt nie mehr Blöcke an seine Kette.
 pub const BLOECKE: u64 = 10_000;
 

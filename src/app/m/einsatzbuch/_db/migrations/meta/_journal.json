@@ -36,6 +36,13 @@
       "when": 1793180000000,
       "tag": "0004_qualifikationen",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793800000000,
+      "tag": "0005_umsystem",
+      "breakpoints": true
     }
   ]
 }

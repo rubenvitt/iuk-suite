@@ -58,7 +58,16 @@ export const einrichtenAntwort = z.object({
 }).strict();
 export type EinrichtenAntwort = z.infer<typeof einrichtenAntwort>;
 
-export const ankerAnfrage = z.object({ block: z.number().int().min(1).max(10_000), hash: hex(64) }).strict();
+/**
+ * `umsysteme` (IDA-359): die Einsätze der Umsysteme, die der Block nennt. Die Suite sperrt sie dort
+ * und bietet sie keinem Rechner mehr an. Ohne Verknüpfung fehlt der Schlüssel; ein Rechner vor
+ * IDA-359 schickt ihn nie.
+ */
+export const ankerAnfrage = z.object({
+  block: z.number().int().min(1).max(10_000),
+  hash: hex(64),
+  umsysteme: z.array(z.object({ system: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/), id: z.string().min(1).max(80) }).strict()).min(1).max(10).optional(),
+}).strict();
 
 /**
  * Abfrage von `GET /api/anker?erster=<hash>` (Entscheidung 5): `erster` ist der Hash von Block 1
@@ -78,6 +87,25 @@ export const kettenankerAntwort = z.object({
 export type KettenankerAntwort = z.infer<typeof kettenankerAntwort>;
 
 export const sicherungAnfrage = z.object({ erstellt: zeitpunkt }).strict();
+
+/**
+ * Ein Einsatz eines Umsystems zur Auswahl im Formular (IDA-359). `system`, `id` und `name` sind
+ * genau der Schnappschuss, den der Rechner versiegelt (`umsysteme` im Einsatzformat, Grenzen wie
+ * im Reader). `beginn`/`ende` belegen leere Zeitfelder vor; `ende` ist `null`, solange er läuft.
+ */
+export const umsystemEinsatzAuswahl = z.object({
+  system: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
+  id: z.string().min(1).max(80),
+  name: z.string().max(200),
+  ort: z.string().max(200).nullable(),
+  beginn: zeitpunkt.nullable(),
+  ende: zeitpunkt.nullable(),
+}).strict();
+export type UmsystemEinsatzAuswahl = z.infer<typeof umsystemEinsatzAuswahl>;
+
+/** Antwort von `GET /api/umsysteme`: alle verbundenen Umsysteme zusammen, ohne Verbindung leer. */
+export const umsystemeAntwort = z.object({ einsaetze: z.array(umsystemEinsatzAuswahl).max(200) }).strict();
+export type UmsystemeAntwort = z.infer<typeof umsystemeAntwort>;
 
 /**
  * Kopf und Umschlag so streng wie im Reader (`exportinhaltSchema`). Bewusst ohne `.max(200)`:

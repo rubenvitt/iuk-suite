@@ -35,6 +35,7 @@ const E = einsatzSchema.shape;
 const FZ = E.fahrzeuge.element.shape;
 const PS = E.personal.element.shape;
 const PA = E.patienten.unwrap().element.shape;
+const UM = E.umsysteme.unwrap().element.shape;
 
 /** Reader-Grenze je Einsatzfeld (Klartextfelder und Listen), wie die App-Dateien sie benennen. */
 const EINSATZFELD: Record<string, () => number> = {
@@ -71,6 +72,10 @@ const RUST: Record<string, () => number> = {
   PERSON_OV: () => textMax(PS.ov),
   PATIENT_EINSATZNUMMER: () => textMax(PA.einsatznummer),
   PATIENT_DURCH: () => textMax(PA.durch),
+  UMSYSTEME: () => arrayMax(E.umsysteme.unwrap()),
+  UMSYSTEM_SYSTEM: () => textMax(UM.system),
+  UMSYSTEM_ID: () => textMax(UM.id),
+  UMSYSTEM_NAME: () => textMax(UM.name),
   BLOECKE: () => arrayMax(exportinhaltSchema.shape.bloecke),
 };
 

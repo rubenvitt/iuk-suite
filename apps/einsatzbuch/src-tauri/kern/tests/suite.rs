@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use chrono::{Duration, TimeZone, Utc};
 use einsatzbuch_kern::buch::{Ankerabweichung, Betrieb, Buch, Exportanker};
 use einsatzbuch_kern::einrichtung::Stammdatenpaket;
-use einsatzbuch_kern::format::{Block, Blockkopf, GENESIS, Umgebung, Umschlag};
+use einsatzbuch_kern::format::{Block, Blockkopf, GENESIS, Umgebung, Umschlag, UmsystemEinsatz};
 use einsatzbuch_kern::suite::{
     self, Anfrage, AnkerErgebnis, Antwort, PAKET, StammdatenErgebnis, SuiteFehler, Transport,
 };
@@ -438,6 +438,31 @@ fn anker_werden_nach_neustart_nachgemeldet() {
     }
 }
 
+/// IDA-359: Ein Block, der einen Suchlage-Einsatz nennt, meldet ihn mit dem Anker; die erneute
+/// Meldung des letzten Blocks trägt ihn wieder, ein Block ohne Verknüpfung hat keinen Schlüssel.
+#[test]
+fn anker_tragen_die_umsysteme_ihres_blocks() {
+    let ordner = tempfile::tempdir().unwrap();
+    let buch = geteiltes_buch(ordner.path(), 1);
+    {
+        let mut wache = buch.lock().unwrap();
+        let b = wache.as_mut().unwrap();
+        let mut e = hilfe::gueltiger_entwurf();
+        e.umsysteme = vec![UmsystemEinsatz { system: "suchlage".into(), id: "17".into(), name: "Personensuche".into() }];
+        let t = Utc.with_ymd_and_hms(2026, 8, 22, 9, 0, 0).unwrap();
+        b.sende_ab(&e, t, false).unwrap();
+        b.versiegele_ausstehend(t, &mut hilfe::FesterZufall(5), false).unwrap().unwrap();
+    }
+    let hash = hashes(&buch);
+
+    let t = FakeTransport::neu(|_| antwort(204, "")).mit_buch(&buch);
+    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Bestaetigt(2));
+    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Bestaetigt(2));
+    let koerper: Vec<Value> = t.anfragen().into_iter().map(|a| a.json.unwrap()).collect();
+    let mit = json!({ "block": 2, "hash": hash[1], "umsysteme": [{ "system": "suchlage", "id": "17" }] });
+    assert_eq!(koerper, vec![json!({ "block": 1, "hash": hash[0] }), mit.clone(), mit]);
+}
+
 /// Schritt 3: Ist alles bestätigt, wird trotzdem der letzte Block erneut gemeldet — „Kette
 /// prüfen gegen den Anker“.
 #[test]
@@ -770,4 +795,30 @@ fn melde_sicherung_5xx_ohne_koerper_ist_nicht_erreichbar() {
         suite::melde_sicherung(&t, SUITE, "geraet", "2026-09-25T10:00:00+02:00"),
         Err(SuiteFehler::NichtErreichbar("HTTP 503".into()))
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Umsysteme (IDA-359)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn hole_umsysteme_liest_die_liste_mit_dem_geraete_token() {
+    let t = FakeTransport::neu(|_| antwort(200, &fixture("umsysteme.json")));
+    let einsaetze = suite::hole_umsysteme(&t, SUITE, "geraet").unwrap();
+    assert_eq!(einsaetze.len(), 2);
+    assert_eq!((einsaetze[0].system.as_str(), einsaetze[0].id.as_str()), ("suchlage", "17"));
+    assert_eq!(einsaetze[1].ende, None);
+    let a = &t.anfragen()[0];
+    assert_eq!((a.methode, a.url.as_str()), ("GET", "https://suite.example/m/einsatzbuch/api/umsysteme"));
+    assert_eq!(a.bearer.as_deref(), Some("geraet"));
+}
+
+#[test]
+fn hole_umsysteme_401_ist_widerrufen_und_die_ablehnung_von_suchlage_behaelt_ihren_text() {
+    let t = FakeTransport::neu(|_| fehler(401, "geraet_ungueltig", "Das Geräte-Token gilt nicht mehr."));
+    assert_eq!(suite::hole_umsysteme(&t, SUITE, "geraet"), Err(SuiteFehler::Widerrufen));
+    let t = FakeTransport::neu(|_| fehler(502, "umsystem_abgelehnt", "Suchlage lehnt ab."));
+    assert!(matches!(suite::hole_umsysteme(&t, SUITE, "geraet"), Err(SuiteFehler::Abgelehnt { status: 502, .. })));
+    let t = FakeTransport::neu(|_| antwort(502, "<html>"));
+    assert!(matches!(suite::hole_umsysteme(&t, SUITE, "geraet"), Err(SuiteFehler::NichtErreichbar(_))));
 }

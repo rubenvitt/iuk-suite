@@ -12,7 +12,7 @@ import { gibFrei } from "./freigabe";
 import { erzeugeSitzung, sitzungAus } from "./sitzung";
 import {
   ankerAnfrage, einrichtenAnfrage, einrichtenAntwort, fehler, fehlerKoerper, freigabeAnfrage, freigabeAntwort,
-  kettenankerAntwort, sicherungAnfrage, stammdatenpaketSchema, tauschAnfrage, tauschAntwort,
+  kettenankerAntwort, sicherungAnfrage, stammdatenpaketSchema, tauschAnfrage, tauschAntwort, umsystemeAntwort,
 } from "./vertrag";
 
 const ORDNER = join(__dirname, "vertrag");
@@ -24,6 +24,7 @@ const SCHEMA: Record<string, z.ZodType> = {
   "freigeben.json": freigabeAntwort,
   "fehler-echt-vorhanden.json": fehlerKoerper,
   "anker-lesen.json": kettenankerAntwort,
+  "umsysteme.json": umsystemeAntwort,
 };
 const lies = (datei: string): unknown => JSON.parse(readFileSync(join(ORDNER, datei), "utf8"));
 

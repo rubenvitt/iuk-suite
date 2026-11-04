@@ -573,6 +573,8 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
           return ankerAbgleichen();
         case "stammdaten_abgleichen":
           return stammdatenAbgleichen();
+        case "umsysteme":
+          return [];
         case "export_speichern":
           return exportSpeichern(args.inhalt as string, args.dateiname as string);
         case "drucken":

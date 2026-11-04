@@ -26,7 +26,7 @@ use einsatzbuch_kern::krypto::SystemZufall;
 use einsatzbuch_kern::loopback::{self, Listener, Rueckruf};
 use einsatzbuch_kern::suite::{self, AnkerErgebnis, StammdatenErgebnis, SuiteFehler};
 use einsatzbuch_kern::tresor::konto_fuer;
-use einsatzbuch_kern::vertrag::{EinrichtenAntwort, Schluesselposten, TauschAntwort};
+use einsatzbuch_kern::vertrag::{EinrichtenAntwort, Schluesselposten, TauschAntwort, UmsystemEinsatzAuswahl};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
@@ -940,6 +940,25 @@ pub fn hole_stammdaten_jetzt(z: &Zustand) -> Result<(), String> {
     }
 }
 
+/// Die Einsätze der Umsysteme, mit denen die Suite verbunden ist (IDA-359), heute nur Suchlage,
+/// für die Auswahl im Formular. Ohne Verbindung leer. Ein Widerruf wird vermerkt wie beim
+/// Stammdatenabruf; jeder andere Fehler geht als Text an die Oberfläche, das Formular bleibt
+/// ohne Auswahl benutzbar.
+pub fn hole_umsysteme_jetzt(z: &Zustand) -> Result<Vec<UmsystemEinsatzAuswahl>, String> {
+    let g = abgleichsgrundlage(z)?;
+    match suite::hole_umsysteme(&*z.transport, &g.suite_url, &g.geraet) {
+        Ok(liste) => Ok(liste),
+        Err(SuiteFehler::Widerrufen) => {
+            let mut buch = z.buch_zum_schreiben()?;
+            if let Some(offen) = buch.as_mut() {
+                offen.widerrufen_setzen(true).map_err(buch_fehler_text)?;
+            }
+            Err(SuiteFehler::Widerrufen.to_string())
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 /// Beendet den Testbetrieb. Das Buch wird nur im Testbetrieb aus dem Zustand genommen: Der
 /// Kern verbraucht es auch im Fehlerfall, bei `Echt` wäre es sonst weg, obwohl nichts gelöscht
 /// wurde. Danach sieht die Frist-Uhr `None`, und die App steht wieder bei „nicht eingerichtet“.
@@ -1193,6 +1212,11 @@ pub async fn anker_abgleichen(app: AppHandle) -> Result<Ankerstand, String> {
 #[tauri::command]
 pub async fn stammdaten_abgleichen(app: AppHandle) -> Result<(), String> {
     blockierend(app, hole_stammdaten_jetzt).await
+}
+
+#[tauri::command]
+pub async fn umsysteme(app: AppHandle) -> Result<Vec<UmsystemEinsatzAuswahl>, String> {
+    blockierend(app, hole_umsysteme_jetzt).await
 }
 
 /// Ob die App beim Anmelden am Betriebssystem startet. Eingeschaltet wird das bei der echten
@@ -1548,6 +1572,7 @@ pub(crate) mod tests {
             notizen: String::new(),
             leitstellen_nummer: String::new(),
             patienten: Vec::new(),
+            umsysteme: Vec::new(),
         }
     }
 

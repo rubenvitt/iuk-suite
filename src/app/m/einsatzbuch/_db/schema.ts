@@ -53,6 +53,34 @@ export const einstellung = sqliteTable("einstellung", {
   wert: text("wert").notNull(),
 });
 /**
+ * Verbindung zu einem Umsystem (IDA-359), heute nur `suchlage`: Adresse und Großbild-Token. Das
+ * Token geht nur an Suchlage, nie an einen Browser oder Rechner.
+ */
+export const umsystem = sqliteTable("umsystem", {
+  system: text("system").primaryKey(),
+  adresse: text("adresse").notNull(),
+  token: text("token").notNull(),
+  aktualisiertAm: integer("aktualisiert_am", { mode: "timestamp" }).notNull(),
+  aktualisiertVon: text("aktualisiert_von").notNull(),
+  /** Suchlage hat zuletzt das Sperren abgelehnt (Link ohne „Für die IUK-Suite“); `null` sonst. Nicht auditiert. */
+  sperreAbgelehntAm: integer("sperre_abgelehnt_am", { mode: "timestamp" }),
+});
+/**
+ * Einsätze von Umsystemen, die ein versiegelter Block nennt (IDA-359), gemeldet mit dem Anker. Sie
+ * fehlen in der Auswahl jedes Rechners, und die Suite reicht sie an das Umsystem weiter, das den
+ * Einsatz daraufhin sperrt. `weitergegebenAm` ist gesetzt, sobald das Umsystem geantwortet hat (auch
+ * „gibt es nicht“); bis dahin versucht die Suite es bei jeder Anker-Meldung und jeder Abfrage der
+ * Liste erneut. Der erste Block, der einen Einsatz nennt, bleibt.
+ */
+export const umsystemVerknuepfung = sqliteTable("umsystem_verknuepfung", {
+  system: text("system").notNull(),
+  einsatzId: text("einsatz_id").notNull(),
+  rechnerId: text("rechner_id").notNull(),
+  block: integer("block").notNull(),
+  gemeldetAm: integer("gemeldet_am", { mode: "timestamp" }).notNull(),
+  weitergegebenAm: integer("weitergegeben_am", { mode: "timestamp" }),
+}, (t) => [primaryKey({ columns: [t.system, t.einsatzId] })]);
+/**
  * Spec §5.1 + §12: `rechnerId` NULL = das echte Paar (genau eines), sonst ein Test-Paar.
  * Der Fremdschlüssel auf `rechner` ist eine Konsistenzregel per Trigger (Stufe 5, kein FK:
  * Neuaufbau der Tabelle müsste sonst alle Audit-Trigger neu anlegen). `privatVerschluesselt` ist

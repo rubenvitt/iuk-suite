@@ -93,6 +93,18 @@ impl EinrichtenAntwort {
 pub struct AnkerAnfrage {
     pub block: u64,
     pub hash: String,
+    /// Die Einsätze der Umsysteme, die der Block nennt (IDA-359). Die Suite sperrt sie dort und
+    /// bietet sie keinem Rechner mehr an. Ohne Verknüpfung fehlt der Schlüssel.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub umsysteme: Vec<UmsystemVerweis>,
+}
+
+/// Ein Einsatz eines Umsystems, ohne Namen: so viel, wie die Suite zum Sperren braucht.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UmsystemVerweis {
+    pub system: String,
+    pub id: String,
 }
 
 /// Antwort von `GET /api/anker?erster=…` (Stufe 6, Entscheidung 5): der höchste Suite-Anker der
@@ -115,6 +127,28 @@ pub struct Kettenanker {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SicherungAnfrage {
     pub erstellt: String,
+}
+
+/// Ein Einsatz eines Umsystems zur Auswahl im Formular (IDA-359, `umsystemEinsatzAuswahl` in
+/// `vertrag.ts`). `system`, `id` und `name` versiegelt der Rechner als Schnappschuss
+/// (`format::UmsystemEinsatz`); `beginn`/`ende` sind Zeitpunkte mit Offset in der Suite-Zone und
+/// belegen nur leere Zeitfelder vor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UmsystemEinsatzAuswahl {
+    pub system: String,
+    pub id: String,
+    pub name: String,
+    pub ort: Option<String>,
+    pub beginn: Option<String>,
+    pub ende: Option<String>,
+}
+
+/// Antwort von `GET /api/umsysteme`: ohne Verbindung zu einem Umsystem leer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UmsystemeAntwort {
+    pub einsaetze: Vec<UmsystemEinsatzAuswahl>,
 }
 
 /// Ein Eintrag der Anfrage an `POST /api/schluessel/freigeben` — der Körper ist ein nacktes

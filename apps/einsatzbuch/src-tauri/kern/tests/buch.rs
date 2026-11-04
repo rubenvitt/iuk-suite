@@ -108,7 +108,7 @@ fn erneutes_oeffnen_derselben_datei_behaelt_schemaversion_und_einrichtung() {
     }
     let buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     let version: i64 = buch.verbindung().query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 3);
+    assert_eq!(version, 4);
     let einrichtung = buch.einrichtung().unwrap();
     assert!(einrichtung.is_some());
     assert_eq!(einrichtung.unwrap().paket.zeitzone, "Europe/Berlin");
@@ -122,21 +122,21 @@ fn unbekannte_hoehere_schemaversion_wird_beim_oeffnen_verweigert() {
     drop(Buch::oeffne(ordner.path(), Betrieb::Test).unwrap());
     {
         let conn = rusqlite::Connection::open(ordner.path().join(Betrieb::Test.datei())).unwrap();
-        conn.pragma_update(None, "user_version", 4).unwrap();
+        conn.pragma_update(None, "user_version", 5).unwrap();
     }
     assert!(matches!(
         Buch::oeffne(ordner.path(), Betrieb::Test),
-        Err(BuchFehler::UnbekannteSchemaversion { gefunden: 4, bekannt: 3 })
+        Err(BuchFehler::UnbekannteSchemaversion { gefunden: 5, bekannt: 4 })
     ));
 }
 
-/// v1→v3: Eine Datei, die noch unter v1 entstand — vor der
+/// v1→v4: Eine Datei, die noch unter v1 entstand — vor der
 /// Anbindung an die Suite —, öffnet weiterhin. Die Einrichtung bleibt erhalten, `user_version`
-/// steht danach auf 3 (v2 und v3 in einem Zug), und `anbindung()` liefert `Some` mit `rechner_id = ""` statt an der
+/// steht danach auf 4 (v2 bis v4 in einem Zug), und `anbindung()` liefert `Some` mit `rechner_id = ""` statt an der
 /// fehlenden Spalte zu scheitern (`COALESCE`, siehe `Buch::anbindung`). Dieser Fall trifft nur
 /// Entwicklerdateien — eine ausgelieferte Installation kennt nur Schema v2.
 #[test]
-fn migration_von_v1_auf_v3_behaelt_die_einrichtung_und_liefert_leere_rechner_id() {
+fn migration_von_v1_auf_v4_behaelt_die_einrichtung_und_liefert_leere_rechner_id() {
     let ordner = tempfile::tempdir().unwrap();
     let pfad = ordner.path().join(Betrieb::Test.datei());
     {
@@ -158,7 +158,7 @@ fn migration_von_v1_auf_v3_behaelt_die_einrichtung_und_liefert_leere_rechner_id(
 
     let buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     let version: i64 = buch.verbindung().query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 3);
+    assert_eq!(version, 4);
     let einrichtung = buch.einrichtung().unwrap().expect("die v1-Einrichtung muss erhalten bleiben");
     assert_eq!(einrichtung.suite_url, "https://iuk-ue.example");
     let anbindung = buch.anbindung().unwrap().expect("eine Einrichtung liegt vor, also auch eine Anbindung");
@@ -512,15 +512,16 @@ fn hash_eines_blocks_nach_nummer() {
     assert_eq!(buch.hash_von(3).unwrap(), None);
 }
 
-/// Eine frische Datei landet unmittelbar bei Schema v3 — samt Tabelle `unquittiert` und den
-/// Spalten `anker_gemeldet_am` und `sicherung_fehler`.
+/// Eine frische Datei landet unmittelbar bei Schema v4 — samt Tabelle `unquittiert`, den
+/// Spalten `anker_gemeldet_am` und `sicherung_fehler` und der Tabelle `umsystem_meldung`.
 #[test]
-fn frische_datei_landet_direkt_bei_schema_v3() {
+fn frische_datei_landet_direkt_bei_schema_v4() {
     let ordner = tempfile::tempdir().unwrap();
     let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     let c = buch.verbindung();
-    assert_eq!(c.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 3);
+    assert_eq!(c.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 4);
     assert_eq!(c.query_row("SELECT COUNT(*) FROM unquittiert", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+    assert_eq!(c.query_row("SELECT COUNT(*) FROM umsystem_meldung", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
     c.prepare("SELECT anker_gemeldet_am, sicherung_fehler FROM einrichtung").unwrap();
     assert_eq!(buch.unquittiert().unwrap(), None);
     assert_eq!(buch.bestaetigter_anker().unwrap(), None);
@@ -545,8 +546,8 @@ fn eine_unlesbare_unquittierte_versiegelung_gilt_als_keine_und_wird_geloescht() 
     }
 }
 
-/// v2→v3: Eine Datei aus Stufe 5 (`schema.sql` + `schema_v2.sql`, `user_version = 2`) wird beim
-/// Öffnen auf v3 gehoben. Einrichtung, Anbindung und Blöcke bleiben erhalten; es gibt noch keine
+/// v2→v4: Eine Datei aus Stufe 5 (`schema.sql` + `schema_v2.sql`, `user_version = 2`) wird beim
+/// Öffnen auf v4 gehoben. Einrichtung, Anbindung und Blöcke bleiben erhalten; es gibt noch keine
 /// unquittierte Versiegelung und keinen bestätigten Anker mit Zeitpunkt.
 #[test]
 fn migration_von_v2_auf_v3_behaelt_einrichtung_und_bloecke() {
@@ -576,7 +577,8 @@ fn migration_von_v2_auf_v3_behaelt_einrichtung_und_bloecke() {
 
     let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     let version: i64 = buch.verbindung().query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 3);
+    assert_eq!(version, 4);
+    assert!(buch.umsysteme_von(1).unwrap().is_empty(), "ein alter Block nennt kein Umsystem");
     let einrichtung = buch.einrichtung().unwrap().expect("die v2-Einrichtung muss erhalten bleiben");
     assert_eq!(einrichtung.suite_url, "https://iuk-ue.example");
     let anbindung = buch.anbindung().unwrap().unwrap();

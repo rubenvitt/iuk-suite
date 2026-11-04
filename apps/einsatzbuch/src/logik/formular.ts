@@ -6,7 +6,7 @@
  */
 import { dauerMinuten, dauerText, datumText } from "@kern/zeit";
 
-import type { Entwurf, Fahrzeug, PatientStand, PersonAuswahl, Person, Stammdatenpaket } from "../typen";
+import type { Entwurf, Fahrzeug, PatientStand, PersonAuswahl, Person, Stammdatenpaket, UmsystemEinsatzAuswahl } from "../typen";
 
 type FehlendeAngabe = "Alarmstichwort" | "Beginn" | "Ende" | "Einsatzort";
 
@@ -31,6 +31,7 @@ export function leererEntwurf(): Entwurf {
     notizen: "",
     leitstellenNummer: "",
     patienten: [],
+    umsysteme: [],
   };
 }
 
@@ -221,6 +222,55 @@ export function transportVorschlaege(e: Entwurf, alle: Fahrzeug[]): string[] {
   return [...new Set(e.fahrzeuge.flatMap((id) => fzMap.get(id)?.ruf ?? []).filter(Boolean))];
 }
 
+/** Anzeigename eines Umsystems; eine unbekannte Kennung erscheint, wie sie ist. */
+export function umsystemName(system: string): string {
+  return system === "suchlage" ? "Suchlage" : system;
+}
+
+/** Der verknüpfte Einsatz eines Umsystems im Entwurf, sonst `null`. */
+export function verknuepfterEinsatz(e: Entwurf, system: string): Entwurf["umsysteme"][number] | null {
+  return e.umsysteme.find((u) => u.system === system) ?? null;
+}
+
+/** Wanduhrzeit eines Zeitpunkts mit Offset (`2026-10-31T19:12:00+01:00`) als Datum und Uhrzeit. Die Suite schickt ihn in ihrer Zone, derselben wie die der App. */
+function wanduhr(zeitpunkt: string | null): { datum: string; zeit: string } | null {
+  const m = zeitpunkt ? /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(zeitpunkt) : null;
+  return m ? { datum: m[1], zeit: m[2] } : null;
+}
+
+/** Zeitraum eines Einsatzes zur Auswahl: „31.10.2026 19:12 – 22:05“, „läuft seit 31.10.2026 19:12“; ohne Beginn leer. */
+export function umsystemZeitraum(auswahl: UmsystemEinsatzAuswahl): string {
+  const beginn = wanduhr(auswahl.beginn);
+  if (!beginn) return "";
+  const von = `${datumText(beginn.datum)} ${beginn.zeit}`;
+  const ende = wanduhr(auswahl.ende);
+  if (!ende) return `läuft seit ${von}`;
+  return `${von} – ${ende.datum === beginn.datum ? ende.zeit : `${datumText(ende.datum)} ${ende.zeit}`}`;
+}
+
+/**
+ * Verknüpft den Entwurf mit einem Einsatz eines Umsystems (IDA-359) und ersetzt einen früheren
+ * desselben Umsystems. Beginn und Ende übernimmt er nur, wo der Entwurf sie noch nicht hat;
+ * Eingetragenes bleibt, wie es ist.
+ */
+export function verknuepfe(e: Entwurf, auswahl: UmsystemEinsatzAuswahl): Entwurf {
+  const beginn = wanduhr(auswahl.beginn);
+  const ende = wanduhr(auswahl.ende);
+  const ohneBeginn = !e.beginnDatum.trim() && !e.beginnZeit.trim();
+  const ohneEnde = !e.endeDatum.trim() && !e.endeZeit.trim();
+  return {
+    ...e,
+    umsysteme: [...e.umsysteme.filter((u) => u.system !== auswahl.system), { system: auswahl.system, id: auswahl.id, name: auswahl.name }],
+    ...(ohneBeginn && beginn ? { beginnDatum: beginn.datum, beginnZeit: beginn.zeit } : {}),
+    ...(ohneEnde && ende ? { endeDatum: ende.datum, endeZeit: ende.zeit } : {}),
+  };
+}
+
+/** Löst die Verknüpfung mit einem Umsystem; die übernommenen Zeiten bleiben stehen. */
+export function loeseVerknuepfung(e: Entwurf, system: string): Entwurf {
+  return { ...e, umsysteme: e.umsysteme.filter((u) => u.system !== system) };
+}
+
 /** Zeilen der Zusammenfassungs-Karte nach dem Absenden (Vorlage: `zusammenfassung`). */
 export function zusammenfassung(e: Entwurf, s: Stammdatenpaket): { k: string; v: string }[] {
   const fzMap = new Map(s.stammdaten.fahrzeuge.map((f) => [f.id, f]));
@@ -237,5 +287,6 @@ export function zusammenfassung(e: Entwurf, s: Stammdatenpaket): { k: string; v:
     { k: "Personal", v: `${e.personal.length} Kräfte` },
     { k: "Patienten", v: `${e.vorOrt} vor Ort · ${e.transport} mit Transport` },
     ...(transporte.length > 0 ? [{ k: "Transporte", v: transporte.join(" · ") }] : []),
+    ...e.umsysteme.map((u) => ({ k: `${umsystemName(u.system)}-Einsatz`, v: u.name || `Einsatz ${u.id}` })),
   ];
 }

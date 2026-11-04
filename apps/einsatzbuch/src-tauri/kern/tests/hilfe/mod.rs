@@ -184,6 +184,7 @@ pub fn gueltiger_entwurf() -> einsatzbuch_kern::erfassung::Entwurf {
         notizen: String::new(),
         leitstellen_nummer: String::new(),
         patienten: Vec::new(),
+        umsysteme: Vec::new(),
     }
 }
 

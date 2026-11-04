@@ -6,18 +6,30 @@
  */
 import { and, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { anker, ankerAbweichung, rechner } from "../../_db/schema";
+import { anker, ankerAbweichung, rechner, umsystemVerknuepfung } from "../../_db/schema";
 import type { RechnerZeile } from "./geraet";
 import type { Db } from "../stammdaten/daten";
 
-export function meldeAnker(db: Db, rechnerId: string, block: number, hash: string, jetzt: Date): { ok: true } | { ok: false; erwartet: string } {
+export type UmsystemVerweis = { system: string; id: string };
+
+/**
+ * `umsysteme` (IDA-359) zählt nur, wenn der Block zum bekannten Anker passt: Ein abweichender Block
+ * sperrt nichts. Schon gemeldete Einsätze behalten ihren ersten Block.
+ */
+export function meldeAnker(db: Db, rechnerId: string, block: number, hash: string, jetzt: Date, umsysteme: UmsystemVerweis[] = []): { ok: true } | { ok: false; erwartet: string } {
   return db.transaction((tx) => {
+    const verknuepfe = () => {
+      for (const u of umsysteme) {
+        tx.insert(umsystemVerknuepfung).values({ system: u.system, einsatzId: u.id, rechnerId, block, gemeldetAm: jetzt }).onConflictDoNothing().run();
+      }
+      return { ok: true } as const;
+    };
     const da = tx.select({ hash: anker.hash }).from(anker).where(and(eq(anker.rechnerId, rechnerId), eq(anker.block, block))).get();
     if (!da) {
       tx.insert(anker).values({ rechnerId, block, hash, gemeldetAm: jetzt }).run();
-      return { ok: true } as const;
+      return verknuepfe();
     }
-    if (da.hash === hash) return { ok: true } as const;
+    if (da.hash === hash) return verknuepfe();
     // Die App meldet einen strittigen Block nach jeder Versiegelung, stündlich und bei „Kette
     // prüfen" erneut. Dieselbe Abweichung ist schon protokolliert; nur ein neuer Hash ist neu.
     const bekannt = tx.select({ id: ankerAbweichung.id }).from(ankerAbweichung)

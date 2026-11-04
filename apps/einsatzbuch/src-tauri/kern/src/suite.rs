@@ -19,7 +19,7 @@ use crate::einrichtung::Stammdatenpaket;
 use crate::format::{Block, Umgebung};
 use crate::vertrag::{
     AnkerAnfrage, EinrichtenAnfrage, EinrichtenAntwort, Fehlerkoerper, Freigabeposten, KettenankerAntwort,
-    Schluesselposten, SicherungAnfrage, TauschAnfrage, TauschAntwort,
+    Schluesselposten, SicherungAnfrage, TauschAnfrage, TauschAntwort, UmsystemEinsatzAuswahl, UmsystemeAntwort,
 };
 
 /// Eine Anfrage an die Suite. `json` ist der fertige Körper; die Hülle setzt dazu
@@ -295,6 +295,16 @@ pub fn gleiche_anker_ab(
 ) -> Result<AnkerErgebnis, String> {
     let (offen, kopf, rechner) =
         mit_buch(buch, |b| Ok((b.unbestaetigte_anker()?, b.kettenkopf()?, rechner_id(b)?)))?;
+    let arbeit = match (offen.is_empty(), kopf) {
+        (false, _) => offen,
+        (true, Some(letzter)) => vec![letzter],
+        (true, None) => return Ok(AnkerErgebnis::Bestaetigt(0)),
+    };
+    // Mit jedem Block die Umsysteme, die er nennt (IDA-359): Die Suite sperrt sie dort. Die
+    // erneute Meldung des letzten Blocks trägt sie wieder, die Suite nimmt sie wiederholt an.
+    let arbeit = mit_buch(buch, |b| {
+        arbeit.into_iter().map(|(block, hash)| Ok((block, hash, b.umsysteme_von(block)?))).collect::<Result<Vec<_>, BuchFehler>>()
+    })?;
     // Schreibt nur, solange derselbe Rechner eingerichtet ist; `false` heißt „überholt“.
     let schreibe = |f: &dyn Fn(&mut Buch) -> Result<(), BuchFehler>| {
         mit_buch(buch, |b| {
@@ -305,14 +315,9 @@ pub fn gleiche_anker_ab(
             Ok(true)
         })
     };
-    let arbeit = match (offen.is_empty(), kopf) {
-        (false, _) => offen,
-        (true, Some(letzter)) => vec![letzter],
-        (true, None) => return Ok(AnkerErgebnis::Bestaetigt(0)),
-    };
 
-    for (block, hash) in arbeit {
-        let koerper = AnkerAnfrage { block, hash: hash.clone() };
+    for (block, hash, umsysteme) in arbeit {
+        let koerper = AnkerAnfrage { block, hash: hash.clone(), umsysteme };
         let anfrage = Anfrage {
             methode: "POST",
             url: modul_url(suite, "/api/anker"),
@@ -476,6 +481,28 @@ pub fn melde_sicherung(t: &dyn Transport, suite: &str, geraet: &str, erstellt: &
     )?;
     match a.status {
         204 => Ok(()),
+        401 => Err(SuiteFehler::Widerrufen),
+        _ => Err(abgelehnt_oder_offline(&a)),
+    }
+}
+
+/// `GET /api/umsysteme` mit dem Geräte-Token (IDA-359): die Einsätze der Umsysteme, mit denen die
+/// Suite verbunden ist, heute nur Suchlage. Ohne Verbindung ist die Liste leer. 401 heißt
+/// Widerrufen wie bei den anderen Geräte-Schnittstellen; eine Ablehnung durch Suchlage kommt als
+/// `Abgelehnt` mit dem Text der Suite, ein 5xx ohne lesbaren Fehlerkörper als „nicht erreichbar“.
+pub fn hole_umsysteme(t: &dyn Transport, suite: &str, geraet: &str) -> Result<Vec<UmsystemEinsatzAuswahl>, SuiteFehler> {
+    let a = sende(
+        t,
+        Anfrage {
+            methode: "GET",
+            url: modul_url(suite, "/api/umsysteme"),
+            bearer: Some(geraet),
+            if_none_match: None,
+            json: None,
+        },
+    )?;
+    match a.status {
+        200 => Ok(lies_json::<UmsystemeAntwort>(&a)?.einsaetze),
         401 => Err(SuiteFehler::Widerrufen),
         _ => Err(abgelehnt_oder_offline(&a)),
     }

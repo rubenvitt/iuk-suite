@@ -9,6 +9,7 @@
  * eingerichteter echter Rechner hat noch keine eigenen Anker, `POST` würde einen unbekannten
  * Block einfach annehmen. Read-only wie `GET stammdaten`, aber ohne `letzter_kontakt`.
  */
+import { after } from "next/server";
 import { auditDenied, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../../_db/client";
 import { hostAbweisung } from "../../_lib/hostRiegel";
@@ -17,6 +18,7 @@ import { rechnerAusToken } from "../../_lib/anbindung/geraet";
 import { begrenztesJson } from "../../_lib/anbindung/koerper";
 import { bearerAus } from "../../_lib/anbindung/token";
 import { ankerAnfrage, fehler, kettenankerAbfrage } from "../../_lib/anbindung/vertrag";
+import { gibVerknuepfungenWeiter } from "../../_lib/umsysteme";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +38,13 @@ export async function POST(req: Request) {
   const parsed = ankerAnfrage.safeParse(body.body);
   if (!parsed.success) return fehler(400, "validation_error", parsed.error.message);
 
+  // IDA-359: Nur ein echter Rechner sperrt Einsätze in Suchlage; ein Test-Rechner übt ohne Folgen.
+  const umsysteme = r.art === "echt" ? parsed.data.umsysteme ?? [] : [];
   return withAuditContext({ actor: { kind: "access", id: `einsatzbuch:rechner:${r.id}`, name: r.name } }, () => {
-    const ergebnis = meldeAnker(db, r.id, parsed.data.block, parsed.data.hash, new Date());
+    const ergebnis = meldeAnker(db, r.id, parsed.data.block, parsed.data.hash, new Date(), umsysteme);
     if (!ergebnis.ok) return fehler(409, "anker_abweichung", "Der gemeldete Hash weicht vom bekannten Anker ab.", { erwartet: ergebnis.erwartet });
+    // Nach der Antwort: Der Rechner wartet nicht auf Suchlage, und was scheitert, holt der nächste Lauf nach.
+    if (umsysteme.length > 0) after(() => gibVerknuepfungenWeiter(db));
     return new Response(null, { status: 204 });
   });
 }

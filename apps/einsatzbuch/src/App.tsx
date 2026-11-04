@@ -50,7 +50,7 @@ import { Verwaltung } from "./seiten/Verwaltung";
 import { Versiegelt } from "./seiten/Versiegelt";
 import { Willkommen } from "./seiten/Willkommen";
 import { useThema } from "./stil/thema";
-import type { Entwurf, Stammdatenpaket, Status } from "./typen";
+import type { Entwurf, Stammdatenpaket, Status, UmsystemEinsatzAuswahl } from "./typen";
 import { useSperre } from "./verwaltung/useSperre";
 import { useVerwaltung } from "./verwaltung/useVerwaltung";
 
@@ -89,6 +89,8 @@ export function App() {
   const [versatz, setVersatz] = useState(0);
   /** Nach einer Sperre aus der Verwaltung: kurzer Toast auf der Startseite (entsperrt wird über ihren Fuß). */
   const [gesperrtHinweis, setGesperrtHinweis] = useState(false);
+  /** Einsätze der Umsysteme zur Auswahl im Formular (IDA-359), je Öffnen des Formulars einmal geholt; ohne Antwort leer. */
+  const [umsysteme, setUmsysteme] = useState<UmsystemEinsatzAuswahl[]>([]);
 
   const statusRef = useRef<Status | null>(null);
   const versatzRef = useRef(0);
@@ -254,6 +256,23 @@ export function App() {
       aktiv = false;
     };
   }, []);
+
+  const imFormular = lokal.phase === "form";
+  useEffect(() => {
+    if (!imFormular) return;
+    let aktiv = true;
+    befehle
+      .umsysteme()
+      .then((liste) => {
+        if (aktiv) setUmsysteme(liste);
+      })
+      .catch(() => {
+        if (aktiv) setUmsysteme([]);
+      });
+    return () => {
+      aktiv = false;
+    };
+  }, [imFormular]);
 
   // Der Updater-Thread prüft außerhalb jedes Bedienschritts (zuerst 30 s nach dem Start); ändert
   // sich dabei der Update-Teil des Status, meldet er das, und die Karte „Einstellungen“ und die
@@ -665,6 +684,7 @@ export function App() {
             <Formular
               entwurf={entwurf}
               paket={paket}
+              umsysteme={umsysteme}
               bearbeiten={lokal.bearbeiten}
               restText={restText(rest)}
               beiAenderung={aendere}

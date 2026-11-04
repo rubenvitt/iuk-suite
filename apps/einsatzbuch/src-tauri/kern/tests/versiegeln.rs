@@ -8,7 +8,8 @@ use base64::Engine as _;
 use chrono::{TimeZone, Utc};
 use einsatzbuch_kern::buch::{Betrieb, Buch, BuchFehler};
 use einsatzbuch_kern::erfassung::{Entwurf, ErfassungFehler, PersonAuswahl};
-use einsatzbuch_kern::format::{Einsatz, GENESIS, PatientStand, Patientenart, Umgebung};
+use einsatzbuch_kern::format::{Einsatz, GENESIS, PatientStand, Patientenart, Umgebung, UmsystemEinsatz};
+use einsatzbuch_kern::vertrag::UmsystemVerweis;
 use einsatzbuch_kern::krypto;
 use einsatzbuch_kern::jcs;
 use hilfe::{FesterZufall, test_einrichtung};
@@ -56,6 +57,7 @@ fn entwurf_eins() -> Entwurf {
         notizen: String::new(),
         leitstellen_nummer: String::new(),
         patienten: Vec::new(),
+        umsysteme: Vec::new(),
     }
 }
 
@@ -76,6 +78,7 @@ fn entwurf_zwei() -> Entwurf {
         notizen: String::new(),
         leitstellen_nummer: String::new(),
         patienten: Vec::new(),
+        umsysteme: Vec::new(),
     }
 }
 
@@ -501,4 +504,38 @@ fn patienten_werden_versiegelt_und_fehlen_ohne_angaben() {
     let ohne = entschluessele(&bloecke[1], &suite_privatschluessel());
     assert!(ohne.patienten.is_empty());
     assert!(!ohne.kanonisch().unwrap().contains("patienten"));
+}
+
+/// IDA-359: Ein verknüpfter Suchlage-Einsatz landet versiegelt im Klartext; ohne fehlt der Schlüssel.
+#[test]
+fn umsysteme_werden_versiegelt_und_fehlen_ohne_verknuepfung() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+
+    let mut e = entwurf_eins();
+    e.umsysteme = vec![UmsystemEinsatz { system: "suchlage".into(), id: "17".into(), name: "Personensuche Ebstorf".into() }];
+    buch.sende_ab(&e, t0, false).unwrap();
+    buch.versiegele_ausstehend(t0, &mut FesterZufall(7), false).unwrap().unwrap();
+    buch.sende_ab(&entwurf_zwei(), t0, false).unwrap();
+    buch.versiegele_ausstehend(t0, &mut FesterZufall(9), false).unwrap().unwrap();
+
+    let bloecke = buch.bloecke().unwrap();
+    assert_eq!(entschluessele(&bloecke[0], &suite_privatschluessel()).umsysteme, e.umsysteme);
+    let ohne = entschluessele(&bloecke[1], &suite_privatschluessel());
+    assert!(ohne.umsysteme.is_empty());
+    assert!(!ohne.kanonisch().unwrap().contains("umsysteme"));
+
+    // Für die Meldung an die Suite steht die Verknüpfung auch unverschlüsselt neben dem Block.
+    let verweis = UmsystemVerweis { system: "suchlage".into(), id: "17".into() };
+    assert_eq!(buch.umsysteme_von(1).unwrap(), vec![verweis.clone()]);
+    assert!(buch.umsysteme_von(2).unwrap().is_empty());
+
+    // Nennt ein späterer Block denselben Einsatz, scheitert das Versiegeln nicht; gemeldet bleibt
+    // der erste Block.
+    buch.sende_ab(&e, t0, false).unwrap();
+    buch.versiegele_ausstehend(t0, &mut FesterZufall(11), false).unwrap().unwrap();
+    assert_eq!(buch.umsysteme_von(1).unwrap(), vec![verweis]);
+    assert!(buch.umsysteme_von(3).unwrap().is_empty());
 }
