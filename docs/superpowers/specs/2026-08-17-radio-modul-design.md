@@ -7027,13 +7027,13 @@ beschreibbar. ⚠️ **Diese Entscheidung macht zwei Fallen scharf, nicht eine**
 Falle 8 in §8.4.2.2; wer nur die eine bedenkt, hat die Hälfte. Daraus folgt für den Testplan:
 
 * **Jeder Klick auf einen Navigations-Anker unter `/admin` läuft über `klickeWennRuhig`** aus
-  `e2e/fixtures.ts:93` — nicht über `locator.click()`. Die Funktion klickt erst, wenn der Kasten des
+  `e2e/fixtures.ts`, `klickeWennRuhig` — nicht über `locator.click()`. Die Funktion klickt erst, wenn der Kasten des
   Elements **dreimal** in Folge stillsteht (drei, nicht zwei: der Sprung fällt in ein Fenster von
   ~200 ms, zwei Proben im Abstand von 100 ms könnten beide davor liegen).
 * **Auf dem Ausleih-Ast wird `klickeWennRuhig` NICHT verwendet.** Dort gibt es keine `SessionProvider`-
   Hülle, also keinen Umbruch, und ein vorsorgliches Ruhewarten verdeckte einen echten Umbruch, statt
   ihn zu melden. Diese Zeile ist eine Zusage in beide Richtungen.
-* **Jeder Login im Lauf geht über `devLogin` aus `e2e/fixtures.ts:3`**, mit `RADIO_ADMIN_GRUPPE` aus
+* **Jeder Login im Lauf geht über `devLogin` aus `e2e/fixtures.ts`**, mit `RADIO_ADMIN_GRUPPE` aus
   `e2e/helpers/radio.ts` — nie mit einem Literal. Das 45-Sekunden-Budget dort ist gemessen (13,7 s auf
   kaltem `.next` unter künstlicher Last; 0,3 s warm) und wird nicht gekürzt.
 

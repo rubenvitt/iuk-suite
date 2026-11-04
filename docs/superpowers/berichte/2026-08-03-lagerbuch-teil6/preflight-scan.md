@@ -376,7 +376,7 @@ Solange das offen ist, entstehen doppelte Zusicherungen oder eine Eigentümerver
 > ```
 > und in T169: `const FREMD = "http://feedback.localtest.me:3100";`
 
-**Beleg 1** — `e2e/fixtures.ts:3-7`:
+**Beleg 1** — `e2e/fixtures.ts`, `devLogin`:
 
 ```ts
 export async function devLogin(

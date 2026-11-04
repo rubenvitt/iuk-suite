@@ -1751,7 +1751,7 @@ nicht, wie viele Zeilen dadurch aus dem Bild wandern.
 Mittelteil (`:135`) und eine **feste Tab-Leiste unten** mit zwei Zielen (`:147-150`,
 `HelferFrame.tsx:11-29`, Tabs `:26` Entnahme / `:27` Fahrzeug-Check), aufgehängt über den ganzen Ast
 (`helfer/layout.tsx:10`). `FullShell` ist `<Layout style={{minHeight:"100vh"}}>` + `<SuiteHeader>` +
-`<Content style={{padding: SPACE.lg}}>` (`core/shell/FullShell.tsx:19-22`), `headerHeight` fest 64
+`<Content style={{padding: SPACE.lg}}>` (damals `core/shell/FullShell.tsx`, `<Content>`), `headerHeight` fest 64
 (`theme.ts:43`), `SPACE.lg` = 16 (`tokens.ts:53`). Ein `100dvh`-Kind in diesem Content ergibt
 **64 + 32 = 96px Überlauf** — die untere Tab-Leiste wandert unter den Bildschirmrand, und damit ist
 die Umschaltung zwischen Entnahme und Fahrzeug-Check auf einem Handy nicht mehr erreichbar.
@@ -1800,7 +1800,7 @@ Client-Komponente (`EtikettenBogen.tsx:34`, `window.print()`), die Auswahl ist r
 **Der naheliegende Portierungsweg funktioniert für diesen Block nicht:** CSS Modules schreiben
 ausschließlich **Klassenselektoren** um — `body *` bleibt global. Die Regel würde auf **jeder**
 Druckseite der Suite greifen und jede andere Druckansicht (feedback-Aushang, files-Zugangslinks)
-leeren. Dazu bleibt `Layout{minHeight:100vh}` (`FullShell.tsx:19`) im Fluss (`visibility:hidden`
+leeren. Dazu bleibt `Layout{minHeight:100vh}` (damals `FullShell`, heute `.rahmen` in `core/shell/menue.module.css`) im Fluss (`visibility:hidden`
 reserviert den Platz) und erzeugt leere Folgeseiten hinter dem Bogen. Die zweite Zusage, die still
 bricht: `.etikett input` (`:282`) trifft das tatsächlich gerenderte Auswahlelement — ein
 antd-`Checkbox` rendert an dieser Stelle **kein nacktes `<input>`**.
@@ -2289,7 +2289,7 @@ ob die genannten Pfade auflösen.
 Alle Specs navigieren relativ (`page.goto("/")`, `/verwaltung/artikel`, `/a/e2e-artikel`);
 `iuk-suite/playwright.config.ts:38` setzt `baseURL: "http://portal.localtest.me:3100"`, und portal
 trägt `requiresAuth: true` — jeder Aufruf landete im Login. Die vier vorhandenen Module arbeiten mit
-absoluten Per-Host-URLs plus `devLogin(page, {host})` (`e2e/fixtures.ts:3-9`, Vorbild
+absoluten Per-Host-URLs plus `devLogin(page, {host})` (`e2e/fixtures.ts`, `devLogin`, Vorbild
 `e2e/qr.spec.ts:28,35`). **Die befürchteten Zusatzarbeiten sind allerdings praktisch null:**
 `SUITE_HOST_LAGERBUCH` ist **nicht** Pflicht (`registry.ts:141-148` prüft
 `h === "<key>.localtest.me"` vor und unabhängig von `prodHostsFor`), und `DATA_DIR=./.data/e2e` sowie
@@ -3821,7 +3821,7 @@ statt `:82-86`, `:54-60` (Migrationsschleife) statt `:56-62` ·
 `iuk-suite/src/core/db/index.ts` statt `core/db.ts` ·
 `core/theme/theme.ts:22-25`/`:33`/`:42-43` statt `:23-26`/`:29-30`/`:41,44` ·
 `core/theme/tokens.ts:14-25`/`:33` statt `:16-29`/(unbelegt) ·
-`core/shell/FullShell.tsx:19-22` statt `:19-24` · `deployment.md:60-64` statt `:59-64` ·
+`core/shell/FullShell.tsx` (damals `:19-22` statt `:19-24`) · `deployment.md:60-64` statt `:59-64` ·
 `src/lib/config.ts:73` (`tz`) statt `:72` · `e2e/etiketten.spec.ts:11`/`:16` statt `:12-14`/`:16-18` ·
 `src/app/layout.tsx:6-24` statt `:5-24` · `src/db/bestand.ts:13-20` statt `:15-34` ·
 `src/db/queries.ts:105-109` statt `:109` · `src/lib/auth/tokenZiel.ts:10` statt `:11` ·

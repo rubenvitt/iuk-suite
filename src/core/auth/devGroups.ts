@@ -55,7 +55,7 @@ export function devGroupChoices(env: EnvLike = process.env): string[] {
  * DIE TRENNUNG VON HÄKCHEN UND FREITEXT IST ABSICHT. Die Häkchen decken alles
  * ab, was diese Instanz kennt; der Freitext bleibt der Weg für alles andere —
  * eine erfundene Gruppe für einen Negativpfad etwa. Ohne ihn wäre der Dev-Login
- * auf die Registry beschränkt, und `e2e/fixtures.ts:18` füllt genau dieses Feld
+ * auf die Registry beschränkt, und `devLogin` (`e2e/fixtures.ts`) füllt dieses Feld
  * (~90 Aufrufe in 12 Specs). Ohne Häkchen ist das Ergebnis deshalb exakt der
  * Freitext — das ist die Zusage, die die E2E-Suite unverändert grün hält.
  *

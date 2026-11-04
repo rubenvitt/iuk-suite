@@ -71,7 +71,7 @@ import { E2E_CODE_AKTIV, RADIO_ENV, radioUrl } from "./helpers/radio";
  *       Vorbild: `e2e/files-fileshare.spec.ts`.
  *
  * ⛔ **FALLE 12.** Ein `.click()` navigiert nicht, wenn die Huelle zwischen `mousedown` und
- * `mouseup` umbricht. Abhilfe: `klickeWennRuhig` (`e2e/fixtures.ts:93`). ⚠️ Der
+ * `mouseup` umbricht. Abhilfe: `klickeWennRuhig` (`e2e/fixtures.ts`). ⚠️ Der
  * Ausleihzweig laeuft anonym und ohne `SessionProvider`-Nachladung, die Falle ist hier
  * also SCHWAECHER als in `/admin` — aber die Geraeteauswahl schreibt ihre Wahl mit
  * `router.replace` in die URL (`src/app/m/radio/_ui/AusleihVorgang.tsx:244`) und der
