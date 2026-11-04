@@ -34,7 +34,7 @@ export function Seite({
   className,
   children,
   ...rest
-}: DivProps & { typ: Seitentyp; children: ReactNode }) {
+}: DivProps & { typ: Seitentyp; children?: ReactNode }) {
   return (
     <div {...rest} data-seite={typ} className={klassen(s.seite, s[typ], className)}>
       {children}
@@ -46,7 +46,7 @@ export function Seite({
  * Das Feldraster: zwei Spalten, wo Platz ist, eine am Telefon. Jedes Kind ist eine Zelle — ein
  * `Form.Item` direkt, oder `Feld` für ein Feld über die ganze Zeile.
  */
-export function Felder({ className, children, ...rest }: DivProps & { children: ReactNode }) {
+export function Felder({ className, children, ...rest }: DivProps & { children?: ReactNode }) {
   return (
     <div {...rest} data-felder="" className={klassen(s.felder, className)}>
       {children}
@@ -60,7 +60,7 @@ export function Feld({
   className,
   children,
   ...rest
-}: DivProps & { breit?: boolean; children: ReactNode }) {
+}: DivProps & { breit?: boolean; children?: ReactNode }) {
   return (
     <div {...rest} data-feld={breit ? "breit" : "schmal"} className={klassen(breit && s.breit, className)}>
       {children}
