@@ -17,6 +17,7 @@ import {
 } from "@/core/rueckmeldung/zustand";
 import { oeffneRueckmeldung } from "@/core/rueckmeldung/flyinZustand";
 import type { Rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
+import { PLATZ } from "@/core/rueckmeldung/platz";
 import s from "./rueckmeldung.module.css";
 
 /**
@@ -81,39 +82,52 @@ export function RueckmeldungKnopf({ weg }: { weg: Rueckmeldeweg }) {
    * statt „Knopf". Ein fehlender Knopf kostet eine Rückmeldung; ein Knopf, der
    * trotz Ausblenden wiederkommt, kostet das Vertrauen in den Ausblenden-Knopf.
    */
-  if (stand !== OFFEN) return null;
+  /*
+   * ⚠️ DER PLATZ STEHT AUCH OHNE KNOPF IM DOM, NUR OHNE HÖHE (IDA-352). Er
+   * liegt im Fluss hinter dem Inhalt und hält unten so viel frei, wie der Knopf
+   * belegt — ganz nach unten gescrollt steht also nichts mehr darunter.
+   * `TabellenVollhoehe` zieht seine Höhe ab und beobachtet ihn; ein Element,
+   * das verschwindet, meldet kein `ResizeObserver`, eines, das auf 0 schrumpft,
+   * schon.
+   */
+  const platz = <div aria-hidden data-rolle={PLATZ} className={stand === OFFEN ? s.platz : undefined} />;
+
+  if (stand !== OFFEN) return platz;
 
   return (
-    <div className={s.schweber} data-testid="rueckmeldung-schweber">
-      {weg.art === "link" ? (
+    <>
+      {platz}
+      <div className={s.schweber} data-testid="rueckmeldung-schweber">
+        {weg.art === "link" ? (
+          <Button
+            href={weg.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="rueckmeldung-knopf"
+            icon={<Icons8Ikone name="comment" />}
+            onClick={erledigen}
+          >
+            Feedback
+          </Button>
+        ) : (
+          <Button data-testid="rueckmeldung-knopf" icon={<Icons8Ikone name="comment" />} onClick={oeffnen}>
+            Feedback
+          </Button>
+        )}
+        {/*
+         * ⚠️ `aria-label` IST HIER PFLICHT, NICHT KÜR: der Knopf trägt nur ein
+         * Zeichen, und ein Zeichen liest sich nicht vor. „Ausblenden" allein wäre
+         * ebenfalls zu wenig — in einer Liste von Bedienelementen steht der
+         * Eintrag ohne seinen Gegenstand da.
+         */}
         <Button
-          href={weg.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="rueckmeldung-knopf"
-          icon={<Icons8Ikone name="comment" />}
+          shape="circle"
+          aria-label="Feedback-Knopf ausblenden"
+          data-testid="rueckmeldung-ausblenden"
+          icon={<Icons8Ikone name="close" />}
           onClick={erledigen}
-        >
-          Feedback
-        </Button>
-      ) : (
-        <Button data-testid="rueckmeldung-knopf" icon={<Icons8Ikone name="comment" />} onClick={oeffnen}>
-          Feedback
-        </Button>
-      )}
-      {/*
-       * ⚠️ `aria-label` IST HIER PFLICHT, NICHT KÜR: der Knopf trägt nur ein
-       * Zeichen, und ein Zeichen liest sich nicht vor. „Ausblenden" allein wäre
-       * ebenfalls zu wenig — in einer Liste von Bedienelementen steht der
-       * Eintrag ohne seinen Gegenstand da.
-       */}
-      <Button
-        shape="circle"
-        aria-label="Feedback-Knopf ausblenden"
-        data-testid="rueckmeldung-ausblenden"
-        icon={<Icons8Ikone name="close" />}
-        onClick={erledigen}
-      />
-    </div>
+        />
+      </div>
+    </>
   );
 }

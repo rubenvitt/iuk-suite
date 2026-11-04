@@ -30,6 +30,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { PLATZ } from "../rueckmeldung/platz";
 import { SPACE } from "../theme/tokens";
 import { vollhoehe } from "./vollhoehe";
 import schmal from "./schmalkarten.module.css";
@@ -136,6 +137,9 @@ export function TabellenVollhoehe({
     const koerper = tabelle.querySelector<HTMLElement>(KOERPER);
     const karten = tabelle.querySelector<HTMLElement>(KARTEN);
     const tabelleOben = tabelle.getBoundingClientRect().top;
+    // IDA-352: der Platz unter dem schwebenden Rückmeldeknopf steht hinter dem
+    // Rahmen im Fluss; ohne Abzug scrollte die Seite um genau seine Höhe.
+    const platz = document.querySelector(`[data-rolle="${PLATZ}"]`)?.getBoundingClientRect().height ?? 0;
     const ergebnis = vollhoehe({
       fensterHoehe: window.innerHeight,
       rahmenOben: rahmen.getBoundingClientRect().top,
@@ -144,7 +148,7 @@ export function TabellenVollhoehe({
       // rc-table sonst noch dazwischenschiebt. Gemessen statt aufgezählt: eine
       // Aufzählung wäre beim nächsten antd-Minor still unvollständig.
       tabellenkopfHoehe: koerper ? koerper.getBoundingClientRect().top - tabelleOben : 0,
-      rand,
+      rand: rand + platz,
       mindestens,
     });
 
@@ -213,6 +217,9 @@ export function TabellenVollhoehe({
       : null;
     if (beobachter && rahmenRef.current) beobachter.observe(rahmenRef.current);
     if (beobachter && tabellenRef.current) beobachter.observe(tabellenRef.current);
+    // Der Platz wächst nach dem Hydrieren und schrumpft, wenn der Knopf geht.
+    const platz = document.querySelector(`[data-rolle="${PLATZ}"]`);
+    if (beobachter && platz) beobachter.observe(platz);
     return () => {
       window.removeEventListener("resize", messen);
       beobachter?.disconnect();

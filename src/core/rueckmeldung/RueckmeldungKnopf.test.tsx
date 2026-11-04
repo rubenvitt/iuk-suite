@@ -43,6 +43,14 @@ describe("RueckmeldungKnopf", () => {
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
+  it("hält unten Platz frei, solange er steht, und gibt ihn danach zurück (IDA-352)", async () => {
+    await mount(<RueckmeldungKnopf weg={LINK} />);
+    const platz = query<HTMLDivElement>('[data-rolle="rueckmeldung-platz"]');
+    expect(platz.className).not.toBe("");
+    await click('[data-testid="rueckmeldung-ausblenden"]');
+    expect(query<HTMLDivElement>('[data-rolle="rueckmeldung-platz"]').className).toBe("");
+  });
+
   it("verschwindet, sobald jemand ihn benutzt", async () => {
     await mount(<RueckmeldungKnopf weg={LINK} />);
     await click('[data-testid="rueckmeldung-knopf"]');

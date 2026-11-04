@@ -36,7 +36,8 @@
 
 @media (min-width: 768px) {
   .werkzeug {
-    min-block-size: calc(100dvh - 32px);
+    /* IDA-352: abzüglich des Platzes unter dem schwebenden Rückmeldeknopf (`core/rueckmeldung`). */
+    min-block-size: calc(100dvh - 32px - var(--iuk-rueckmeldung-platz, 0px));
   }
 }
 
