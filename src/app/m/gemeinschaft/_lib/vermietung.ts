@@ -5,6 +5,7 @@ import { EVENT_PRAEFIX, harteKonflikte, sperrenAusEvents, ueberlappt, type BarEv
 import { neueId, neuerLinkCode } from "./kennung";
 import type { AnfrageWert, SperrzeitWert } from "./vermietungEingabe";
 import { feldAusJson, type Feld } from "./vertragFeld";
+import { vertragDateiname } from "./vertragName";
 import { zeitraumText, type VertragStand } from "./vermietungText";
 import { anfrageAlsEintrag, sperreAlsEintrag, type AnfrageDTO, type Herkunft, type SperrzeitDTO, type StatusDTO, type VorlageDTO } from "./vermietungTypen";
 
@@ -37,7 +38,7 @@ export function ladeAnfragen(db: GemeinschaftSchreiber): AnfrageDTO[] {
   return zeilen.map(({ dateiName, dateiGroesse, dateiAm, herkunft, unterschriebenVon, ...a }) => ({
     ...a,
     datei: dateiName !== null && dateiGroesse !== null && dateiAm !== null
-      ? { name: dateiName, groesse: dateiGroesse, abgelegtAm: dateiAm, herkunft: herkunft ?? "leitung", unterschriebenVon }
+      ? { name: vertragDateiname(a.von, true), groesse: dateiGroesse, abgelegtAm: dateiAm, herkunft: herkunft ?? "leitung", unterschriebenVon }
       : null,
   }));
 }
@@ -217,8 +218,11 @@ export function legeVertragAb(db: GemeinschaftDb, id: string, name: string, inha
   });
 }
 
+/** Die unterschriebene Fassung; `name` ist der Name zum Herunterladen (`vertragName.ts`), nicht der hochgeladene. */
 export function ladeVertragsdatei(db: GemeinschaftSchreiber, id: string): { name: string; inhalt: Buffer } | null {
-  return db.select({ name: vertragsdatei.name, inhalt: vertragsdatei.inhalt }).from(vertragsdatei).where(eq(vertragsdatei.anfrageId, id)).get() ?? null;
+  const z = db.select({ von: anfrage.von, inhalt: vertragsdatei.inhalt }).from(vertragsdatei)
+    .innerJoin(anfrage, eq(anfrage.id, vertragsdatei.anfrageId)).where(eq(vertragsdatei.anfrageId, id)).get();
+  return z ? { name: vertragDateiname(z.von, true), inhalt: z.inhalt } : null;
 }
 
 export function entferneVertrag(db: GemeinschaftDb, id: string): void {
@@ -325,5 +329,5 @@ export function vertragFuerStatus(db: GemeinschaftSchreiber, code: string): { id
   const datei = ladeVertragsdatei(db, a.id);
   if (datei) return { id: a.id, art: "unterschrieben", ...datei };
   const v = ladeVorlage(db);
-  return v ? { id: a.id, art: "vorlage", name: v.name, inhalt: v.inhalt } : null;
+  return v ? { id: a.id, art: "vorlage", name: vertragDateiname(a.von, false), inhalt: v.inhalt } : null;
 }

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PDFDocument, StandardFonts, rgb, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, PDFName, StandardFonts, rgb, type PDFImage, type PDFPage } from "pdf-lib";
 import { winAnsi } from "@/core/pdf/winAnsi";
 import type { Feld, Seitenmass } from "./vertragFeld";
 import { eingangText } from "./vermietungText";
@@ -73,7 +73,8 @@ export function unterschriftAusDataUrl(roh: unknown): Buffer | null {
   return bytes.length > 60 && bytes.length <= UNTERSCHRIFT_MAX_BYTES && beginntMit(bytes, PNG_KOPF) && pngPasst(bytes, UNTERSCHRIFT_MAX_PIXEL) ? bytes : null;
 }
 
-export type Angaben = { name: string; am: number; zeitraum: string; anlass: string };
+/** `titel` landet im Feld Titel der PDF (`vertragName.ts`); sonst bliebe der der Vorlage, etwa „IDA“ aus einem Browserdruck. */
+export type Angaben = { name: string; am: number; zeitraum: string; anlass: string; titel: string };
 
 function zeileUnterFeld(seite: PDFPage, text: string, x: number, y: number, breite: number, schrift: Awaited<ReturnType<PDFDocument["embedFont"]>>) {
   let grad = 7;
@@ -115,6 +116,9 @@ export async function unterschriebenePdf(vorlage: Uint8Array, feld: Feld | null,
     p.drawLine({ start: { x: kasten.x, y: kasten.y - 4 }, end: { x: kasten.x + kasten.b, y: kasten.y - 4 }, thickness: 0.6, color: rgb(0.3, 0.3, 0.3) });
     zeileUnterFeld(p, `${name} · ${wann} · digital unterschrieben`, kasten.x, kasten.y - 16, kasten.b, schrift);
   }
+  // Ein XMP-Paket der Vorlage (Word, Acrobat) trüge den alten Titel weiter, und Betrachter wie pdf.js ziehen es vor.
+  doc.catalog.delete(PDFName.of("Metadata"));
+  doc.setTitle(a.titel);
   doc.setModificationDate(new Date(a.am));
   return doc.save();
 }
@@ -133,8 +137,9 @@ export function pruefeUnterschriebeneDatei(name: string, bytes: Buffer): DateiPr
 }
 
 /** Ein Foto als einseitige A4-PDF, damit beim Eintrag immer eine PDF liegt. Wirft, wenn das Bild nicht dekodiert. */
-export async function fotoAlsPdf(bytes: Buffer, art: "jpg" | "png"): Promise<Uint8Array> {
+export async function fotoAlsPdf(bytes: Buffer, art: "jpg" | "png", titel: string): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
+  doc.setTitle(titel);
   const bild = art === "jpg" ? await doc.embedJpg(bytes) : await doc.embedPng(bytes);
   const quer = bild.width > bild.height;
   const p = doc.addPage(quer ? [A4.h, A4.b] : [A4.b, A4.h]);

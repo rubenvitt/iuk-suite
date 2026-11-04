@@ -11,7 +11,7 @@ import {
   Abgelehnt, anfragenSeit, ladeVorlage, legeAnfrageAn, legeUnterschriebenAb, NichtGefunden, pruefeUnterschreibbar, zieheZurueck,
 } from "../_lib/vermietung";
 import { zeitraumText } from "../_lib/vermietungText";
-import { sichererName } from "../_lib/vermietungPdf";
+import { vertragDateiname, vertragTitel } from "../_lib/vertragName";
 import { unterschriebenePdf, unterschriftAusDataUrl } from "../_lib/vertragUnterschrift";
 import { pruefeAnfrage, type Ergebnis } from "../_lib/vermietungEingabe";
 import { requireGemeinschaftHostAktion } from "../_lib/zugang";
@@ -109,13 +109,13 @@ export async function vertragUnterschreibenAction(code: string, eingabe: { name?
       const jetzt = Date.now();
       let pdf: Uint8Array;
       try {
-        pdf = await unterschriebenePdf(v.inhalt, v.feld, png, { name, am: jetzt, zeitraum: zeitraumText(a.von, a.bis), anlass: a.anlass });
+        pdf = await unterschriebenePdf(v.inhalt, v.feld, png, { name, am: jetzt, zeitraum: zeitraumText(a.von, a.bis), anlass: a.anlass, titel: vertragTitel(a.von, true) });
       } catch {
         return { ok: false, fehler: "Die Unterschrift ließ sich nicht übernehmen. Bitte noch einmal zeichnen." };
       }
       const datei = Buffer.from(pdf);
       legeUnterschriebenAb(db, code, {
-        name: sichererName(`${v.name.replace(/\.pdf$/i, "").slice(0, 100)} – unterschrieben`), inhalt: datei, herkunft: "gezeichnet", unterschriebenVon: name, vorlageStand: stand,
+        name: vertragDateiname(a.von, true), inhalt: datei, herkunft: "gezeichnet", unterschriebenVon: name, vorlageStand: stand,
       }, jetzt);
       neuLaden();
       return { ok: true };

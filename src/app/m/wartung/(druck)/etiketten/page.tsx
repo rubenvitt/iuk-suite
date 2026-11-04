@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { DruckTitel } from "@/core/druck/DruckTitel";
+import { druckTitel } from "@/core/druck/titel";
 import { qrSvg } from "@/core/qr";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../../_db/client";
@@ -25,6 +27,7 @@ export default async function EtikettenSeite({ searchParams }: { searchParams: P
   const codes = await Promise.all(geraete.map((g) => qrSvg(qrZiel(basis, g.id))));
   return (
     <>
+      <DruckTitel titel={geraete.length === 1 ? druckTitel(["QR-Etikett", geraete[0].name]) : druckTitel(["QR-Etiketten Gerätewartung", auswahl.wahl.find((w) => w.id === auswahl.gewaehlt)?.name])} />
       <div className={s.druckweg}>
         <Seitenkopf
           titel="QR-Etiketten"

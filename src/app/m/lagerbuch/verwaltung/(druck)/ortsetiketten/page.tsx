@@ -97,4 +97,5 @@ export default async function OrtsetikettenSeite() {
   );
 }
 
-export const metadata = { title: "Ortsetiketten" };
+/** Der Titel ist der Dateiname beim „Als PDF speichern“ (`core/druck/titel.ts`), deshalb ohne „· App“. */
+export const metadata = { title: { absolute: "Ortsetiketten Lagerbuch" } };

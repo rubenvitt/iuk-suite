@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { Button } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { reportBrowserExport } from "@/core/audit/browser";
+import { DruckTitel } from "@/core/druck/DruckTitel";
+import { druckTitel } from "@/core/druck/titel";
 import { bericht } from "../../_lib/kern/bericht";
 import type { Block, Einsatz } from "../../_lib/kern/format";
 import { zeitpunktText } from "../../_lib/kern/zeit";
@@ -77,6 +79,7 @@ export function DruckOverlay({ block, einsatz, kette, unveraendert, dateiname, b
 
   return createPortal(
     <div ref={wurzel} className={s.druckOverlay} role="dialog" aria-modal="true" aria-label={`Einsatzbericht · ${einsatz.nummer}`}>
+      <DruckTitel titel={druckTitel(["Einsatzbericht", einsatz.nummer])} />
       <div className={s.steuer} data-druck-steuer="">
         <div className={s.steuerText}>
           <span className={s.steuerTitel}>{`Einsatzbericht · ${einsatz.nummer}`}</span>

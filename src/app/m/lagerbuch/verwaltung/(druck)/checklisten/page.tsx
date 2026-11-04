@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import { DruckTitel } from "@/core/druck/DruckTitel";
+import { druckTitel } from "@/core/druck/titel";
 import { getDb } from "../../../_db/client";
 import { requireLagerbuchHost } from "../../../_lib/host";
 import {
@@ -6,6 +8,7 @@ import {
   gewaehlteFahrzeuge,
   standDatum,
 } from "../../../_lib/lesepfade/checkliste";
+import { checklisteTitel } from "../../../_lib/konstanten";
 import { requireLagerbuchAdmin } from "../../../_lib/zugang";
 import { ChecklistenBogen } from "./ChecklistenBogen";
 
@@ -101,11 +104,14 @@ export default async function ChecklistenSeite({
    * angelegt wird, stuende dann in der Datei anders als auf dem Blatt.
    */
   return (
+    <>
+    <DruckTitel titel={druckTitel([blaetter.length === 1 ? `${checklisteTitel(blaetter[0]!.einheitenart)} ${blaetter[0]!.name}` : "Checklisten"], new Date().getTime())} />
     <ChecklistenBogen
       blaetter={blaetter}
       stand={standDatum(new Date())}
       auswahl={gewaehlt}
     />
+    </>
   );
 }
 

@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import { DruckTitel } from "@/core/druck/DruckTitel";
+import { druckTitel } from "@/core/druck/titel";
 import { getDb } from "@/app/m/kommplan/_db/client";
 import { interneDruckdaten } from "@/app/m/kommplan/_lib/druckdaten";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
@@ -21,8 +23,8 @@ export default async function DruckA3({ params, searchParams }: {
   const { id } = await params;
   const db = getDb();
   const { plan, rechte } = ladePlanFuerOder404(db, id, personAus(viewer));
-  return <Druckseite schrift={{ familie: ZEICHENSCHRIFT.style.fontFamily, klasse: ZEICHENSCHRIFT.className }} daten={await interneDruckdaten(db, plan, rechte.verwalten, "a3-quer", new Date().getTime())}
-    automatisch={(await searchParams).export !== "svg"} />;
+  return <><DruckTitel titel={druckTitel(["Kommunikationsplan", plan.titel])} /><Druckseite schrift={{ familie: ZEICHENSCHRIFT.style.fontFamily, klasse: ZEICHENSCHRIFT.className }} daten={await interneDruckdaten(db, plan, rechte.verwalten, "a3-quer", new Date().getTime())}
+    automatisch={(await searchParams).export !== "svg"} /></>;
 }
 
 export const metadata = { title: "Druck A3" };
