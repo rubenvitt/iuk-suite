@@ -44,3 +44,5 @@ export function Kicker({ children, className }: { children: ReactNode; className
 export const stundenText = (h: number | null): string => (h === null ? "—" : `${h.toLocaleString("de-DE")} h`);
 
 export { datum };
+export const groesseText = (bytes: number): string =>
+  bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024)).toLocaleString("de-DE")} KB` : `${(bytes / 1024 / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB`;

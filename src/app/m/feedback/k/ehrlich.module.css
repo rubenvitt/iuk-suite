@@ -253,3 +253,13 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* Honigtopf (IDA-340): aus dem Bild und aus der Tab-Folge, aber im Formular. Kein `display: none` —
+   manche Bots lassen versteckte Felder bewusst leer. */
+.honigtopf {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}

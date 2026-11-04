@@ -2,16 +2,14 @@ import { headers } from "next/headers";
 import { getDb } from "../../_db/client";
 import { einwurfUrlAus } from "../../_lib/ehrlich/adresse";
 import { kastenSecret } from "../../_lib/ehrlich/daten";
-import { ladeLeserNamen, namensreihe } from "../../_lib/ehrlich/leser";
 import { requireEhrlichLeser } from "../../_lib/ehrlich/zugang";
 import { Drucken } from "../aushang/[groupId]/Drucken";
 
-/** Der Aushang von „Ehrlich gesagt" (IDA-314) — gleiche Bauform wie der Dienstabend-Aushang (`druck.css`). */
+/** Der Aushang von „Ehrlich gesagt" (IDA-314) — gleiche Bauform wie der Dienstabend-Aushang (`druck.css`). Ohne Lesernamen: die stehen nur online (Ruben 2026-11-04). */
 export default async function EhrlichAushang() {
   await requireEhrlichLeser("/m/feedback/ehrlich-gesagt-aushang");
   const secret = kastenSecret(getDb());
   const url = einwurfUrlAus(await headers(), secret);
-  const leser = await ladeLeserNamen();
   return (
     <main className="fb-aushang">
       <div className="fb-aushang-fahne" aria-hidden="true" />
@@ -23,9 +21,6 @@ export default async function EhrlichAushang() {
       </div>
       <p className="fb-aushang-url">{url}</p>
       <p className="fb-aushang-zeile">Jederzeit · anonym oder mit Namen</p>
-      <footer className="fb-aushang-fuss">
-        <span>{leser.length > 0 ? `Es lesen nur: ${namensreihe(leser)}` : ""}</span>
-      </footer>
       <Drucken />
     </main>
   );

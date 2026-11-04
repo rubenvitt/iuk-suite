@@ -3,7 +3,7 @@ import { auditRetentionDays } from "@/core/audit/retention";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { openModuleDatabase, moduleDbPath, getModuleDb } from "@/core/db";
-import { MODULES } from "@/core/registry";
+import { MODULES, einstiegsHostFehler } from "@/core/registry";
 import { validateHostConfig } from "@/core/hosts";
 import { validateGroupConfig } from "@/core/groups";
 import * as portalSchema from "@/app/m/portal/_db/schema";
@@ -12,6 +12,7 @@ import * as qrSchema from "@/app/m/qr/_db/schema";
 import { seedQr } from "@/app/m/qr/_lib/seed";
 import * as feedbackSchema from "@/app/m/feedback/_db/schema";
 import { seedFeedback } from "@/app/m/feedback/_lib/seed";
+import { turnstileKonfigFehler } from "@/app/m/feedback/_lib/ehrlich/turnstile";
 import { filesBootFehler, starteFilesHintergrund } from "@/app/m/files/_lib/boot";
 import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
 import { radioBootFehler, starteRadioHintergrund } from "@/app/m/radio/_lib/boot";
@@ -122,7 +123,7 @@ export const CORE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
 export async function assertHostConfig(): Promise<void> {
   const keys = MODULES.map((m) => m.key);
   const errors = [
-    ...validateHostConfig(keys), ...lokalHttpFehler(),
+    ...validateHostConfig(keys), ...einstiegsHostFehler(), ...turnstileKonfigFehler(), ...lokalHttpFehler(),
     ...validateGroupConfig(keys),
     ...(await filesBootFehler()),
     // lagerbuch: greift nur bei gesetztem SUITE_HOST_LAGERBUCH und WIRFT NIE (Spec §10.5).

@@ -39,7 +39,9 @@ import schichtenImVorausPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/sch
 import gemeinschaftUndBar from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-01-gemeinschaft-und-bar";
 import gemeinschaftBarQrPlakat from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-03-bar-qr-plakat";
 import feedbackEhrlichGesagt from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-03-ehrlich-gesagt";
+import feedbackEhrlichGesagtAdresse from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-04-ehrlich-gesagt-adresse";
 import wartungGeraetewartung from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-03-geraetewartung";
+import wartungUnterlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-unterlagen";
 import verpflegungVerpflegungslager from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-04-verpflegungslager";
 import unterkunftUndZelteBerechnen from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-01-unterkunft-und-zelte-berechnen";
 import unterkunftBerechnungDrucken from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-03-berechnung-drucken";
@@ -179,7 +181,9 @@ const NOTIZEN: readonly Releasenotiz[] = [
   gemeinschaftUndBar,
   gemeinschaftBarQrPlakat,
   feedbackEhrlichGesagt,
+  feedbackEhrlichGesagtAdresse,
   wartungGeraetewartung,
+  wartungUnterlagen,
   verpflegungVerpflegungslager,
   unterkunftUndZelteBerechnen,
   unterkunftBerechnungDrucken,
