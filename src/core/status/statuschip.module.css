@@ -1,0 +1,65 @@
+/*
+ * DER STATUSCHIP (Haarlinie) — Regeln in `Statuschip.tsx`.
+ *
+ * Jeder Ton setzt EINE Variable, `--sc-ton`; Kontur und Fläche werden daraus gemischt. So bleibt die
+ * Fläche ruhig (8 %), auf Karte wie auf Grund, hell wie dunkel, ohne dass je Ton drei Werte
+ * gepflegt werden. Die Textfarben tragen 4,5:1 auf `karte`, `papier` und der eigenen Fläche
+ * (`statuschip.test.tsx` rechnet nach).
+ *
+ * KEINE `--ant-*`-VARIABLEN (Falle 2) und KEINE `.ant-*`-SELEKTOREN (Falle 20).
+ */
+
+.chip {
+  --sc-ton: #62626b;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-inline-size: 100%;
+  min-block-size: 22px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--sc-ton) 28%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sc-ton) 8%, transparent);
+  color: var(--sc-ton);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.punkt {
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.symbol {
+  display: inline-flex;
+  flex: none;
+}
+
+/* Neutral: nur die Haarlinie, keine Fläche — und ein grauer Punkt, der nicht wie eine Stufe liest. */
+.neutral {
+  --sc-ton: #62626b;
+  border-color: #e4e4e1;
+  background: transparent;
+}
+.neutral .punkt { background: #a1a1aa; }
+
+.info { --sc-ton: #1f5592; }
+.ok { --sc-ton: #1e7a3c; }
+.warnung { --sc-ton: #8a5200; }
+.fehler { --sc-ton: #a3111d; }
+
+:root[data-theme="dark"] .chip { --sc-ton: #a1a1aa; }
+:root[data-theme="dark"] .neutral { --sc-ton: #a1a1aa; border-color: #2c2c31; }
+:root[data-theme="dark"] .neutral .punkt { background: #71717a; }
+:root[data-theme="dark"] .info { --sc-ton: #8ab6ec; }
+:root[data-theme="dark"] .ok { --sc-ton: #7ee0a0; }
+:root[data-theme="dark"] .warnung { --sc-ton: #d9a032; }
+:root[data-theme="dark"] .fehler { --sc-ton: #f08a8f; }

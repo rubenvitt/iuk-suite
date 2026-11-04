@@ -39,7 +39,7 @@ export function GruppenVerwaltung({ gruppen }: { gruppen: GruppeDTO[] }) {
         rowKey="id"
         aria-label="Gruppen"
         dataSource={gruppen}
-        leer={{ nichts: "Noch keine Gruppen." }}
+        leer={{ nichts: "Noch keine Gruppen", figur: "wartung" }}
         karte={{ titel: "name", aktionen: "aktion" }}
         columns={[
           { title: "Name", key: "name", sorter: nachText<GruppeDTO>((g) => g.name), render: (_: unknown, g: GruppeDTO) => <strong>{g.name}</strong> },

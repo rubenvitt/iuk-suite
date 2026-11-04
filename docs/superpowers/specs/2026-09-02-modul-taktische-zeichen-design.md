@@ -193,7 +193,7 @@ Katalogsuche 133 KB Baukasten-Code mitzahlte.
 ## 2. Routen und Flächen
 
 `shell: "full"` → `FullShell` legt `ARBEITSDICHTE` 44/48 automatisch um den Inhalt
-(`FullShell.tsx:36`, `theme.ts:244`). **An keinem antd-Bedienelement wird `size` gesetzt** (Falle 4).
+(`FullShell`, Element `Arbeitsdichte`; `theme.ts:244`). **An keinem antd-Bedienelement wird `size` gesetzt** (Falle 4).
 Eigenes Markup erbt den Token nicht und trägt `minHeight: 44` als Literal (Vorbild
 `Seitenkopf.tsx:154`). `SCHREIBTISCHDICHTE` steht dem Modul nicht zu — sie ist eine
 Betreiberentscheidung vom 2026-08-28 für radios Verwaltung.
@@ -235,7 +235,7 @@ App-Liste im Flight-Payload.
 
 > **Das rahmenlose Layout setzt dieselbe Bediendichte wie `FullShell`.** `(rahmenlos)/layout.tsx`
 > umschließt seinen Inhalt mit demselben `ConfigProvider`-Dichtewert (`ARBEITSDICHTE`, 44/48), den
-> `FullShell.tsx:36` legt. Ohne das stünden antd-Bedienelemente auf `/offline` auf 56/72, während
+> `FullShell` (Element `Arbeitsdichte`) legt. Ohne das stünden antd-Bedienelemente auf `/offline` auf 56/72, während
 > das eigene Markup derselben Insel seine 44 als Literal trägt — dieselbe Fläche in zwei Größen,
 > und kein Gate sieht es.
 

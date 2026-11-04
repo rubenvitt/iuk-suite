@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Card, Empty } from "antd";
+import { Card } from "antd";
+import { Ruhezustand } from "@/core/ruhe";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../_db/client";
 import { ampelTon, fmtVerfall } from "../../../_lib/format";
@@ -105,7 +106,7 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
 
       <Card title="Chargen im Handlager" style={{ marginBlockEnd: SPACE.lg }}>
         {chargen.length === 0 ? (
-          <Empty description="Keine auffällige Charge im Handlager." />
+          <Ruhezustand figur="erledigt" titel="Keine auffällige Charge im Handlager" groesse="klein" />
         ) : (
           <HandlagerVerfallTabelle zeilen={chargenZeilen} />
         )}
@@ -121,7 +122,7 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
       */}
       <Card title="An Einheiten und in der Entnahmebox gemeldet">
         {verfallZeilen.length === 0 ? (
-          <Empty description="Keine auffällige Verfallsmeldung." />
+          <Ruhezustand figur="erledigt" titel="Keine auffällige Verfallsmeldung" groesse="klein" />
         ) : (
           <OrtVerfallTabelle zeilen={verfallZeilen} />
         )}

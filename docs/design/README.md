@@ -534,10 +534,20 @@ später eine eigene (Instrumententafel). Die beiden bleiben getrennt.
   Ausnahme ist `feedback`, dessen eigener Entwurf (§4.7) den versalen Kicker verlangt.
 - **Bewegung:** eine Feder (`BEWEGUNG` in `core/theme/bewegung.ts`, als CSS `--iuk-feder` und
   `--iuk-feder-dauer` in `globals.css`), antds Motion-Tokens laufen darauf. Knöpfe geben beim Drücken
-  nach (`scale(0.97)`). `prefers-reduced-motion: reduce` schaltet jede Bewegung suiteweit ab;
-  `bewegung.test.ts` hält Kurve, Token und CSS zusammen.
+  nach (`scale(0.97)`), klickbare Karten schwächer (`scale(0.985)`). Unter `FullShell` blendet der Inhalt
+  beim Pfadwechsel in 180ms über (`core/shell/Seitenwechsel.tsx`, View Transitions); das Menü steht
+  still, Suchparameter und `router.refresh()` bewegen nichts, `MinimalShell` und Kiosk wechseln ohne
+  Bewegung. `prefers-reduced-motion: reduce` schaltet jede Bewegung suiteweit ab;
+  `bewegung.test.ts` und `seitenwechsel.test.tsx` halten Kurve, Token und CSS zusammen.
 - **Haarlinie-Figuren** (`@lucasmarkes/hairline`) nur in Ruhezuständen: leere Listen, Anmeldung, 403/404,
-  leeres Portal, Fertig-Momente. Nie in Tabellen, Formularen oder Flyins.
+  leeres Portal, Fertig-Momente. Nie in Tabellen, Formularen oder Flyins. **Etappe 3:** `Ruhezustand`
+  aus `core/ruhe` (serversicher): Figur, eine kurze Zeile, höchstens **eine** Aktion — kein Erklärtext.
+  Die Figur kommt als **Schlüssel** (`figur="lagerbuch"`, `"erledigt"`, `"fehlt"` …), nie als Komponente
+  (Falle 6); die Zuordnung Modul/Lage → Figur steht allein in `core/ruhe/figuren.ts`, jede Figur ist ein
+  eigener nachgeladener Chunk. Eine Liste bekommt ihn über `Kartentabelle` mit `leer.figur`: nur wenn die
+  **ganze** Liste leer und nichts gefiltert ist — ein leerer Filter bleibt der Satz in der Tabelle. Die
+  Fläche ist im Server-HTML reserviert (5:4), die Platten nehmen die Farbe des abgelesenen Untergrunds,
+  und bei reduzierter Bewegung steht die Figur still (kein Spiel, `pointer-events: none`).
 - **Navigation (Etappe 2):** `FullShell` trägt ein Menü mit zwei Ebenen statt Kopfzeile und Seitenleiste
   (`core/shell/MenueRahmen.tsx`, `Navigator.tsx`): oben die App, darunter ihre Seiten; ein Tipp auf die App
   schiebt „Alle Apps" herein. Desktop dauerhaft links, Telefon als Blatt von unten hinter dem Ort-Knopf.
@@ -560,3 +570,16 @@ später eine eigene (Instrumententafel). Die beiden bleiben getrennt.
     `core/seite/zentrierung.test.ts` riegelt ab. Ausgenommen (mit Grund in der Liste) sind Flächen
     außerhalb von `FullShell`: Telefon, Kiosk, öffentliche Zettel und Druckblätter.
   - Die Polsterung (16px) trägt `MenueRahmen`, nicht der Typ.
+- **Bausteine (Etappe 3):** drei serversichere Teile in `core`, je mit eigener Tonpalette über `--sc-ton`
+  statt `--ant-*` (Falle 2):
+  - `Statuschip` (`core/status`) — Pille mit Haarlinie, weicher Fläche und Punkt (oder Zeichen); Töne
+    `neutral`, `info`, `ok`, `warnung`, `fehler`. **`fehler` ist der einzige rote Ton** und gilt nur
+    echten Missständen (abgelaufen, defekt), nie einer fachlichen Wertung (Falle 3). Taugt in RSC und in
+    `render` einer `Datentabelle`. Modul-Chips sind Adapter darauf (`lagerbuch/_ui/Chip.tsx`).
+  - `Filterchips` (`core/filterchips`, Client) — Pillenreihe über Listen statt `Segmented`; Einfachwahl
+    als `radiogroup` mit Pfeiltasten, Mehrfachwahl als Umschaltknöpfe, optional mit Zahl. 44px
+    Tippfläche, am Telefon scrollt die Reihe in sich. Setzt eine Pille einen Spaltenfilter, dann
+    **denselben** Zustand, den der Spaltenkopf zeigt (Vorbild Lagerbuch, Geräte).
+  - `Kennzahlen`/`Kennzahl` (`core/kennzahl`) — freistehende Zahl (`SCHRIFT.zahl`) mit Beschriftung,
+    keine Karte; zwischen den Zahlen eine Haarlinie, die am Anfang jeder umbrochenen Zeile wegfällt. Die
+    Zahl trägt Tinte, der Befund steht als Punkt vor der Beschriftung. Textwerte mit `text` (20px).

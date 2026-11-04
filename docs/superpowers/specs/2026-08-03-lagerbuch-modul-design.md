@@ -1078,7 +1078,7 @@ Nachfahren, und ihr einziger gerenderter Zustand ist admin-only (Tabellenzeile o
 Ende dieses Abschnitts).
 
 **Warum `(druck)` keine Shell bekommt.** `FullShell` ist `<Layout style={{minHeight:"100vh"}}>` +
-`<SuiteHeader>` + `<Content style={{padding: SPACE.lg}}>` (`core/shell/FullShell.tsx:20-22`). Im
+`<SuiteHeader>` + `<Content style={{padding: SPACE.lg}}>` (damals `core/shell/FullShell.tsx`, `<Content>`). Im
 Druck bleibt `minHeight:100vh` im Fluss und erzeugt leere Folgeseiten hinter dem Bogen, und der
 App-Switcher der Kopfzeile würde mitgedruckt. Das ist derselbe Grund, aus dem `feedback` seine
 Aushang-Druckansicht in eine eigene Group mit eigenem Layout gelegt hat
@@ -7322,7 +7322,7 @@ Drei Gründe, warum das **nicht** mitwandern darf:
 1. **CSS Modules schreiben ausschließlich Klassenselektoren um.** `body *` bleibt global — die Regel
    griffe auf **jeder** Druckseite der Suite und leerte jede andere Druckansicht (feedback-Aushang,
    files-Zugangslinks; Falle 43).
-2. **`visibility: hidden` reserviert den Platz.** `Layout { minHeight: 100vh }` (`FullShell.tsx:19`)
+2. **`visibility: hidden` reserviert den Platz.** `Layout { minHeight: 100vh }` (damals `FullShell`, heute `.rahmen` in `core/shell/menue.module.css`)
    bliebe im Fluss und erzeugte leere Folgeseiten hinter dem Bogen. §2.9 hat deshalb die Shell
    entfernt — die Regel selbst bleibt trotzdem falsch.
 3. ⚠️ **`.etikett input { display: none }` (`:282`) trifft ein Element, das es nicht mehr geben
@@ -7589,7 +7589,7 @@ Gründen, von denen vier belegt sind:
    `height:100vh; height:100dvh; overflow:hidden; display:flex; flex-direction:column`
    (`lagerbuch/src/app/globals.css:129`) mit fester Tab-Leiste unten (`:147-150`,
    `HelferFrame.tsx:11-29`). `FullShell` ist `<Layout style={{minHeight:"100vh"}}>` + `<SuiteHeader>`
-   + `<Content style={{padding: SPACE.lg}}>` (`core/shell/FullShell.tsx:20-22`), `headerHeight` fest
+   + `<Content style={{padding: SPACE.lg}}>` (damals `core/shell/FullShell.tsx`, `<Content>`), `headerHeight` fest
    64 (`core/theme/theme.ts:43`), `SPACE.lg` = 16 (`core/theme/tokens.ts:53`). Ein `100dvh`-Kind in
    diesem Content ergibt **64 + 32 = 96px Überlauf** — die Tab-Leiste wandert unter den
    Bildschirmrand, und damit ist die Umschaltung zwischen Entnahme und Fahrzeug-Check auf einem Handy
@@ -9402,7 +9402,7 @@ eingelöst in §6.1.2 und §6.2.2):
 — `body *` bliebe global und leerte jede andere Druckseite der Suite (feedback-Aushang,
 files-Zugangslinks, Falle 43). Die Sichtbarkeitsumkehr wird ersatzlos durch die eigene Route-Gruppe
 ersetzt: ohne Shell gibt es nichts auszublenden. Damit entfällt auch der zweite Teil des Problems —
-`Layout{minHeight:100vh}` (`FullShell.tsx:19`) bliebe unter `visibility:hidden` im Fluss und erzeugte
+`Layout{minHeight:100vh}` (damals `FullShell`, heute `.rahmen` in `core/shell/menue.module.css`) bliebe unter `visibility:hidden` im Fluss und erzeugte
 leere Folgeseiten hinter dem Bogen.
 
 **`druck.css` — die vier Blöcke, die nicht fehlen dürfen** (Vorbild
@@ -10706,7 +10706,7 @@ unbezeugt.
 2. **Der Dev-Login braucht jetzt Gruppen.** Zwölf der 13 Alt-Specs melden sich über einen
    Demo-Login an, der hart `isAdmin: true` liefert (`src/auth.config.ts:41-55`). Der Suite-Provider
    nimmt `email` **und** `groups` (`core/auth/config.ts:55-68`), und `devLogin`
-   (`iuk-suite/e2e/fixtures.ts:3-9`) füllt beide Felder. → Jeder Verwaltungs-Spec ruft
+   (`iuk-suite/e2e/fixtures.ts`, `devLogin`) füllt beide Felder. → Jeder Verwaltungs-Spec ruft
    `devLogin(page, { host: "lagerbuch.localtest.me", groups: "<Wert von SUITE_ADMIN_GROUP_LAGERBUCH>" })`.
    ⚠️ **Ohne `groups` ist der Lauf nicht „fast richtig", sondern prüft das Gegenteil:** er bezeugt den
    404 aus §11.5, Zustand 19.

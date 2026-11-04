@@ -441,9 +441,8 @@ export function BoxAnsicht({
         aria-label={`Inhalt ${boxName}`}
         dataSource={inhalt}
         leer={{
-          nichts: "Die Entnahmebox ist leer. Was hier landet, kommt aus einem "
-            + "Fahrzeug oder einer Tasche — über „In die Entnahmebox buchen“ oder "
-            + "am Telefon über den Reiter „Box“.",
+          nichts: "Die Entnahmebox ist leer",
+          figur: "lagerbuch",
           gefiltert: "Kein Posten passt zum Filter.",
         }}
         columns={inhaltSpaltenliste}

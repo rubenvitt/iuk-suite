@@ -553,7 +553,7 @@ zeigt keine Daten.
 - **Unterseiten** (Auswertung, Trend, Vergleich, Aushang): Breadcrumb immer, letzter Punkt =
   Seitentitel, vorletzter = Gruppenname mit Link aufs Cockpit. Das ist der Zurück-Weg; ein zusätzlicher
   „← Zurück"-Knopf entfällt (zwei Rückwege sind ein Rückweg zu viel).
-- **Modultitel im Shell-Header wird klickbar** (`FullShell.tsx:39`): `<strong>` bleibt und behält
+- **Modultitel im Shell-Header wird klickbar** (damals `FullShell`, heute `core/shell/SuiteHeader.tsx`, `data-testid="module-title"`): `<strong>` bleibt und behält
   `data-testid="module-title"` (der Keystone-Test fragt es dort ab), wird aber in ein `next/link` auf
   `moduleUrl(moduleKey) ?? "/"` gewickelt, `color: inherit; text-decoration: none`. Behebt „kein
   klickbarer Modultitel" für alle Module.
@@ -857,8 +857,8 @@ Zwei Entscheidungen, weil `aggregation.ts:35-41` beide Skalen in denselben Mitte
 `Descriptions.Item`, `List.Item`, `Card.Meta`, `Collapse.Panel`, `Breadcrumb.Item`, `Input.Group`,
 `Input.TextArea`, `Space.Compact`, `Statistic.Countdown`, `Table.Summary`, `Tag.CheckableTag`,
 `Badge.Ribbon`, `Layout.Header`, `Grid.useBreakpoint` → HTTP 500, den `pnpm build` nicht sieht.
-`Layout.Header`/`Content` nur als Named-Import aus `antd/es/layout/layout` (so macht es
-`FullShell.tsx:6` bereits, mit Begründung im Kommentar).
+`Layout.Header`/`Content` nur als Named-Import aus `antd/es/layout/layout` (so machen es
+`core/shell/SuiteHeader.tsx` mit `Header` und `core/shell/MenueRahmen.tsx` mit `Content`).
 **Falle 2 — Funktions-Props.** Eine Server Component kann `columns[].render`, `onRow`, `onChange`,
 `onConfirm`, `Statistic.formatter`, `Progress.format`, `Collapse.onChange` nicht übergeben.
 „`Table` ist sicher" heißt nur: die Komponente selbst ist unproblematisch — `columns` mit `render`

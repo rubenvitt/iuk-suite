@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card } from "antd";
+import { Kennzahl, Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../_db/client";
 import { gruppenAuswahl } from "../_lib/ansicht";
@@ -14,14 +15,9 @@ import s from "../_ui/wartung.module.css";
 
 export const dynamic = "force-dynamic";
 
+/** Eine Kennzahl, die zu ihrer Liste führt; bei null kein Befund (kein Punkt). */
 function Kpi({ zahl, text, farbe, href }: { zahl: number; text: string; farbe: "rot" | "gelb"; href: string }) {
-  const klasse = zahl === 0 ? "" : farbe === "rot" ? s.kpiRot : s.kpiGelb;
-  return (
-    <Link href={href} className={`${s.kpi} ${klasse}`}>
-      <span className={s.kpiZahl}>{zahl}</span>
-      <span className={s.neben}>{text}</span>
-    </Link>
-  );
+  return <Kennzahl wert={zahl} label={text} ton={zahl === 0 ? undefined : farbe === "rot" ? "fehler" : "warnung"} href={href} />;
 }
 
 /** Übersicht der Verwalter: was fällig ist und was nicht einsatzbereit ist. Wer nichts verwaltet, prüft. */
@@ -40,12 +36,12 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
   return (
     <>
       <Seitenkopf titel="Übersicht" aktionen={<GruppenFilter wahl={auswahl.wahl} gewaehlt={auswahl.gewaehlt} />} />
-      <div className={s.kpis}>
+      <Kennzahlen aria-label="Lage">
         <Kpi zahl={ueber} text="Fristen überfällig" farbe="rot" href={`/geraete${q}`} />
         <Kpi zahl={faellig.length - ueber} text="Fristen in den nächsten 30 Tagen" farbe="gelb" href={`/geraete${q}`} />
         <Kpi zahl={geraete.filter((g) => g.zustand === "defekt").length} text="Geräte nicht einsatzbereit" farbe="rot" href={`/maengel${q}`} />
         <Kpi zahl={offen} text="Mängel offen" farbe="gelb" href={`/maengel${q}`} />
-      </div>
+      </Kennzahlen>
       <Card title="Was steht an">
         {faellig.length === 0 ? (
           <p className={s.neben} style={{ margin: 0 }}>Alles im Plan.</p>

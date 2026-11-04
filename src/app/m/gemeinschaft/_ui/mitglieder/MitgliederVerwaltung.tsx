@@ -84,7 +84,7 @@ export function MitgliederVerwaltung({ zeilen, basis }: { zeilen: MitgliedZeile[
         rowKey="id"
         aria-label="Mitglieder"
         dataSource={zeilen}
-        leer={{ nichts: "Noch keine Mitglieder. Leg mit „Mitglied anlegen“ das erste an." }}
+        leer={{ nichts: "Noch keine Mitglieder", figur: "gemeinschaft" }}
         karte={{ titel: "name", aktionen: "aktion" }}
         columns={[
           {

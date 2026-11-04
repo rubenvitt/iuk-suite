@@ -329,13 +329,13 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     expect(query("tr[data-row-key='f1']").textContent).toContain("Standard-RTW");
     expect(query("tr[data-row-key='f1']").textContent).toContain("12 Positionen · 3 Fächer");
     expect(query("tr[data-row-key='f1']").textContent).toContain("30.07.2026, 10:00");
-    expect(query(`tr[data-row-key='f1'] .${s.rot}`).textContent).toContain("2 unter Soll");
-    expect(query(`tr[data-row-key='f2'] .${s.gelb}`).textContent).toContain("1 läuft ab");
-    expect(query(`tr[data-row-key='f2'] .${s.ok}`).textContent).toContain("auf Soll");
+    expect(query(`tr[data-row-key='f1'] [data-statuschip=fehler]`).textContent).toContain("2 unter Soll");
+    expect(query(`tr[data-row-key='f2'] [data-statuschip=warnung]`).textContent).toContain("1 läuft ab");
+    expect(query(`tr[data-row-key='f2'] [data-statuschip=ok]`).textContent).toContain("auf Soll");
     // Der Verfallschip sitzt in Spalte 4, der Statuschip in Spalte 5.
-    expect(query(`tr[data-row-key='f2'] td:nth-child(5) .${s.gelb}`).textContent)
+    expect(query(`tr[data-row-key='f2'] td:nth-child(5) [data-statuschip=warnung]`).textContent)
       .toContain("1 läuft ab");
-    expect(query(`tr[data-row-key='f3'] td:nth-child(6) .${s.grau}`).textContent)
+    expect(query(`tr[data-row-key='f3'] td:nth-child(6) [data-statuschip=neutral]`).textContent)
       .toContain("inaktiv");
     expect(query("tr[data-row-key='f4']").textContent).toContain("noch nie geprüft");
   });
@@ -362,20 +362,20 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     // f3 traegt BEIDES — und dann beide Chips, jeder in seinem eigenen Ton.
     // Ein einziger Chip muesste sich fuer einen Ton entscheiden und wuerde die
     // andere Haelfte verschweigen.
-    expect(query(`tr[data-row-key='f3'] td:nth-child(5) .${s.rot}`).textContent)
+    expect(query(`tr[data-row-key='f3'] td:nth-child(5) [data-statuschip=fehler]`).textContent)
       .toContain("2 abgelaufen");
-    expect(query(`tr[data-row-key='f3'] td:nth-child(5) .${s.gelb}`).textContent)
+    expect(query(`tr[data-row-key='f3'] td:nth-child(5) [data-statuschip=warnung]`).textContent)
       .toContain("1 läuft ab");
 
     // f2 nur warnend — KEIN roter Chip.
-    expect(verfallSpalte("f2").querySelector(`.${s.rot}`)).toBeNull();
-    expect(query(`tr[data-row-key='f2'] td:nth-child(5) .${s.gelb}`).textContent)
+    expect(verfallSpalte("f2").querySelector(`[data-statuschip=fehler]`)).toBeNull();
+    expect(query(`tr[data-row-key='f2'] td:nth-child(5) [data-statuschip=warnung]`).textContent)
       .toContain("1 läuft ab");
 
     // f1 gepflegt und unauffaellig, f4 ueberhaupt nicht gepflegt.
-    expect(query(`tr[data-row-key='f1'] td:nth-child(5) .${s.ok}`).textContent)
+    expect(query(`tr[data-row-key='f1'] td:nth-child(5) [data-statuschip=ok]`).textContent)
       .toContain("im grünen Bereich");
-    expect(query(`tr[data-row-key='f4'] td:nth-child(5) .${s.grau}`).textContent)
+    expect(query(`tr[data-row-key='f4'] td:nth-child(5) [data-statuschip=neutral]`).textContent)
       .toContain("0 von 1 erfasst");
   });
 
@@ -406,11 +406,11 @@ describe("FahrzeugeListe — Spalten und Status", () => {
       />,
     );
 
-    expect(query(`tr[data-row-key='halb'] td:nth-child(5) .${s.grau}`).textContent)
+    expect(query(`tr[data-row-key='halb'] td:nth-child(5) [data-statuschip=neutral]`).textContent)
       .toContain("1 von 8 erfasst");
-    expect(query(`tr[data-row-key='halb'] td:nth-child(5)`).querySelector(`.${s.ok}`))
+    expect(query(`tr[data-row-key='halb'] td:nth-child(5)`).querySelector(`[data-statuschip=ok]`))
       .toBeNull();
-    expect(query(`tr[data-row-key='ganz'] td:nth-child(5) .${s.ok}`).textContent)
+    expect(query(`tr[data-row-key='ganz'] td:nth-child(5) [data-statuschip=ok]`).textContent)
       .toContain("im grünen Bereich");
     // Ohne Soll: kein Chip, nur der Gedankenstrich.
     expect(query("tr[data-row-key='ohneSoll'] td:nth-child(5)").textContent).toBe("—");
@@ -440,8 +440,8 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     );
 
     const spalte = query("tr[data-row-key='luecke'] td:nth-child(5)");
-    expect(spalte.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
-    expect(spalte.querySelector(`.${s.grau}`)!.textContent).toContain("1 von 8 erfasst");
+    expect(spalte.querySelector(`[data-statuschip=fehler]`)!.textContent).toContain("1 abgelaufen");
+    expect(spalte.querySelector(`[data-statuschip=neutral]`)!.textContent).toContain("1 von 8 erfasst");
   });
 
   /** Gegenprobe: vollstaendig erfasst heisst KEIN grauer Chip daneben. */
@@ -457,8 +457,8 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     );
 
     const spalte = query("tr[data-row-key='ganz'] td:nth-child(5)");
-    expect(spalte.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
-    expect(spalte.querySelector(`.${s.grau}`)).toBeNull();
+    expect(spalte.querySelector(`[data-statuschip=fehler]`)!.textContent).toContain("1 abgelaufen");
+    expect(spalte.querySelector(`[data-statuschip=neutral]`)).toBeNull();
   });
 
   /**
@@ -643,9 +643,9 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
     const offen = query("tr[data-row-key='f2'] td:nth-child(2)");
-    expect(offen.querySelector(`.${s.grau}`)).not.toBeNull();
-    expect(offen.querySelector(`.${s.gelb}`)).toBeNull();
-    expect(offen.querySelector(`.${s.rot}`)).toBeNull();
+    expect(offen.querySelector(`[data-statuschip=neutral]`)).not.toBeNull();
+    expect(offen.querySelector(`[data-statuschip=warnung]`)).toBeNull();
+    expect(offen.querySelector(`[data-statuschip=fehler]`)).toBeNull();
     expect(offen.querySelector("[data-zeichen]")).toBeNull();
 
     expect(query("tr[data-row-key='f4'] td:nth-child(2) [data-zeichen]")
@@ -740,8 +740,9 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
 
   it("zeigt ohne Daten den ungefilterten Anlegehinweis", async () => {
     await mount(<FahrzeugeListe zeilen={[]} />);
-    expect(query("tr.ant-table-placeholder").textContent)
-      .toBe("Noch keine Fahrzeuge und Taschen. Lege oben die erste Einheit an.");
+    // Die GANZE Liste ist leer: ein Ruhezustand mit Figur statt der Tabelle (`core/ruhe`).
+    expect(query('[data-rolle="ruhezustand"]').textContent).toBe("Noch keine Fahrzeuge und Taschen");
+    expect(exists("tr.ant-table-placeholder")).toBe(false);
   });
 });
 

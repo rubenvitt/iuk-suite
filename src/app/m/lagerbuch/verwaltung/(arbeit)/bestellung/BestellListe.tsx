@@ -352,7 +352,8 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
         filter={spaltenFilter}
         onFilter={setSpaltenFilter}
         leer={{
-          nichts: "Kein Unterbestand und keine offene Bestellmarkierung.",
+          nichts: "Nichts zu bestellen",
+          figur: "erledigt",
           gefiltert: "Kein Vorschlag passt zu Suche und Filter.",
           aktiv: sucheAktiv || filterAktiv(spaltenFilter),
         }}

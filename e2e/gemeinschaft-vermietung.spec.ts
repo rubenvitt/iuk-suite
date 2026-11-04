@@ -75,7 +75,7 @@ test("Anfrage ohne Login, Zusage und zurückgenommene Zusage auf der Statusseite
 
   // Zusage zurücknehmen mit Begründung.
   await oeffne(leitung, "/vermietung/anfragen");
-  await klickeWennRuhig(leitung.getByText("Zugesagt (", { exact: false }));
+  await klickeWennRuhig(leitung.getByRole("radio", { name: /^Zugesagt \d/ }));
   await klickeWennRuhig(leitung.locator("tr", { hasText: anlass }).getByRole("button", { name: anlass }));
   await klickeWennRuhig(leitung.getByRole("button", { name: "Zusage zurücknehmen" }));
   await leitung.locator("#begruendung").fill("Wasserschaden in der Bar, tut uns leid.");
@@ -113,7 +113,7 @@ test("Vertrag als PDF ablegen und herunterladen; nur Leitung, nur PDF", async ({
   await oeffne(page, "/vermietung/anfragen");
   await klickeWennRuhig(page.locator("tr", { hasText: anlass }).getByRole("button", { name: "Zusagen" }));
   await expect(page.getByText(/^Zugesagt\./)).toBeVisible();
-  await klickeWennRuhig(page.getByText("Zugesagt (", { exact: false }));
+  await klickeWennRuhig(page.getByRole("radio", { name: /^Zugesagt \d/ }));
   await klickeWennRuhig(page.locator("tr", { hasText: anlass }).getByRole("button", { name: anlass }));
   const kasten = page.getByTestId("vertrag");
   await expect(kasten).toBeVisible();

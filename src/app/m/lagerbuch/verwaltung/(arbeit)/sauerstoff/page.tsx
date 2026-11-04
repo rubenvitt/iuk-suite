@@ -1,6 +1,4 @@
 import type { ReactNode } from "react";
-import { Col, Row } from "antd";
-import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../../_db/client";
 import type { Leser } from "../../../_lib/lesepfade/bestand";
 import {
@@ -10,6 +8,7 @@ import {
 } from "../../../_lib/lesepfade/o2";
 import { fmtTs } from "../../../_lib/zeit";
 import { Kachel } from "../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import {
   SauerstoffListe,
@@ -50,18 +49,14 @@ export function sauerstoffSeitenInhalt(db: Leser): ReactNode {
         titel="Sauerstoff"
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel zahl={aktive.length} beschriftung="Aktive Flaschen" />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={zuWechseln}
-            beschriftung="Wechsel fällig"
-            ton={zuWechseln ? "rot" : "ok"}
-          />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        <Kachel zahl={aktive.length} beschriftung="Aktive Flaschen" />
+        <Kachel
+          zahl={zuWechseln}
+          beschriftung="Wechsel fällig"
+          ton={zuWechseln ? "rot" : "ok"}
+        />
+      </Kennzahlen>
 
       <SauerstoffListe zeilen={zeilen} lagerorte={lagerorte} />
     </>

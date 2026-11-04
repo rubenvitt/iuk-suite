@@ -328,6 +328,35 @@ describe("GeraeteListe", () => {
     expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 4");
   });
 
+  it("die Schnellwahl setzt dieselben Spaltenfilter und zählt mit", async () => {
+    await mount(<GeraeteListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
+    const pillen = () => queryAll("[role=radiogroup][aria-label=Schnellwahl] [role=radio]");
+    expect(pillen().map((p) => p.textContent)).toEqual(["Alle 4", "Fällig 2", "Ohne Datum 2", "Inaktiv 2"]);
+    expect(query("[role=radio][aria-checked=true]").dataset.wert).toBe("alle");
+
+    await clickElement(pillen()[1]);
+    expect(zeilenIds().sort()).toEqual(["med-faellig", "obj-faellig"]);
+    await clickElement(pillen()[3]);
+    expect(zeilenIds().sort()).toEqual(["med-ohne-datum", "obj-ohne-datum"]);
+    await clickElement(pillen()[0]);
+    expect(zeilenIds()).toHaveLength(4);
+
+    // Ein Haken im Kopf, der keiner Pille entspricht: keine Pille gewählt.
+    await spaltenFilter("Status", "aktiv");
+    expect(queryAll("[role=radio][aria-checked=true]")).toHaveLength(0);
+  });
+
+  it("die Schnellwahl zählt, was nach dem Klick stünde, samt anderer Spaltenfilter", async () => {
+    await mount(<GeraeteListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
+    const pillen = () => queryAll("[role=radiogroup][aria-label=Schnellwahl] [role=radio]");
+    await spaltenFilter("Klasse", "Medizin");
+    expect(pillen().map((p) => p.textContent)).toEqual(["Alle 2", "Fällig 1", "Ohne Datum 1", "Inaktiv 1"]);
+
+    await clickElement(pillen()[1]);
+    expect(zeilenIds()).toEqual(["med-faellig"]);
+    expect(pillen().map((p) => p.textContent)).toEqual(["Alle 2", "Fällig 1", "Ohne Datum 1", "Inaktiv 1"]);
+  });
+
   /**
    * ⚠️ DER BEWEIS, DASS DIE FAELLIGKEIT NICHT UEBER DEN CHIPTEXT SORTIERT.
    * „MTK in 3 T" stuende als Zeichenkette vor „abgelaufen (2 T)"; nur ueber die
@@ -347,7 +376,7 @@ describe("GeraeteListe", () => {
 
   it("unterscheidet ungefilterten und gefilterten Leertext samt X-von-Y", async () => {
     await mount(<GeraeteListe zeilen={[]} lagerorte={LAGERORTE} />);
-    expect(document.body.textContent).toContain("Noch keine Geräte. Lege oben das erste an.");
+    expect(document.body.textContent).toContain("Noch keine Geräte");
     expect(exists(`.${s.filtertreffer}`)).toBe(false);
     await unmount();
 
@@ -671,7 +700,7 @@ describe("Geräte-Übersichtsseite als Server Component", () => {
     // noch hatte, weil sie auf ein Vorkommen IRGENDWO prueft. `matchAll` mit `/g`
     // haelt diesen Schutz: jede Importzeile bekommt eine eigene Pruefung.
     const antdImports = [...page.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']antd["']/g)];
-    expect(antdImports.length).toBeGreaterThan(0);
+    // Seit `Kennzahlen` (Haarlinie) braucht die Seite gar kein antd mehr; steht wieder eines da, nur diese.
     for (const [, gruppe] of antdImports) {
       const antdNamen = gruppe.split(",").map((n) => n.trim()).filter(Boolean);
       for (const name of antdNamen) {

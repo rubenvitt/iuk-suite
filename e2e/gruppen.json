@@ -1,7 +1,7 @@
 [
   {
     "name": "eimer-1",
-    "specs": "e2e/datumswaehler-schmal.spec.ts e2e/gemeinschaft-mitglieder.spec.ts e2e/kommplan-editor.spec.ts e2e/kommplan.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-check-angemeldet.spec.ts e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts e2e/lagerbuch-statistik.spec.ts e2e/radio-kiosk.spec.ts e2e/schichtplan.spec.ts e2e/ueberlauf-mobil.spec.ts"
+    "specs": "e2e/datumswaehler-schmal.spec.ts e2e/gemeinschaft-mitglieder.spec.ts e2e/kommplan-editor.spec.ts e2e/kommplan.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-check-angemeldet.spec.ts e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts e2e/lagerbuch-statistik.spec.ts e2e/radio-kiosk.spec.ts e2e/schichtplan.spec.ts e2e/seitenwechsel.spec.ts e2e/ueberlauf-mobil.spec.ts"
   },
   {
     "name": "eimer-2",
@@ -25,7 +25,7 @@
   },
   {
     "name": "eimer-7",
-    "specs": "e2e/datumsfeld-enter.spec.ts e2e/einsatzbuch.spec.ts e2e/flyin-breite.spec.ts e2e/gemeinschaft-planung.spec.ts e2e/gemeinschaft-vermietung.spec.ts e2e/helfer.spec.ts e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-maengel.spec.ts e2e/lagerbuch-ruecklauf.spec.ts e2e/lagerbuch-zellentext.spec.ts e2e/portal.spec.ts e2e/uav.spec.ts"
+    "specs": "e2e/datumsfeld-enter.spec.ts e2e/einsatzbuch.spec.ts e2e/flyin-breite.spec.ts e2e/gemeinschaft-planung.spec.ts e2e/gemeinschaft-vermietung.spec.ts e2e/helfer.spec.ts e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-maengel.spec.ts e2e/lagerbuch-ruecklauf.spec.ts e2e/lagerbuch-zellentext.spec.ts e2e/portal.spec.ts e2e/ruhezustaende.spec.ts e2e/uav.spec.ts"
   },
   {
     "name": "eimer-8",

@@ -52,12 +52,7 @@
 .zeile { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .zweiSpalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; align-items: start; }
 
-/* Chips: Fläche und Text als Paar, nie antds Tag-Vorgabe. */
-.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; }
-.chip.ok { color: var(--gp-ok-text); background: var(--gp-ok-flaeche); }
-.chip.gelb { color: var(--gp-gelb-text); background: var(--gp-gelb-flaeche); }
-.chip.grau { color: var(--gp-grau-text); background: var(--gp-grau-flaeche); }
-.chip.projekt { color: var(--gp-grau-text); background: transparent; border: 1px dashed var(--gp-grau-text); line-height: 18px; }
+/* Chips: `Statuschip` aus `core/status` (Haarlinie, Etappe 3), über `Chip` in `teile.tsx`. */
 
 /* KPI-Kachel: 4px Kante in der Ampelfarbe, sonst neutral. Die Kachel ist ein Link (44px Tapfläche). */
 .kacheln { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; }

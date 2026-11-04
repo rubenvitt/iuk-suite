@@ -1,17 +1,15 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { mount, unmount, query, queryAll } from "@/app/m/qr/_lib/test-dom";
-import { Chip } from "./Chip";
-import s from "./verwaltung.module.css";
+import { Chip, TON } from "./Chip";
 
 afterEach(async () => { await unmount(); });
 
 describe("Chip", () => {
-  it("traegt die Basisklasse und die Tonklasse", async () => {
+  it("ist der Statuschip aus core, mit der Ampel auf dessen Toene abgebildet", async () => {
     await mount(<Chip ton="rot">unter Mindestbestand</Chip>);
-    const el = query("span");
-    expect(el.className.split(" ")).toContain(s.chip);
-    expect(el.className.split(" ")).toContain(s.rot);
+    expect(query("span").dataset.statuschip).toBe("fehler");
+    expect(TON).toEqual({ ok: "ok", gelb: "warnung", rot: "fehler", grau: "neutral" });
   });
 
   it.each(["rot", "gelb", "ok", "grau"] as const)("kennt den Ton %s", async (ton) => {
@@ -31,7 +29,7 @@ describe("Chip", () => {
   it("nimmt ein Zeichen entgegen und rendert es aria-hidden neben dem Text", async () => {
     await mount(<Chip ton="rot" zeichen="warnung">niedriger Druck</Chip>);
     const svg = query("span svg");
-    expect(svg.getAttribute("aria-hidden")).toBe("true");
+    expect(svg.closest("[aria-hidden=true]")).not.toBeNull();
     expect(query("span").textContent).toContain("niedriger Druck");
   });
 

@@ -264,7 +264,7 @@ describe("SauerstoffListe", () => {
     // nacktes „niedriger Druck" liesse offen, welche der beiden Vorgaben gilt.
     expect(zeile.textContent).toContain("Wechsel fällig – ab 80 bar");
     expect(zeile.textContent).toContain("Wechsel ab 40 %");
-    expect(zeile.querySelector(`.${s.rot}`)).not.toBeNull();
+    expect(zeile.querySelector(`[data-statuschip=fehler]`)).not.toBeNull();
   });
 
   it("zeigt status:null exakt als keine Messung, nie als 0 Prozent oder rot", async () => {
@@ -273,7 +273,7 @@ describe("SauerstoffListe", () => {
     expect(zeile.textContent).toContain("keine Messung");
     expect(zeile.textContent).not.toContain("0 %");
     expect(zeile.querySelector(".ant-progress")).toBeNull();
-    expect(zeile.querySelector(`.${s.rot}`)).toBeNull();
+    expect(zeile.querySelector(`[data-statuschip=fehler]`)).toBeNull();
   });
 
   it("sucht ausschliesslich ueber Name und Lagerort", () => {

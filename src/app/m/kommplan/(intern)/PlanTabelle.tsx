@@ -16,9 +16,9 @@ import { NeuerPlanFormular } from "./NeuerPlan";
 
 const NAME: Record<Liste, string> = { plaene: "Pläne", vorlagen: "Vorlagen", archiv: "Archivierte Pläne" };
 const LEER: Record<Liste, string> = {
-  plaene: "Noch keine Pläne.",
-  vorlagen: "Noch keine Vorlagen. „Als Vorlage speichern“ im Menü eines Plans legt eine Kopie als Vorlage an.",
-  archiv: "Das Archiv ist leer.",
+  plaene: "Noch keine Pläne",
+  vorlagen: "Noch keine Vorlagen",
+  archiv: "Das Archiv ist leer",
 };
 type Aktion = "duplizieren" | "vorlage" | "vorlageArchivieren" | "archivieren" | "wiederherstellen" | "ausVorlage" | "exportieren" | "loeschen" | "endgueltig";
 type Loeschen = Extract<Aktion, "loeschen" | "endgueltig">;
@@ -180,7 +180,7 @@ export function PlanTabelle({ zeilen, liste, vorlagen = [], heute }: { zeilen: L
       ) : null}
       <Kartentabelle<Listenzeile>
         aria-label={NAME[liste]} rowKey="id" dataSource={zeilen} columns={spalten}
-        leer={{ nichts: LEER[liste] }} karte={{ titel: "titel", kennzeichen: mitKennzeichen ? ["kennzeichen"] : [] }}
+        leer={{ nichts: LEER[liste], figur: "kommplan" }} karte={{ titel: "titel", kennzeichen: mitKennzeichen ? ["kennzeichen"] : [] }}
       />
       {/* Kein Fokus-Rückweg des Dialogs (er ginge an den verborgenen Menüeintrag, Falle 24): nach dem Löschen steht er
           im Hinweis, nach „Abbrechen" wieder am „Aktionen"-Knopf der Zeile. */}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Card, Col, Collapse, Empty, Input, Result, Row } from "antd";
+import { Button, Card, Col, Collapse, Empty, Input, Row } from "antd";
+import { Ruhezustand } from "@/core/ruhe";
 
 import { KACHEL_GRUND, TINTE } from "@/core/favicon/zeichen";
 import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
@@ -270,7 +271,11 @@ export function DiensteRaster({
             {ueberschrift("Angeheftet")}
             <Row gutter={[SPACE.lg, SPACE.lg]}>{eigene.angeheftet.map(kachel)}</Row>
           </section>
-        ) : null}
+        ) : (
+          // Ruhezustand (IDA-347, Etappe 3): noch nichts angeheftet. Klein, damit „Alle" darunter
+          // im ersten Bild bleibt.
+          <Ruhezustand data-testid="portal-ohne-angeheftet" figur="portal" titel="Noch nichts angeheftet" groesse="klein" />
+        )}
         {eigene.zuletzt.length > 0 ? (
           <section data-testid="portal-zuletzt">
             {ueberschrift("Zuletzt")}
@@ -376,20 +381,14 @@ export function DiensteRaster({
   // lädt zu einer Suche ein, die nichts finden kann.
   if (eintraege.length === 0) {
     return (
-      <Result
-        data-testid="portal-leer"
-        status="info"
-        title="Für dich ist noch nichts freigeschaltet"
-        subTitle={
-          <>
-            {ansprechpartner ? (
-              <p data-testid="portal-kontakt">
-                <strong>Ansprechpartner:</strong> {ansprechpartner}
-              </p>
-            ) : null}
-          </>
-        }
-      />
+      <div data-testid="portal-leer">
+        <Ruhezustand figur="portal" titel="Für dich ist noch nichts freigeschaltet" />
+        {ansprechpartner ? (
+          <p data-testid="portal-kontakt" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
+            Ansprechpartner: {ansprechpartner}
+          </p>
+        ) : null}
+      </div>
     );
   }
 

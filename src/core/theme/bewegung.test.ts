@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
-import { Button, ConfigProvider } from "antd";
+import { Button, Card, ConfigProvider } from "antd";
 import { BEWEGUNG, feder } from "./bewegung";
 import { buildTheme } from "./theme";
 
@@ -36,5 +36,13 @@ describe("Bewegung der Haarlinie", () => {
     expect(CSS).toMatch(/:root \.ant-btn:not\(:disabled\):active\s*\{[^}]*transform: scale/);
     const markup = renderToString(createElement(ConfigProvider, { theme: buildTheme("light") }, createElement(Button, null, "Speichern")));
     expect(markup).toMatch(/<button[^>]*class="[^"]*\bant-btn\b/);
+  });
+
+  it("trifft mit dem Druck an der Karte eine Klasse, die antd an `Card hoverable` rendert", () => {
+    expect(CSS).toMatch(/:root \.ant-card-hoverable:active\s*\{[^}]*transform: scale\(0\.985\)/);
+    const karte = (hoverable: boolean) =>
+      renderToString(createElement(ConfigProvider, { theme: buildTheme("light") }, createElement(Card, { hoverable }, "Kachel")));
+    expect(karte(true)).toMatch(/<div[^>]*class="[^"]*\bant-card-hoverable\b/);
+    expect(karte(false)).not.toContain("ant-card-hoverable");
   });
 });

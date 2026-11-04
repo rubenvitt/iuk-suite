@@ -264,7 +264,7 @@ test.describe("Host-Riegel", () => {
    * Admin-Route gibt" (`_lib/zugang.ts`, `requireLagerbuchAdmin`).
    *
    * `groups: ""`, NICHT `groups: []` — `devLogin`s Signatur nimmt einen STRING
-   * (`e2e/fixtures.ts:3-7`, Ruling A9): der Plantext ist an dieser Stelle
+   * (`e2e/fixtures.ts`, `devLogin`, Ruling A9): der Plantext ist an dieser Stelle
    * `tsc`-falsch.
    */
   test("gibt einem Konto ohne Lagerbuch-Gruppe 404 statt 403", async ({ page }) => {

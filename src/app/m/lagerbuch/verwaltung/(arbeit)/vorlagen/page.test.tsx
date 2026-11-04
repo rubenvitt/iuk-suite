@@ -20,7 +20,6 @@ import {
 } from "../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../_db/testdb";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
-import s from "../../../_ui/verwaltung.module.css";
 import { NeuTemplate } from "./NeuTemplate";
 import { TemplateTable, type TemplateAnzeigeZeile } from "./TemplateTable";
 import VorlagenSeite, { dynamic, vorlagenInhalt } from "./page";
@@ -361,8 +360,8 @@ describe("TemplateTable", () => {
     expect(alt.textContent).toContain("inaktiv");
     expect(alt.textContent).toContain("1 Position · 1 Fach");
     expect(alt.textContent).toContain("2 Einheiten");
-    expect(alt.querySelectorAll(`.${s.chip}`)).toHaveLength(2);
-    const fahrzeugChip = Array.from(alt.querySelectorAll<HTMLElement>(`.${s.chip}`))
+    expect(alt.querySelectorAll(`[data-statuschip]`)).toHaveLength(2);
+    const fahrzeugChip = Array.from(alt.querySelectorAll<HTMLElement>(`[data-statuschip]`))
       .find((chip) => chip.textContent?.includes("2 Fahrzeuge"));
     expect(fahrzeugChip?.querySelector("svg")).not.toBeNull();
   });
@@ -373,9 +372,7 @@ describe("TemplateTable", () => {
     await unmount();
 
     await mount(<TemplateTable zeilen={[]} />);
-    expect(document.body.textContent).toContain(
-      "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einer gepackten Einheit.",
-    );
+    expect(document.body.textContent).toContain("Noch keine Vorlagen");
   });
 
   /**

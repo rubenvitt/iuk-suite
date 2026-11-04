@@ -470,7 +470,7 @@ describe("Verlauf — die Kopfzeile (§2.5)", () => {
 describe("Verlauf — Leerzustand (§4.3)", () => {
   it("sagt den Satz aus §4.3 wortgenau statt eine leere Tabelle zu zeigen", () => {
     const wirt = zeichne([]);
-    expect(wirt.textContent).toContain("Noch keine vergangenen Dienstabende.");
+    expect(wirt.textContent).toContain("Noch keine vergangenen Dienstabende");
     expect(tabellenzeilen(wirt)).toHaveLength(0);
     // Kein zweiter Startaufruf — der Knopf steht 24px darueber (§4.3).
     expect(wirt.textContent).not.toContain("Feedback starten");

@@ -1,52 +1,32 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { Card } from "antd";
-import { SPACE } from "@/core/theme/tokens";
+import { Kennzahl } from "@/core/kennzahl/Kennzahl";
 import type { AmpelTon } from "../_lib/format";
-import { SCHRIFT } from "../_lib/schrift";
-import { Ikone } from "./ikonen";
-import s from "./verwaltung.module.css";
+import { TON } from "./Chip";
 
 /**
- * DIE KENNZAHLKACHEL — `Card` plus eigene Kante, KEIN `Statistic`.
+ * DIE KENNZAHL DER VERWALTUNG — seit der Haarlinie (IDA-347, Etappe 3) ein
+ * Adapter auf `core/kennzahl`: keine `Card` mehr, keine farbige 4px-Kante,
+ * sondern eine freistehende Zahl mit Haarlinie zum Nachbarn. Die Reihe legt
+ * der Aufrufer mit `Kennzahlen` an (statt `Row`/`Col`); sie bricht selbst um.
  *
- * `Card` ist in RSC sicher (docs/design/README.md:43). `Statistic` waere es
- * auch, aber die farbige ZAHL ist genau „Rot auf einer Datenflaeche": eine
- * rote 7 ist von einer 7 in Suite-Rot nicht zu unterscheiden, und ein
- * Zahlenwert ist die Datenflaeche schlechthin. DIE KANTE TRAEGT DIE FARBE,
- * DIE ZAHL TRAEGT TINTE — und genau die Form „Text plus 3px linke Kante" ist
- * das, was docs/design/README.md:57 als Ersatz fuer ein rotes `Alert`
- * VORSCHLAEGT.
+ * DIE ZAHL TRAEGT TINTE, nie die Ampel (Falle 3: kein Rot auf einer
+ * Datenflaeche). Den Befund traegt ein Punkt vor der Beschriftung, in der
+ * Ampel des Statuschips (`TON` aus `Chip.tsx`, eine Abbildung fuer beide).
  *
- * `grau` faerbt die Kante NICHT. Er ist kein Ampelwert (§6.6.2) — eine graue
- * Kante neben einer roten und einer gruenen laese sich als vierte Stufe lesen,
- * und die gibt es nicht.
+ * `grau` ZEICHNET KEINEN PUNKT. Er ist kein Ampelwert (§6.6.2) — ein grauer
+ * Punkt neben einem roten und einem gruenen laese sich als vierte Stufe, und
+ * die gibt es nicht.
  *
- * DIE ZAHL TRAEGT `tabular-nums` (§6.7.3). Kacheln stehen nebeneinander und
- * werden verglichen; ohne sie wandern die Ziffern gegeneinander.
+ * VERLINKT (IDA-239): eine Kennzahl mit Ziel traegt ein Chevron, das beim
+ * Zeigen nachrueckt; die nicht verlinkten tragen keinen Hover.
  *
- * EIN TEIL DER KACHELN IST VERLINKT (Beispiel: die beiden `verfall`-Kacheln
- * auf `verwaltung/(arbeit)/page.tsx`). Eine klickbare Kachel ohne erkennbare
- * Klickbarkeit ist eine Sackgasse fuer alle, die es nicht zufaellig
- * ausprobieren — deshalb tragen die verlinkten ein Chevron und (ueber
- * `.kpiLink`) einen Hover, und die nicht verlinkten tragen KEINEN
- * Hover-Effekt.
- *
- * DIE ANORDNUNG MACHT DER AUFRUFER mit `Row`/`Col` und `xs`/`md`, nicht diese
- * Komponente. Das heutige `grid-template-columns: repeat(auto-fill,
- * minmax(190px, 1fr))` samt zweiter Fassung bei <=760px entfaellt mit dem
- * 760px-Block (§6.8.6).
- *
- * POLSTER 8/12 STATT 12 RUNDUM (IDA-234, mehr auf eine Seite): die Kachel ist
- * eine Zeile Zahl plus eine Zeile Text, oben und unten reichen 8 px. Die
- * verlinkte Fläche (`.kpiLink`) bleibt dabei über 44 px hoch — sie ist die
- * Inhaltshöhe aus Zahl (24), Abstand (4) und Beschriftung (12/1.57 ≈ 19).
+ * TEXTWERTE (Standort, Klasse, „MTK in 5 T") stehen kleiner als Zahlen und
+ * duerfen umbrechen: eine Zeichenkette, die nicht mit einer Ziffer oder dem
+ * Platzhalter „–" beginnt, ist ein Textwert. „12 bar" und „85 %" bleiben Zahl.
  */
-const KANTE: Partial<Record<AmpelTon, string>> = {
-  rot: s.kpiRot,
-  gelb: s.kpiGelb,
-  ok: s.kpiOk,
-};
+export function istTextwert(zahl: ReactNode): boolean {
+  return typeof zahl === "string" && !/^[\d–-]/.test(zahl);
+}
 
 export function Kachel({
   zahl,
@@ -59,34 +39,13 @@ export function Kachel({
   ton?: AmpelTon;
   href?: string;
 }) {
-  const inhalt = (
-    <div className={[s.kpi, ton ? KANTE[ton] : undefined].filter(Boolean).join(" ")}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-        }}
-      >
-        <span data-rolle="kachelzahl" style={{ ...SCHRIFT.zahl }}>
-          {zahl}
-        </span>
-        {href ? <Ikone name="chevron-rechts" /> : null}
-      </div>
-      <div style={{ ...SCHRIFT.neben, marginBlockStart: 4 }}>{beschriftung}</div>
-    </div>
-  );
-
   return (
-    <Card styles={{ body: { padding: `${SPACE.sm}px ${SPACE.md}px` } }} style={{ height: "100%" }}>
-      {href ? (
-        <Link className={s.kpiLink} href={href}>
-          {inhalt}
-        </Link>
-      ) : (
-        inhalt
-      )}
-    </Card>
+    <Kennzahl
+      wert={zahl}
+      label={beschriftung}
+      ton={ton ? TON[ton] : undefined}
+      href={href}
+      text={istTextwert(zahl)}
+    />
   );
 }

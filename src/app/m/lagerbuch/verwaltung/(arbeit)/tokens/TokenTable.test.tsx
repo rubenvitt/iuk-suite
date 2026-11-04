@@ -484,7 +484,7 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
   it("unterscheidet leeren Bestand von einer leeren Filtermenge", async () => {
     await mount(<TokenTable zeilen={[]} />);
     expect(document.body.textContent)
-      .toContain("Noch keine Codes. Öffne Verwaltung → Ortsetiketten — dort entstehen sie.");
+      .toContain("Noch keine Codes");
     await unmount();
     await mount(<TokenTable zeilen={ZEILEN} />);
     await suchen("ohne Treffer");

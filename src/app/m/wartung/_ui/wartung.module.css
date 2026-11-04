@@ -35,28 +35,10 @@
 .mono { font-family: var(--font-mono, ui-monospace, monospace); }
 .quer { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
 .reihe { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-/* Ein Filter mit mehr Arten, als die Breite fasst, wird seitlich gewischt statt die Seite zu verbreitern. */
-.wischleiste { max-width: 100%; min-width: 0; overflow-x: auto; }
 .kicker { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--iuk-gedaempft); }
 
-.chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; vertical-align: middle; }
-.ok { color: var(--gw-ok-text); background: var(--gw-ok-flaeche); }
-.gelb { color: var(--gw-gelb-text); background: var(--gw-gelb-flaeche); }
-.rot { color: var(--gw-rot-text); background: var(--gw-rot-flaeche); }
-.grau { color: var(--gw-grau-text); background: var(--gw-grau-flaeche); }
 .textRot { color: var(--gw-rot-text); }
 .textGelb { color: var(--gw-gelb-text); }
-
-/* Kennzahlen der Übersicht */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-.kpi {
-  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--gw-karte); border-radius: 8px;
-  border: 1px solid var(--iuk-linie); border-inline-start: 4px solid var(--gw-grau-text); text-decoration: none; color: inherit;
-}
-.kpi:hover { background: var(--iuk-flaeche-aktiv); }
-.kpi.kpiRot { border-inline-start-color: var(--gw-rot-text); }
-.kpi.kpiGelb { border-inline-start-color: var(--gw-gelb-text); }
-.kpiZahl { font-family: var(--font-display); font-size: 32px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
 
 /* Zeilenlisten in Karten */
 .zeilen { list-style: none; margin: 0; padding: 0; }

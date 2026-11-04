@@ -232,7 +232,7 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
             rowKey="id"
             aria-label="Abgabelinks"
             dataSource={zeilen}
-            leer={{ nichts: "Noch keine Abgabelinks angelegt.", gefiltert: "Kein Abgabelink passt zum Filter." }}
+            leer={{ nichts: "Noch keine Abgabelinks", figur: "files", gefiltert: "Kein Abgabelink passt zum Filter." }}
             columns={spalten(inboxBasis)}
           />
         )}

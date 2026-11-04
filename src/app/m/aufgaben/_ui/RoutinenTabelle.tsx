@@ -51,7 +51,7 @@ export function RoutinenTabelle({ routinen }: { routinen: RoutineRow[] }) {
       rowKey="id"
       aria-label="Routinen"
       dataSource={routinen}
-      leer={{ nichts: "Noch keine Routinen angelegt.", gefiltert: "Keine Routine passt zum Filter." }}
+      leer={{ nichts: "Noch keine Routinen", figur: "aufgaben", gefiltert: "Keine Routine passt zum Filter." }}
       columns={[
         {
           // SPALTENKOEPFE UEBER `columns[].title`, NIE UEBER EINE CSS-REGEL GEGEN

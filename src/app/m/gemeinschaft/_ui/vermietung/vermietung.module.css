@@ -34,11 +34,7 @@
 .neben { font-size: 12px; color: var(--iuk-gedaempft); }
 .zeile { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-/* Chips: Fläche und Text als Paar. */
-.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; }
-.chip.angefragt, .chip.verschickt, .chip.offen { color: var(--gv-gelb-text); background: var(--gv-gelb-flaeche); }
-.chip.zugesagt, .chip.unterschrieben { color: var(--gv-ok-text); background: var(--gv-ok-flaeche); }
-.chip.gesperrt, .chip.abgelehnt, .chip.zurueckgezogen, .chip.grau { color: var(--gv-grau-text); background: var(--gv-grau-flaeche); }
+/* Chips: `Statuschip` aus `core/status` (Haarlinie, Etappe 3). */
 
 /* Legende */
 .legende { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--iuk-gedaempft); }

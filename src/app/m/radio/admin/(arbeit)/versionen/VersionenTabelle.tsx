@@ -434,7 +434,7 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
         columns={spalten}
         dataSource={zeilen}
         aria-label={VERSIONEN_TEXTE.tabelleName}
-        leer={{ nichts: VERSIONEN_TEXTE.leer }}
+        leer={{ nichts: VERSIONEN_TEXTE.leer, figur: "radio" }}
       />
       {fehler !== null && (
         /*

@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import Link from "next/link";
-import { Card, Statistic } from "antd";
+import { Kennzahl, Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
@@ -32,13 +32,11 @@ export default async function HelferSeite() {
         aktionen={darfVerwalten ? <Link href="/abgleich">Mit der Quelle abgleichen</Link> : undefined}
       />
       {quelle === "demo" ? <DemoHinweis darfVerwalten={darfVerwalten} /> : null}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: SPACE.lg }}>
-        <Card><Statistic title="Helfer" value={liste.length} /></Card>
-        <Card><Statistic title="Fürs Einsatztagebuch freigegeben" value={liste.filter((h) => h.fuerEinsatzbuch).length} /></Card>
-        <Card>
-          <Statistic title="Letzter Abgleich" value={letzter ? ZEIT.format(new Date(letzter.zeitpunkt)) : "noch keiner"} />
-        </Card>
-      </div>
+      <Kennzahlen>
+        <Kennzahl wert={liste.length} label="Helfer" />
+        <Kennzahl wert={liste.filter((h) => h.fuerEinsatzbuch).length} label="Fürs Einsatztagebuch freigegeben" />
+        <Kennzahl wert={letzter ? ZEIT.format(new Date(letzter.zeitpunkt)) : "noch keiner"} label="Letzter Abgleich" text />
+      </Kennzahlen>
       <HelferListe liste={liste} darfVerwalten={darfVerwalten} />
     </div>
   );

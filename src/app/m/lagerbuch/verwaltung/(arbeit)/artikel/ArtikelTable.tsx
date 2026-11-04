@@ -702,7 +702,8 @@ export function ArtikelTable({
             }}
             kartenHoehe={190}
             leer={{
-              nichts: "Noch keine Artikel. Lege oben den ersten an.",
+              nichts: "Noch keine Artikel",
+              figur: "lagerbuch",
               gefiltert: "Kein Artikel passt zu Suche und Filter.",
               // Suche und dauerhaft ausgeblendete Kategorien sieht dieses
               // Bauteil nicht — ohne den Wink hielte es eine leergesuchte Liste

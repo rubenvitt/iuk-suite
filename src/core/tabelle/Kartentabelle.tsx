@@ -54,6 +54,7 @@ import {
   type SortZustand,
 } from "./angezeigt";
 import { kartenaufbau, schluesselAus, type KartenSpalte, type Kartenwunsch } from "./kartenaufbau";
+import { Ruhezustand, type RuheSchluessel } from "../ruhe";
 
 export type KartentabelleProps<T> = Omit<DatentabelleProps<T>, "aria-label" | "locale"> & {
   /** Der Name der Liste für Hilfstechnik — an BEIDEN Darstellungen derselbe. */
@@ -89,6 +90,14 @@ export type KartentabelleProps<T> = Omit<DatentabelleProps<T>, "aria-label" | "l
      * dazu), und ein Filterstand, der ins Leere zeigt (dann `false`).
      */
     aktiv?: boolean;
+    /**
+     * Die Haarlinien-Figur des Moduls (`core/ruhe`). Ist die GANZE Liste leer und nichts gefiltert,
+     * steht statt Tabelle und Karten ein Ruhezustand mit `nichts` als Zeile. Ein leerer Filter
+     * bleibt der Satz im Tabellenkörper — nie eine Figur in der Tabelle.
+     */
+    figur?: RuheSchluessel;
+    /** Höchstens EINE Aktion im Ruhezustand (nur mit `figur`). */
+    aktion?: ReactNode;
   };
   /** Wie die Karte aufgebaut wird — oder die Karte selbst, fertig gebaut. */
   karte?: Kartenwunsch | ((zeile: T, index: number) => ReactNode);
@@ -120,6 +129,15 @@ export type KartentabelleProps<T> = Omit<DatentabelleProps<T>, "aria-label" | "l
  * Zwei Steuernde an derselben Spalte ergäben ein Feld, das auf die eigene
  * Bedienung nicht reagiert.
  */
+/**
+ * Ob die Tabelle wirklich lädt. antd nimmt `loading` auch als `SpinProps`: `{ spinning: false }`
+ * lädt NICHT, ein Objekt ohne `spinning` lädt.
+ */
+function laedt(loading: TableProps<object>["loading"]): boolean {
+  if (typeof loading === "object" && loading !== null) return loading.spinning ?? true;
+  return Boolean(loading);
+}
+
 function gesteuert<T>(
   spalten: readonly KartenSpalte<T>[] | undefined,
   filter: FilterZustand,
@@ -312,6 +330,10 @@ export function Kartentabelle<T extends object>({
       />
     );
   }, [karte, aufbau, schluessel, auswahl, gewaehlte, zeilen, rest]);
+
+  if (leer.figur && zeilen.length === 0 && !gefiltert && !laedt(rest.loading)) {
+    return <Ruhezustand figur={leer.figur} titel={leer.nichts} aktion={leer.aktion} />;
+  }
 
   return (
     <>

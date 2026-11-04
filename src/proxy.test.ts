@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import * as proxyModul from "@/proxy";
 
@@ -194,5 +194,38 @@ describe("mitVertraulichenKoepfen — gemessen am INTERNEN Pfad", () => {
   it("andere Pfade bleiben unberührt — auch ein /t/ eines anderen Moduls hinter einem Rewrite", () => {
     expect(mitVertraulichenKoepfen(NextResponse.rewrite(new URL("http://x/m/lagerbuch/t/abc")), "/t/abc").headers.get("x-robots-tag")).toBeNull();
     expect(mitVertraulichenKoepfen(NextResponse.next(), "/m/kommplan/p/abc").headers.get("referrer-policy")).toBeNull();
+  });
+});
+
+describe("willSeite — nur ein Seitenaufruf bekommt die Seite „Kein Zugriff“", () => {
+  const anfrage = (method: string, koepfe: Record<string, string>, pathname = "/") => ({
+    method,
+    headers: new Headers(koepfe),
+    nextUrl: new URL(`https://iuk.localtest.me${pathname}`) as unknown as NextRequest["nextUrl"],
+  });
+  const HTML = { accept: "text/html,application/xhtml+xml" };
+
+  it("ein GET mit HTML-Wunsch", () => {
+    expect(proxyModul.willSeite(anfrage("GET", HTML))).toBe(true);
+    expect(proxyModul.willSeite(anfrage("HEAD", HTML))).toBe(true);
+  });
+
+  it("nie eine API, eine Server Action oder ein RSC-Abruf des Client-Routers", () => {
+    expect(proxyModul.willSeite(anfrage("GET", { accept: "application/json" }))).toBe(false);
+    expect(proxyModul.willSeite(anfrage("POST", HTML))).toBe(false);
+    expect(proxyModul.willSeite(anfrage("GET", { ...HTML, rsc: "1" }))).toBe(false);
+    expect(proxyModul.willSeite(anfrage("GET", { ...HTML, "next-action": "abc" }))).toBe(false);
+  });
+
+  it("nie ein API-Pfad, auch wenn der Aufruf HTML wünscht — dort bleibt das nackte 403", () => {
+    expect(proxyModul.willSeite(anfrage("GET", HTML, "/api/audit/data"))).toBe(false);
+    expect(proxyModul.willSeite(anfrage("GET", HTML, "/api"))).toBe(false);
+    expect(proxyModul.willSeite(anfrage("GET", HTML, "/m/feedback/api/export"))).toBe(false);
+    expect(proxyModul.willSeite(anfrage("GET", HTML, "/apis"))).toBe(true);
+    expect(proxyModul.willSeite(anfrage("GET", HTML, "/m/feedback/verwaltung"))).toBe(true);
+  });
+
+  it("das Ziel ist die Seite, die `forbidden()` wirft", () => {
+    expect(proxyModul.KEIN_ZUGRIFF_PFAD).toBe("/kein-zugriff");
   });
 });

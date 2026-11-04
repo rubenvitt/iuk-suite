@@ -502,7 +502,9 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
         filter={spaltenFilter}
         onFilter={setSpaltenFilter}
         leer={{
-          nichts: "Noch keine Codes. Öffne Verwaltung → Ortsetiketten — dort entstehen sie.",
+          nichts: "Noch keine Codes",
+          figur: "lagerbuch",
+          aktion: <Button href="/verwaltung/ortsetiketten">Zu den Ortsetiketten</Button>,
           gefiltert: "Kein Code passt zu Suche und Filter.",
           // ⚠️ `hatFilter` SCHLIESST DIE SUCHE MIT EIN, die dieses Bauteil
           // nicht sieht — ohne den Wink hielte es eine leergesuchte Liste

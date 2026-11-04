@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { App, Button, Form, Input, InputNumber, Modal, Segmented, Select } from "antd";
+import { Filterchips } from "@/core/filterchips/Filterchips";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { fingerabdruck } from "@/core/entwurf/ablage";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
@@ -103,11 +104,11 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
         titel="Artikel"
         aktionen={
           <span className={s.reihe}>
-            <Segmented<Sicht>
+            <Filterchips<Sicht>
               aria-label="Auswahl"
-              value={sicht}
+              wert={sicht}
               onChange={setSicht}
-              options={[{ value: "aktiv", label: "Aktiv" }, { value: "vorlaeufig", label: `Vorläufig (${vorlaeufig})` }, { value: "inaktiv", label: "Inaktiv" }]}
+              optionen={[{ wert: "aktiv", label: "Aktiv" }, { wert: "vorlaeufig", label: "Vorläufig", anzahl: vorlaeufig }, { wert: "inaktiv", label: "Inaktiv" }]}
             />
             <Button type="primary" icon={<Icons8Ikone name="plus" groesse={16} />} onClick={() => oeffne("neu")}>Artikel anlegen</Button>
           </span>
@@ -118,8 +119,13 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
         aria-label="Artikel"
         dataSource={zeilen}
         leer={{
-          nichts: sicht === "vorlaeufig" ? "Nichts zu prüfen." : sicht === "inaktiv" ? "Keine inaktiven Artikel." : "Noch keine Artikel.",
-          gefiltert: "Kein Artikel passt zum Filter.",
+          nichts: sicht === "vorlaeufig" ? "Nichts zu prüfen" : sicht === "inaktiv" ? "Keine inaktiven Artikel" : "Noch keine Artikel",
+          figur: sicht === "vorlaeufig" ? "erledigt" : "verpflegung",
+          gefiltert: sicht === "inaktiv" ? "Keine inaktiven Artikel." : "Kein Artikel passt zum Filter.",
+          // Aktiv/Inaktiv sind Filterchips über einem Bestand, der existiert: leer
+          // heißt dort „nichts passt", kein Ruhezustand. „Vorläufig" ist die
+          // Prüfliste — leer ist sie erledigt, also Figur.
+          aktiv: sicht !== "vorlaeufig" && artikel.length > 0 ? true : undefined,
         }}
         karte={{ titel: "name", kennzeichen: ["stand"] }}
         columns={[

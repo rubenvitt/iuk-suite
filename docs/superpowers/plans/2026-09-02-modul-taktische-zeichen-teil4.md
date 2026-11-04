@@ -2955,7 +2955,7 @@ import { SPACE } from "@/core/theme/tokens";
  * Gegenbild: `uav /` mit 45.944 B, mit und ohne Sitzung byteidentisch, 0x
  * userName.
  *
- * ⛔ DIESELBE BEDIENDICHTE WIE `FullShell` (`FullShell.tsx:36`): `ARBEITSDICHTE`
+ * ⛔ DIESELBE BEDIENDICHTE WIE `FullShell` (`FullShell`, Element `Arbeitsdichte`): `ARBEITSDICHTE`
  * 44/48 ueber dem INHALT. Ohne sie stuenden die antd-Bedienelemente derselben
  * Insel hier auf 56/72 (dem Einsatzwert aus `buildTheme`), waehrend ihr eigenes
  * Markup 44 als Literal traegt — dieselbe Flaeche in zwei Groessen, und kein

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, Segmented, Space } from "antd";
+import { Button, Space } from "antd";
+import { Filterchips } from "@/core/filterchips/Filterchips";
+import { Statuschip } from "@/core/status/Statuschip";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachZahl } from "@/core/tabelle";
 import { konflikte } from "../../_lib/belegung";
@@ -36,26 +38,24 @@ export function Anfragenliste({ anfragen, sperren, startId }: { anfragen: Anfrag
   return (
     <div className={s.modul}>
       <Seitenkopf titel="Anfragen" />
-      <div style={{ maxWidth: "100%", overflowX: "auto" }}>
-        <Segmented<Filter> value={filter} onChange={setFilter} aria-label="Anfragen filtern" options={[
-          { value: "angefragt", label: `Offen (${zahl("angefragt")})` },
-          { value: "zugesagt", label: `Zugesagt (${zahl("zugesagt")})` },
-          { value: "abgelehnt", label: `Abgelehnt (${zahl("abgelehnt")})` },
-          { value: "alle", label: "Alle" },
-        ]} />
-      </div>
+      <Filterchips<Filter> wert={filter} onChange={setFilter} aria-label="Anfragen filtern" optionen={[
+        { wert: "angefragt", label: "Offen", anzahl: zahl("angefragt") },
+        { wert: "zugesagt", label: "Zugesagt", anzahl: zahl("zugesagt") },
+        { wert: "abgelehnt", label: "Abgelehnt", anzahl: zahl("abgelehnt") },
+        { wert: "alle", label: "Alle", anzahl: anfragen.length },
+      ]} />
       <Kartentabelle<AnfrageDTO>
         rowKey="id"
         aria-label="Anfragen an die Bar"
         dataSource={liste}
-        leer={{ nichts: "Keine Anfragen in dieser Ansicht.", gefiltert: "Keine Anfragen in dieser Ansicht.", aktiv: filter !== "alle" }}
+        leer={{ nichts: "Keine Anfragen", figur: "gemeinschaft", gefiltert: "Keine Anfragen in dieser Ansicht.", aktiv: filter !== "alle" }}
         columns={[
           {
             title: "Wann", key: "wann", sorter: nachZahl<AnfrageDTO>((a) => a.von), defaultSortOrder: "ascend",
             render: (_: unknown, a: AnfrageDTO) => (
               <div>
                 {zeitraumText(a.von, a.bis)}
-                {(a.status === "angefragt" || a.status === "zugesagt") && ueberschneidet(a) ? <div><span className={`${s.chip} ${s.angefragt}`}>Überschneidung</span></div> : null}
+                {(a.status === "angefragt" || a.status === "zugesagt") && ueberschneidet(a) ? <div><Statuschip ton="warnung">Überschneidung</Statuschip></div> : null}
               </div>
             ),
           },

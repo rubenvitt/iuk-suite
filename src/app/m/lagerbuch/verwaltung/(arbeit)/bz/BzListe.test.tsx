@@ -411,7 +411,7 @@ describe("BzListe", () => {
   it("zeigt ohne Daten und ohne Filter den fachlichen Anfangstext", async () => {
     await mount(<BzListe zeilen={[]} lagerorte={LAGERORTE} />);
     expect(document.body.textContent)
-      .toContain("Noch keine BZ-Geräte. Lege oben das erste an.");
+      .toContain("Noch keine BZ-Geräte");
   });
 
   it("erkennt den alleinigen Fälligkeitsfilter für den gefilterten Leertext", async () => {
@@ -722,7 +722,7 @@ describe("BZ-Übersichtsseite als Server Component", () => {
     // noch hatte, weil sie auf ein Vorkommen IRGENDWO prueft. `matchAll` mit `/g`
     // haelt diesen Schutz: jede Importzeile bekommt eine eigene Pruefung.
     const antdImports = [...quelle.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']antd["']/g)];
-    expect(antdImports.length).toBeGreaterThan(0);
+    // Seit `Kennzahlen` (Haarlinie) braucht die Seite gar kein antd mehr; steht wieder eines da, nur diese.
     for (const [, gruppe] of antdImports) {
       const antdNamen = gruppe.split(",").map((n) => n.trim()).filter(Boolean);
       for (const name of antdNamen) {

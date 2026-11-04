@@ -436,7 +436,7 @@ test.describe("radio-Zugang", () => {
 
     /*
      * ⛔ `groups: ""` UND NICHT `groups: []` (Bauform-Zulaessigkeitstafel Nr. 20): die
-     * Signatur nimmt einen String (`e2e/fixtures.ts:5`).
+     * Signatur nimmt einen String (`e2e/fixtures.ts`, `devLogin`, Feld `groups`).
      * ⛔ UND OHNE JEDE GRUPPE, DAS IST DIE ZUSAGE: fuer `weg: "suite"` wird KEINE Gruppe
      * verlangt (Auflage 5, `_lib/ausleihZugang.ts:138-142`) — `radio` steht mit
      * `requiresAuth: false` in der Registry, und die Ausleihe ist absichtlich anonym. Eine

@@ -1,4 +1,5 @@
 import { Button } from "antd";
+import { Ruhezustand } from "@/core/ruhe";
 import styles from "./not-found.module.css";
 
 /**
@@ -13,42 +14,41 @@ import styles from "./not-found.module.css";
  * (`AntdProvider`, `data-theme` am `<html>`) gelten dagegen weiter, also
  * traegt der Knopf das Suite-Theme und die Seite beide Modi.
  *
- * WARUM DER ZWEITE ABSATZ DA STEHT. 404 ist in dieser Suite nicht nur "gibt es
- * nicht", sondern auch "darfst du nicht sehen": mehrere Riegel
- * (`requireFeedbackAccess`, `assertGroupAccess`, der Gruppenvergleich) werfen
- * bewusst `notFound()` statt eines 403, damit die blosse Existenz einer Seite
- * nicht verraten wird. Diese Entscheidung bleibt — aber sie darf niemanden im
- * Dunkeln stehen lassen. Der Absatz nennt den Fall, ohne fuer den Einzelfall zu
- * verraten, welcher der beiden gerade vorliegt.
+ * 404 ist in dieser Suite nicht nur "gibt es nicht", sondern auch "darfst du
+ * nicht sehen": mehrere Riegel (`requireFeedbackAccess`, `assertGroupAccess`,
+ * der Gruppenvergleich) werfen bewusst `notFound()` statt eines 403, damit die
+ * blosse Existenz einer Seite nicht verraten wird. Der Satz bleibt deshalb
+ * neutral ("hier"), ohne zu verraten, welcher Fall vorliegt.
  *
- * Alles Sichtbare ausser dem Knopf ist eigenes Markup und faerbt sich aus
- * `not-found.module.css` ueber `--nf-*`; `--ant-*` waere hier still wirkungslos
- * (siehe Kopf jener Datei).
+ * HAARLINIE (IDA-347, Etappe 3): ein Ruhezustand mit Figur (`core/ruhe`, Lage
+ * `fehlt`), der Satz als einzige Ueberschrift, ein Weg zurueck, die Ziffer
+ * leise darunter. Status 404 setzt Next.js; die Ziffer ist Schmuck.
  */
 export default function NotFound() {
   return (
     <main className={styles.seite}>
-      <div className={styles.karte}>
-        <p className={styles.ziffer} aria-hidden="true">
-          404
-        </p>
-        <span className={styles.flagge} aria-hidden="true" />
-        <h1 className={styles.titel}>Diese Seite gibt es hier nicht.</h1>
-        <div className={styles.aktion}>
-          {/*
+      <Ruhezustand
+        figur="fehlt"
+        als="h1"
+        mittig
+        titel="Diese Seite gibt es hier nicht."
+        aktion={
+          /*
            * `/` und nicht der Suite-Host: unter dem Host-Rewrite
            * (`core/routing.ts`) fuehrt der relative Pfad zum Anfang GENAU DES
            * Moduls, auf dem man gerade steht — und auf dem Suite-Host zum
            * Portal. Ein absoluter Link koennte beides nicht zugleich.
            *
-           * Kein `size`: `controlHeight` ist 56 und damit schon das richtige
-           * Mass (docs/design/README.md).
-           */}
+           * Kein `size` (Falle 4).
+           */
           <Button type="primary" href="/">
             Zur Startseite
           </Button>
-        </div>
-      </div>
+        }
+      />
+      <p className={styles.ziffer} aria-hidden="true">
+        404
+      </p>
     </main>
   );
 }

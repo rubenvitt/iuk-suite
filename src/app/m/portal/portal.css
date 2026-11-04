@@ -99,7 +99,7 @@
      (0,2,0) ersetzt die gesamte Eigenschaft, nicht nur border-color — ohne
      box-shadow hier wuerde antds Schatten-Uebergang beim Hover lautlos
      wegfallen (Falle-5-Muster: still, nicht laut). */
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform var(--iuk-feder-dauer) var(--iuk-feder);
 }
 
 .ant-card.portal-kachel:hover {

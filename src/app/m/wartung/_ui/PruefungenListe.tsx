@@ -21,7 +21,7 @@ export function PruefungenListe({ zeilen, gruppenWahl, gewaehlt }: {
         rowKey="id"
         aria-label="Prüfungen und Wartungen"
         dataSource={zeilen}
-        leer={{ nichts: "Noch nichts erledigt." }}
+        leer={{ nichts: "Noch nichts erledigt", figur: "wartung" }}
         karte={{ titel: "geraet", kennzeichen: ["ergebnis"] }}
         columns={[
           { title: "Datum", key: "am", sorter: nachText<EintragDTO>((e) => e.am), render: (_: unknown, e: EintragDTO) => <span className={s.ziffern}>{datum(e.am)}</span> },

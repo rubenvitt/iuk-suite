@@ -241,7 +241,9 @@ test.describe("Rechnerseite der Einsatztagebuch-Verwaltung", () => {
     await expect(page.getByText(`Test-Rechner „${name}“ löschen?`)).toBeVisible();
     await klickeWennRuhig(page.getByRole("button", { name: "Endgültig löschen" }));
     await expect(zeile).toHaveCount(0);
-    await expect(tabelle.getByText("Keine Test-Rechner.")).toBeVisible();
+    // Die ganze Liste ist leer: statt der Tabelle steht der Ruhezustand mit Figur (`core/ruhe`).
+    await expect(tabelle).toHaveCount(0);
+    await expect(page.locator('[data-rolle="ruhezustand"]').getByText("Keine Test-Rechner")).toBeVisible();
 
     const nachher = await request.get(url("/api/stammdaten"), { headers: { authorization: `Bearer ${geraeteToken}` } });
     expect(nachher.status()).toBe(401);

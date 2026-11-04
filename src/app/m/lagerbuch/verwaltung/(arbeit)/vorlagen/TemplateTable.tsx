@@ -78,7 +78,8 @@ export function TemplateTable({ zeilen }: { zeilen: TemplateAnzeigeZeile[] }) {
       aria-label="Vorlagen"
       dataSource={zeilen}
       leer={{
-        nichts: "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einer gepackten Einheit.",
+        nichts: "Noch keine Vorlagen",
+        figur: "lagerbuch",
         gefiltert: "Keine Vorlage passt zum Filter.",
       }}
       columns={SPALTEN}

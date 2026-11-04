@@ -567,7 +567,8 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
 
   it("zeigt ohne Daten den Anfangstext", async () => {
     await mount(<ArtikelTable zeilen={[]} fahrzeuge={FAHRZEUGE} />);
-    expect(document.body.textContent).toContain("Noch keine Artikel. Lege oben den ersten an.");
+    expect(document.body.textContent).toContain("Noch keine Artikel");
+    expect(query('[data-rolle="ruhezustand"] [data-figur="drawer"]')).toBeTruthy();
   });
 
   /**

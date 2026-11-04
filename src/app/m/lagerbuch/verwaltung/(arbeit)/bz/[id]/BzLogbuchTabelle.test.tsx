@@ -57,7 +57,7 @@ function zellen(): HTMLTableCellElement[] {
 
 function chipMitText(zelle: HTMLTableCellElement, text: string): HTMLSpanElement {
   const chip = Array.from(zelle.querySelectorAll<HTMLSpanElement>("span"))
-    .find((element) => element.classList.contains(s.chip) && element.textContent === text);
+    .find((element) => element.hasAttribute("data-statuschip") && element.textContent === text);
   if (!chip) throw new Error(`Chip fehlt: ${text}`);
   return chip;
 }
@@ -98,11 +98,11 @@ describe("BzLogbuchTabelle", () => {
     await mount(<BzLogbuchTabelle zeilen={[ZEILE]} />);
     const daten = zellen();
 
-    expect(chipMitText(daten[1]!, "nicht bestanden").classList).toContain(s.rot);
-    expect(chipMitText(daten[2]!, "L1 50").classList).toContain(s.ok);
-    expect(chipMitText(daten[3]!, "L2 410").classList).toContain(s.rot);
-    expect(chipMitText(daten[5]!, "gewechselt").classList).toContain(s.gelb);
-    expect(chipMitText(daten[6]!, "E2E Helfer").classList).toContain(s.grau);
+    expect(chipMitText(daten[1]!, "nicht bestanden").dataset.statuschip).toBe("fehler");
+    expect(chipMitText(daten[2]!, "L1 50").dataset.statuschip).toBe("ok");
+    expect(chipMitText(daten[3]!, "L2 410").dataset.statuschip).toBe("fehler");
+    expect(chipMitText(daten[5]!, "gewechselt").dataset.statuschip).toBe("warnung");
+    expect(chipMitText(daten[6]!, "E2E Helfer").dataset.statuschip).toBe("neutral");
   });
 
   it("erhält Zeitklasse, Nebentext-Rollen und das konkrete Akku-Zeichen", async () => {

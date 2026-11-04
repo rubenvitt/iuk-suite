@@ -19,7 +19,7 @@ export function Freigaben({ liste }: { liste: FreigabeZeile[] }) {
         rowKey="id"
         aria-label="Schlüsselfreigaben"
         dataSource={liste}
-        leer={{ nichts: "Noch keine Schlüsselfreigaben." }}
+        leer={{ nichts: "Noch keine Schlüsselfreigaben", figur: "einsatzbuch" }}
         columns={[
           { title: "Zeitpunkt", key: "zeitpunkt", render: (_: unknown, z) => z.zeitpunkt },
           { title: "Person", key: "name", render: (_: unknown, z) => z.name },
