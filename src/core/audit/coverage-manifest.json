@@ -1404,5 +1404,38 @@
   "src/app/m/feedback/k/[secret]/qr.png/route.ts#GET": {
     "kind": "excluded",
     "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#artikelAnlegenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#artikelAendernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#artikelAktivAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#aussondernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#ortAnlegenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#ortAendernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#ortAktivAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#linkAnlegenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#linkSperrenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#nachschlagenAction": {
+    "kind": "excluded",
+    "reason": "Liest einen Treffer aus der öffentlichen Lebensmitteldatenbank zur Vorbelegung des Formulars; schreibt nichts."
+  },
+  "src/app/m/verpflegung/_actions/telefon.ts#einbuchenAction": { "kind": "context", "via": "bucheAm" },
+  "src/app/m/verpflegung/_actions/telefon.ts#ausgebenAction": { "kind": "context", "via": "bucheAm" },
+  "src/app/m/verpflegung/_actions/telefon.ts#aussondernAmTelefonAction": { "kind": "context", "via": "bucheAm" },
+  "src/app/m/verpflegung/_actions/telefon.ts#vorlaeufigAnlegenAction": { "kind": "context", "via": "bucheAm" },
+  "src/app/m/verpflegung/_actions/telefon.ts#nachschlagenAmTelefonAction": {
+    "kind": "excluded",
+    "reason": "Liest einen Treffer aus der öffentlichen Lebensmitteldatenbank zur Vorbelegung am Telefon; schreibt nichts."
+  },
+  "src/app/m/verpflegung/t/[code]/route.ts#GET": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/verpflegung/abmelden/route.ts#GET": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/verpflegung/o/[ortId]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Leitet ein gescanntes Ortsetikett auf das Telefon um; liest und schreibt nichts."
   }
 }

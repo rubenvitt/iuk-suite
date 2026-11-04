@@ -1,0 +1,147 @@
+/*
+ * Verpflegungslager am Telefon (IDA-316, POC IDA-311): öffentliche Ansichtsklasse wie
+ * `lagerbuch/_ui/helfer.module.css` — kein antd, keine Shell, eigene Variablen (Falle 2), Bedienziele 56px
+ * (Falle 4: ohne Shell 56/72). Dunkel über `<html data-theme>`, nie `prefers-color-scheme`.
+ */
+.rahmen {
+  --vt-rot: #c8000f; --vt-rot-dk: #a2000c; --vt-rot-bg: #fbe9eb; --vt-tinte: #1a1d20; --vt-stahl: #5b6570;
+  --vt-linie: #d9dde1; --vt-papier: #eef0f1; --vt-karte: #ffffff; --vt-gelb: #b26a00; --vt-gelb-bg: #fbf1dc;
+  --vt-ok: #1e7a3c; --vt-ok-bg: #e4f2e9;
+  --vt-ampel-ok-text: #1e7a3c; --vt-ampel-ok-flaeche: #e4f2e9; --vt-ampel-gelb-text: #8a5200; --vt-ampel-gelb-flaeche: #fbf1dc;
+  --vt-ampel-rot-text: #8c0d16; --vt-ampel-rot-flaeche: #f6e3e0; --vt-ampel-grau-text: #5b6570; --vt-ampel-grau-flaeche: #e7eaec;
+  --vt-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  --vt-body: var(--font-barlow), system-ui, sans-serif;
+  --vt-mono: var(--font-plex-mono), ui-monospace, monospace;
+  width: 100%; max-width: 560px; margin-inline: auto; height: 100dvh;
+  display: flex; flex-direction: column; background: var(--vt-papier); color: var(--vt-tinte);
+  font-family: var(--vt-body); overflow: hidden; position: relative; line-height: 1.35;
+}
+:global(:root[data-theme="dark"]) .rahmen {
+  --vt-rot: #ff5a5f; --vt-rot-dk: #d13b40; --vt-rot-bg: #2a1113; --vt-tinte: #e8eaec; --vt-stahl: #9aa4ad;
+  --vt-linie: #2c3238; --vt-papier: #14181b; --vt-karte: #1c2126; --vt-gelb: #d9a032; --vt-gelb-bg: #2a1e05;
+  --vt-ok: #7ee0a0; --vt-ok-bg: #10261a;
+  --vt-ampel-ok-text: #7ee0a0; --vt-ampel-ok-flaeche: #10261a; --vt-ampel-gelb-text: #d9a032; --vt-ampel-gelb-flaeche: #2a1e05;
+  --vt-ampel-rot-text: #e8837c; --vt-ampel-rot-flaeche: #2a1113; --vt-ampel-grau-text: #9aa4ad; --vt-ampel-grau-flaeche: #1c2024;
+}
+.rahmen button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit }
+.rahmen button:focus-visible, .rahmen input:focus-visible { outline: 2px solid var(--vt-tinte); outline-offset: 2px; border-radius: 6px }
+
+.streifen { height: 5px; background: var(--vt-rot); flex: none }
+.kopf { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 14px 9px; background: var(--vt-karte); border-bottom: 1px solid var(--vt-linie) }
+.kopf > div { min-width: 0 }
+.marke { font-family: var(--vt-display); font-weight: 700; font-size: 20px; letter-spacing: .07em }
+.akzent { color: var(--vt-rot) }
+.etikett { font-size: 12px; color: var(--vt-stahl); margin-top: 1px }
+.rahmen .beenden {
+  font-size: 13px; font-weight: 600; border: 1.5px solid var(--vt-linie); background: var(--vt-karte); border-radius: 99px;
+  padding: 8px 14px; color: var(--vt-stahl); display: inline-flex; align-items: center; gap: 5px; min-height: 56px; flex: none; white-space: nowrap;
+}
+.ortleiste {
+  flex: none; display: flex; align-items: center; gap: 10px; padding: 0 14px; min-height: 56px;
+  background: var(--vt-karte); border-bottom: 1px solid var(--vt-linie);
+}
+.ortleiste .ortname { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; overflow-wrap: anywhere }
+.ortleiste .ortname small { display: block; font-weight: 500; font-size: 12px; color: var(--vt-stahl) }
+.rahmen .ortwechsel { min-height: 56px; font-size: 14px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap }
+.inhalt { flex: 1; overflow-y: auto; padding: 14px 14px 18px }
+.tableiste { flex: none; display: flex; background: var(--vt-karte); border-top: 1px solid var(--vt-linie) }
+.rahmen .tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 2px 8px; color: var(--vt-stahl);
+  border-top: 2.5px solid transparent; font-family: var(--vt-display); font-weight: 600; font-size: 11px; letter-spacing: .09em;
+  text-transform: uppercase; min-height: 56px; text-align: center;
+}
+.rahmen .tab[aria-current="page"] { color: var(--vt-rot); border-top-color: var(--vt-rot) }
+
+.schirmkopf { font-family: var(--vt-display); font-weight: 700; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; color: var(--vt-stahl); margin: 2px 2px 10px }
+.karte { background: var(--vt-karte); border: 1px solid var(--vt-linie); border-radius: 14px; overflow: hidden }
+.karte + .karte, .karte + .block, .block + .karte { margin-top: 10px }
+.pad { padding: 13px 14px }
+.kartentitel { font-family: var(--vt-display); font-weight: 600; font-size: 14px; letter-spacing: .09em; text-transform: uppercase; color: var(--vt-stahl); padding: 11px 14px 0 }
+.rahmen .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 11px; width: 100%; text-align: left; padding: 12px 14px; border-top: 1px solid var(--vt-linie); color: inherit }
+.zeile:first-child { border-top: none }
+.kartentitel + .zeile { border-top: none }
+.rahmen button.zeile { min-height: 56px; border-top: 1px solid var(--vt-linie) }
+.rahmen button.zeile:first-child { border-top: none }
+.zeilehaupt { flex: 1; min-width: 0 }
+.name { font-weight: 600; font-size: 15px; line-height: 1.25; overflow-wrap: anywhere }
+.meta { display: flex; align-items: center; gap: 7px; margin-top: 5px; flex-wrap: wrap; font-size: 13px; color: var(--vt-stahl) }
+.mono { font-family: var(--vt-mono); font-size: 13px }
+.mhd { font-family: var(--vt-mono); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums }
+.mengenchip { font-family: var(--vt-display); font-weight: 700; font-size: 20px; line-height: 1; text-align: right; font-variant-numeric: tabular-nums }
+.mengenchip small { display: block; font-family: var(--vt-body); font-weight: 500; font-size: 12px; color: var(--vt-stahl) }
+.fussnote { font-size: 13px; color: var(--vt-stahl); line-height: 1.5 }
+.wahl { width: 22px; height: 22px; flex: none; accent-color: var(--vt-tinte) }
+.zeile.gewaehlt { background: color-mix(in srgb, var(--vt-tinte) 6%, var(--vt-karte)) }
+.zeile.aus { opacity: .6 }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 2.5px 9px; font-size: 12px; font-weight: 600; white-space: nowrap }
+.chip.ok { color: var(--vt-ampel-ok-text); background: var(--vt-ampel-ok-flaeche) }
+.chip.gelb { color: var(--vt-ampel-gelb-text); background: var(--vt-ampel-gelb-flaeche) }
+.chip.rot { color: var(--vt-ampel-rot-text); background: var(--vt-ampel-rot-flaeche) }
+.chip.grau { color: var(--vt-ampel-grau-text); background: var(--vt-ampel-grau-flaeche) }
+.hinweis { display: block; white-space: normal; border-radius: 10px; padding: 9px 11px; font-size: 13px; line-height: 1.4; margin-top: 10px; font-weight: 600 }
+.hinweis.gelb { color: var(--vt-ampel-gelb-text); background: var(--vt-ampel-gelb-flaeche) }
+.hinweis.ok { color: var(--vt-ampel-ok-text); background: var(--vt-ampel-ok-flaeche) }
+.hinweis.grau { color: var(--vt-ampel-grau-text); background: var(--vt-ampel-grau-flaeche) }
+.hinweis.rot { color: var(--vt-ampel-rot-text); background: var(--vt-ampel-rot-flaeche) }
+
+.stepper { display: flex; align-items: center; border: 1.5px solid var(--vt-linie); border-radius: 12px; background: var(--vt-karte); flex: none }
+.rahmen .steptaste { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; color: var(--vt-tinte) }
+.rahmen .steptaste:disabled { opacity: .35; cursor: default }
+.steptaste:first-child { border-right: 1px solid var(--vt-linie) }
+.steptaste:last-child { border-left: 1px solid var(--vt-linie) }
+.stepwert { width: 64px; height: 56px; text-align: center; background: transparent; border: 0; font: 700 20px/1 var(--vt-display); font-variant-numeric: tabular-nums; padding: 0; color: var(--vt-tinte) }
+.mengenband { display: flex; align-items: center; justify-content: space-between; gap: 12px }
+
+.rahmen .knopf {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 11px; padding: 14px 16px;
+  font-weight: 700; font-size: 15px; min-height: 56px; border: 1.5px solid transparent; text-align: center;
+}
+.rahmen .knopf[disabled] { opacity: .45; cursor: default }
+.rahmen .knopfRot { background: var(--vt-rot); color: #fff }
+.rahmen .knopfTinte { background: var(--vt-tinte); color: var(--vt-papier) }
+.rahmen .knopfGeist { background: var(--vt-karte); color: var(--vt-tinte); border-color: var(--vt-linie) }
+.breit { width: 100% }
+.block { margin-top: 12px }
+.stapel { display: flex; flex-direction: column; gap: 10px }
+
+.scankarte { position: relative; overflow: hidden; background: #000; border-radius: 14px; height: 190px; display: flex; align-items: flex-end; justify-content: center }
+.scanrahmen { position: absolute; inset: 22% 12%; border: 2px solid rgba(255,255,255,.7); border-radius: 12px }
+.scanstrich { position: absolute; left: 8%; right: 8%; height: 2px; background: #c8000f; box-shadow: 0 0 14px 2px rgba(200,0,15,.75); top: 16%; animation: scan 2.6s ease-in-out infinite }
+@keyframes scan { 0% { top: 16% } 50% { top: 82% } 100% { top: 16% } }
+@media (prefers-reduced-motion: reduce) { .scanstrich { animation: none; top: 50% } }
+.scantext { position: relative; color: #e8eaec; font-size: 13px; padding: 10px; text-align: center }
+.probe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px }
+.rahmen .probecode {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 56px; padding: 8px 12px; border-radius: 10px;
+  border: 1.5px dashed var(--vt-linie); background: var(--vt-karte); font-size: 13px; font-weight: 600; max-width: 100%;
+}
+.probecode .mono { font-weight: 500; font-size: 12px; color: var(--vt-stahl) }
+.suchfeld, .feld {
+  width: 100%; border: 1.5px solid var(--vt-linie); border-radius: 10px; padding: 12px; font-size: 16px; background: var(--vt-karte);
+  color: var(--vt-tinte); min-height: 56px; font-family: inherit;
+}
+.datum { font: 700 20px/1 var(--vt-mono); letter-spacing: .02em }
+.label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px }
+.chips { display: flex; flex-wrap: wrap; gap: 8px }
+.rahmen .wahlchip {
+  min-height: 48px; padding: 0 14px; border-radius: 99px; border: 1.5px solid var(--vt-linie); background: var(--vt-karte);
+  font-weight: 600; font-size: 14px; display: inline-flex; align-items: center;
+}
+.rahmen .wahlchip[aria-pressed="true"] { border-color: var(--vt-tinte); background: var(--vt-tinte); color: var(--vt-papier) }
+
+.blattHinter { position: absolute; inset: 0; background: rgba(0,0,0,.45); z-index: 5; display: flex; align-items: flex-end }
+.blatt { width: 100%; max-height: 85%; overflow-y: auto; background: var(--vt-papier); border-radius: 18px 18px 0 0; padding: 14px }
+.schritte { display: flex; gap: 6px; margin: 0 2px 12px; font-size: 13px; color: var(--vt-stahl); font-weight: 600; align-items: center; flex-wrap: wrap }
+.rahmen .zurueck { display: inline-flex; align-items: center; gap: 5px; margin-bottom: 12px; font-size: 14px; font-weight: 600; border: 1.5px solid var(--vt-linie); background: var(--vt-karte); border-radius: 99px; padding: 10px 14px; color: var(--vt-stahl); min-height: 56px }
+.leer { text-align: center; padding: 22px 14px; color: var(--vt-stahl); font-size: 14px }
+
+.scanVideo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover }
+.fehler { color: var(--vt-ampel-rot-text) }
+.rahmen a.knopf, .rahmen a.beenden { text-decoration: none }
+.zeitleiste { font-variant-numeric: tabular-nums }
+.rahmen .lampe {
+  position: absolute; top: 8px; right: 8px; width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; background: rgba(0,0,0,.45); color: #fff; z-index: 1;
+}
+.rahmen .lampe[aria-pressed="true"] { background: #fff; color: #000 }

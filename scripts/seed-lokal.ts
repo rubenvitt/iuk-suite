@@ -65,6 +65,8 @@ import * as lagemonitorSchema from "@/app/m/lagemonitor/_db/schema";
 import { seedLokalLagemonitor } from "@/app/m/lagemonitor/_lib/seedLokal";
 import { getDb as getWartungDb } from "@/app/m/wartung/_db/client";
 import { seedLokalWartung } from "@/app/m/wartung/_lib/seedLokal";
+import { getDb as getVerpflegungDb } from "@/app/m/verpflegung/_db/client";
+import { seedLokalVerpflegung } from "@/app/m/verpflegung/_lib/seedLokal";
 
 export interface SeedModul {
   key: string;
@@ -89,6 +91,7 @@ export const SEED_MODULE: SeedModul[] = [
   { key: "gemeinschaft", lauf: () => seedLokalGemeinschaft(getModuleDb("gemeinschaft", gemeinschaftSchema)) },
   { key: "lagemonitor", lauf: () => seedLokalLagemonitor(getModuleDb("lagemonitor", lagemonitorSchema)) },
   { key: "wartung", lauf: () => seedLokalWartung(getWartungDb()) },
+  { key: "verpflegung", lauf: () => seedLokalVerpflegung(getVerpflegungDb()) },
 ];
 
 /**
