@@ -1,3 +1,4 @@
+import { Seite } from "@/core/seite/Seite";
 import { isoTag } from "../_lib/datum";
 import { akteurFuerSeite, darfEinstellenFuerAndere, subFuerSitzung, type Akteur } from "../_lib/zugang";
 import { getDb } from "../_db/client";
@@ -30,14 +31,14 @@ export const dynamic = "force-dynamic";
 export function neuInhalt(akteur: Akteur, heute: string) {
   const darfFuerAndere = darfEinstellenFuerAndere(akteur, heute);
   return (
-    <>
+    <Seite typ="formular">
       <SeitenKopf
         brotkrume={[{ label: "Aufgaben", href: "/" }, { label: "Aufgabe einstellen" }]}
         titel="Aufgabe einstellen"
         hilfe="einstellen"
       />
       <AufgabeFormular darfFuerAndere={darfFuerAndere} />
-    </>
+    </Seite>
   );
 }
 

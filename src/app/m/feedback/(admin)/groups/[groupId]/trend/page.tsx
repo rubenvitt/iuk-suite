@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Button } from "antd";
+import { Seite } from "@/core/seite/Seite";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SPACE } from "@/core/theme/tokens";
 import { getGroup, listEvenings, getSurveyByEvening, listResponses } from "@/app/m/feedback/_db/queries";
@@ -78,8 +79,8 @@ export default async function TrendPage({
   const trend = computeGroupTrend(evenings, from, to);
 
   return (
-    <>
-      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+    <Seite typ="uebersicht">
+      <div>
         <Seitenkopf
           titel={`Trend — ${group.name}`}
           // „Ø Note (1 = beste)" wortgenau wie der Spaltenkopf aus §4.11: ohne
@@ -106,8 +107,6 @@ export default async function TrendPage({
       </div>
       <div
         style={{
-          maxWidth: 1120,
-          margin: "0 auto",
           display: "flex",
           flexDirection: "column",
           gap: SPACE.xl,
@@ -158,7 +157,7 @@ export default async function TrendPage({
           ))}
         </ul>
       </div>
-    </>
+    </Seite>
   );
 }
 

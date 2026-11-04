@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { Button, Card, Col, Row, Statistic } from "antd";
+import { Seite } from "@/core/seite/Seite";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../../../_db/client";
@@ -223,8 +224,8 @@ export default async function Cockpit({
   const teilnahmeUrl = teilnahmeUrlAus(await headers(), buildToken(group.slug, group.secret));
 
   return (
-    <>
-      <div style={{ maxWidth: einrichtung ? 760 : 1120, margin: "0 auto" }}>
+    <Seite typ={einrichtung ? "formular" : "uebersicht"}>
+      <div>
         {/* „Gruppen" wortgenau wie §4.1 — derselbe Titel wie am Rückweg der
             Unterseiten, sonst heißt die Wurzel je nach Seite anders. Bedingt wie
             vormals die Breadcrumb: fehlt der Rückweg, würde er auf `/m/feedback`
@@ -237,8 +238,6 @@ export default async function Cockpit({
       </div>
       <div
         style={{
-          maxWidth: einrichtung ? 760 : 1120,
-          margin: "0 auto",
           display: "flex",
           flexDirection: "column",
           gap: SPACE.xl,
@@ -397,7 +396,7 @@ export default async function Cockpit({
           />
         </div>
       </div>
-    </>
+    </Seite>
   );
 }
 

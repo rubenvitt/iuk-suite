@@ -1,0 +1,65 @@
+/*
+ * DIE VIER SEITENTYPEN UNTER `FullShell` (Haarlinie, IDA-347, Etappe 2) — Regeln in
+ * `docs/design/README.md`, „Seitentypen".
+ *
+ * Inhalt steht IMMER links an der Menükante, nie mittig: kein `margin-inline: auto` in dieser Datei
+ * (`seite.test.ts` hält das fest). Die Polsterung von 16px trägt `MenueRahmen`, nicht der Typ.
+ *
+ * KEINE `--ant-*`-VARIABLEN (Falle 2) und KEINE `.ant-*`-SELEKTOREN (Falle 20): `Form.Item` steht
+ * als gewöhnliches Rasterkind in `.felder`, ohne dass hier eine antd-Klasse genannt wird.
+ */
+
+.seite {
+  min-inline-size: 0;
+}
+
+/* Liste und Übersicht: volle Spaltenbreite. Die Tabelle scrollt in sich, das Raster bricht selbst. */
+.liste,
+.uebersicht {
+  inline-size: 100%;
+}
+
+/* Formular/Detail: links, höchstens 960px — zwei Feldspalten à 320px mit Luft, keine Zeile über
+   ~110 Zeichen. */
+.formular {
+  max-inline-size: 960px;
+}
+
+/* Werkzeug (Editoren): volle Breite und am Desktop die volle Höhe neben dem Menü. Die 32px sind
+   die Polsterung oben und unten aus `MenueRahmen`. Am Telefon bestimmt der Inhalt die Höhe: dort
+   steht die Ort-Zeile darüber, und ein Editor darf scrollen. */
+.werkzeug {
+  inline-size: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .werkzeug {
+    min-block-size: calc(100dvh - 32px);
+  }
+}
+
+/*
+ * DAS FELDRASTER: zwei Spalten, wo Platz ist, eine am Telefon — ohne Media Query.
+ * `min(100%, 320px)` hält die Untergrenze unter 320px Spaltenbreite (Telefon 320 − 2 × 16), sonst
+ * liefe das Raster über den Rand. `column-gap` allein: den Zeilenabstand trägt der
+ * Unterrand der Formularzeile.
+ */
+.felder {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  column-gap: 24px;
+  align-items: start;
+}
+
+/* Jedes Rasterkind darf schmaler werden als sein Inhalt; ein `fieldset` hätte sonst
+   `min-inline-size: min-content` und schöbe die Spalte auf. */
+.felder > * {
+  min-inline-size: 0;
+}
+
+/* Lange Felder (Textbereich, Anschrift, Tabelle) über die ganze Zeile. */
+.breit {
+  grid-column: 1 / -1;
+}

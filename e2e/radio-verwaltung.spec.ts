@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { like } from "drizzle-orm";
 import { devices } from "@/app/m/radio/_db/schema";
-import { devLogin, klickeWennRuhig, warteAufDarstellung, warteAufGestreamteInhalte } from "./fixtures";
+import { devLogin, klickeWennRuhig, oeffneAlleApps, warteAufDarstellung, warteAufGestreamteInhalte } from "./fixtures";
 import {
   E2E_CODE_AKTIV,
   FREMDER_HOST,
@@ -232,37 +232,23 @@ test.describe("radio-Verwaltung", () => {
     );
   });
 
-  test("die Hoehe eines App-Umschalter-Eintrags ist kleiner als die Kopfzeilenhoehe", async ({
+  test("ein App-Eintrag im Menue ist eine Zeile, keine geerbte Kopfzeilenhoehe", async ({
     page,
   }) => {
     /*
-     * ⛔ FALLE 8, UND KEIN GATE DIESES REPOS FINDET SIE. `antd/es/layout/style/index.js` setzt
-     * auf `.ant-layout-header` ein `line-height` in KOPFZEILENHOEHE und vererbt es an jedes
-     * Kind. Die Regel wird zur Laufzeit ueber cssinjs eingespritzt — sie steht in KEINER Datei
-     * des Repos, `tsc` und `eslint` sehen sie nicht, und jsdom rechnet keine Zeilenboxen.
-     * Gemessen war jeder Panel-Eintrag dadurch 82 px hoch (8 px Polster + 64 px Zeilenbox +
-     * 8 px Polster) in einer 64 px hohen Kopfzeile; die Gegenmassnahme ist EINE Zeile am
-     * GEMEINSAMEN VORFAHREN, `line-height: normal` an `.umschalter`
-     * (`src/core/shell/shell.module.css`, Regel `.umschalter` samt Begruendung darueber).
+     * ⛔ FALLE 8. `antd/es/layout/style/index.js` setzt auf `.ant-layout-header` ein
+     * `line-height` in KOPFZEILENHOEHE und vererbt es an jedes Kind; die Regel kommt zur
+     * Laufzeit ueber cssinjs und steht in keiner Datei des Repos. Gemessen war jeder Eintrag
+     * des alten App-Umschalters dadurch 82 px hoch.
      *
-     * ⛔ ALS VERHAELTNIS UND NICHT ALS ZAHL. `shell-css.test.ts` haelt fest, dass die
-     * Gegenmassnahme DASTEHT; `e2e/shell-mobil.spec.ts:653-660` misst den Eintrag gegen die
-     * feste Zahl 56 auf `portal.localtest.me`. ⛔ DIESER FALL IST BEIDES NICHT: er misst auf
-     * der VERWALTUNGSFLAECHE DIESES MODULS und stellt die Eintragshoehe gegen die
-     * TATSAECHLICHE Kopfzeilenhoehe. Eine feste Zahl waere eine zweite Wahrheit ueber
-     * `headerHeight`; das Verhaeltnis bleibt richtig, wenn die Kopfzeile einmal anders hoch
-     * ist.
-     *
-     * ⛔ DIE VORBEDINGUNG WIRD MITGEPRUEFT, SONST GEHT DER FALL STILL VAKUOES: spritzte antd
-     * die Regel eines Tages nicht mehr ein, waere der Eintrag ohnehin niedrig und die
-     * Zusicherung gruen, ohne noch irgendetwas zu bewachen. Deshalb liest die Zeile darunter
-     * die geerbte Zeilenhoehe der Kopfzeile ab und haelt sie gegen deren eigene Hoehe.
-     *
-     * ⛔ `klickeWennRuhig` UND KEIN BLANKES `.click()` — Falle 12, Bauform 24. `/admin` laeuft
-     * in `FullShell` mit `SessionProvider`; die Navigation wechselt nach dem Nachladen der
-     * Sitzung von der schmalen Platzhalter- auf die volle Spalte, der Inhalt rutscht rund
-     * 240 px hoch, und zwar NACH `load` und hinter Playwrights eigener Stabilitaetsprobe. Die
-     * Begruendung steht in voller Laenge in `e2e/fixtures.ts:45-88`.
+     * SEIT DEM MENUE (IDA-347, Etappe 2) traegt `FullShell` keinen antd-`Header` mehr — die
+     * Seitenleiste ist ein eigenes `<header>` (`MenueRahmen`), und `.kopf` setzt trotzdem
+     * `line-height: normal` am gemeinsamen Vorfahren (`menue.module.css`). Bis dahin stand
+     * hier ein Verhaeltnis gegen die Kopfzeilenhoehe; die Leiste ist jetzt fensterhoch, das
+     * Verhaeltnis also vakuoes. Zugesichert werden deshalb die Gegenmassnahme selbst und die
+     * Zeilenhoehe des Eintrags: mindestens die Bediendichte 44 (Falle 4), unter `TAP` 56.
+     * Gemessen auf der VERWALTUNGSFLAECHE DIESES MODULS, nicht nur auf dem Portal
+     * (`e2e/shell-mobil.spec.ts`, „ein Panel-Eintrag ist eine Zeile").
      *
      * ⚠️ KEIN `test.use({ viewport })` — das setzte die Breite fuer JEDEN Fall dieser Datei
      * still um. Playwrights Vorgabe 1280x720 traegt `md === true` bereits, und genau darauf
@@ -274,22 +260,13 @@ test.describe("radio-Verwaltung", () => {
     expect(antwort?.status(), "/admin auf dem radio-Host").toBe(200);
 
     const kopf = page.getByTestId("suite-header");
-    await expect(kopf, "die Suite-Kopfzeile fehlt — es gibt nichts, wogegen zu messen waere").toBeVisible();
-    const kopfKasten = await kopf.boundingBox();
-    expect(kopfKasten, "die Kopfzeile hat keinen Kasten").not.toBeNull();
-
-    // DIE VORBEDINGUNG DER FALLE: antd vererbt die Kopfzeilenhoehe als Zeilenhoehe weiter.
-    // Faellt sie weg, bewacht der Vergleich darunter nichts mehr — dann ist diese Zeile rot,
-    // und das ist die richtige Meldung.
+    await expect(kopf, "das Menue der Suite fehlt").toBeVisible();
     expect(
       await kopf.evaluate((el) => getComputedStyle(el).lineHeight),
-      "antd vererbt der Kopfzeile keine Zeilenhoehe mehr — Falle 8 ist weg, und dieser Fall waere vakuoes",
-    ).toBe(`${kopfKasten!.height}px`);
+      "das Menue setzt `line-height: normal` nicht mehr (Falle 8, `menue.module.css`, `.kopf`)",
+    ).toBe("normal");
 
-    await klickeWennRuhig(page.getByTestId("app-umschalter"));
-
-    const panel = page.getByTestId("app-panel");
-    await expect(panel, "das Panel des App-Umschalters ist nicht aufgegangen").toBeVisible();
+    const panel = await oeffneAlleApps(page);
     const eintrag = panel.getByTestId("app-eintrag").first();
     await expect(
       eintrag,
@@ -298,11 +275,11 @@ test.describe("radio-Verwaltung", () => {
 
     const eintragKasten = await eintrag.boundingBox();
     expect(eintragKasten, "der Eintrag hat keinen Kasten").not.toBeNull();
+    expect(eintragKasten!.height, "ein Eintrag unterschreitet die Bediendichte 44").toBeGreaterThanOrEqual(44);
     expect(
       eintragKasten!.height,
-      `ein Panel-Eintrag ist ${eintragKasten!.height} px hoch bei einer ${kopfKasten!.height} px ` +
-        "hohen Kopfzeile — die geerbte Zeilenhoehe ist zurueck (shell.module.css, `.umschalter`)",
-    ).toBeLessThan(kopfKasten!.height);
+      `ein App-Eintrag ist ${eintragKasten!.height} px hoch — eine geerbte Zeilenhoehe ist zurueck`,
+    ).toBeLessThan(56);
   });
 
   test("Fall 2: /admin/geraete zeigt die Tabelle, und ein Filter landet in der URL", async ({ page }) => {

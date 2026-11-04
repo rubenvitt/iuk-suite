@@ -14,6 +14,7 @@ import rechteVergeben from "./notizen/portal/2026-10-21-rechte-vergeben";
 import wasStehtAn from "./notizen/portal/2026-10-31-was-steht-an";
 import modulversionen from "./notizen/portal/2026-11-02-modulversionen";
 import appsAnheften from "./notizen/portal/2026-11-03-apps-anheften";
+import einMenue from "./notizen/portal/2026-11-04-ein-menue";
 import sucheUeberAlleModule from "./notizen/portal/2026-10-31-suche-ueber-alle-module";
 import springenMitStrgK from "./notizen/portal/2026-10-31-springen-mit-strg-k";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
@@ -307,6 +308,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   wasStehtAn,
   modulversionen,
   appsAnheften,
+  einMenue,
   sucheUeberAlleModule,
   springenMitStrgK,
   funkInDerSuite,

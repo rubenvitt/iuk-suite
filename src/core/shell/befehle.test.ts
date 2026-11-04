@@ -25,6 +25,13 @@ describe("befehle", () => {
       .toMatchObject({ key: "app:wiki", extern: true, href: "https://wiki.example" });
   });
 
+  it("findet Umlaute auch ausgeschrieben und ohne Akzent („pruef“, „pruf“ → „Prüfungen“)", () => {
+    const nav = [{ key: "pruef", title: "Prüfungen", href: "/p" }];
+    for (const eingabe of ["pruef", "pruf", "PRÜF"]) {
+      expect(befehle({ eingabe, nav, eintraege: [], suchHref: null }).map((b) => b.key)).toEqual(["nav:pruef"]);
+    }
+  });
+
   it("die Suche steht immer am Ende, ab zwei Zeichen, mit kodiertem Begriff", () => {
     const liste = befehle({ eingabe: " UE-RK 831 ", nav: NAV, eintraege: APPS, suchHref: SUCHE });
     expect(liste.at(-1)).toMatchObject({

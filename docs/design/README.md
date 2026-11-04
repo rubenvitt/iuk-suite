@@ -538,3 +538,25 @@ später eine eigene (Instrumententafel). Die beiden bleiben getrennt.
   `bewegung.test.ts` hält Kurve, Token und CSS zusammen.
 - **Haarlinie-Figuren** (`@lucasmarkes/hairline`) nur in Ruhezuständen: leere Listen, Anmeldung, 403/404,
   leeres Portal, Fertig-Momente. Nie in Tabellen, Formularen oder Flyins.
+- **Navigation (Etappe 2):** `FullShell` trägt ein Menü mit zwei Ebenen statt Kopfzeile und Seitenleiste
+  (`core/shell/MenueRahmen.tsx`, `Navigator.tsx`): oben die App, darunter ihre Seiten; ein Tipp auf die App
+  schiebt „Alle Apps" herein. Desktop dauerhaft links, Telefon als Blatt von unten hinter dem Ort-Knopf.
+  Aktiv ist `--iuk-flaeche-aktiv` mit Tinte und 600, keine rote Kante. `MinimalShell` behält die Kopfzeile.
+- **Seitentypen (Etappe 2, Betreiberentscheidung 2026-11-04):** unter `FullShell` steht Inhalt **immer links
+  an der Menükante, nie mittig**. Jede Seite nimmt einen der vier Typen aus `core/seite/Seite.tsx`
+  (`<Seite typ="…">`, serversicher):
+
+  | Typ | Breite | wofür |
+  |---|---|---|
+  | `liste` | volle Spalte | Tabellen |
+  | `uebersicht` | volle Spalte | Karten, Kennzahlen, Diagramme |
+  | `formular` | links, höchstens 960px | Formular und Detail |
+  | `werkzeug` | volle Spalte, am Desktop volle Höhe | Editoren |
+
+  - Formularzeilen ordnet `Felder`: zwei Spalten, wo Platz ist, eine am Telefon, ohne Media Query.
+    `Form.Item` steht direkt darin; lange Felder (Textbereich, Anschrift, Tabelle) per `<Feld breit>`
+    oder `className={FELD_BREIT}`. Den Zeilenabstand trägt `Form.Item`; ohne antd-Form `rowGap` setzen.
+  - Keine eigene Höchstbreite mit `margin: 0 auto`/`marginInline: "auto"` auf Seitenebene;
+    `core/seite/zentrierung.test.ts` riegelt ab. Ausgenommen (mit Grund in der Liste) sind Flächen
+    außerhalb von `FullShell`: Telefon, Kiosk, öffentliche Zettel und Druckblätter.
+  - Die Polsterung (16px) trägt `MenueRahmen`, nicht der Typ.

@@ -103,11 +103,11 @@ test("Vektordatei: Kette intakt, Detail, Bericht, Audit beim Öffnen und Drucken
   expect(await page.evaluate(() => (window as unknown as { __drucke: number }).__drucke)).toBe(1);
 
   // Vorher sichtbar, sonst bewiese „im Druck verborgen“ nichts.
-  await expect(page.locator(".ant-layout-sider")).toBeVisible();
+  await expect(page.getByTestId("modulleiste")).toBeVisible();
   await expect(page.getByTestId("suite-header")).toBeVisible();
   await page.emulateMedia({ media: "print" });
   await expect(page.getByTestId("suite-header")).toBeHidden();
-  await expect(page.locator(".ant-layout-sider")).toBeHidden();
+  await expect(page.getByTestId("modulleiste")).toBeHidden();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   // Papier bleibt hell (bericht.module.css: #fff auf #1a1d20).
   const blatt = page.locator("[data-bericht]");

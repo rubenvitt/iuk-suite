@@ -132,7 +132,7 @@ async function quelleWaehlen(page: Page, name: RegExp): Promise<void> {
   const radio = page.getByRole("radio", { name });
   if (await radio.isChecked()) return;
   await klickeWennRuhig(radio);
-  await klickeWennRuhig(page.getByRole("button", { name: "Wechseln" }));
+  await klickeWennRuhig(page.getByRole("button", { name: "Wechseln", exact: true }));
   await expect(page.getByText(/Quelle „.*“ eingestellt\./)).toBeVisible();
 }
 

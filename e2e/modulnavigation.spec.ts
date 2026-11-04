@@ -1,5 +1,5 @@
-import { test, expect, type Locator } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { test, expect } from "@playwright/test";
+import { devLogin, oeffneMenue } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -7,8 +7,9 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  * in einer Seitenleiste statt fünfzehn gleichrangiger Einträge in einer
  * umbrechenden Zeile. Seit 2026-08-13 (Navigations-Umbau) bekommt JEDES Modul
  * mit Navigation dieselbe Leiste, ob mit oder ohne Abschnitte — nur ein Modul
- * ganz ohne Navigation bleibt ohne sie. Beides hängt an einem laufenden Server
- * (`Sider`-Importpfad, echtes CSS unter den drei Breite-Klassen) —
+ * ganz ohne Navigation bleibt ohne sie. Seit dem Menue (IDA-347, Etappe 2) steht
+ * sie als Seitenliste im Menue von `MenueRahmen`. Beides hängt an einem laufenden
+ * Server (echtes CSS am Breakpoint 768px) —
  * `typecheck`, `pnpm build` und Vitest sehen es nicht.
  *
  * Gruppe und Host kommen aus `./helpers/lagerbuch`, nicht als Literal: dieselbe
@@ -62,16 +63,22 @@ test("unter 768px liegt die Navigation im Drawer, mit denselben Abschnitten", as
    * wenn der Knoten gar nicht existiert — bei einem Tippfehler im
    * `data-testid` wäre dieser Test also blind grün und würde nichts über den
    * Breakpoint aussagen. `toHaveCount(1)` beweist zuerst, dass die Leiste
-   * tatsächlich im DOM steht (der `Sider` wird unter 768px NICHT weggelassen,
-   * siehe `SuiteRahmen.tsx` — die Umschaltung läuft rein über CSS). Erst danach
-   * sagt `toBeHidden()` etwas darüber, dass sie dort unsichtbar bleibt.
+   * tatsächlich im DOM steht (die Seitenleiste wird unter 768px NICHT
+   * weggelassen, siehe `SuiteLeiste` in `Navigator.tsx` — die Umschaltung läuft
+   * rein über CSS). Erst danach sagt `toBeHidden()` etwas darüber, dass sie dort
+   * unsichtbar bleibt.
    */
   await expect(leiste).toHaveCount(1);
   await expect(leiste).toBeHidden();
 
-  await page.getByTestId("menue-knopf").click();
-  const drawer = page.getByTestId("suite-drawer");
-  await expect(drawer.getByTestId("nav-abschnitt").first()).toHaveText("Bestand");
+  const drawer = await oeffneMenue(page);
+  await expect(drawer.getByTestId("modulleiste-drawer").getByTestId("nav-abschnitt")).toHaveText([
+    "Bestand",
+    "Einheiten & Geräte",
+    "Prüfungen",
+    "Protokoll",
+    "Einrichtung",
+  ]);
 });
 
 test("ein Modul ohne Navigation bekommt keine Leiste", async ({ page }) => {
@@ -98,7 +105,7 @@ test("ein Modul ohne Navigation bekommt keine Leiste", async ({ page }) => {
   /*
    * `gamma` und nicht mehr `portal`. Hier stand bis zu den Release Notes das
    * Portal ohne Verwaltungsrecht — `navFuerPortal` lieferte dann eine leere
-   * Liste, und die Leiste haengt an `nav.length > 0` (`SuiteRahmen.tsx`). Seit
+   * Liste, und die Seitenliste haengt an `nav.length > 0` (`Navigator.tsx`). Seit
    * `/neuigkeiten` bekommt dort JEDE angemeldete Person zwei Eintraege; das
    * Portal ist damit kein Modul ohne Navigation mehr.
    *
@@ -113,141 +120,50 @@ test("ein Modul ohne Navigation bekommt keine Leiste", async ({ page }) => {
 });
 
 /**
- * DER SCHALTER EINES ABSCHNITTS — ueber testId und Textinhalt, NICHT ueber
- * `getByRole("button", { name })`.
+ * DAS LANGE MENUE — „Springen zu" statt Filter und aufklappbarer Abschnitte.
  *
- * ⚠️ DER UNTERSCHIED IST `text-transform: uppercase` (`SCHRIFT.kicker`).
- * Chromium wendet es auf den ZUGAENGLICHEN NAMEN an; eine Rollenabfrage auf
- * „Bestand" faende den Knopf deshalb nicht, und der Fehlschlag laese sich wie
- * „der Schalter fehlt" statt wie „der Name ist gross geschrieben".
- * `hasText` vergleicht den Textinhalt, und der bleibt „Bestand".
+ * Bis zum Menue (IDA-347, Etappe 2) trug die Leiste ab zwoelf Eintraegen ein
+ * Filterfeld (`nav-filter`) und zuklappbare Abschnitte. Beides ist entfallen:
+ * die Abschnitte sind Ueberschriften, und gesucht wird im Feld „Springen zu"
+ * ueber dem Menue (`befehle.ts`) — Seiten dieser App zuerst, dann Apps und die
+ * suiteweite Suche. Die drei Faelle zum Aufklappzustand (zugeklappt verborgen,
+ * Seitenwechsel, Leiste und Drawer gleich) haben damit keinen Gegenstand mehr
+ * und sind entfallen; die Filterzusage lebt hier am neuen Feld weiter.
  */
-function abschnittsSchalter(bereich: Locator, titel: string): Locator {
-  return bereich.getByTestId("nav-abschnitt").filter({ hasText: titel });
-}
-
-/**
- * DAS LANGE MENUE — Filter und aufklappbare Abschnitte (`NavListe`).
- *
- * WAS NUR EIN ECHTER BROWSER SIEHT, und deshalb stehen diese drei Faelle hier
- * und nicht in Vitest:
- *
- *  1. **Ob `hidden` WIRKT.** jsdom rechnet keine Layoutboxen und wertet die
- *     Kaskade fuer `display` nicht aus — `.navGruppeLinks { display: flex }`
- *     schlaegt die Browservorgabe `[hidden] { display: none }`, und ohne die
- *     Gegenregel klappte der Abschnitt SICHTBAR gar nicht zu, waehrend
- *     `aria-expanded="false"` das Gegenteil ansagt. Der DOM-Test bliebe gruen
- *     (`hidden` steht ja am Knoten), `shell-css.test.ts` haelt nur fest, dass
- *     die Regel DASTEHT. Dass sie gewinnt, weisz nur der Browser.
- *  2. **Dass der Speicher einen echten Seitenwechsel ueberlebt.** In Vitest ist
- *     ein „Neuaufbau" ein zweites `mount` im selben Prozess; hier ist es ein
- *     neues Dokument mit einem neuen React-Baum.
- *  3. **Dass Leiste und Drawer denselben Stand zeigen.** Beide stehen
- *     gleichzeitig im Baum, welche man sieht entscheidet CSS — und genau
- *     deshalb koennen sie auseinanderlaufen.
- */
-test("ein zugeklappter Abschnitt verbirgt seine Einträge und übersteht den Seitenwechsel", async ({
-  page,
-}) => {
-  await devLogin(page, {
-    host: LAGERBUCH_HOST,
-    groups: LAGERBUCH_ADMIN_GRUPPE,
-    callbackPath: "/verwaltung/journal",
-  });
-
-  const leiste = page.getByTestId("modulleiste");
-  const artikel = leiste.getByRole("link", { name: "Artikel", exact: true });
-  await expect(artikel).toBeVisible();
-
-  const bestand = abschnittsSchalter(leiste, "Bestand");
-  await expect(bestand).toHaveAttribute("aria-expanded", "true");
-  await bestand.click();
-
-  // ⚠️ `toBeHidden` UND NICHT `toHaveCount(0)`: der Knoten bleibt im DOM
-  // (`aria-controls` zeigt auf ihn). Gemessen wird also die CSS-Wirkung, und
-  // das ist genau die Zusage, die kein anderes Tor tragen kann.
-  await expect(artikel).toBeHidden();
-  await expect(bestand).toBeVisible();
-
-  // Ein echter Seitenwechsel, nicht nur ein Neurendern.
-  await page.goto(lagerbuchUrl("/verwaltung/journal"), { waitUntil: "load" });
-  await expect(abschnittsSchalter(leiste, "Bestand")).toHaveAttribute("aria-expanded", "false");
-});
-
-test("der Abschnitt der aufgerufenen Seite klappt wieder auf", async ({ page }) => {
-  await devLogin(page, {
-    host: LAGERBUCH_HOST,
-    groups: LAGERBUCH_ADMIN_GRUPPE,
-    callbackPath: "/verwaltung/journal",
-  });
-
-  const leiste = page.getByTestId("modulleiste");
-  await abschnittsSchalter(leiste, "Bestand").click();
-  await expect(leiste.getByRole("link", { name: "Artikel", exact: true })).toBeHidden();
-
-  /*
-   * DIE REGEL, DIE DAS ZUKLAPPEN GEFAHRLOS MACHT: wer per Lesezeichen in einen
-   * zugeklappten Abschnitt hineinspringt, saehe sonst eine Seite, deren Platz in
-   * der Navigation fehlt — die Orientierung fiele genau dann aus, wenn man sie
-   * braucht.
-   */
-  await page.goto(lagerbuchUrl("/verwaltung/artikel"), { waitUntil: "load" });
-  await expect(leiste.getByRole("link", { name: "Artikel", exact: true })).toBeVisible();
-  await expect(abschnittsSchalter(leiste, "Bestand")).toHaveAttribute("aria-expanded", "true");
-});
-
-test("das Filterfeld grenzt die Leiste ein und nennt die Trefferzahl", async ({ page }) => {
+test("„Springen zu“ findet Seiten mitten im Wort und mit ausgeschriebenem Umlaut", async ({ page }) => {
   await devLogin(page, {
     host: LAGERBUCH_HOST,
     groups: LAGERBUCH_ADMIN_GRUPPE,
     callbackPath: "/verwaltung",
   });
 
-  const leiste = page.getByTestId("modulleiste");
-  const vorher = await leiste.getByTestId("nav-link").count();
+  const menue = await oeffneMenue(page);
+  const vorher = await menue.getByTestId("nav-link").count();
   expect(vorher).toBeGreaterThan(12);
+  const feld = menue.getByTestId("befehlspalette-eingabe");
+  // Seiten-Treffer sind `next/link` auf einen relativen Pfad; Apps und die
+  // suiteweite Suche tragen eine volle Adresse.
+  const seiten = menue.locator('[data-testid="befehl"][href^="/"]');
 
   /*
    * „etiketten" trifft BEIDE Etikettenseiten — der Fall, für den die Suche
    * mitten im Wort sucht und nicht nur am Anfang.
    *
    * ⚠️ „Ortsetiketten" ZUERST, und das ist keine Sortierung, sondern die
-   * QUELLREIHENFOLGE: `filtereNav` lässt sie unangetastet, und im Abschnitt
+   * QUELLREIHENFOLGE: `befehle` lässt sie unangetastet, und im Abschnitt
    * „Einrichtung" steht die Ortskarte seit DRK-406 bewusst vor dem
-   * Artikeletikett (die Codes, mit denen der Helfer-Weg anfängt, vor dem Bogen,
-   * den man einmal beim Einrichten druckt). Wer hier alphabetisch erwartet,
-   * misst eine Sortierung, die es nicht gibt — und baut sie beim „Reparieren"
-   * womöglich ein.
+   * Artikeletikett.
    */
-  await leiste.getByTestId("nav-filter").fill("etiketten");
-  await expect(leiste.getByTestId("nav-link")).toHaveText(["Ortsetiketten", "Artikeletiketten"]);
-  await expect(leiste.getByTestId("nav-filter-stand")).toHaveText(`2 von ${vorher} Einträgen`);
+  await feld.fill("etiketten");
+  await expect(seiten).toHaveText([/^Ortsetiketten/, /^Artikeletiketten/]);
+  // Waehrend gesucht wird, steht statt der Ebenen die Trefferliste.
+  await expect(menue.getByTestId("nav-link")).toHaveCount(0);
 
   // Umlaut ausgeschrieben — die Schreibweise ohne Umlauttaste muss dasselbe
-  // finden wie „Prüfungen".
-  await leiste.getByTestId("nav-filter").fill("pruef");
-  await expect(leiste.getByTestId("nav-link")).toHaveText([
-    "Mängel",
-    "Checks",
-    "Check durchführen",
-    "BZ-Kontrolle",
-  ]);
+  // finden wie „Prüfungen" (der Abschnitt der vier Seiten).
+  await feld.fill("pruef");
+  await expect(seiten).toHaveText([/^Mängel/, /^Checks/, /^Check durchführen/, /^BZ-Kontrolle/]);
 
-  await leiste.getByTestId("nav-filter").fill("");
-  await expect(leiste.getByTestId("nav-link")).toHaveCount(vorher);
-});
-
-test("Leiste und Drawer zeigen denselben Aufklappzustand", async ({ page }) => {
-  await devLogin(page, {
-    host: LAGERBUCH_HOST,
-    groups: LAGERBUCH_ADMIN_GRUPPE,
-    callbackPath: "/verwaltung",
-  });
-
-  await abschnittsSchalter(page.getByTestId("modulleiste"), "Bestand").click();
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByTestId("menue-knopf").click();
-  const drawer = page.getByTestId("suite-drawer");
-  await expect(abschnittsSchalter(drawer, "Bestand")).toHaveAttribute("aria-expanded", "false");
+  await feld.fill("");
+  await expect(menue.getByTestId("nav-link")).toHaveCount(vorher);
 });

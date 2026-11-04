@@ -164,6 +164,12 @@
   --iuk-gedaempft: #62626b;
   --iuk-linie: #e7e7e4;
   --iuk-flaeche-aktiv: rgb(24 24 27 / 0.05);
+  /* Haarlinie (IDA-347): Grund, Karte und Tinte für eigenes Markup, das antds Scope nicht sieht
+     (Falle 2) — dieselben Werte wie `colorBgLayout`, `colorBgContainer`, `colorText`
+     (`FARBEN.papier`, `karte`, `tinte`). Erster Nutzer ist das Menü von `FullShell`. */
+  --iuk-grund: #fafaf9;
+  --iuk-karte: #ffffff;
+  --iuk-tinte: #18181b;
 }
 
 :root[data-theme="dark"] {
@@ -171,6 +177,9 @@
   --iuk-gedaempft: #a1a1aa;
   --iuk-linie: #232327;
   --iuk-flaeche-aktiv: rgb(255 255 255 / 0.07);
+  --iuk-grund: #09090b;
+  --iuk-karte: #111113;
+  --iuk-tinte: #fafafa;
 }
 
 html,
@@ -343,4 +352,37 @@ select {
     transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
+
+  /*
+   * antds Höhen-Motion (Collapse, Menu inline, Tree, Form) setzt `transition` mit
+   * `!important` unter `.ant-<komponente> .ant-motion-collapse` (0,2,0) und
+   * schlüge so die Regel oben (0,0,0). `html:root` hebt diese auf (0,2,1).
+   * `.ant-motion-*` sind antd-Klassennamen (Falle 20): `textlinks-bewegung.test.tsx`
+   * prüft am gerenderten CSS, dass antd genau diese Selektoren ausgibt.
+   */
+  html:root .ant-motion-collapse,
+  html:root .ant-motion-collapse-legacy-active {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
+
+/*
+ * LINKS IM LAUFTEXT SIND UNTERSTRICHEN (Haarlinie). Die Linkfarbe ist dieselbe
+ * Tinte wie der Text; ohne Strich wäre ein Link im Satz nur am Zeiger zu erkennen
+ * (WCAG 1.4.1). Eine Regel für den Lauftext statt einer Klasse je Fundstelle.
+ *
+ * Geltungsbereich: Absätze, Beschreibungslisten, Zitate und die Textflächen von
+ * Hinweis und Formularfeld. NICHT `li` — Menü, Brotkrumen und Seitenzahlen sind
+ * Listen. Ausgenommen sind Links mit antd-Klasse (`a.ant-btn`, `a.ant-typography`
+ * hat seinen Strich aus dem Theme).
+ *
+ * `html … a` steht bei (0,0,2): über antds Link-Reset `a` (0,0,1), der den Strich
+ * sonst über `--ant-link-decoration` wieder wegnähme, und unter jeder Modulklasse
+ * (0,1,0) — ein bewusst leiser Link (`.leiseLink`) bleibt leise.
+ * `textlinks-bewegung.test.tsx` prüft Treffer und Nicht-Treffer am gerenderten Markup.
+ */
+html :where(p, dd, blockquote, figcaption, .ant-alert-title, .ant-alert-description, .ant-form-item-extra) a:where(:not([class*="ant-"])) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

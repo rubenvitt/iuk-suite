@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Button, Card, Col, Result, Row } from "antd";
+import { Seite } from "@/core/seite/Seite";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "@/app/m/feedback/_db/client";
@@ -126,7 +127,7 @@ export default async function AuswertungPage({
     .length;
 
   return (
-    <>
+    <Seite typ="uebersicht">
       {/*
        * KOPFZONE (§4.2): der Rückweg IST der Weg zurück (§4.1, vormals eine
        * dreistufige Breadcrumb „Gruppen › Gruppe › Auswertung", seit Task 11
@@ -134,7 +135,7 @@ export default async function AuswertungPage({
        * zusätzlicher „← Zurück"-Knopf entfällt, zwei Rückwege sind ein Rückweg zu
        * viel.
        */}
-      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+      <div>
         <Seitenkopf
           titel={`Auswertung — ${formatAbendtag(evening.date)}`}
           beschreibung={`${group.name}${evening.topic ? ` · ${evening.topic}` : ""}`}
@@ -153,8 +154,6 @@ export default async function AuswertungPage({
       </div>
       <div
         style={{
-          maxWidth: 1120,
-          margin: "0 auto",
           display: "flex",
           flexDirection: "column",
           gap: SPACE.xl,
@@ -292,7 +291,7 @@ export default async function AuswertungPage({
         </>
       )}
       </div>
-    </>
+    </Seite>
   );
 }
 

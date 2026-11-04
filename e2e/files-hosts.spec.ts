@@ -102,8 +102,8 @@ test("2 — Inbox-Host: `/` zeigt die Abgabe-Hinweisseite, ohne Shell und ohne A
   await expect(page.getByText(/nur über den Link/i)).toBeVisible();
 
   // KEINE Shell und KEIN App-Switcher, und beides einzeln: `suite-header` ist
-  // die Shell (`SuiteHeader.tsx`), `app-umschalter` der App-Switcher seit dem
-  // Navigations-Umbau (`AppUmschalter.tsx`, Auslöser am Modultitel). Ein
+  // die Shell (`SuiteHeader.tsx` bzw. `MenueRahmen.tsx`), `app-umschalter` der
+  // App-Switcher (seit dem Menue der App-Knopf in `Navigator.tsx`). Ein
   // Switcher zeigte hier auf vier Module, die die aufrufende Person nicht
   // betreten darf — jeder Eintrag eine Sackgasse.
   await expect(page.getByTestId("suite-header")).toHaveCount(0);

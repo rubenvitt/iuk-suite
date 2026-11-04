@@ -6,6 +6,7 @@ import { aufgabeBearbeitenAction, aufgabeEinstellenAction } from "../actions";
 import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
 import { NACHWEIS_ARTEN, PRIORITAETEN, type AufgabeRow } from "../_db/schema";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
+import { FELD_BREIT, Feld, Felder } from "@/core/seite/Seite";
 import { SPACE } from "@/core/theme/tokens";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
 import { PrioritaetChip } from "./Chip";
@@ -113,239 +114,239 @@ export function AufgabeFormular({
   const fuerSichSelbstVorbelegt = checkboxVorbelegt(state, "fuerSichSelbst", false);
 
   return (
-    <form
-      action={absenden}
-      style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480 }}
-    >
-      {bestand ? <input type="hidden" name="aufgabeId" value={bestand.id} /> : null}
-      <div>
-        <label htmlFor="af-titel" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Titel
-        </label>
-        <Input
-          id="af-titel"
-          name="titel"
-          maxLength={TITEL_MAX_LAENGE}
-          defaultValue={feldWert(state, "titel", bestand?.titel ?? "")}
-          status={titelFehler ? "error" : undefined}
-          aria-invalid={titelFehler ? true : undefined}
-          aria-describedby={titelFehler ? "af-titel-err" : undefined}
-        />
-        {titelFehler ? (
-          <p id="af-titel-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
-            {titelFehler}
-          </p>
-        ) : null}
-      </div>
-
-      <div>
-        <label htmlFor="af-beschreibung" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Erklärung
-        </label>
-        <Input.TextArea
-          id="af-beschreibung"
-          name="beschreibung"
-          autoSize={{ minRows: 3, maxRows: 8 }}
-          defaultValue={feldWert(state, "beschreibung", bestand?.beschreibung ?? "")}
-          status={beschreibungFehler ? "error" : undefined}
-          aria-invalid={beschreibungFehler ? true : undefined}
-          aria-describedby={beschreibungFehler ? "af-beschreibung-err" : undefined}
-        />
-        {beschreibungFehler ? (
-          <p id="af-beschreibung-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
-            {beschreibungFehler}
-          </p>
-        ) : null}
-      </div>
-
-      {/*
-       * ══ DIE PRIORITAET WIRD GEWAEHLT, NICHT AUSGEKLAPPT (Oberflaechen-Runde 2026-08-16, dritte
-       *    Haelfte). Hier stand ein `<select>` mit drei Eintraegen — die Bauform, die das Urteil des
-       *    Betreibers meint („so wirkt es eher wie eine alte Formularanwendung"): drei sichtbare
-       *    Werte hinter zwei Klicks, und der gewaehlte steht in einer Systemschrift, die mit der
-       *    Rangskala des Moduls nichts zu tun hat.
-       *
-       *    DIE DREI STUFEN SIND IM MODUL BEREITS EINE FORMSPRACHE (`PRIORITAET_FORM`: gefuellt /
-       *    Kontur / nur Wort, `_lib/anzeige.ts`). Sie hier zu zeigen, macht aus der Auswahl eine
-       *    VORSCHAU: man waehlt das Aussehen, das die Aufgabe gleich in jeder Liste haben wird,
-       *    statt eines Wortes in einem Aufklapper. `PrioritaetChip` ist genau der Baustein, den die
-       *    Listen benutzen — es entsteht keine zweite Fassung.
-       *
-       *    NATIVE RADIOS, KEIN antd-`Radio.Group` UND KEIN `Segmented`: `Radio.Group` waere ein
-       *    Compound-Zugriff (Falle 1) und beide brauchten `onChange`, also einen Funktions-Prop.
-       *    Mit `<input type="radio">` bleibt das Feld ohne JavaScript bedienbar, traegt seinen Wert
-       *    unter demselben Namen `prioritaet` und geht durch dieselbe `aufgabeEinstellenAction` mit
-       *    demselben `istGueltigePrioritaet`-Riegel. Fachlich aendert sich nichts.
-       *
-       *    `<fieldset>`/`<legend>` STATT `<label htmlFor>`: drei Bedienelemente haben keine EINE
-       *    Beschriftung, auf die ein `for` zeigen koennte — die Gruppenbeschriftung ist genau das,
-       *    wofuer `legend` da ist, und Bildschirmleser sagen sie zu jeder der drei Stufen an.
-       */}
-      <fieldset className={s.prioWahl}>
-        <legend style={{ marginBlockEnd: SPACE.xs, padding: 0 }}>Priorität</legend>
-        <div className={s.prioWahlLeiste}>
-          {PRIORITAETEN.map((p) => (
-            <label key={p} className={s.prioWahlOption}>
-              <input
-                type="radio"
-                name="prioritaet"
-                value={p}
-                defaultChecked={p === vorgabePrioritaet}
-                className={s.prioWahlFeld}
-              />
-              <PrioritaetChip prioritaet={p} />
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <div>
-        <label htmlFor="af-faelligAm" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Frist
-        </label>
-        <DatumFeld
-          id="af-faelligAm"
-          name="faelligAm"
-          wert={feldWert(state, "faelligAm", bestand?.faelligAm ?? "")}
-          stand={absendeZaehler}
-          fehler={faelligAmFehler}
-          beschriebenVon={faelligAmFehler ? "af-faelligAm-err" : undefined}
-        />
-        {faelligAmFehler ? (
-          <p id="af-faelligAm-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
-            {faelligAmFehler}
-          </p>
-        ) : null}
-      </div>
-
-      <div>
-        <label htmlFor="af-faelligUhrzeit" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Frist-Uhrzeit (optional)
-        </label>
-        <ZeitFeld
-          id="af-faelligUhrzeit"
-          name="faelligUhrzeit"
-          wert={feldWert(state, "faelligUhrzeit", bestand?.faelligUhrzeit ?? "")}
-          stand={absendeZaehler}
-          fehler={faelligUhrzeitFehler}
-          beschriebenVon={faelligUhrzeitFehler ? "af-faelligUhrzeit-err" : undefined}
-        />
-        {faelligUhrzeitFehler ? (
-          <p id="af-faelligUhrzeit-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
-            {faelligUhrzeitFehler}
-          </p>
-        ) : null}
-      </div>
-
-      <div>
-        <label htmlFor="af-dauerMinuten" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Dauerschätzung in Minuten
-        </label>
-        <Input
-          id="af-dauerMinuten"
-          name="dauerMinuten"
-          type="number"
-          min={1}
-          defaultValue={feldWert(state, "dauerMinuten", bestand ? String(bestand.dauerMinuten) : "")}
-          status={dauerFehler ? "error" : undefined}
-          aria-invalid={dauerFehler ? true : undefined}
-          aria-describedby={dauerFehler ? "af-dauerMinuten-err" : undefined}
-        />
-        {dauerFehler ? (
-          <p id="af-dauerMinuten-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
-            {dauerFehler}
-          </p>
-        ) : null}
-      </div>
-
-      <div>
-        {/*
-         * NATIVES `<input type="checkbox">` UND NICHT antds `Checkbox` — und das ist seit dem
-         * 2026-08-16 GEMESSEN, nicht mehr nur Konvention.
-         *
-         * Die Auswahlfelder dieses Formulars sind in derselben Runde auf antd gewechselt
-         * (`_ui/Felder.tsx`), und der naheliegende naechste Schritt waere gewesen, die zwei
-         * Kontrollkaestchen mitzunehmen. DER VERSUCH IST IN DER CI GESCHEITERT: antd v6 meldet
-         * `Warning: [antd: Checkbox] \`value\` is not a valid prop, do you mean \`checked\`?`, und
-         * `e2e/aufgaben.spec.ts` sammelt Konsolenmeldungen und verlangt eine LEERE Liste. Der Wert
-         * kommt zwar trotzdem im Formular an (Vitest belegt `nachweisPflicht=true`) — aber sich auf
-         * einen Prop zu stuetzen, von dem die Bibliothek ausdruecklich abraet, ist genau der stille
-         * Vertrag, den dieses Projekt nicht will.
-         *
-         * `value="true"` IST HIER NICHT VERZICHTBAR: ohne es sendet der Browser `"on"`. Das
-         * bestuende `istGesetzt` (`KAESTCHEN_AN` kennt `"on"`), waere aber eine zweite Schreibweise
-         * fuer dieselbe Zusage — und `RoutineFormular`s Wochentage brauchen ihren `value` ohnehin
-         * als ECHTEN Wert (den Index), dort gibt es den Ausweg gar nicht.
-         *
-         * `.modul input:focus-visible` (`aufgaben.module.css`) deckt den Fokusring ab.
-         */}
-        <label
-          htmlFor="af-nachweispflicht"
-          style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
-        >
-          <input
-            id="af-nachweispflicht"
-            type="checkbox"
-            name="nachweisPflicht"
-            value="true"
-            checked={nachweisPflicht}
-            onChange={(e) => setNachweisPflicht(e.target.checked)}
-          />
-          Nachweispflicht
-        </label>
-      </div>
-
-      {nachweisPflicht ? (
-        <div>
-          <label htmlFor="af-nachweisart" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-            Nachweisform
+    <form action={absenden}>
+      {/* Die Breite trägt die Seite (`formular`); Titel, Erklärung und Knöpfe über die ganze Zeile. */}
+      <Felder style={{ rowGap: SPACE.md }}>
+        {bestand ? <input type="hidden" name="aufgabeId" value={bestand.id} /> : null}
+        <Feld breit>
+          <label htmlFor="af-titel" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+            Titel
           </label>
-          <WahlFeld
-            id="af-nachweisart"
-            name="nachweisArt"
-            wert={vorgabeNachweisArt}
-            stand={absendeZaehler}
-            optionen={NACHWEIS_ARTEN.map((art) => ({
-              wert: art,
-              text: NACHWEIS_ART_TEXT[art],
-            }))}
+          <Input
+            id="af-titel"
+            name="titel"
+            maxLength={TITEL_MAX_LAENGE}
+            defaultValue={feldWert(state, "titel", bestand?.titel ?? "")}
+            status={titelFehler ? "error" : undefined}
+            aria-invalid={titelFehler ? true : undefined}
+            aria-describedby={titelFehler ? "af-titel-err" : undefined}
           />
-        </div>
-      ) : (
-        <input type="hidden" name="nachweisArt" value={vorgabeNachweisArt} />
-      )}
+          {titelFehler ? (
+            <p id="af-titel-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
+              {titelFehler}
+            </p>
+          ) : null}
+        </Feld>
 
-      {bestand ? null : darfFuerAndere ? (
+        <Feld breit>
+          <label htmlFor="af-beschreibung" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+            Erklärung
+          </label>
+          <Input.TextArea
+            id="af-beschreibung"
+            name="beschreibung"
+            autoSize={{ minRows: 3, maxRows: 8 }}
+            defaultValue={feldWert(state, "beschreibung", bestand?.beschreibung ?? "")}
+            status={beschreibungFehler ? "error" : undefined}
+            aria-invalid={beschreibungFehler ? true : undefined}
+            aria-describedby={beschreibungFehler ? "af-beschreibung-err" : undefined}
+          />
+          {beschreibungFehler ? (
+            <p id="af-beschreibung-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
+              {beschreibungFehler}
+            </p>
+          ) : null}
+        </Feld>
+
+        {/*
+         * ══ DIE PRIORITAET WIRD GEWAEHLT, NICHT AUSGEKLAPPT (Oberflaechen-Runde 2026-08-16, dritte
+         *    Haelfte). Hier stand ein `<select>` mit drei Eintraegen — die Bauform, die das Urteil des
+         *    Betreibers meint („so wirkt es eher wie eine alte Formularanwendung"): drei sichtbare
+         *    Werte hinter zwei Klicks, und der gewaehlte steht in einer Systemschrift, die mit der
+         *    Rangskala des Moduls nichts zu tun hat.
+         *
+         *    DIE DREI STUFEN SIND IM MODUL BEREITS EINE FORMSPRACHE (`PRIORITAET_FORM`: gefuellt /
+         *    Kontur / nur Wort, `_lib/anzeige.ts`). Sie hier zu zeigen, macht aus der Auswahl eine
+         *    VORSCHAU: man waehlt das Aussehen, das die Aufgabe gleich in jeder Liste haben wird,
+         *    statt eines Wortes in einem Aufklapper. `PrioritaetChip` ist genau der Baustein, den die
+         *    Listen benutzen — es entsteht keine zweite Fassung.
+         *
+         *    NATIVE RADIOS, KEIN antd-`Radio.Group` UND KEIN `Segmented`: `Radio.Group` waere ein
+         *    Compound-Zugriff (Falle 1) und beide brauchten `onChange`, also einen Funktions-Prop.
+         *    Mit `<input type="radio">` bleibt das Feld ohne JavaScript bedienbar, traegt seinen Wert
+         *    unter demselben Namen `prioritaet` und geht durch dieselbe `aufgabeEinstellenAction` mit
+         *    demselben `istGueltigePrioritaet`-Riegel. Fachlich aendert sich nichts.
+         *
+         *    `<fieldset>`/`<legend>` STATT `<label htmlFor>`: drei Bedienelemente haben keine EINE
+         *    Beschriftung, auf die ein `for` zeigen koennte — die Gruppenbeschriftung ist genau das,
+         *    wofuer `legend` da ist, und Bildschirmleser sagen sie zu jeder der drei Stufen an.
+         */}
+        <fieldset className={s.prioWahl}>
+          <legend style={{ marginBlockEnd: SPACE.xs, padding: 0 }}>Priorität</legend>
+          <div className={s.prioWahlLeiste}>
+            {PRIORITAETEN.map((p) => (
+              <label key={p} className={s.prioWahlOption}>
+                <input
+                  type="radio"
+                  name="prioritaet"
+                  value={p}
+                  defaultChecked={p === vorgabePrioritaet}
+                  className={s.prioWahlFeld}
+                />
+                <PrioritaetChip prioritaet={p} />
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
         <div>
-          {/* NATIV, s. die Begruendung am Kontrollkaestchen „Nachweispflicht" oben. */}
+          <label htmlFor="af-faelligAm" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+            Frist
+          </label>
+          <DatumFeld
+            id="af-faelligAm"
+            name="faelligAm"
+            wert={feldWert(state, "faelligAm", bestand?.faelligAm ?? "")}
+            stand={absendeZaehler}
+            fehler={faelligAmFehler}
+            beschriebenVon={faelligAmFehler ? "af-faelligAm-err" : undefined}
+          />
+          {faelligAmFehler ? (
+            <p id="af-faelligAm-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
+              {faelligAmFehler}
+            </p>
+          ) : null}
+        </div>
+
+        <div>
+          <label htmlFor="af-faelligUhrzeit" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+            Frist-Uhrzeit (optional)
+          </label>
+          <ZeitFeld
+            id="af-faelligUhrzeit"
+            name="faelligUhrzeit"
+            wert={feldWert(state, "faelligUhrzeit", bestand?.faelligUhrzeit ?? "")}
+            stand={absendeZaehler}
+            fehler={faelligUhrzeitFehler}
+            beschriebenVon={faelligUhrzeitFehler ? "af-faelligUhrzeit-err" : undefined}
+          />
+          {faelligUhrzeitFehler ? (
+            <p id="af-faelligUhrzeit-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
+              {faelligUhrzeitFehler}
+            </p>
+          ) : null}
+        </div>
+
+        <div>
+          <label htmlFor="af-dauerMinuten" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+            Dauerschätzung in Minuten
+          </label>
+          <Input
+            id="af-dauerMinuten"
+            name="dauerMinuten"
+            type="number"
+            min={1}
+            defaultValue={feldWert(state, "dauerMinuten", bestand ? String(bestand.dauerMinuten) : "")}
+            status={dauerFehler ? "error" : undefined}
+            aria-invalid={dauerFehler ? true : undefined}
+            aria-describedby={dauerFehler ? "af-dauerMinuten-err" : undefined}
+          />
+          {dauerFehler ? (
+            <p id="af-dauerMinuten-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
+              {dauerFehler}
+            </p>
+          ) : null}
+        </div>
+
+        <div>
+          {/*
+           * NATIVES `<input type="checkbox">` UND NICHT antds `Checkbox` — und das ist seit dem
+           * 2026-08-16 GEMESSEN, nicht mehr nur Konvention.
+           *
+           * Die Auswahlfelder dieses Formulars sind in derselben Runde auf antd gewechselt
+           * (`_ui/Felder.tsx`), und der naheliegende naechste Schritt waere gewesen, die zwei
+           * Kontrollkaestchen mitzunehmen. DER VERSUCH IST IN DER CI GESCHEITERT: antd v6 meldet
+           * `Warning: [antd: Checkbox] \`value\` is not a valid prop, do you mean \`checked\`?`, und
+           * `e2e/aufgaben.spec.ts` sammelt Konsolenmeldungen und verlangt eine LEERE Liste. Der Wert
+           * kommt zwar trotzdem im Formular an (Vitest belegt `nachweisPflicht=true`) — aber sich auf
+           * einen Prop zu stuetzen, von dem die Bibliothek ausdruecklich abraet, ist genau der stille
+           * Vertrag, den dieses Projekt nicht will.
+           *
+           * `value="true"` IST HIER NICHT VERZICHTBAR: ohne es sendet der Browser `"on"`. Das
+           * bestuende `istGesetzt` (`KAESTCHEN_AN` kennt `"on"`), waere aber eine zweite Schreibweise
+           * fuer dieselbe Zusage — und `RoutineFormular`s Wochentage brauchen ihren `value` ohnehin
+           * als ECHTEN Wert (den Index), dort gibt es den Ausweg gar nicht.
+           *
+           * `.modul input:focus-visible` (`aufgaben.module.css`) deckt den Fokusring ab.
+           */}
           <label
-            htmlFor="af-fuerSichSelbst"
+            htmlFor="af-nachweispflicht"
             style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
           >
             <input
-              id="af-fuerSichSelbst"
+              id="af-nachweispflicht"
               type="checkbox"
-              name="fuerSichSelbst"
+              name="nachweisPflicht"
               value="true"
-              defaultChecked={fuerSichSelbstVorbelegt}
+              checked={nachweisPflicht}
+              onChange={(e) => setNachweisPflicht(e.target.checked)}
             />
-            Für mich selbst einstellen
+            Nachweispflicht
           </label>
         </div>
-      ) : (
-        // KEINE WAHL VORTAEUSCHEN, WO KEINE BESTEHT (Brief): eine BuFDi darf nur fuer sich selbst
-        // einstellen (`anfangsZustand()`) — das Formular traegt das als verstecktes Feld statt
-        // eines Kontrollkaestchens, das ohnehin immer angehakt bliebe.
-        <input type="hidden" name="fuerSichSelbst" value="true" />
-      )}
 
-      <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
-        <Button type="primary" htmlType="submit" loading={isPending} disabled={isPending}>
-          {bestand ? "Änderungen speichern" : "Aufgabe einstellen"}
-        </Button>
-        {/* Beim Aendern gibt es einen Ort, an den man zurueckkehrt — beim Einstellen nicht. */}
-        {bestand ? <Button href={`/a/${bestand.id}`}>Abbrechen</Button> : null}
-      </div>
+        {nachweisPflicht ? (
+          <div>
+            <label htmlFor="af-nachweisart" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
+              Nachweisform
+            </label>
+            <WahlFeld
+              id="af-nachweisart"
+              name="nachweisArt"
+              wert={vorgabeNachweisArt}
+              stand={absendeZaehler}
+              optionen={NACHWEIS_ARTEN.map((art) => ({
+                wert: art,
+                text: NACHWEIS_ART_TEXT[art],
+              }))}
+            />
+          </div>
+        ) : (
+          <input type="hidden" name="nachweisArt" value={vorgabeNachweisArt} />
+        )}
+
+        {bestand ? null : darfFuerAndere ? (
+          <div>
+            {/* NATIV, s. die Begruendung am Kontrollkaestchen „Nachweispflicht" oben. */}
+            <label
+              htmlFor="af-fuerSichSelbst"
+              style={{ display: "flex", alignItems: "center", gap: SPACE.xs }}
+            >
+              <input
+                id="af-fuerSichSelbst"
+                type="checkbox"
+                name="fuerSichSelbst"
+                value="true"
+                defaultChecked={fuerSichSelbstVorbelegt}
+              />
+              Für mich selbst einstellen
+            </label>
+          </div>
+        ) : (
+          // KEINE WAHL VORTAEUSCHEN, WO KEINE BESTEHT (Brief): eine BuFDi darf nur fuer sich selbst
+          // einstellen (`anfangsZustand()`) — das Formular traegt das als verstecktes Feld statt
+          // eines Kontrollkaestchens, das ohnehin immer angehakt bliebe.
+          <input type="hidden" name="fuerSichSelbst" value="true" />
+        )}
+
+        <div className={FELD_BREIT} style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
+          <Button type="primary" htmlType="submit" loading={isPending} disabled={isPending}>
+            {bestand ? "Änderungen speichern" : "Aufgabe einstellen"}
+          </Button>
+          {/* Beim Aendern gibt es einen Ort, an den man zurueckkehrt — beim Einstellen nicht. */}
+          {bestand ? <Button href={`/a/${bestand.id}`}>Abbrechen</Button> : null}
+        </div>
+      </Felder>
     </form>
   );
 }

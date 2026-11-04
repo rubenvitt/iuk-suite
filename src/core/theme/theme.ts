@@ -294,7 +294,7 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        */
       Input: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
       InputNumber: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
-      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur, cellWidth: WAEHLER_ZELLE }, Table: auswahlZeile(dark),
+      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur, cellWidth: WAEHLER_ZELLE }, Table: tabelle(dark),
     },
   };
 }
@@ -483,10 +483,15 @@ function warnungDunkel(_seed: Parameters<MappingAlgorithm>[0], map?: ReturnType<
  * `DatePicker`, weil Zeilenanker aus den Modulen in diese Datei zeigen — eine
  * Einfügung weiter oben verschöbe sie (siehe `erfolgHell`).
  */
-function auswahlZeile(dark: boolean) {
-  return dark
+function tabelle(dark: boolean) {
+  const auswahl = dark
     ? { rowSelectedBg: FARBEN.auswahlAufDunkel, rowSelectedHoverBg: FARBEN.auswahlAufDunkelHover }
     : { rowSelectedBg: FARBEN.auswahl, rowSelectedHoverBg: FARBEN.auswahlHover };
+  // KEINE SENKRECHTEN TRENNER ZWISCHEN DEN KOPFZELLEN (Haarlinie, IDA-347). antd zeichnet sie als
+  // `::before` jeder Kopfzelle in `headerSplitColor`; die Haarlinie trennt Spalten nur durch
+  // Abstand, Zeilen durch die waagrechte Linie. Über den Token, nicht über CSS gegen
+  // `.ant-table-thead` (Falle 5 und 20) — hell wie dunkel, und die Dichten erben ihn.
+  return { ...auswahl, headerSplitColor: "transparent" };
 }
 
 /**

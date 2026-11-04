@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page, type Request } from "@playwright/test";
-import { devLogin, klickeWennRuhig, wechsleAnmeldung, warteAufSpaltenaufteilung, E2E_PORT } from "./fixtures";
+import { devLogin, klickeWennRuhig, oeffneAlleApps, wechsleAnmeldung, warteAufSpaltenaufteilung, E2E_PORT } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 import {
   AUFGABEN_HOST,
@@ -907,8 +907,8 @@ test("App-Switcher: seit Aufgabe 16 erscheint „Aufgaben“ fuer eine Person mi
     callbackPath: "/",
   });
   await expect(page.getByTestId("alpha-content")).toBeVisible();
-  await page.getByTestId("app-umschalter").click();
-  await expect(page.getByTestId("app-panel").getByRole("link", { name: /Aufgaben/ })).toBeVisible();
+  const panel = await oeffneAlleApps(page);
+  await expect(panel.getByRole("link", { name: /Aufgaben/ })).toBeVisible();
 });
 
 /*

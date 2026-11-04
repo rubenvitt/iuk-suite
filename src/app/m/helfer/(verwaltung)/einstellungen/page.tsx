@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { Seite } from "@/core/seite/Seite";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -40,7 +41,7 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
   const darfVerwalten = darfHelferVerwalten(viewer.groups);
   const { hiorg } = await searchParams;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.xl }}>
+    <Seite typ="formular" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.xl }}>
       <Seitenkopf titel="Einstellungen" zurueck={{ titel: "Helfer", href: "/" }} />
       {e.quelle === "demo" ? <DemoHinweis darfVerwalten={false} /> : null}
       {darfVerwalten ? (
@@ -57,7 +58,7 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
           Quelle: {QUELLE_TEXT[e.quelle]}{v ? `, verbunden als ${v.kontoName}` : ""}
         </p>
       )}
-      <section aria-labelledby="datenschutz" style={{ display: "grid", gap: SPACE.sm, maxWidth: 720 }}>
+      <section aria-labelledby="datenschutz" style={{ display: "grid", gap: SPACE.sm }}>
         <h2 id="datenschutz" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Datenschutz</h2>
         <ul style={{ margin: 0, paddingInlineStart: SPACE.xl, display: "grid", gap: SPACE.xs }}>
           <li>
@@ -87,7 +88,7 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
           </li>
         </ul>
       </section>
-    </div>
+    </Seite>
   );
 }
 

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Button, Result } from "antd";
 import { auth } from "@/core/auth";
+import { Seite } from "@/core/seite/Seite";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../_db/client";
@@ -113,8 +114,8 @@ export default async function FeedbackEinstieg() {
     .map((x) => x.karte);
 
   return (
-    <>
-      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+    <Seite typ="uebersicht">
+      <div>
         <Seitenkopf
           titel="Deine Gruppen"
           // Der Vergleich hat keine `group_id`, gegen die ein Guard prüfen könnte
@@ -131,8 +132,6 @@ export default async function FeedbackEinstieg() {
       </div>
       <div
         style={{
-          maxWidth: 1120,
-          margin: "0 auto",
           display: "flex",
           flexDirection: "column",
           gap: SPACE.xl,
@@ -144,7 +143,7 @@ export default async function FeedbackEinstieg() {
           <Gruppenkarten gruppen={karten} istAdmin={istAdmin} />
         )}
       </div>
-    </>
+    </Seite>
   );
 }
 

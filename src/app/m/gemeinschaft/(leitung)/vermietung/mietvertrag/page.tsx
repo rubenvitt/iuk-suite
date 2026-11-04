@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { Seite } from "@/core/seite/Seite";
 import { getDb } from "../../../_db/client";
 import { requireGemeinschaftHost } from "../../../_lib/host";
 import { ladeVorlageInfo } from "../../../_lib/vermietung";
@@ -13,5 +14,9 @@ export const metadata: Metadata = { title: "Mietvertrag der Bar" };
 export default async function MietvertragSeite() {
   requireGemeinschaftHost(await headers());
   await requireLeitung();
-  return <Vorlagenverwaltung vorlage={ladeVorlageInfo(getDb())} />;
+  return (
+    <Seite typ="formular">
+      <Vorlagenverwaltung vorlage={ladeVorlageInfo(getDb())} />
+    </Seite>
+  );
 }

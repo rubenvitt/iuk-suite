@@ -13,10 +13,9 @@ import type { ReactElement } from "react";
  * Navigation allein am Layout, stuende die Freigaben-Uebersicht auf der
  * Modulwurzel ohne Navigation — Spec §3.5. Beide rufen darum diesen Rahmen.
  *
- * `SuiteNav` ist ersetzt: eine Client-Komponente mit antd-Kontext
- * (`useThemeMode` wirft auszerhalb des Providers). `Modulleiste` bekommt einen
- * SICHTBAREN Platzhalter, damit pruefbar ist, DASS und MIT WAS sie gerufen wird —
- * das ist die Seitenleiste (`SuiteRahmen`) und damit die Modulnavigation selbst.
+ * `SuiteLeiste` (das Menü von `FullShell`, IDA-347) ist ersetzt: eine Client-Komponente
+ * mit antd-Kontext. Sie bekommt einen SICHTBAREN Platzhalter, damit pruefbar ist, DASS und
+ * MIT WAS sie gerufen wird — das ist das Menü (`MenueRahmen`) und damit die Modulnavigation.
  */
 const { authMock, suiteNavMock, modulleisteMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
@@ -27,17 +26,17 @@ const { authMock, suiteNavMock, modulleisteMock } = vi.hoisted(() => ({
    * Mock-Aufrufprotokoll. `Modulleiste` rendert bei leerer Liste nichts, ein
    * verlorenes `nav` waere sonst eine still fehlende Leiste.
    */
-  modulleisteMock: vi.fn((props: { nav: unknown }) => (
+  modulleisteMock: vi.fn((props: { daten: { nav: unknown; modulKey: string } }) => (
     <i
       data-testid="modulleiste-platz"
-      data-anzahl={Array.isArray(props.nav) ? props.nav.length : -1}
+      data-anzahl={Array.isArray(props.daten.nav) ? props.daten.nav.length : -1}
     />
   )),
 }));
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
 vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock }));
-vi.mock("@/core/shell/Modulleiste", () => ({ Modulleiste: modulleisteMock }));
+vi.mock("@/core/shell/Navigator", () => ({ SuiteLeiste: modulleisteMock }));
 // `launcherEintraege` GEMOCKT, seit dem Navigations-Umbau nötig: `SuiteHeader`
 // ruft es angemeldet für den App-Umschalter, und die echte Implementierung
 // erreicht über `dienstEintraege` die Portal-Datenbank — die es in diesem Test
@@ -180,7 +179,8 @@ describe("VerwaltungsRahmen", () => {
       (await VerwaltungsRahmenGerendert()) as ReactElement,
     );
     expect(modulleisteMock).toHaveBeenCalled();
-    expect(modulleisteMock.mock.calls[0][0]).toEqual({ nav: FILES_NAV, modulKey: "files" });
+    const daten = modulleisteMock.mock.calls[0][0].daten;
+    expect({ nav: daten.nav, modulKey: daten.modulKey }).toEqual({ nav: FILES_NAV, modulKey: "files" });
     // Die drei Eintraege stehen im Markup, nicht nur im Aufrufprotokoll.
     expect(markup).toContain('data-anzahl="3"');
     expect(markup).toContain("files-kind");

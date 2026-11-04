@@ -11,13 +11,13 @@
 }
 
 /*
- * Die Vorschau bleibt beim Scrollen durch das Formular stehen. 85px = Kopfblock der Shell (69px,
- * `--iuk-kopf` in `core/shell/shell.module.css`, dort nur an der Seitenleiste gesetzt) plus 16px Luft.
+ * Die Vorschau bleibt beim Scrollen durch das Formular stehen. 16px Luft: am Desktop hat die Shell
+ * seit IDA-347 keine Kopfzeile mehr (das Menü steht links, `core/shell/menue.module.css`).
  * Untereinander wirkt `sticky` nicht: die Zelle ist dann genau so hoch wie die Vorschau.
  */
 .vorschauSpalte {
   position: sticky;
-  inset-block-start: 85px;
+  inset-block-start: 16px;
   display: grid;
   gap: 12px;
 }
