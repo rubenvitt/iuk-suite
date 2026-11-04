@@ -71,6 +71,18 @@ const jobs = rumpf(ciZeilen, "jobs", 0);
 const deployJob = rumpf(jobs, "deploy", 2).join("\n");
 const buildJob = rumpf(jobs, "build", 2).join("\n");
 
+describe("ci.yml — `:latest` geht nie rückwärts", () => {
+  // 04.11.2026: der merge-Job des älteren von zwei main-Merges endete zuletzt, `:latest`
+  // lag wieder auf dem älteren Stand, und dessen deploy rollte ihn aus.
+  it("der merge-Job lässt `:latest` stehen, wenn es schon einen Nachfolger trägt", () => {
+    const mergeJob = rumpf(jobs, "merge", 2).join("\n");
+    expect(mergeJob).toContain('LATESTTAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest');
+    expect(mergeJob).toMatch(/compare\/\$GITHUB_SHA\.\.\.\$jetzt/);
+    expect(mergeJob).toContain('= "ahead" ]');
+    expect(mergeJob).toContain('grep -vxF "$LATESTTAG"');
+  });
+});
+
 describe("ci.yml — der deploy-Job hängt hinter der ganzen Pipeline", () => {
   it("es gibt ihn überhaupt, und er wartet auf `merge`", () => {
     expect(deployJob, "Job `deploy` steht in ci.yml").not.toBe("");
