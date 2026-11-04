@@ -35,7 +35,7 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
   function amTagAnfragen(tag: string) {
     setF((alt) => ({ ...alt, vonTag: tag, bisTag: tag }));
     setFormOffen(true);
-    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+    setTimeout(() => formRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 30);
   }
 
   async function absenden(ev: FormEvent) {
