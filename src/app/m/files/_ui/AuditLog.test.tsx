@@ -159,11 +159,11 @@ describe("die Spaltenüberschriften sagen, was in der Spalte steht", () => {
    * als Ballast wieder heraus — der Text sieht fuer sich genommen unveraendert
    * aus, die Rolle steckt ausschlieszlich im Stil.
    */
-  it("traegt an der Spalte „Zeit“ die Rolle SCHRIFT.kicker (600, versal)", () => {
+  it("traegt an der Spalte „Zeit“ die Rolle SCHRIFT.kicker (600)", () => {
     const span = kickerSpan(zeige().querySelectorAll("th")[0]);
     expect(span?.textContent).toBe("Zeit");
     expect(span?.style.fontWeight).toBe("600");
-    expect(span?.style.textTransform).toBe("uppercase");
+    expect(span?.style.textTransform).toBe("");
   });
 });
 

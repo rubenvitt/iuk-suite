@@ -1,4 +1,5 @@
 import { theme as antdTheme, type MappingAlgorithm, type ThemeConfig } from "antd";
+import { BEWEGUNG, SCHATTEN_ERHOBEN } from "@/core/theme/bewegung";
 import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
 
 /**
@@ -24,12 +25,6 @@ import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
  */
 const dunkleTextfarben: MappingAlgorithm = (_seed, map) => ({
   ...map!,
-  colorLink: FARBEN.rotAufDunkel,
-  colorLinkHover: FARBEN.rotAufDunkelHover,
-  colorLinkActive: FARBEN.rotAufDunkelActive,
-  colorPrimaryText: FARBEN.rotAufDunkel,
-  colorPrimaryTextHover: FARBEN.rotAufDunkelHover,
-  colorPrimaryTextActive: FARBEN.rotAufDunkelActive,
   colorError: FARBEN.rotAufDunkel,
   colorErrorHover: FARBEN.rotAufDunkelHover,
   colorErrorActive: FARBEN.rotAufDunkelActive,
@@ -37,6 +32,56 @@ const dunkleTextfarben: MappingAlgorithm = (_seed, map) => ({
   colorErrorTextHover: FARBEN.rotAufDunkelHover,
   colorErrorTextActive: FARBEN.rotAufDunkelActive,
 });
+
+/**
+ * TINTE BEDIENT, ROT IST MARKE (Haarlinie, IDA-347, 2026-11-04).
+ *
+ * Bis hier war Suite-Rot die Primärfarbe, und damit sah jeder Fehler wie eine
+ * Hauptaktion aus (Falle 3). In der Haarlinie bedient Tinte: hell fast
+ * schwarz, dunkel fast weiß. Rot bleibt für Marke, Fehler und Gefahr.
+ *
+ * Ein Mapping-Schritt NACH antds Algorithmus statt Seed-Werten, aus demselben
+ * Grund wie bei `dunkleTextfarben`: antd rechnet aus einem Seed eine ganze
+ * Farbleiter, und aus `#fafafa` im Dunkelmodus wird sonst ein mittleres Grau.
+ * Hier stehen die fertigen Werte.
+ *
+ * DUNKEL IST DIE SCHRIFT AUF DER BEDIENFLÄCHE DUNKEL. `colorTextLightSolid` ist
+ * antds Schrift „auf satter Primärfläche" (Knopf, gewählter Tag im Kalender,
+ * Schritt-Nummer, Radio-Knopf). Auf `#fafafa` muss sie `nacht` sein (gesetzt
+ * unter `token`, weil antd Alias-Token erst nach den Algorithmen rechnet). Dieselbe
+ * Rolle benutzen aber auch Flächen, die NICHT die Primärfarbe tragen (Tooltip,
+ * Badge, Avatar, farbige Tags) — die bekommen ihr Weiß unten je Komponente
+ * zurück (`weissAufFarbe`).
+ */
+function bedienTinte(dark: boolean): MappingAlgorithm {
+  const t = dark
+    ? { ruhe: FARBEN.tinteAufDunkel, hover: FARBEN.tinteAufDunkelHover, aktiv: FARBEN.tinteAufDunkelActive, bg: FARBEN.auswahlAufDunkel, bgHover: FARBEN.auswahlAufDunkelHover, rand: "#a1a1aa" }
+    : { ruhe: FARBEN.tinte, hover: FARBEN.tinteHover, aktiv: FARBEN.tinteActive, bg: FARBEN.auswahl, bgHover: FARBEN.auswahlHover, rand: "#71717a" };
+  return (_seed, map) => ({
+    ...map!,
+    colorPrimary: t.ruhe,
+    colorPrimaryHover: t.hover,
+    colorPrimaryActive: t.aktiv,
+    colorPrimaryBg: t.bg,
+    colorPrimaryBgHover: t.bgHover,
+    colorPrimaryBorder: t.rand,
+    colorPrimaryBorderHover: t.hover,
+    colorPrimaryText: t.ruhe,
+    colorPrimaryTextHover: t.hover,
+    colorPrimaryTextActive: t.aktiv,
+    colorLink: t.ruhe,
+    colorLinkHover: t.hover,
+    colorLinkActive: t.aktiv,
+  });
+}
+
+// Zwei feste Schritte statt einer Fabrik je Aufruf: antds Theme-Cache hängt an der
+// Identität der Algorithmus-Funktionen, und eine neue Funktion je `buildTheme` füllt ihn.
+const bedienTinteHell = bedienTinte(false);
+const bedienTinteDunkel = bedienTinte(true);
+
+/** Weiß zurück für Flächen, die nicht die Bedienfarbe tragen (siehe `bedienTinte`). */
+const WEISS = { colorTextLightSolid: "#ffffff" } as const;
 
 /** Die beiden Betriebsarten des Suite-Themes. Hier definiert, weil sie zum
  *  Theme gehören — `mode.ts` (Cookie-Transport) reicht den Typ nur weiter. */
@@ -81,18 +126,47 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
    */
   const kontur = dark ? FARBEN.konturAufDunkel : FARBEN.kontur;
   return {
-    algorithm: dark ? [antdTheme.darkAlgorithm, dunkleTextfarben, erfolgDunkel, warnungDunkel] : [antdTheme.defaultAlgorithm, erfolgHell, warnungHell],
+    algorithm: dark
+      ? [antdTheme.darkAlgorithm, dunkleTextfarben, erfolgDunkel, warnungDunkel, bedienTinteDunkel]
+      : [antdTheme.defaultAlgorithm, erfolgHell, warnungHell, bedienTinteHell],
     // CSS-Variablen statt eingebetteter Werte: der Moduswechsel ist damit ein
     // Variablen-Swap und keine Neu-Serialisierung der Stylesheets.
     cssVar: { key: "iuk" },
     hashed: false,
     token: {
-      colorPrimary: FARBEN.rot,
+      // Der Seed bleibt Tinte; die fertige Leiter setzt `bedienTinte`.
+      colorPrimary: dark ? FARBEN.tinteAufDunkel : FARBEN.tinte,
       colorError: FARBEN.rot,
       colorWarning: FARBEN.gelb,
       colorSuccess: FARBEN.ok,
-      colorLink: FARBEN.rot,
-      borderRadius: 8,
+      colorLink: dark ? FARBEN.tinteAufDunkel : FARBEN.tinte,
+      // Haarlinie: weichere Ecken, Flächen ohne Schatten, Trennlinien hauchdünn.
+      borderRadius: 10,
+      borderRadiusLG: 14,
+      borderRadiusSM: 6,
+      colorBgLayout: dark ? FARBEN.nacht : FARBEN.papier,
+      colorBgContainer: dark ? FARBEN.nachtKarte : FARBEN.karte,
+      // `colorTextLightSolid` ist ein Alias-Token: antd rechnet ihn NACH den
+      // Algorithmen aus `colorWhite`, deshalb hier und nicht in `bedienTinte`.
+      ...(dark ? { colorBgElevated: FARBEN.nachtErhoben, colorTextLightSolid: FARBEN.nacht } : {}),
+      colorBorderSecondary: dark ? "rgba(255, 255, 255, 0.08)" : "rgba(24, 24, 27, 0.08)",
+      colorSplit: dark ? "rgba(255, 255, 255, 0.08)" : "rgba(24, 24, 27, 0.08)",
+      colorText: dark ? FARBEN.tinteAufDunkel : FARBEN.tinte,
+      colorTextSecondary: dark ? FARBEN.stahlAufDunkel : FARBEN.stahl,
+      boxShadow: SCHATTEN_ERHOBEN[mode],
+      boxShadowSecondary: SCHATTEN_ERHOBEN[mode],
+      boxShadowTertiary: dark ? "0 0 0 1px rgba(255, 255, 255, 0.08)" : "0 0 0 1px rgba(24, 24, 27, 0.08)",
+      fontWeightStrong: 600,
+      // Fokus: ein deutlicher Ring in Tinte statt antds blassem Primär-Hauch.
+      controlOutline: dark ? "rgba(250, 250, 250, 0.22)" : "rgba(24, 24, 27, 0.14)",
+      controlOutlineWidth: 3,
+      // BEWEGUNG: Federn statt linearer Rampen (`BEWEGUNG`); die Dauern bleiben kurz.
+      motionDurationFast: "0.1s",
+      motionDurationMid: "0.18s",
+      motionDurationSlow: "0.32s",
+      motionEaseOut: BEWEGUNG.feder,
+      motionEaseOutCirc: BEWEGUNG.feder,
+      motionEaseInOut: BEWEGUNG.gleiten,
       // ROLLE STATT SCHRIFTNAME, seit 2026-08-12. Hier stand
       // `var(--font-geist-sans), …` bzw. `var(--font-geist-mono), …` — und
       // genau das machte den Satz aus `docs/design/README.md` unwahr, ein
@@ -112,9 +186,12 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
       // Layout-Flächen explizit, weil antds Vorgabe für Layout.Header ein
       // dunkles Blau ist, das mit Suite-Rot streitet.
       Layout: {
-        headerBg: dark ? "#141414" : FARBEN.karte,
-        headerColor: dark ? "#ffffff" : FARBEN.tinte,
-        bodyBg: dark ? "#000000" : FARBEN.papier,
+        // Haarlinie: Kopfzeile und Seitenleiste liegen auf dem Grund, getrennt
+        // nur durch eine Haarlinie (`shell.module.css`), nicht durch eine Fläche.
+        headerBg: dark ? FARBEN.nacht : FARBEN.papier,
+        headerColor: dark ? FARBEN.tinteAufDunkel : FARBEN.tinte,
+        bodyBg: dark ? FARBEN.nacht : FARBEN.papier,
+        lightSiderBg: dark ? FARBEN.nacht : FARBEN.papier,
         headerHeight: 64,
         /*
          * DAS TAP-ZIEL HAT DIE KOPFZEILE STILLSCHWEIGEND UM 80px VERENGT.
@@ -147,8 +224,22 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
       // bereits `controlHeight / 2` = 28, mit wie ohne Override — ein
       // gleichlautender Eintrag unter `Checkbox` wäre totes Gewicht, siehe der
       // Review vor Task 6.)
-      Radio: { radioSize: 28, dotSize: 14, colorBorder: kontur },
-      Checkbox: { colorBorder: kontur },
+      Radio: { radioSize: 28, dotSize: 14, colorBorder: kontur, ...(dark ? { colorWhite: FARBEN.nacht } : {}) },
+      // Das Häkchen sitzt auf der Bedienfläche; dunkel ist die fast weiß.
+      Checkbox: { colorBorder: kontur, ...(dark ? { colorWhite: FARBEN.nacht } : {}) },
+      Switch: dark ? { handleBg: FARBEN.nacht } : {},
+      Button: { primaryShadow: "none", defaultShadow: "none", dangerShadow: "none", fontWeight: 520, dangerColor: "#ffffff" },
+      // Flächen, die NICHT die Bedienfarbe tragen, behalten weiße Schrift (`bedienTinte`).
+      Tooltip: WEISS,
+      Badge: WEISS,
+      Avatar: WEISS,
+      Tag: WEISS,
+      Image: WEISS,
+      Spin: WEISS,
+      Upload: WEISS,
+      Menu: WEISS,
+      Dropdown: WEISS,
+      FloatButton: WEISS,
       /*
        * Die Optionen der offenen Auswahlliste sind Tap-Ziele, die gelesen
        * werden muessen, bevor man sie trifft. Sie sind KEIN `input` — die

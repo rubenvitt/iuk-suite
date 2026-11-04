@@ -722,7 +722,8 @@ test.describe("Task 2 (Typografie & Farbe, Teil A) — die Display-Familie im He
       getComputedStyle(document.documentElement).getPropertyValue("--font-display").trim(),
     );
     expect(stapel, "--font-display ist auf :root nicht aufgeloest").not.toBe("");
-    expect(stapel).toContain("Barlow");
+    // Haarlinie (IDA-347): die Suite-Rolle ist Geist; der Helfer-Weg behaelt sein Barlow ueber `--lb-display`.
+    expect(stapel.split(",")[0]).toContain("Geist");
 
     // Und die Familie kommt auch an der Marke an, nicht nur an der Wurzel.
     const marke = page.locator('header [class*="marke"]').first();

@@ -594,7 +594,7 @@
      haben keinen zweiten Nutznieszer. Hellwerte = Suite-Tokens
      (`core/theme/tokens.ts`), Dunkelwerte = antds Vorgaben. */
   --suite-flaeche: #ffffff;
-  --suite-linie: #d9dde1;
+  --suite-linie: #e7e7e4;
 
   /*
    * KEIN `position: relative` IN DER BASIS — und das ist der Fix, nicht eine
@@ -636,8 +636,8 @@
 }
 
 :root[data-theme="dark"] .umschalter {
-  --suite-flaeche: #141414;
-  --suite-linie: #303030;
+  --suite-flaeche: #111113;
+  --suite-linie: #232327;
 }
 
 /*

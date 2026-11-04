@@ -83,6 +83,9 @@ export const T = {
     // und das ist kein Drift, sondern zweimal entschieden. Wer sie
     // vereinheitlichen will, aendert den Entwurf, nicht diese Zeile.
     letterSpacing: ".12em",
+    // Versal bleibt hier, seit die Suite-Rolle es abgelegt hat (Haarlinie,
+    // IDA-347): §4.7 legt den Kicker dieses Moduls versal fest.
+    textTransform: "uppercase",
     color: "var(--fb-muted)",
   },
   /** 12/400 — Metazeilen, Fristen, Hilfetexte, Feldfehler, Zeichenzaehler. */

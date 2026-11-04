@@ -10,8 +10,8 @@ trifft oder eine Abhilfe umbauen will.
    `Card`, `Statistic`, `Result`, `Progress`, `Table`, `Tag` sind sicher.
 2. **`--ant-*`-CSS-Variablen sind nicht global** — antd deklariert sie auf seiner Scope-Klasse. Eigenes
    Markup sieht sie nicht, und der Fehler ist still (die Linie verschwindet einfach).
-3. **`colorError === colorPrimary === #c8000f`** — ein `Alert type="error"` sieht aus wie eine
-   Primäraktion. In Modulen, wo Rot fachliche Bedeutung trägt, gehört Rot nie auf eine Datenfläche.
+3. **Rot ist Fehler und Marke, nie Primäraktion.** Bis IDA-347 galt `colorError === colorPrimary`; seither ist
+   `colorPrimary` Tinte (`FARBEN.tinte`). In Modulen, wo Rot fachlich etwas bedeutet, nie Rot auf eine Datenfläche.
 4. **`size="large"` ist 72px** — `size` auf Bedienelementen also gar nicht setzen. **Drei Bediendichten,
    alle in `core/theme/theme.ts`:** `FullShell`-Inhalte 44 (`ARBEITSDICHTE`; WCAG 2.5.5 AAA, gilt **überall**,
    weil `FullShell` auch auf dem Telefon rendert); `MinimalShell` (`qr`, `beta`) und alles ohne Shell 56/72;

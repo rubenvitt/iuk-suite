@@ -269,7 +269,7 @@ describe("Punkt 4 — die Zeile zeigt Zustand, Menge und Datum", () => {
    * aus, die Rolle steckt ausschlieszlich im Stil. Die Aktionsspalte bleibt
    * ausgenommen (`title: ""`, siehe `spalten()`), deshalb hier „Titel".
    */
-  it("traegt an der Spalte „Titel“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
+  it("traegt an der Spalte „Titel“ die Rolle SCHRIFT.kicker (600)", async () => {
     await zeige();
     const kopf = queryAll("thead.ant-table-thead th")[0];
     /* Gesucht wird der Span mit der ROLLE, nicht der erste: antd wickelt den
@@ -281,7 +281,7 @@ describe("Punkt 4 — die Zeile zeigt Zustand, Menge und Datum", () => {
     );
     expect(span?.textContent).toBe("Titel");
     expect(span?.style.fontWeight).toBe("600");
-    expect(span?.style.textTransform).toBe("uppercase");
+    expect(span?.style.textTransform).toBe("");
   });
 
   /** `n / ∞` und `n / m` sind zwei verschiedene Aussagen — eine Zeile mit Limit

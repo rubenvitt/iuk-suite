@@ -201,7 +201,7 @@ export function AppUmschalter({
             umgekehrte (Falle 6). */}
         <strong
           data-testid="module-title"
-          style={{ ...SCHRIFT.unterTitel, letterSpacing: "0.07em" }}
+          style={SCHRIFT.unterTitel}
         >
           {modulTitel}
         </strong>

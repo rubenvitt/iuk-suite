@@ -275,9 +275,10 @@ test("Auto-Modus, Gegenprobe: eine ausdrueckliche Wahl ignoriert denselben OS-We
  * `/login` wie oben: login-frei, und die Anmeldekarte ist eine antd-Fläche,
  * die die Scope-Klasse traegt.
  */
-for (const [modus, erwartet] of [
-  ["dark", "#e45a66"],
-  ["light", "#c8000f"],
+// Haarlinie (IDA-347): Links sind Tinte, Fehler bleiben Rot.
+for (const [modus, link, erwartet] of [
+  ["dark", "#fafafa", "#e45a66"],
+  ["light", "#18181b", "#c8000f"],
 ] as const) {
   test(`Link- und Fehlerfarbe im Modus ${modus} kommen als CSS-Variable an`, async ({
     browser,
@@ -299,7 +300,7 @@ for (const [modus, erwartet] of [
           fehlerText: stil.getPropertyValue("--ant-color-error-text").trim(),
         };
       });
-      expect(gelesen.link).toBe(erwartet);
+      expect(gelesen.link).toBe(link);
       expect(gelesen.fehler).toBe(erwartet);
       expect(gelesen.fehlerText).toBe(erwartet);
     } finally {

@@ -34,15 +34,10 @@ describe("buildTheme", () => {
     expect(token.controlHeightLG).toBeGreaterThanOrEqual(TAP_XL);
   });
 
-  it.each(MODES)("setzt Suite-Rot als Seed im Modus %s", (mode) => {
-    // Geprüft wird der SEED, nicht der abgeleitete Token: antds darkAlgorithm
-    // rechnet colorPrimary auf dunklem Grund um (#c8000f -> #ad0310, via
-    // generate(seed, {theme:'dark'})[5]). Für FLÄCHEN ist das richtig (weißer
-    // Text darauf: 7,5:1). Hier stand bis 2026-08-28, die Verschiebung sei „die
-    // Lesbarkeitsregel des Design-Systems" — das stimmte nur für Flächen; als
-    // TEXT trug #ad0310 auf #141414 ganze 2,45:1. Die Textrollen korrigiert
-    // der zweite Algorithmus-Schritt in `theme.ts`, geprüft unten.
-    expect(buildTheme(mode).token?.colorPrimary).toBe(FARBEN.rot);
+  it.each(MODES)("setzt Tinte als Bedien-Seed im Modus %s (Haarlinie, IDA-347)", (mode) => {
+    // Bis 2026-11-04 war hier Suite-Rot der Seed. In der Haarlinie bedient
+    // Tinte; die fertige Leiter setzt der Schritt `bedienTinte` in `theme.ts`.
+    expect(buildTheme(mode).token?.colorPrimary).toBe(mode === "dark" ? FARBEN.tinteAufDunkel : FARBEN.tinte);
   });
 
   /**
@@ -52,7 +47,8 @@ describe("buildTheme", () => {
    */
   const kontrast = (a: string, b: string) => {
     const lum = (hex: string) => {
-      const c = hex.replace("#", "");
+      const roh = hex.replace("#", "");
+      const c = roh.length === 3 ? [...roh].map((z) => z + z).join("") : roh;
       const [r, g, b] = [0, 2, 4]
         .map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
         .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
@@ -94,13 +90,13 @@ describe("buildTheme", () => {
     expect(kontrast(token.colorErrorActive, token.colorBgContainer)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("lässt die Flächenrollen im Dunkelmodus bei antds Rechnung", () => {
-    // Ein gefüllter Primärknopf trägt weißen Text; würde colorPrimary mit
-    // angehoben, fiele der auf 3,5:1. Beide Forderungen zugleich sind
-    // rechnerisch unerfüllbar (Begründung an `FARBEN.rotAufDunkel`).
-    const token = antdTheme.getDesignToken(buildTheme("dark"));
-    expect(token.colorPrimary.toLowerCase()).not.toBe(FARBEN.rotAufDunkel);
-    expect(kontrast("#ffffff", token.colorPrimary)).toBeGreaterThanOrEqual(4.5);
+  it.each(MODES)("trägt die Schrift auf dem Primärknopf mit 7:1 im Modus %s", (mode) => {
+    // Dunkel ist die Bedienfläche fast weiß; antds Schrift darauf
+    // (`colorTextLightSolid`) muss dann dunkel sein, sonst Weiß auf Weiß.
+    const token = antdTheme.getDesignToken(buildTheme(mode));
+    for (const flaeche of [token.colorPrimary, token.colorPrimaryHover, token.colorPrimaryActive]) {
+      expect(kontrast(token.colorTextLightSolid, flaeche), `auf ${flaeche}`).toBeGreaterThanOrEqual(7);
+    }
   });
 
   it("zeigt in antd dasselbe Dunkel-Rot wie eigenes Markup (`--iuk-marke`)", () => {
@@ -111,17 +107,17 @@ describe("buildTheme", () => {
     expect(dunkelzweig).toMatch(new RegExp(`--iuk-marke:\\s*${FARBEN.rotAufDunkel};`));
   });
 
-  it("lässt die Textrollen im hellen Modus unverändert", () => {
+  it("führt Links hell in Tinte und Fehler in Suite-Rot", () => {
     const token = antdTheme.getDesignToken(buildTheme("light"));
-    expect(token.colorLink.toLowerCase()).toBe(FARBEN.rot);
+    expect(token.colorLink.toLowerCase()).toBe(FARBEN.tinte);
     expect(token.colorError.toLowerCase()).toBe(FARBEN.rot);
   });
 
-  it("gibt Suite-Rot im hellen Modus unverändert durch", () => {
-    // Im hellen Modus rechnet der defaultAlgorithm den Seed nicht um — hier
-    // muss der abgeleitete Token also wirklich exakt die Suite-Farbe sein.
-    const token = antdTheme.getDesignToken(buildTheme("light"));
-    expect(token.colorPrimary.toLowerCase()).toBe(FARBEN.rot);
+  it.each(MODES)("trennt Bedienfarbe und Fehlerfarbe im Modus %s (Falle 3 entschärft)", (mode) => {
+    // Solange beide dasselbe Rot waren, sah jeder Fehler wie eine Hauptaktion aus.
+    const token = antdTheme.getDesignToken(buildTheme(mode));
+    expect(token.colorPrimary.toLowerCase()).not.toBe(token.colorError.toLowerCase());
+    expect(token.colorPrimary.toLowerCase()).toBe(mode === "dark" ? FARBEN.tinteAufDunkel : FARBEN.tinte);
   });
 
   /**
@@ -412,8 +408,8 @@ describe("ARBEITSDICHTE + SCHREIBTISCHDICHTE verschachtelt", () => {
     expect(token!.controlHeightLG).toBe(40);
     expect(
       token!.colorPrimary.toLowerCase(),
-      "Suite-Rot kommt durch beide Schachteln nicht durch",
-    ).toBe(FARBEN.rot);
+      "die Bedienfarbe kommt durch beide Schachteln nicht durch",
+    ).toBe(FARBEN.tinte);
 
     await act(async () => {
       wurzel.unmount();
@@ -519,7 +515,7 @@ describe("Statusmarke Warnung", () => {
 describe("Ausgewählte Tabellenzeile", () => {
   const zeile = { schluessel: "a", name: "Pflaster" };
 
-  it.each(MODES)("ist im Modus %s neutral statt aus Suite-Rot abgeleitet", (mode) => {
+  it.each(MODES)("ist im Modus %s neutral, nie rot", (mode) => {
     const [grund, hover] = mode === "dark"
       ? [FARBEN.auswahlAufDunkel, FARBEN.auswahlAufDunkelHover]
       : [FARBEN.auswahl, FARBEN.auswahlHover];
@@ -546,9 +542,8 @@ describe("Ausgewählte Tabellenzeile", () => {
       expect(markup).toContain("ant-table-row-selected");
       expect(css).toContain(`--ant-table-row-selected-bg:${grund}`);
       expect(css).toContain(`--ant-table-row-selected-hover-bg:${hover}`);
-      // antds Ableitung aus dem Seed darf nirgends mehr stehen.
-      const rot = antdTheme.getDesignToken(buildTheme(mode)).controlItemBgActive;
-      expect(css).not.toContain(`--ant-table-row-selected-bg:${rot}`);
+      // Eine rote Datenfläche für einen Nicht-Fehler darf nicht wiederkommen (Falle 3).
+      expect(css).not.toContain(`--ant-table-row-selected-bg:${FARBEN.rotBg}`);
     }
   });
 });

@@ -561,10 +561,10 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
       await devLogin(page, { host: "portal.localtest.me", groups: "" });
       const titel = page.getByTestId("module-title");
       const familie = await titel.evaluate((el) => getComputedStyle(el).fontFamily);
-      // "Barlow" statt exakt "Barlow Condensed": der Fallback-Pfad war frueher
-      // "Arial Narrow" (--font-display nirgends deklariert), das enthaelt kein
-      // "Barlow" — die Zusicherung faengt genau diesen Rueckfall.
-      expect(familie, `Modultitel rendert in: ${familie}`).toContain("Barlow");
+      // Seit der Haarlinie (IDA-347) ist die Display-Rolle Geist. Der Fallback-Pfad
+      // war frueher "Arial Narrow" (--font-display nirgends deklariert); die erste
+      // Familie im Stapel faengt genau diesen Rueckfall.
+      expect(familie.split(",")[0], `Modultitel rendert in: ${familie}`).toContain("Geist");
     });
   });
 

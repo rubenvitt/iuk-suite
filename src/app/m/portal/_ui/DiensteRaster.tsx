@@ -164,6 +164,7 @@ export function DiensteRaster({
                 data-testid="kachel-titel"
                 style={{
                   ...SCHRIFT.unterTitel,
+                  fontSize: 16,
                   minInlineSize: 0,
                   overflowWrap: "anywhere",
                   hyphens: "auto",

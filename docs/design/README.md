@@ -57,9 +57,9 @@ Komponenten** hängt — nicht an `:root`. Eigenes Markup außerhalb eines antd-
 Haarlinie verschwindet einfach. **Regel:** `--ant-*` nur in Props von antd-Komponenten; eigenes Markup
 nutzt modul-eigene Variablen (`--fb-*` im Modul `feedback`).
 
-**3. `colorError === colorPrimary === #c8000f`.**
-`core/theme/theme.ts` setzt die Fehlerfarbe auf Suite-Rot. Ein `Alert type="error"` ist damit optisch
-eine Primäraktion. Wo Rot zusätzlich eine **fachliche** Bedeutung trägt (im Modul `feedback`: „Note 6 —
+**3. Rot ist Fehler und Marke, nie Primäraktion.**
+Bis IDA-347 war `colorError === colorPrimary === #c8000f`; seit der Haarlinie ist die Primäraktion Tinte
+(`FARBEN.tinte`, dunkel `tinteAufDunkel`). Wo Rot zusätzlich eine **fachliche** Bedeutung trägt (im Modul `feedback`: „Note 6 —
 ungenügend"), darf Rot **niemals auf einer Datenfläche** erscheinen — kein rotes `Tag`, kein roter
 `Progress`, kein roter Balken. Warnungen sind `type="warning"` oder Text plus 3px linke Kante.
 
@@ -222,14 +222,14 @@ den Farbeindruck der Suite. Beispiel: die Schulnoten-Ampel in `app/m/feedback/_l
 
 Drei Farbrollen, sauber getrennt:
 
-1. **Suite-Rot** = Marke und Primäraktion. Nie Statusfarbe, nie Datenfarbe.
+1. **Suite-Rot** = Marke und Fehler. Die Primäraktion ist Tinte (Haarlinie, IDA-347). Nie Datenfarbe.
 2. **Fachsemantische Palette** = ausschließlich Werte ihrer Skala. Nie für Serien, Kategorien,
    Fortschritt oder Zustand.
 3. **Neutral/Graphit** = alles andere, insbesondere Fortschritt und Mengen.
 
 ### Rot: Chrome ja, Datenfläche nein
 
-`colorError === colorPrimary === #c8000f` (Falle 3) zwingt zu einer Linie, die anderswo nicht nötig
+Rot ist Fehlerfarbe und Marke (Falle 3) und braucht deshalb eine Linie, die anderswo nicht nötig
 wäre:
 
 - **Rot auf Chrome** — Markenstreifen, aktiver Navigationseintrag, Wortmarke, Gefahrenzone: ja.
@@ -301,7 +301,7 @@ Ziffern, die verglichen werden, brauchen `font-variant-numeric: tabular-nums`. E
 
 | Variable | Rolle | heute |
 |---|---|---|
-| `--font-display` | Marke, Kicker, Überschriften, große Zahlen | Barlow Condensed |
+| `--font-display` | Marke, Kicker, Überschriften, große Zahlen | Geist (Haarlinie, IDA-347; Barlow bleibt registriert) |
 | `--font-body` | Fließtext, Formulare, Tabelleninhalt | Geist |
 | `--font-mono` | Journal, Codes, IDs, Fachnummern | Geist Mono |
 
@@ -520,3 +520,21 @@ hatten keinen Einstiegspunkt. Daraus die Prüffragen für jede neue Ansicht:
   Module, ohne Shell, weil die Not-Found-Grenze an der Wurzel liegt und alle Modul-Layouts ersetzt.)
 - Gibt es **Leerzustände** — auch für Diagramme (ein leeres Achsenkreuz sieht kaputt aus)?
 - Zeigt die Liste, was sie zeigen soll (Status, Menge, Datum) — oder nur einen Link?
+
+## Haarlinie (Verwaltung, IDA-347)
+
+Seit 2026-11-04 tragen die Verwaltungsflächen die Designsprache **Haarlinie**; Einsatzansichten bekommen
+später eine eigene (Instrumententafel). Die beiden bleiben getrennt.
+
+- **Farbe:** Graustufen aus `core/theme/tokens.ts` (`tinte`, `stahl`, `linie`, `papier`, `nacht` …). Die
+  Primäraktion ist Tinte, dunkel ein heller Knopf mit dunkler Schrift. Rot nur für Fehler und Marke.
+- **Linien statt Flächen:** Ränder und Trenner sind halbtransparente Haarlinien (`colorBorderSecondary`,
+  `colorSplit`); erhobene Flächen bekommen `SCHATTEN_ERHOBEN` (1px-Kontur plus weicher Schatten).
+- **Schrift:** eine Familie (Geist). Rangfolge über Gewicht und enge Laufweite, keine Versalien —
+  Ausnahme ist `feedback`, dessen eigener Entwurf (§4.7) den versalen Kicker verlangt.
+- **Bewegung:** eine Feder (`BEWEGUNG` in `core/theme/bewegung.ts`, als CSS `--iuk-feder` und
+  `--iuk-feder-dauer` in `globals.css`), antds Motion-Tokens laufen darauf. Knöpfe geben beim Drücken
+  nach (`scale(0.97)`). `prefers-reduced-motion: reduce` schaltet jede Bewegung suiteweit ab;
+  `bewegung.test.ts` hält Kurve, Token und CSS zusammen.
+- **Haarlinie-Figuren** (`@lucasmarkes/hairline`) nur in Ruhezuständen: leere Listen, Anmeldung, 403/404,
+  leeres Portal, Fertig-Momente. Nie in Tabellen, Formularen oder Flyins.

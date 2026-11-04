@@ -360,7 +360,7 @@ describe("Aufgabe 12, Punkt 4 (Review) — Spaltenköpfe tragen SCHRIFT.kicker",
    * als Ballast wieder heraus — der Text sieht fuer sich genommen unveraendert
    * aus, die Rolle steckt ausschlieszlich im Stil.
    */
-  it("traegt an der Spalte „Datei“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
+  it("traegt an der Spalte „Datei“ die Rolle SCHRIFT.kicker (600)", async () => {
     await legeShare();
     await legeDatei({ id: DATEI_A, dateiname: "a.pdf", avStatus: "clean" });
     const wirt = await dom();
@@ -374,7 +374,7 @@ describe("Aufgabe 12, Punkt 4 (Review) — Spaltenköpfe tragen SCHRIFT.kicker",
     ) as HTMLElement | undefined;
     expect(span?.textContent).toBe("Datei");
     expect(span?.style.fontWeight).toBe("600");
-    expect(span?.style.textTransform).toBe("uppercase");
+    expect(span?.style.textTransform).toBe("");
   });
 });
 

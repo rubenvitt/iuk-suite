@@ -43,7 +43,10 @@
  * stille Ausfall eine Ebene tiefer wieder moeglich.
  */
 :root {
-  --font-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  /* Haarlinie (IDA-347): die Display-Rolle ist dieselbe Familie wie der Text, nur
+     enger gesetzt (`core/theme/schrift.ts`). Barlow Condensed bleibt registriert,
+     weil eigenes Modul-CSS die schmale Schrift noch bewusst nennt. */
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-body: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
@@ -158,16 +161,16 @@
  */
 :root {
   --iuk-marke: #c8000f;
-  --iuk-gedaempft: #5b6570;
-  --iuk-linie: #d9dde1;
-  --iuk-flaeche-aktiv: rgb(0 0 0 / 0.06);
+  --iuk-gedaempft: #62626b;
+  --iuk-linie: #e7e7e4;
+  --iuk-flaeche-aktiv: rgb(24 24 27 / 0.05);
 }
 
 :root[data-theme="dark"] {
   --iuk-marke: #e45a66;
-  --iuk-gedaempft: #9aa4ad;
-  --iuk-linie: #2a2f34;
-  --iuk-flaeche-aktiv: rgb(255 255 255 / 0.1);
+  --iuk-gedaempft: #a1a1aa;
+  --iuk-linie: #232327;
+  --iuk-flaeche-aktiv: rgb(255 255 255 / 0.07);
 }
 
 html,
@@ -273,5 +276,62 @@ select {
 @media print {
   body {
     background: #ffffff;
+  }
+}
+
+/*
+ * BEWEGUNG DER HAARLINIE (IDA-347). Die Feder kommt aus `core/theme/bewegung.ts`
+ * (`BEWEGUNG.feder`); `bewegung.test.ts` hält beide Seiten gleich. Eigenes
+ * Markup nimmt `--iuk-feder`, antd bekommt dieselbe Kurve als Token.
+ */
+:root {
+  --iuk-feder: linear(0, 0.028, 0.097, 0.189, 0.293, 0.399, 0.501, 0.594, 0.678, 0.75, 0.811, 0.862, 0.903, 0.935, 0.96, 0.978, 0.992, 1.001, 1.008, 1.011, 1.013, 1.014, 1.013, 1.013, 1.011, 1.01, 1.008, 1.007, 1.006, 1.005, 1.004, 1.003, 1);
+  --iuk-feder-dauer: 500ms;
+  --iuk-fokus: #18181b;
+}
+
+:root[data-theme="dark"] {
+  --iuk-fokus: #fafafa;
+}
+
+/*
+ * DRUCK-FEEDBACK: ein Knopf gibt beim Drücken kurz nach und federt zurück.
+ * `.ant-btn` ist ein antd-Klassenname (Falle 20) — `bewegung.test.ts` prüft per
+ * `renderToString` + `extractStyle`, dass er gerendert wird. `:root` davor hebt
+ * die Regel über antds eigene (0,1,0), ohne `!important`.
+ */
+:root .ant-btn:not(:disabled) {
+  transition:
+    color 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform var(--iuk-feder-dauer) var(--iuk-feder);
+}
+
+:root .ant-btn:not(:disabled):active {
+  transform: scale(0.97);
+  transition-duration: 60ms;
+}
+
+/*
+ * Ein sichtbarer Fokusring für eigenes Markup. `:where` hält die Regel bei
+ * (0,0,0), damit Modul-CSS sie weiterhin gezielt ersetzen kann; antd zeichnet
+ * seinen Ring selbst (`controlOutline`, `colorPrimaryBorder`).
+ */
+:where(a, button, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--iuk-fokus);
+  outline-offset: 2px;
+}
+
+/* Reduzierte Bewegung gilt für alles, antd eingeschlossen. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

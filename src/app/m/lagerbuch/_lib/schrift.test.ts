@@ -20,22 +20,20 @@ describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
         fontFamily: "var(--font-display)",
         fontSize: 24,
         fontWeight: 600,
-        letterSpacing: "0.02em",
+        letterSpacing: "-0.02em",
         lineHeight: 1.2,
       },
       abschnitt: {
         fontFamily: "var(--font-display)",
         fontSize: 12,
         fontWeight: 600,
-        letterSpacing: "0.09em",
-        textTransform: "uppercase",
+        letterSpacing: "0.01em",
       },
       feldname: {
         fontFamily: "var(--font-display)",
         fontSize: 12,
         fontWeight: 600,
-        letterSpacing: "0.09em",
-        textTransform: "uppercase",
+        letterSpacing: "0.01em",
       },
       text: {
         fontSize: 14,
@@ -51,7 +49,8 @@ describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
       zahl: {
         fontFamily: "var(--font-display)",
         fontSize: 24,
-        fontWeight: 700,
+        fontWeight: 600,
+        letterSpacing: "-0.02em",
         // unveraendert "tabular-nums" — gezielt gepickt, nicht aus dem
         // core-Spread uebernommen (der brächte "tabular-nums lining-nums").
         fontVariantNumeric: "tabular-nums",
@@ -82,9 +81,10 @@ describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {
     expect(SCHRIFT.mono.fontVariantNumeric).toBe("tabular-nums");
   });
 
-  it("die Strukturrollen tragen Versalien plus Laufweite statt einer zweiten Familie", () => {
+  it("die Strukturrollen tragen Gewicht statt einer zweiten Familie", () => {
+    // Bis zur Haarlinie (IDA-347) zusätzlich Versalien; die Suite-Rolle hat sie abgelegt.
     for (const rolle of ["abschnitt", "feldname"] as const) {
-      expect(SCHRIFT[rolle].textTransform, rolle).toBe("uppercase");
+      expect(SCHRIFT[rolle].textTransform, rolle).toBeUndefined();
       expect(SCHRIFT[rolle].letterSpacing, rolle).toBeTruthy();
       expect(SCHRIFT[rolle].fontWeight, rolle).toBe(600);
     }

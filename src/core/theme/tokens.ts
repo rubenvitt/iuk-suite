@@ -35,11 +35,28 @@ export const FARBEN = {
   rotAufDunkelHover: "#ef7f89",
   rotAufDunkelActive: "#d9525e",
   rotBg: "#fbe9eb",
-  tinte: "#1a1d20",
-  stahl: "#5b6570",
-  linie: "#d9dde1",
-  papier: "#eef0f1",
+  /*
+   * HAARLINIE (IDA-347, 2026-11-04): die neutrale Leiter der Verwaltungsflächen.
+   * Fast reine Graustufen mit einem Hauch Wärme, Tinte statt Rot als
+   * Bedienfarbe; Rot bleibt Marke und Fehler. `tinte` 17,7:1 auf `karte` und
+   * 17,0:1 auf `papier`, `stahl` 6,0:1 bzw. 5,8:1.
+   */
+  tinte: "#18181b",
+  stahl: "#62626b",
+  linie: "#e7e7e4",
+  papier: "#fafaf9",
   karte: "#ffffff",
+  /** Bedienfläche unter dem Zeiger / gedrückt — `tinte` eine Stufe heller bzw. tiefer. */
+  tinteHover: "#3f3f46",
+  tinteActive: "#000000",
+  /** Die Dunkel-Leiter: Grund, Karte, erhöhte Fläche, Tinte (= Bedienfarbe). */
+  nacht: "#09090b",
+  nachtKarte: "#111113",
+  nachtErhoben: "#18181b",
+  tinteAufDunkel: "#fafafa",
+  tinteAufDunkelHover: "#e4e4e7",
+  tinteAufDunkelActive: "#d4d4d8",
+  stahlAufDunkel: "#a1a1aa",
   gelb: "#b26a00",
   gelbBg: "#fbf1dc",
   ok: "#1e7a3c",
@@ -104,16 +121,16 @@ export const FARBEN = {
    * AUSGEWÄHLTE TABELLENZEILE (IDA-245). antd leitet `rowSelectedBg` aus
    * `colorPrimary` ab und färbt damit jede ausgewählte Zeile hellrot — eine
    * rote Datenfläche für einen Nicht-Fehler (Falle 3). Neutral statt rot: hell
-   * derselbe Ton wie `papier` (deutlich gegen antds Zeilen-Hover `#fafafa`),
+   * eine Stufe unter `papier` (deutlich gegen antds Zeilen-Hover `#fafafa`),
    * dunkel eine Stufe über der Kartenfläche `#141414`. Deckend, nicht
    * durchscheinend: eine fixierte Spalte über waagerecht gescrolltem Inhalt
    * ließe ihn sonst durchscheinen. Text darauf: `tinte` 14,8:1 hell, antds
    * Dunkeltext (85 % Weiß) 11,2:1 dunkel; im Hover 13,5:1 bzw. 10,0:1.
    */
-  auswahl: "#eef0f1",
-  auswahlHover: "#e3e6e8",
-  auswahlAufDunkel: "#262626",
-  auswahlAufDunkelHover: "#303030",
+  auswahl: "#f2f2f1",
+  auswahlHover: "#ececea",
+  auswahlAufDunkel: "#1f1f23",
+  auswahlAufDunkelHover: "#27272a",
 } as const;
 
 /**
