@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
+import { TURNSTILE_AKTION } from "../_lib/ehrlich/turnstile";
 
 /*
  * Das Turnstile-Widget des Einwurfs (IDA-340), explizit gerendert: so lässt es sich nach einer
@@ -31,7 +32,7 @@ export function Turnstile({ siteKey, runde }: { siteKey: string; runde: number }
   useEffect(() => {
     if (!geladen || !ort.current || !window.turnstile) return;
     const api = window.turnstile;
-    id.current = api.render(ort.current, { sitekey: siteKey, appearance: "interaction-only", language: "de" });
+    id.current = api.render(ort.current, { sitekey: siteKey, action: TURNSTILE_AKTION, appearance: "interaction-only", language: "de" });
     return () => {
       if (id.current) api.remove(id.current);
       id.current = null;

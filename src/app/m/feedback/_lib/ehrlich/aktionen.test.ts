@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
   ip: "203.0.113.77",
   host: "feedback.localtest.me",
   auth: vi.fn(),
-  turnstile: vi.fn(async (_token: string) => true),
+  turnstile: vi.fn<(token: string) => Promise<boolean>>(async () => true),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));

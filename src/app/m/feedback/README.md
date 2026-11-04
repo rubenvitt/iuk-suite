@@ -73,7 +73,7 @@ Entscheidungen stehen an IDA-309 (POC) und IDA-314 in Zunder.
   geht nach `k/…`, die Wurzel ist der Einwurf ohne Secret (`k/page.tsx`, nur auf diesem Host). Aushang und
   QR-Code zeigen dann diese Adresse; Secret-Links gelten weiter. Nicht in `SUITE_HOST_FEEDBACK` eintragen.
   Gegen Bots: Honigtopf-Feld und Cloudflare Turnstile (`_lib/ehrlich/turnstile.ts`, aktiv mit
-  `SUITE_EHRLICH_TURNSTILE_SITE_KEY` und `SUITE_EHRLICH_TURNSTILE_SECRET`), für beide Einwurfwege.
+  `TURNSTILE_SITE_KEY` und `TURNSTILE_SECRET`, optional `TURNSTILE_HOSTNAMES`), für beide Einwurfwege.
 - **Verwaltung:** `(admin)/ehrlich-gesagt` und der Druck `(print)/ehrlich-gesagt-aushang`. Riegel ist allein
   die Lesegruppe (`_lib/ehrlich/zugang.ts`, Vorgabe `kummerkasten-leser`, `SUITE_LESER_GROUP_FEEDBACK`) —
   **nicht** `feedback-admin` und nicht der Suite-Betrieb. Damit die Vertrauenspersonen das Modul betreten,
