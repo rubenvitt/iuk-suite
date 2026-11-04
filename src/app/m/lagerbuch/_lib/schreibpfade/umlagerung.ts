@@ -20,6 +20,7 @@ import type { Lagerbereich } from "../domain/orte";
 import {
   fefoAbbuchungAnOrt, fefoAbbuchungImBereich, type Quelle, type Teil, type Tx,
 } from "./abbuchung";
+import type { IdQuelle } from "./sendung";
 
 export type UmlagerungArgs = {
   artikelId: string;
@@ -54,6 +55,8 @@ export type UmlagerungArgs = {
    * abgelesene Datum. Beide Legs tragen weiter dieselbe Referenz.
    */
   nachChargeId?: string;
+  /** IDA-358: die IDs BEIDER Legs aus einer Quelle (`sendung.ts`); fehlt sie, `newId()`. */
+  neueId?: IdQuelle;
   quelle: Quelle;
   kommentar: string | null;
   /** Pflicht, nicht optional: eine Umlagerung ist IMMER Teil eines Vorgangs
@@ -74,6 +77,7 @@ export function umlagerungAusBereich(
   return zielLeg(tx, args, fefoAbbuchungImBereich(tx, {
     artikelId, menge, bereich: args.vonBereich, quelle, kommentar, referenz,
     typ: "umlagerung",
+    ...(args.neueId ? { neueId: args.neueId } : {}),
     ...(chargeId ? { chargeId } : {}),
   }));
 }
@@ -90,6 +94,7 @@ export function umlagerungVonOrt(
   return zielLeg(tx, args, fefoAbbuchungAnOrt(tx, {
     artikelId, menge, ort: args.vonOrt, quelle, kommentar, referenz,
     typ: "umlagerung",
+    ...(args.neueId ? { neueId: args.neueId } : {}),
     ...(chargeId ? { chargeId } : {}),
   }));
 }
@@ -97,7 +102,7 @@ export function umlagerungVonOrt(
 function zielLeg(
   tx: Tx, args: UmlagerungArgs, quellLeg: { gebucht: number; teile: Teil[] },
 ): { umgelagert: number; teile: Teil[] } {
-  const { artikelId, nachLagerortId, nachChargeId, quelle, kommentar, referenz } = args;
+  const { artikelId, nachLagerortId, nachChargeId, quelle, kommentar, referenz, neueId = newId } = args;
   const { gebucht, teile } = quellLeg;
   // Ohne feste Quellcharge verteilte FEFO ueber mehrere — welche davon die
   // Zielcharge ersetzen soll, waere dann geraten. Ein Wurf, kein Rueckfall.
@@ -122,7 +127,7 @@ function zielLeg(
   // ⚠️ STRIKT AUS `teile[]` — nie aus `menge`. Sonst Netto != 0.
   for (const teil of teile) {
     tx.insert(buchungen).values({
-      id: newId(), ts, typ: "umlagerung", artikelId,
+      id: neueId(), ts, typ: "umlagerung", artikelId,
       chargeId: nachChargeId ?? teil.chargeId, lagerortId: nachLagerortId, menge: teil.menge,
       quelleTyp: quelle.quelleTyp, quelleId: quelle.quelleId, referenz, kommentar,
     }).run();

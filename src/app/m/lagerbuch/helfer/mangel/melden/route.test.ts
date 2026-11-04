@@ -94,6 +94,29 @@ describe("POST /helfer/mangel/melden", () => {
     expect(t.db.select().from(maengel).all()).toHaveLength(0);
   });
 
+  it("IDA-358 — eine wiederholte Sendung legt keinen zweiten Mangel an, auch wenn der Ort inzwischen weg ist", async () => {
+    const sendung = "0f8e2d3c-4b5a-4697-8877-665544332211";
+    const r1 = await POST(anfrage({ ort: "rtw", punkt: "Verschmutzt", sendung }, [await jpeg()]));
+    expect(await r1.json()).toEqual({ ok: true });
+    const m = t.db.select().from(maengel).get()!;
+    // Die ID hat die Form einer nanoid(21) — aus ihr werden Dateinamen (`fotos.ts`, `ID_MUSTER`).
+    expect(m.id).toBe("0f8e2d3c4b5a469788776");
+    expect(readdirSync(join(daten, "lagerbuch", "maengel"))).toEqual([`${m.id}-0.jpg`]);
+
+    const r2 = await POST(anfrage({ ort: "gibtsnicht", punkt: "Verschmutzt", sendung }, [await jpeg()]));
+    expect(r2.status).toBe(200);
+    expect(await r2.json()).toEqual({ ok: true });
+    expect(t.db.select().from(maengel).all()).toHaveLength(1);
+  });
+
+  it("IDA-358 — eine Sendung, die keine UUID ist, wird nicht zur ID", async () => {
+    await POST(anfrage({ ort: "rtw", punkt: "Verschmutzt", sendung: "../../etc/passwd" }));
+    await POST(anfrage({ ort: "rtw", punkt: "Verschmutzt", sendung: "../../etc/passwd" }));
+    const alle = t.db.select().from(maengel).all();
+    expect(alle).toHaveLength(2);
+    for (const m of alle) expect(m.id).toMatch(/^[A-Za-z0-9_-]{21}$/);
+  });
+
   it("lehnt ohne Sitzung ab", async () => {
     zugang = { ok: false, grund: "sitzung", nochAngemeldet: false };
     expect((await POST(anfrage({ ort: "rtw", punkt: "Verschmutzt" }))).status).toBe(401);

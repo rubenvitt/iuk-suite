@@ -20,6 +20,7 @@ vi.mock("../../../../_actions/sauerstoff", () => ({
 }));
 
 import { MessungForm } from "./MessungForm";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 
 async function warte(): Promise<void> {
   await act(async () => {
@@ -39,6 +40,9 @@ async function warteAuf(pruefen: () => boolean, beschreibung: string): Promise<v
 }
 
 beforeEach(() => {
+  // IDA-358: das Formular legt seine Werte auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   mocks.erfassen.mockReset();
   mocks.erfassen.mockResolvedValue({ ok: true, wert: { id: "messung-1" } });
 });
@@ -158,5 +162,23 @@ describe("MessungForm", () => {
 
     await act(async () => { fertig({ ok: true, wert: { id: "messung-1" } }); });
     await warte();
+  });
+
+  it("IDA-358 — Druck und Kommentar stehen nach dem Neuladen wieder da, nach Erfolg nicht mehr", async () => {
+    await mount(<MessungForm flascheId="flasche-1" />);
+    await fill("input[aria-label='Druck (bar)']", "180");
+    await fill("input[aria-label='Kommentar']", "Ventil schwergängig");
+    await unmount();
+    await mount(<MessungForm flascheId="flasche-1" />);
+    await act(async () => { await new Promise((fertig) => setTimeout(fertig, 0)); });
+    expect(query<HTMLInputElement>("input[aria-label='Druck (bar)']").value).toBe("180");
+    expect(query<HTMLInputElement>("input[aria-label='Kommentar']").value).toBe("Ventil schwergängig");
+    expect(document.querySelector("[data-rolle='entwurf-hinweis'][data-art='wiederhergestellt']")).not.toBeNull();
+
+    await submitForm("form");
+    await warteAuf(() => (document.body.textContent ?? "").includes("Messung erfasst."), "Erfolg");
+    await unmount();
+    await mount(<MessungForm flascheId="flasche-1" />);
+    expect(query<HTMLInputElement>("input[aria-label='Kommentar']").value).toBe("");
   });
 });

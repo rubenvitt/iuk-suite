@@ -1618,3 +1618,40 @@ describe("DRK-406 — der Ortscode des Handlagers darf nichts in die Box legen",
     expect(revalidiert).toEqual([]);
   });
 });
+
+describe("IDA-358 — eine wiederholte Sendung bucht nicht doppelt", () => {
+  const SENDUNG = "9a7b6c5d-4e3f-4a1b-8c2d-0e1f2a3b4c5d";
+
+  it("bucheInEntnahmebox: derselbe Versuch zweimal — EINE Umlagerung, dieselbe Antwort", async () => {
+    charge("ch-1", "2030-01");
+    buchen("s-1", "ch-1", 5);
+    const eingabe = { fahrzeugId: "fz-1", artikelId: "art-1", menge: 3, sendungId: SENDUNG };
+    expect(await bucheInEntnahmebox(eingabe, t.db)).toEqual({ ok: true, wert: { gebucht: 3 } });
+    // Die Wiederholung kaeme sonst an der Deckung vorbei nicht mehr durch: nur noch 2 da.
+    expect(await bucheInEntnahmebox(eingabe, t.db)).toEqual({ ok: true, wert: { gebucht: 3 } });
+    expect(neueZeilen()).toHaveLength(2);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(3);
+  });
+
+  it("raeumeAusEntnahmebox: derselbe Versuch zweimal — EIN Einraeumen, dieselbe Antwort samt Ziel", async () => {
+    charge("ch-1", "2030-01");
+    buchen("s-1", "ch-1", 4, ENTNAHMEBOX_ID);
+    const eingabe = {
+      artikelId: "art-1", chargeId: "ch-1", menge: 4, zielLagerortId: "handlager", sendungId: SENDUNG,
+    };
+    const erste = await raeumeAusEntnahmebox(eingabe, t.db);
+    expect(erste).toMatchObject({ ok: true, wert: { eingeraeumt: 4 } });
+    expect(await raeumeAusEntnahmebox(eingabe, t.db)).toEqual(erste);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(0);
+    expect(bestand("handlager", "ch-1")).toBe(4);
+  });
+
+  it("aussondernAusEntnahmebox: derselbe Versuch zweimal — EINE Aussonderung", async () => {
+    charge("ch-1", "2030-01");
+    buchen("s-1", "ch-1", 4, ENTNAHMEBOX_ID);
+    const eingabe = { artikelId: "art-1", chargeId: "ch-1", menge: 2, kommentar: "abgelaufen", sendungId: SENDUNG };
+    expect(await aussondernAusEntnahmebox(eingabe, t.db)).toEqual({ ok: true, wert: { ausgesondert: 2 } });
+    expect(await aussondernAusEntnahmebox(eingabe, t.db)).toEqual({ ok: true, wert: { ausgesondert: 2 } });
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(2);
+  });
+});

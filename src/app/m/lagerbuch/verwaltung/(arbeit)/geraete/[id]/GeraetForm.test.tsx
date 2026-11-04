@@ -36,6 +36,7 @@ import {
   lagerortFilter,
   type GeraetInitial,
 } from "./GeraetForm";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 import { GeraetAktivToggle } from "./GeraetAktivToggle";
 
 const mocks = vi.hoisted(() => ({
@@ -108,6 +109,9 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  // IDA-358: das Formular legt seine Werte auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   vi.clearAllMocks();
   mocks.geraetSpeichern.mockResolvedValue({ ok: true, wert: { id: "g-med" } });
   mocks.setGeraetAktiv.mockResolvedValue({ ok: true });
@@ -278,16 +282,19 @@ describe("GeraetForm — Felder und Typtrennung", () => {
 });
 
 describe("GeraetForm — Action-Zustand", () => {
-  it("dispatcht innerhalb einer Transition ohne Action-context-Warnung", async () => {
+  it("sendet ohne Action-context-Warnung", async () => {
     const fehler = vi.spyOn(console, "error").mockImplementation(() => {});
     await mount(<GeraetForm initial={MEDIZIN} lagerorte={ORTE} />);
     await submitForm();
     await warteAuf(() => mocks.geraetSpeichern.mock.calls.length === 1, "Action-Aufruf");
     expect(fehler.mock.calls.flat().join(" ")).not.toMatch(/action context/i);
+    // IDA-358: gesendet wird ueber `useFormEntwurf`, nicht mehr ueber
+    // `useActionState` — dessen Dispatch ausserhalb einer Transition war die
+    // Quelle der Warnung, und es gibt ihn hier nicht mehr.
     expect(readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/geraete/[id]/GeraetForm.tsx",
       "utf8",
-    )).toMatch(/startTransition\(\(\) => absenden\(werte\)\)/);
+    )).not.toMatch(/useActionState/);
     fehler.mockRestore();
   });
 
@@ -315,18 +322,28 @@ describe("GeraetForm — Action-Zustand", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
-  it("verbirgt Reject-Details hinter einem festen Warning und behält den Zustand", async () => {
-    mocks.geraetSpeichern.mockRejectedValueOnce(new Error("SQLITE intern und geheim"));
+  it("IDA-358 — ein Reject laesst die Aenderung liegen: ‚Nicht gesendet', keine Details, Zustand bleibt", async () => {
+    mocks.geraetSpeichern.mockRejectedValue(new Error("SQLITE intern und geheim"));
     await mount(<GeraetForm initial={MEDIZIN} lagerorte={ORTE} />);
     await fill("input[aria-label='Bezeichnung']", "Bleibt auch");
     await submitForm();
 
-    await warteAuf(() => queryAll(".ant-alert-warning").length === 1, "Runtime-Warnung");
-    expect(query(".ant-alert-warning").textContent)
-      .toContain("Gerät konnte nicht gespeichert werden.");
+    await warteAuf(() => queryAll("[data-rolle='entwurf-hinweis'][data-art='nicht-gesendet']").length === 1, "Statuszeile");
+    expect(query("[data-rolle='entwurf-hinweis']").textContent).toMatch(/^Nicht gesendet\./);
     expect(document.body.textContent).not.toContain("SQLITE intern und geheim");
     expect(query<HTMLInputElement>("input[aria-label='Bezeichnung']").value)
       .toBe("Bleibt auch");
+  });
+
+  it("IDA-358 — eine ungespeicherte Aenderung steht nach dem Neuladen wieder da", async () => {
+    await mount(<GeraetForm initial={MEDIZIN} lagerorte={ORTE} />);
+    await fill("input[aria-label='Bezeichnung']", "Noch nicht gespeichert");
+    await unmount();
+    await mount(<GeraetForm initial={MEDIZIN} lagerorte={ORTE} />);
+    await warte();
+    expect(query<HTMLInputElement>("input[aria-label='Bezeichnung']").value).toBe("Noch nicht gespeichert");
+    expect(queryAll("[data-rolle='entwurf-hinweis'][data-art='wiederhergestellt']")).toHaveLength(1);
+    expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
   });
 
   it("sperrt zwei synchrone Submit-Ereignisse bis zur Antwort", async () => {
@@ -345,7 +362,9 @@ describe("GeraetForm — Action-Zustand", () => {
     expect(readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/geraete/[id]/GeraetForm.tsx",
       "utf8",
-    )).toMatch(/if \(absendenLaeuft\.current\) return;/);
+    // IDA-358: die Sperre gegen den zweiten Aufruf sitzt seit dem Entwurf im
+    // Kern (`useEntwurf`, ein Versuch zur Zeit); hier steht nur noch `sende`.
+    )).toMatch(/entwurf\.sende\(/);
     await act(async () => { fertig({ ok: true, wert: { id: "g-med" } }); });
     await warte();
   });

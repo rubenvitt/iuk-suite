@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  startTransition,
-  useActionState,
-  useEffect,
-  useRef,
-} from "react";
+import { useEffect, useState } from "react";
 import { Alert, Button, DatePicker, Form, Input, Radio, Select } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useRouter } from "next/navigation";
@@ -17,6 +12,8 @@ import { standortMeta } from "../../../../_lib/konstanten";
 import type { LagerortOption as Lagerort } from "../../../../_lib/lesepfade/bz";
 import type { ActionErgebnis } from "../../../../_lib/actionErgebnis";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
+import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
+import { EntwurfZeile } from "../../../../_ui/EntwurfZeile";
 
 export type GeraetInitial = {
   id: string;
@@ -57,8 +54,6 @@ const FORM_FELDER = [
   "ablaufdatum",
 ] as const;
 
-const SPEICHER_FEHLER = "Gerät konnte nicht gespeichert werden.";
-
 /** Tagesgenau: `_ui/monat.ts` liefert absichtlich nur YYYY-MM. */
 function tag(datum: Dayjs | null | undefined): string | undefined {
   return datum?.format("YYYY-MM-DD");
@@ -86,33 +81,29 @@ export function GeraetForm({
 }) {
   const [form] = Form.useForm<Werte>();
   const router = useRouter();
-  const absendenLaeuft = useRef(false);
-  const [zustand, absenden, laeuft] = useActionState<
-    ActionErgebnis<{ id: string }> | null,
-    Werte
-  >(async (_vorher, werte) => {
-    try {
-      const ergebnis = await geraetSpeichern({
-        id: initial.id,
-        typ: werte.typ,
-        name: werte.name.trim(),
-        barcode: optionalerText(werte.barcode),
-        lagerortId: werte.lagerortId,
-        anmerkung: optionalerText(werte.anmerkung),
-        mtkFaellig: werte.typ === "medizin" ? tag(werte.mtkFaellig) : undefined,
-        beschreibung: werte.typ === "objekt"
-          ? optionalerText(werte.beschreibung)
-          : undefined,
-        ablaufdatum: werte.typ === "objekt" ? tag(werte.ablaufdatum) : undefined,
-      });
-      if (ergebnis.ok) router.refresh();
-      return ergebnis;
-    } catch {
-      return { ok: false, fehler: SPEICHER_FEHLER };
-    } finally {
-      absendenLaeuft.current = false;
-    }
-  }, null);
+  const [zustand, setZustand] = useState<ActionErgebnis<{ id: string }> | null>(null);
+  /*
+   * IDA-358 — DIE AENDERUNGEN LIEGEN AUF DEM GERAET, bis der Server sie
+   * bestaetigt. Mit `senden` und nicht nur Wiederherstellen, weil der Erfolg
+   * hier KEIN Zuruecksetzen ist: das Formular zeigt danach den gespeicherten
+   * Stand, und `verwerfen()` setzte es auf die `initialValues` von VOR dem
+   * Speichern zurueck. Ein Wurf (Netz, Rollout) wird wiederholt; das ist hier
+   * gefahrlos, `geraetSpeichern` aendert einen Datensatz und legt keinen an.
+   */
+  const entwurf = useFormEntwurf<
+    Werte,
+    Parameters<typeof geraetSpeichern>[0] & object,
+    Awaited<ReturnType<typeof geraetSpeichern>>
+  >(form, `lagerbuch:geraet:${initial.id}`, {
+    senden: (nutzlast) => geraetSpeichern(nutzlast),
+    antwort: (ergebnis) => {
+      setZustand(ergebnis);
+      if (!ergebnis.ok) return false;
+      router.refresh();
+      return true;
+    },
+  });
+  const laeuft = entwurf.zustand !== "ruhe";
 
   useEffect(() => {
     const feldFehler = zustand && !zustand.ok ? zustand.feldFehler ?? {} : {};
@@ -137,9 +128,23 @@ export function GeraetForm({
   }));
 
   function speichern(werte: Werte): void {
-    if (absendenLaeuft.current) return;
-    absendenLaeuft.current = true;
-    startTransition(() => absenden(werte));
+    if (laeuft) return;
+    setZustand(null);
+    // Ein Wurf (Netz, Rollout) faengt `useFormEntwurf`; `EntwurfZeile` sagt
+    // „Nicht gesendet". Der feste Satz fuer den Wurf ist damit ersetzt.
+    entwurf.sende({
+      id: initial.id,
+      typ: werte.typ,
+      name: werte.name.trim(),
+      barcode: optionalerText(werte.barcode),
+      lagerortId: werte.lagerortId,
+      anmerkung: optionalerText(werte.anmerkung),
+      mtkFaellig: werte.typ === "medizin" ? tag(werte.mtkFaellig) : undefined,
+      beschreibung: werte.typ === "objekt"
+        ? optionalerText(werte.beschreibung)
+        : undefined,
+      ablaufdatum: werte.typ === "objekt" ? tag(werte.ablaufdatum) : undefined,
+    });
   }
 
   return (
@@ -158,10 +163,12 @@ export function GeraetForm({
         ablaufdatum: initial.ablaufdatum ? dayjs(initial.ablaufdatum) : null,
       }}
       onFinish={speichern}
+      onValuesChange={entwurf.onValuesChange}
       // 20 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und hat keine
       // Geschwisterzeile in dieser Datei; bleibt Literal. Die Breite trägt die Seite (`formular`).
       style={{ marginBlockStart: 20 }}
     >
+      <EntwurfZeile entwurf={entwurf} />
       <Felder>
         <Form.Item name="typ" label="Klasse">
           <Radio.Group
@@ -221,7 +228,7 @@ export function GeraetForm({
           <Input aria-label="Anmerkung" placeholder="Freitext" />
         </Form.Item>
       </Felder>
-      <Button type="primary" htmlType="submit" loading={laeuft}>
+      <Button type="primary" htmlType="submit" loading={entwurf.zustand === "sendet"}>
         Speichern
       </Button>
       {zustand?.ok ? (

@@ -17,14 +17,15 @@
 import { withAuditContext } from "@/core/audit/server";
 import { headers } from "next/headers";
 import { getDb } from "../../../_db/client";
-import { newId } from "../../../_db/schema";
+import { eq } from "drizzle-orm";
+import { maengel, newId } from "../../../_db/schema";
 import { requireHelferSchreibend } from "../../../_lib/helferZugang";
 import { lagerbuchHostOderNull } from "../../../_lib/host";
 import { journalQuelle, zugangsAkteur } from "../../../_lib/zugangHerkunft";
 import { bereinigePunkte, SONSTIGES } from "../../../_lib/maengel/checkliste";
 import { legeMangelAn, meldeOrt } from "../../../_lib/maengel/daten";
 import { FOTO_MAX_BYTES, legeFotoAb, MAX_FOTOS, rechneFotoNeu } from "../../../_lib/maengel/fotos";
-import { BESCHREIBUNG_MAX, NAME_MAX, type MeldeAntwort } from "../../../_lib/maengel/meldung";
+import { BESCHREIBUNG_MAX, NAME_MAX, mangelIdAusSendung, type MeldeAntwort } from "../../../_lib/maengel/meldung";
 
 const KOPF = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } as const;
 
@@ -109,6 +110,12 @@ export async function POST(req: Request): Promise<Response> {
       return fehler(400, "Die Meldung kam nicht vollständig an. Bitte noch einmal senden.");
     }
 
+    // Vor allen Prüfungen: eine angekommene Meldung bleibt angekommen, auch wenn der Ort inzwischen weg ist.
+    const sendungsId = mangelIdAusSendung(formData.get("sendung"));
+    if (sendungsId && db.select({ id: maengel.id }).from(maengel).where(eq(maengel.id, sendungsId)).get()) {
+      return antwort(200, { ok: true });
+    }
+
     const roh = formData.get("ort");
     const ort = meldeOrt(db, typeof roh === "string" ? roh : null);
     if (!ort) return fehler(400, "Diesen Ort gibt es nicht mehr. Bitte das Etikett noch einmal scannen.");
@@ -132,7 +139,7 @@ export async function POST(req: Request): Promise<Response> {
       bilder.push(neu);
     }
 
-    const id = newId();
+    const id = sendungsId ?? newId();
     for (const [nummer, bild] of bilder.entries()) await legeFotoAb(id, nummer, bild);
     legeMangelAn(db, {
       id,

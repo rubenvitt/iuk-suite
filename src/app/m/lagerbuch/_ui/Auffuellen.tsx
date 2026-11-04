@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
-import { NETZ_TEXT_BUCHUNG } from "../_lib/actionTypen";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
+import { SendeStatus } from "./SendeStatus";
 // ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `CLAUDE.md`): „Server
 // Actions duerfen als einzige ueber die Grenze — aber direkt importiert,
 // nicht als Prop durchgereicht."
@@ -123,7 +124,83 @@ export function Auffuellen({
    */
   const [zielId, setZielId] = useState(ziele.length === 1 ? ziele[0]!.id : "");
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
-  const [laeuft, start] = useTransition();
+
+  /*
+   * IDA-358 — CHARGE, MENGE UND SCHRANK LIEGEN AUF DEM GERAET, die Buchung bis
+   * zur Bestaetigung auch. Wer den Karton in der Hand hat und die Chargennummer
+   * abgetippt hat, verliert sie nicht mehr an ein Neuladen oder einen Rollout;
+   * eine Wiederholung derselben Sendung bucht nicht doppelt
+   * (`_lib/schreibpfade/sendung.ts`). `angelegt` gehoert nicht hinein: nach dem
+   * Neuladen fuehrt die Liste die Charge selbst.
+   */
+  type Eingabe = {
+    artikelId: string; menge: number; zielLagerortId: string;
+    charge: { art: "neu"; chargenNr: string; verfall: string } | { art: "vorhanden"; chargeId: string };
+  };
+  const entwurf = useEntwurf<
+    { chargeWahl: string; chargenNr: string; verfall: string; menge: number; zielId: string },
+    Eingabe,
+    { r: Awaited<ReturnType<typeof bucheAuffuellung>>; n: Eingabe }
+  >({
+    schluessel: `lagerbuch:auffuellen:${detail.id}`,
+    stand: { chargeWahl, chargenNr, verfall, menge, zielId },
+    wiederherstellen: (w) => {
+      setChargeWahl(w.chargeWahl); setChargenNr(w.chargenNr); setVerfall(w.verfall);
+      setMenge(w.menge); setZielId(w.zielId);
+    },
+    senden: async (n, sendungId) => ({ r: await bucheAuffuellung({ ...n, sendungId }), n }),
+    antwort: ({ r, n }) => {
+      if (!r.ok) {
+        // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
+        setRueck({ art: "fehler", text: r.text });
+        return false;
+      }
+      /*
+       * DER BELEG NENNT MENGE, ARTIKEL UND ZIEL — AK3 des Tickets, und zwar
+       * NACH der Buchung, nicht nur davor. Der Zielname kommt aus der
+       * Antwort, nicht aus dem Zustand hier: der Server weiss, wohin er
+       * wirklich gebucht hat.
+       */
+      setRueck({
+        art: "ok",
+        text: `Aufgefüllt: ${r.wert.gebucht} × ${detail.name} → ${r.wert.ziel}`,
+      });
+      /*
+       * ⚠️ NACH EINER NEUEN CHARGE WIRD AUF SIE UMGESCHALTET — und das ist
+       * die Abhilfe zu einem echten Fehler, nicht Bequemlichkeit
+       * (Codex-Befund P1 zu PR #174).
+       *
+       * Wer eine Lieferung auspackt, verteilt sie auf MEHRERE Schraenke und
+       * bucht darum mehrfach nacheinander. Bliebe die Wahl auf „Neue
+       * Charge" stehen, legte der zweite Griff eine ZWEITE `chargen`-Zeile
+       * mit derselben Nummer und demselben Verfall an — es gibt keinen
+       * Eindeutigkeitsindex auf `(artikel_id, chargen_nr)`. Eine physische
+       * Charge zerfiele in mehrere, in FEFO nicht unterscheidbare Toepfe,
+       * und zwar STILL: jede Buchung fuer sich gelingt, und erst die
+       * Chargenliste zeigt spaeter zwei gleiche Zeilen, die niemand mehr
+       * zusammenfuehren kann (das Journal ist append-only).
+       *
+       * Die beiden Felder werden dabei GELEERT: sie haben ihren Zweck
+       * erfuellt, und ein stehengebliebener Text luede dazu ein, dieselbe
+       * Nummer beim naechsten Wechsel auf „Neue Charge" ein zweites Mal
+       * anzulegen — also genau zurueck in den Fehler.
+       */
+      if (n.charge.art === "neu") {
+        setAngelegt({ id: r.wert.chargeId, chargenNr: n.charge.chargenNr, verfall: n.charge.verfall });
+        setChargeWahl(r.wert.chargeId);
+        setChargenNr("");
+        setVerfall("");
+      }
+      /*
+       * ⚠️ DIE MENGE FAELLT AUF 1 ZURUECK. Sie ist bei jeder Buchung eine
+       * neue Aussage — sie stehen zu lassen waere die Einladung,
+       * versehentlich doppelt zu buchen.
+       */
+      setMenge(1);
+      return true;
+    },
+  });
+  const laeuft = entwurf.zustand !== "ruhe";
 
   const neu = chargeWahl === NEUE_CHARGE;
   /*
@@ -149,68 +226,15 @@ export function Auffuellen({
     // Tastendruck auf einen noch nicht neu gerenderten Knopf kaeme sonst durch.
     if (!bereit) return;
     setRueck(null);
-    start(async () => {
-      try {
-        const r = await bucheAuffuellung({
-          artikelId: detail.id,
-          menge,
-          zielLagerortId: zielId,
-          charge: neu
-            ? { art: "neu", chargenNr: chargenNr.trim(), verfall }
-            : { art: "vorhanden", chargeId: chargeWahl },
-        });
-        if (!r.ok) {
-          // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
-          setRueck({ art: "fehler", text: r.text });
-          return;
-        }
-        /*
-         * DER BELEG NENNT MENGE, ARTIKEL UND ZIEL — AK3 des Tickets, und zwar
-         * NACH der Buchung, nicht nur davor. Der Zielname kommt aus der
-         * Antwort, nicht aus dem Zustand hier: der Server weiss, wohin er
-         * wirklich gebucht hat.
-         */
-        setRueck({
-          art: "ok",
-          text: `Aufgefüllt: ${r.wert.gebucht} × ${detail.name} → ${r.wert.ziel}`,
-        });
-        /*
-         * ⚠️ NACH EINER NEUEN CHARGE WIRD AUF SIE UMGESCHALTET — und das ist
-         * die Abhilfe zu einem echten Fehler, nicht Bequemlichkeit
-         * (Codex-Befund P1 zu PR #174).
-         *
-         * Wer eine Lieferung auspackt, verteilt sie auf MEHRERE Schraenke und
-         * bucht darum mehrfach nacheinander. Bliebe die Wahl auf „Neue
-         * Charge" stehen, legte der zweite Griff eine ZWEITE `chargen`-Zeile
-         * mit derselben Nummer und demselben Verfall an — es gibt keinen
-         * Eindeutigkeitsindex auf `(artikel_id, chargen_nr)`. Eine physische
-         * Charge zerfiele in mehrere, in FEFO nicht unterscheidbare Toepfe,
-         * und zwar STILL: jede Buchung fuer sich gelingt, und erst die
-         * Chargenliste zeigt spaeter zwei gleiche Zeilen, die niemand mehr
-         * zusammenfuehren kann (das Journal ist append-only).
-         *
-         * Die beiden Felder werden dabei GELEERT: sie haben ihren Zweck
-         * erfuellt, und ein stehengebliebener Text luede dazu ein, dieselbe
-         * Nummer beim naechsten Wechsel auf „Neue Charge" ein zweites Mal
-         * anzulegen — also genau zurueck in den Fehler.
-         */
-        if (neu) {
-          setAngelegt({ id: r.wert.chargeId, chargenNr: chargenNr.trim(), verfall });
-          setChargeWahl(r.wert.chargeId);
-          setChargenNr("");
-          setVerfall("");
-        }
-        /*
-         * ⚠️ DIE MENGE FAELLT AUF 1 ZURUECK. Sie ist bei jeder Buchung eine
-         * neue Aussage — sie stehen zu lassen waere die Einladung,
-         * versehentlich doppelt zu buchen.
-         */
-        setMenge(1);
-      } catch {
-        // `"netz"` entsteht ausschliesslich HIER, nie serverseitig (Global
-        // Constraint 12) — wie in `Entnahme`.
-        setRueck({ art: "fehler", text: NETZ_TEXT_BUCHUNG });
-      }
+    // Ein Wurf (Netz, Rollout) faengt `useEntwurf`: die Buchung bleibt liegen
+    // und wird wiederholt, `SendeStatus` sagt „Nicht gesendet".
+    entwurf.sende({
+      artikelId: detail.id,
+      menge,
+      zielLagerortId: zielId,
+      charge: neu
+        ? { art: "neu", chargenNr: chargenNr.trim(), verfall }
+        : { art: "vorhanden", chargeId: chargeWahl },
     });
   }
 
@@ -462,6 +486,8 @@ export function Auffuellen({
           >
             Auffüllen buchen
           </button>
+
+          <SendeStatus entwurf={entwurf} rolle="auffuellen-ergebnis" verwerfbar />
 
           {rueck && (
             <span

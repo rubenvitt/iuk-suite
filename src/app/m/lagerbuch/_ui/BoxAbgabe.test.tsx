@@ -31,6 +31,7 @@ vi.mock("../_actions/entnahmebox", () => ({
 }));
 
 import { BoxAbgabe, type BoxEinheit } from "./BoxAbgabe";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
 import type { BoxPosten } from "../_lib/lesepfade/entnahmebox";
 
 /** Die Signatur, die die Insel von der Action erwartet — frueher der Prop-Typ
@@ -98,6 +99,9 @@ afterEach(async () => {
 });
 
 beforeEach(() => {
+  // IDA-358: die Insel legt Wahl und Sendung auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   gelungen();
 });
 
@@ -327,6 +331,7 @@ describe("BoxAbgabe — die Chargenwahl", () => {
     // Insel darf die Vorgabe nicht in eine Aussage verwandeln.
     expect(buchen).toHaveBeenCalledWith({
       fahrzeugId: "fz-1", artikelId: "art-1", menge: 1, chargeId: null,
+      sendungId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
   });
 
@@ -342,6 +347,7 @@ describe("BoxAbgabe — die Chargenwahl", () => {
 
     expect(buchen).toHaveBeenCalledWith({
       fahrzeugId: "fz-1", artikelId: "art-1", menge: 1, chargeId: "ch-neu",
+      sendungId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
   });
 });
@@ -377,8 +383,9 @@ describe("BoxAbgabe — die Rueckmeldung", () => {
     expect(exists("[data-rolle='box-eingabe']")).toBe(true);
   });
 
-  it("faengt den Wurf ab, statt ihn zur Fehlerseite durchschlagen zu lassen", async () => {
+  it("faengt den Wurf ab: die Ablage bleibt liegen, ‚Nicht gesendet', kein neuer Griff (IDA-358)", async () => {
     // FALLE 62/66: in Produktion stuende dort ein englischer Satz mit `digest`.
+    // Bis IDA-358 hiess es dann „Keine Verbindung", und die Ablage war weg.
     antwortet(async () => { throw new Error("weg"); });
     await mount(
       <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
@@ -386,7 +393,50 @@ describe("BoxAbgabe — die Rueckmeldung", () => {
     await click("[data-rolle='box-posten-knopf']");
     await click("[data-rolle='box-buchen']");
 
-    expect(query("[data-rolle='box-ergebnis']").textContent).toContain("Keine Verbindung");
+    const status = query("[data-rolle='box-sendung']");
+    expect(status.dataset.art).toBe("nicht-gesendet");
+    expect(status.textContent).toMatch(/^Nicht gesendet\./);
+    expect(exists("[data-rolle='box-eingabe']")).toBe(true);
+    // Ein zweiter Griff ersetzte die liegende Nutzlast unter derselben ID.
+    expect(query<HTMLButtonElement>("[data-rolle='box-buchen']").disabled).toBe(true);
+  });
+
+  it("IDA-358 — nach dem Neuladen geht die liegende Ablage mit DERSELBEN Sendungs-ID raus und steht im Beleg", async () => {
+    antwortet(async () => { throw new Error("502"); });
+    const schirm = () => (
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />
+    );
+    await mount(schirm());
+    await click("[data-rolle='box-posten-knopf']");
+    await click("button[aria-label='Menge Kühlkompresse erhöhen']");
+    await click("[data-rolle='box-buchen']");
+    const erste = buchenSpion.mock.calls[0]![0] as { sendungId?: string; menge: number };
+    expect(erste.sendungId).toMatch(/^[0-9a-f-]{36}$/);
+    await unmount();
+
+    gelungen();
+    await mount(schirm());
+    const zweite = buchenSpion.mock.calls[1]![0] as { sendungId?: string; menge: number };
+    expect(zweite.sendungId).toBe(erste.sendungId);
+    expect(zweite.menge).toBe(erste.menge);
+    expect(query("[data-rolle='box-beleg'] [data-rolle='box-ergebnis']").textContent)
+      .toBe(`In die Entnahmebox gelegt: ${erste.menge} × Kühlkompresse`);
+    expect(exists("[data-rolle='box-sendung']")).toBe(false);
+  });
+
+  it("IDA-358 — die offene Zeile mit Charge und Menge steht nach dem Neuladen wieder da", async () => {
+    const schirm = () => (
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />
+    );
+    await mount(schirm());
+    await click("[data-rolle='box-posten-knopf']");
+    const knoepfe = queryAll<HTMLInputElement>("[data-rolle='box-chargenwahl'] input");
+    await clickElement(knoepfe[2]!);
+    await unmount();
+    await mount(schirm());
+    expect(exists("[data-rolle='box-eingabe']")).toBe(true);
+    expect(queryAll<HTMLInputElement>("[data-rolle='box-chargenwahl'] input")[2]!.checked).toBe(true);
+    expect(buchenSpion).not.toHaveBeenCalled();
   });
 
   it("fuehrt beim abgelaufenen KAERTCHEN aufs Gate — mit Rueckweg auf DIESE Einheit", async () => {

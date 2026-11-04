@@ -23,6 +23,10 @@ import { bzGeraete, lagerorte } from "../../../../../_db/schema";
 import { migrierteTestDb } from "../../../../../_db/testdb";
 import { SeitenKopf } from "../../../../../_ui/SeitenKopf";
 import { KontrolleForm } from "./KontrolleForm";
+import { vergissFluechtig } from "@/core/entwurf/ablage";
+
+/** IDA-358: der Wiederholungsschutz reist in jeder Nutzlast mit (`_actions/bz.ts`). */
+const SENDUNG = expect.stringMatching(/^[0-9a-f-]{36}$/);
 import { dynamic, kontrolleSeiteInhalt } from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -43,6 +47,9 @@ const LEVEL_1 = { label: "Kontrolllösung niedrig", min: 40, max: 60 };
 const LEVEL_2_TEILWEISE = { label: null, min: null, max: 350 };
 
 beforeEach(() => {
+  // IDA-358: das Formular legt seine Werte auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(new Date("2026-08-07T12:00:00Z"));
   vi.clearAllMocks();
@@ -245,6 +252,7 @@ describe("KontrolleForm: Action-Payload", () => {
       // DRK-311: die Wahl reist IMMER mit, auch als „nein" — sonst entschiede
       // der Default der Action, und der steht an einer anderen Stelle.
       beachtung: false,
+      sendungId: SENDUNG,
     });
   });
 
@@ -262,6 +270,7 @@ describe("KontrolleForm: Action-Payload", () => {
       lanzetten: 0,
       batterieGewechselt: false,
       beachtung: false,
+      sendungId: SENDUNG,
     });
   });
 });
@@ -368,25 +377,51 @@ describe("KontrolleForm: erwartete Action-Fehler", () => {
   });
 });
 
-describe("KontrolleForm: Laufzeitfehler", () => {
-  it("zeigt bei verworfenem Promise nur den festen Clienttext und behält die Eingabe", async () => {
-    mocks.kontrolleErfassen.mockRejectedValueOnce(
+describe("KontrolleForm: Laufzeitfehler (IDA-358)", () => {
+  it("laesst bei verworfenem Promise die Kontrolle liegen: ‚Nicht gesendet', kein Innentext, Eingabe bleibt", async () => {
+    mocks.kontrolleErfassen.mockRejectedValue(
       new Error("interne Datenbankverbindung mit Geheimnis"),
     );
     await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
     await fill("input[aria-label='Kommentar']", "Bitte erneut versuchen");
 
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
-    await warteAuf(
-      () => (document.body.textContent ?? "")
-        .includes("Kontrolle konnte nicht gespeichert werden."),
-      "fester Laufzeitfehler",
-    );
+    await warteAuf(() => exists("[data-rolle='entwurf-hinweis'][data-art='nicht-gesendet']"), "Statuszeile");
 
+    expect(query("[data-rolle='entwurf-hinweis']").textContent).toMatch(/^Nicht gesendet\./);
     expect(document.body.textContent).not.toContain("Datenbankverbindung");
     expect(query<HTMLInputElement>("input[aria-label='Kommentar']").value)
       .toBe("Bitte erneut versuchen");
-    expect(exists(".ant-alert-warning")).toBe(true);
+  });
+
+  it("geht nach dem Neuladen mit DERSELBEN Sendungs-ID raus und meldet dann das Ergebnis", async () => {
+    mocks.kontrolleErfassen.mockRejectedValue(new Error("502"));
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await fill("input[aria-label='Kontrolllösung niedrig (40–60)']", "50");
+    await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
+    await warteAufAction();
+    const erste = mocks.kontrolleErfassen.mock.calls[0]![0] as { sendungId?: string };
+    await unmount();
+
+    mocks.kontrolleErfassen.mockResolvedValue({ ok: true, wert: { id: "k-1", bestanden: true } });
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await warteAuf(() => (document.body.textContent ?? "").includes("Kontrolle gespeichert — bestanden."), "Erfolg");
+    const zweite = mocks.kontrolleErfassen.mock.calls[1]![0] as { sendungId?: string; level1Wert?: number };
+    expect(zweite.sendungId).toBe(erste.sendungId);
+    expect(zweite.level1Wert).toBe(50);
+  });
+
+  it("stellt die Eingaben nach dem Neuladen wieder her", async () => {
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await fill("input[aria-label='Kontrolllösung niedrig (40–60)']", "47");
+    await fill("input[aria-label='Kommentar']", "Streifen fast leer");
+    await unmount();
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await warte();
+    expect(query<HTMLInputElement>("input[aria-label='Kontrolllösung niedrig (40–60)']").value).toBe("47");
+    expect(query<HTMLInputElement>("input[aria-label='Kommentar']").value).toBe("Streifen fast leer");
+    expect(exists("[data-rolle='entwurf-hinweis'][data-art='wiederhergestellt']")).toBe(true);
+    expect(mocks.kontrolleErfassen).not.toHaveBeenCalled();
   });
 });
 
