@@ -252,6 +252,13 @@ jobs:
   #   je Runner ~50 s, die kein Fall braucht: Checkout, Install, Build-Download,
   #            Browser (~41 s) plus Serverstart (~8 s)
   #
+  # NEU GESCHNITTEN AM 2026-11-04 (IDA-351), gleiche Messart, Laeufe 1910 und
+  # 1919: die Suite war auf ~2 230 s gewachsen, ungleich verteilt — eimer-1 und
+  # eimer-2 brauchten ~450 s Testzeit, eimer-3, -5 und -6 ~190 s, und der Lauf
+  # wartete auf die langsamsten. Neu verteilt nach Dauer (laengste Datei zuerst
+  # in den leichtesten Eimer): alle acht 277 bis 279 s gerechnet. Seitdem stehen
+  # alle Dateien einzeln da, auch `files-*`, `radio-*` und `gemeinschaft-*`.
+  #
   # WARUM ACHT UND NICHT WENIGER: der kritische Pfad des ganzen Laufs ist
   # `e2e-build` (~105 s) plus die LANGSAMSTE Gruppe plus ihre ~50 s Vorspann.
   # Sieben Gruppen hiessen rechnerisch ~193 s je Gruppe — laenger als die 182 s
@@ -272,9 +279,9 @@ jobs:
   # ⚠️ DIE NAMEN `eimer-N` TRAGEN MIT ABSICHT KEINE BEDEUTUNG. Eine neue Spec
   # kommt in den Eimer mit der KLEINSTEN Testzeit im letzten gruenen Lauf —
   # nicht nach Fallzahl (eine Datei braucht 0,4 s, eine andere 127 s) und nicht
-  # nach Modul. `files-*` und `radio-*` bleiben Globs und nehmen neue Dateien
-  # ihres Praefixes von selbst mit; ihr Eimer waechst dann, ohne dass jemand
-  # hinsieht. Wer neu schneidet, holt die Zeiten je Datei aus mehreren Laeufen
+  # nach Modul. Ein Glob (`files-*`) naehme neue Dateien seines Praefixes von
+  # selbst mit, und sein Eimer wuechse dann, ohne dass jemand hinsieht — deshalb
+  # stehen die Dateien einzeln. Wer neu schneidet, holt die Zeiten je Datei aus mehreren Laeufen
   # und prueft vorher, ob e2e ueberhaupt noch den kritischen Pfad traegt
   # (`build`, `vitest` laufen daneben).
   #
@@ -292,7 +299,19 @@ jobs:
   # weil `fromJSON` eine Datei nicht selbst lesen kann und eine Matrix feststehen
   # muss, bevor der Job startet. Checkout plus `cat`, also ~20 s — der Preis
   # dafuer, dass die Liste an EINER Stelle steht und nicht zweimal gepflegt wird.
+  #
+  # ══ AUF `main` LAEUFT KEIN E2E (IDA-351) ═══════════════════════════════════════
+  #
+  # `e2e-gruppen`, `e2e-build`, `e2e` und `anleitung` laufen nur auf dem PR (und
+  # per `workflow_dispatch`), nicht beim Push auf `main`: der PR hat dieselbe
+  # Suite bestanden, und `merge`/`deploy` warteten sonst ~6 min auf eine
+  # Wiederholung. Bewusst hingenommen (Entscheidung des Betreibers am
+  # 2026-11-04): ist `main` seit dem letzten PR-Lauf weitergezogen, geht die
+  # Zusammenfuehrung ungeprueft in den Rollout. `lint`, `typecheck`, `vitest`
+  # und der image-smoke in `build` laufen auf `main` weiter. `test` nimmt
+  # `skipped` fuer e2e und anleitung NUR beim Push an (siehe dort).
   e2e-gruppen:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     outputs:
       gruppen: ${{ steps.lies.outputs.gruppen }}
@@ -303,6 +322,7 @@ jobs:
 
   e2e:
     needs: [e2e-gruppen, e2e-build]
+    if: github.event_name != 'push'
     strategy:
       # Ohne das verdeckt die erste rote Gruppe die anderen, und man sieht nach
       # einem Fehlschlag nur einen Teil der Suite.
@@ -350,7 +370,12 @@ jobs:
         with:
           name: e2e-build
       - run: tar -xf e2e-build.tar && rm e2e-build.tar
-      - run: pnpm exec playwright install --with-deps chromium
+      # OHNE `--with-deps` (IDA-351): die Bibliotheken bringt der Runner mit
+      # (Chrome ist vorinstalliert), `--with-deps` zog per apt nur neun
+      # Schriftpakete nach (CJK, Thai, Unifont, X-Fonts), die kein Fall braucht.
+      # Der apt-Spiegel hing damit gelegentlich: am 2026-11-04 8:46 min fuer
+      # 21 MB (Lauf 1922, eimer-6), sonst 1 s. Gilt auch fuer `anleitung`.
+      - run: pnpm exec playwright install chromium
       - run: pnpm e2e ${{ matrix.gruppe.specs }}
       # OHNE DIESEN SCHRITT IST DER EINZIGE BELEG EINES ROTEN E2E-LAUFS WEG.
       # Playwright legt zu jedem Fehlschlag `test-results/<test>/error-context.md`
@@ -408,6 +433,7 @@ jobs:
   # Build-Cache, fuer `next start` wertlos) und `.next/standalone` (die Kopie fuers
   # Image) — zusammen der groessere Teil des Verzeichnisses.
   e2e-build:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -438,6 +464,7 @@ jobs:
   # wie `e2e`, aber mit eigener Datenbank aus den lokalen Demodaten.
   anleitung:
     needs: [e2e-build]
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -456,7 +483,7 @@ jobs:
         with:
           name: e2e-build
       - run: tar -xf e2e-build.tar && rm e2e-build.tar
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright install chromium
       - name: Helfer-Anleitung lässt sich erzeugen
         run: pnpm anleitung:lagerbuch
         env:
@@ -555,9 +582,17 @@ jobs:
           test "${{ needs.lint.result }}" = "success"
           test "${{ needs.typecheck.result }}" = "success"
           test "${{ needs.vitest.result }}" = "success"
-          test "${{ needs.e2e.result }}" = "success"
-          test "${{ needs.anleitung.result }}" = "success"
           test "${{ needs.version.result }}" = "success"
+          # Beim Push auf `main` sind e2e und anleitung absichtlich `skipped`
+          # (IDA-351, Kopf von `e2e-gruppen`) — und NUR dort. Auf dem PR faengt
+          # der Vergleich weiter auch ein `skipped` ab, etwa nach rotem `e2e-build`.
+          if [ "${{ github.event_name }}" = "push" ]; then
+            test "${{ needs.e2e.result }}" = "skipped"
+            test "${{ needs.anleitung.result }}" = "skipped"
+          else
+            test "${{ needs.e2e.result }}" = "success"
+            test "${{ needs.anleitung.result }}" = "success"
+          fi
 
   # Je Architektur ein Job auf NATIVEM Runner statt einem Job mit QEMU.
   # Grund: der emulierte arm64-Build kompiliert better-sqlite3 nativ und lief
