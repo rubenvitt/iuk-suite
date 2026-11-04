@@ -48,6 +48,7 @@ export function fuegeStelleEin(inhalt: PlanInhalt, neu: NeueStelle): PlanInhalt 
     zeichen: neu.zeichen ?? null, titel: neu.titel, leiter: neu.leiter ?? null,
     hervorheben: neu.hervorheben ?? false, verbindungId: neu.verbindungId ?? null,
     kanaele: neu.kanaele ?? [], kontakte: neu.kontakte ?? [], einheiten: neu.einheiten ?? [],
+    ...(neu.planVerweis ? { planVerweis: neu.planVerweis } : {}),
   };
   return gueltig({ ...inhalt, stellen: [...inhalt.stellen, stelle] });
 }

@@ -19,6 +19,11 @@ describe("Planoperationen", () => {
     expect(naechsteReihenfolge(p, "w", "unter")).toBe(2);
     expect(naechsteReihenfolge(p, "w", "links")).toBe(0);
   });
+  it("übernimmt einen Planverweis nur, wenn er übergeben wird (IDA-355)", () => {
+    const p = fuegeStelleEin(leererPlan(), { id: "w", titel: "W", planVerweis: { id: "p-2", titel: "Nord" } });
+    expect(p.stellen[0].planVerweis).toEqual({ id: "p-2", titel: "Nord" });
+    expect("planVerweis" in fuegeStelleEin(leererPlan(), { id: "w", titel: "W" }).stellen[0]).toBe(false);
+  });
   it("ist rein: die Eingabe bleibt unverändert", () => {
     const p = leererPlan();
     fuegeStelleEin(p, { id: "w", titel: "W" });
