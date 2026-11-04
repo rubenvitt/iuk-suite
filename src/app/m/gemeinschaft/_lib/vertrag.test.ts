@@ -162,4 +162,18 @@ describe("Eingaben", () => {
     const pdf = await fotoAlsPdf(PNG, "png");
     expect((await PDFDocument.load(pdf)).getPageCount()).toBe(1);
   });
+  it("PNG mit riesigen Maßen (Dekompressionsbombe) wird vor dem Dekodieren abgelehnt", () => {
+    const bombe = Buffer.from(PNG);
+    bombe.writeUInt32BE(30_000, 16);
+    bombe.writeUInt32BE(30_000, 20);
+    expect(unterschriftAusDataUrl(`data:image/png;base64,${bombe.toString("base64")}`)).toBeNull();
+    expect(pruefeUnterschriebeneDatei("IMG.png", bombe)).toMatchObject({ ok: false, status: 413 });
+    expect(pruefeUnterschriebeneDatei("IMG.png", PNG)).toMatchObject({ ok: true, art: "png" });
+  });
+
+  it("ohne Vorlage nimmt die Statusseite keinen Vertrag an", () => {
+    const db = testDb();
+    const code = zusage(db);
+    expect(() => legeUnterschriebenAb(db, code, { name: "v.pdf", inhalt: PNG, herkunft: "hochgeladen", unterschriebenVon: null, vorlageStand: null }, JETZT)).toThrow("kein Vertrag");
+  });
 });

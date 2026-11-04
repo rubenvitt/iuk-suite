@@ -24,6 +24,15 @@ export const sha256 = (bytes: Uint8Array): string => createHash("sha256").update
 
 const beginntMit = (bytes: Buffer, kopf: Buffer) => bytes.length >= kopf.length && bytes.subarray(0, kopf.length).equals(kopf);
 
+/**
+ * Pixel laut IHDR (Bytes 16–23). pdf-lib dekodiert ein PNG ganz im Speicher: ein kleines, stark komprimiertes Bild
+ * mit riesigen Maßen sprengt sonst den gemeinsamen Next-Prozess. JPEG bettet pdf-lib ohne Dekodieren ein.
+ */
+const pngPixel = (bytes: Buffer) => (bytes.length < 24 ? Infinity : bytes.readUInt32BE(16) * bytes.readUInt32BE(20));
+const UNTERSCHRIFT_MAX_PIXEL = 4_000_000;
+const FOTO_MAX_PIXEL = 40_000_000;
+const pngPasst = (bytes: Buffer, max: number) => { const px = pngPixel(bytes); return px > 0 && px <= max; };
+
 export type VorlagePruefung = { ok: true; seiten: Seitenmass[] } | { ok: false; fehler: string };
 
 /** Lässt sich die PDF weiterverarbeiten? Verschlüsselte oder kaputte Dateien taugen nicht als Vorlage. */
@@ -44,7 +53,7 @@ export function unterschriftAusDataUrl(roh: unknown): Buffer | null {
   const m = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(roh);
   if (!m || m[1].length > Math.ceil(UNTERSCHRIFT_MAX_BYTES / 3) * 4) return null;
   const bytes = Buffer.from(m[1], "base64");
-  return bytes.length > 60 && bytes.length <= UNTERSCHRIFT_MAX_BYTES && beginntMit(bytes, PNG_KOPF) ? bytes : null;
+  return bytes.length > 60 && bytes.length <= UNTERSCHRIFT_MAX_BYTES && beginntMit(bytes, PNG_KOPF) && pngPasst(bytes, UNTERSCHRIFT_MAX_PIXEL) ? bytes : null;
 }
 
 export type Angaben = { name: string; am: number; zeitraum: string; anlass: string };
@@ -101,6 +110,7 @@ export function pruefeUnterschriebeneDatei(name: string, bytes: Buffer): DateiPr
   if (bytes.length > VERTRAG_MAX_BYTES) return { ok: false, fehler: "Die Datei ist größer als 10 MB.", status: 413 };
   const art = beginntMit(bytes, PDF_KOPF) ? "pdf" : beginntMit(bytes, JPG_KOPF) ? "jpg" : beginntMit(bytes, PNG_KOPF) ? "png" : null;
   if (!art) return { ok: false, fehler: "Bitte eine PDF oder ein Foto (JPG, PNG) wählen.", status: 415 };
+  if (art === "png" && !pngPasst(bytes, FOTO_MAX_PIXEL)) return { ok: false, fehler: "Dieses Foto ist zu groß. Bitte als JPG speichern oder verkleinern.", status: 413 };
   return { ok: true, name: sichererName(name.replace(/\.(jpe?g|png)$/i, "")), art };
 }
 

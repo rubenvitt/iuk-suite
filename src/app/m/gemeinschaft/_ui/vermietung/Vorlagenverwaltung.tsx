@@ -130,7 +130,8 @@ function Feldwahl({ feld }: { feld: Feld | null }) {
     if (!doc || !leinwand.current || !rahmen.current) return;
     const breite = Math.min(720, rahmen.current.clientWidth);
     try {
-      setAnzeige(await rendereSeite(doc, seite, leinwand.current, breite));
+      const r = await rendereSeite(doc, seite, leinwand.current, breite);
+      if (r) { setAnzeige(r); setFehler(null); }
     } catch {
       setFehler("Die Seite lässt sich nicht anzeigen.");
     }

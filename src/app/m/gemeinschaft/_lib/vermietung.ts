@@ -291,6 +291,7 @@ export function pruefeUnterschreibbar(tx: GemeinschaftSchreiber, code: string): 
   if (a.vertrag === "unterschrieben") throw new Abgelehnt(SCHON_UNTERSCHRIEBEN);
   const datei = tx.select({ id: vertragsdatei.anfrageId }).from(vertragsdatei).where(eq(vertragsdatei.anfrageId, a.id)).get();
   if (datei) throw new Abgelehnt(SCHON_UNTERSCHRIEBEN);
+  if (!hatVorlage(tx)) throw new Abgelehnt("Zu dieser Zusage liegt kein Vertrag zum Unterschreiben vor.");
   return a;
 }
 
