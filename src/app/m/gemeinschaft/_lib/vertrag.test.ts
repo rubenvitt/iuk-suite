@@ -169,6 +169,10 @@ describe("Eingaben", () => {
     expect(unterschriftAusDataUrl(`data:image/png;base64,${bombe.toString("base64")}`)).toBeNull();
     expect(pruefeUnterschriebeneDatei("IMG.png", bombe)).toMatchObject({ ok: false, status: 413 });
     expect(pruefeUnterschriebeneDatei("IMG.png", PNG)).toMatchObject({ ok: true, art: "png" });
+    // Ein zweiter IHDR hinter dem harmlosen ersten: der Decoder nähme dessen Maße.
+    const ihdr = bombe.subarray(8, 33);
+    const zweiter = Buffer.concat([PNG.subarray(0, 33), ihdr, PNG.subarray(33)]);
+    expect(pruefeUnterschriebeneDatei("IMG.png", zweiter)).toMatchObject({ ok: false, status: 413 });
   });
 
   it("ohne Vorlage nimmt die Statusseite keinen Vertrag an", () => {

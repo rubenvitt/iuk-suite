@@ -25,10 +25,25 @@ export const sha256 = (bytes: Uint8Array): string => createHash("sha256").update
 const beginntMit = (bytes: Buffer, kopf: Buffer) => bytes.length >= kopf.length && bytes.subarray(0, kopf.length).equals(kopf);
 
 /**
- * Pixel laut IHDR (Bytes 16–23). pdf-lib dekodiert ein PNG ganz im Speicher: ein kleines, stark komprimiertes Bild
+ * Pixel laut IHDR. pdf-lib dekodiert ein PNG ganz im Speicher: ein kleines, stark komprimiertes Bild
  * mit riesigen Maßen sprengt sonst den gemeinsamen Next-Prozess. JPEG bettet pdf-lib ohne Dekodieren ein.
  */
-const pngPixel = (bytes: Buffer) => (bytes.length < 24 ? Infinity : bytes.readUInt32BE(16) * bytes.readUInt32BE(20));
+function pngPixel(bytes: Buffer): number {
+  // Der Decoder nimmt den LETZTEN IHDR: genau einer, und zwar als erster Chunk, sonst abgelehnt.
+  let px = Infinity, ihdr = 0;
+  for (let o = 8; o + 8 <= bytes.length;) {
+    const laenge = bytes.readUInt32BE(o);
+    const typ = bytes.toString("latin1", o + 4, o + 8);
+    if (o + 12 + laenge > bytes.length) return Infinity;
+    if (typ === "IHDR") {
+      if (o !== 8 || laenge !== 13 || ++ihdr > 1) return Infinity;
+      px = bytes.readUInt32BE(o + 8) * bytes.readUInt32BE(o + 12);
+    }
+    if (typ === "IEND") break;
+    o += 12 + laenge;
+  }
+  return ihdr === 1 ? px : Infinity;
+}
 const UNTERSCHRIFT_MAX_PIXEL = 4_000_000;
 const FOTO_MAX_PIXEL = 40_000_000;
 const pngPasst = (bytes: Buffer, max: number) => { const px = pngPixel(bytes); return px > 0 && px <= max; };
