@@ -111,3 +111,5 @@ export default async function FilesAbgabeSeite({
     </div>
   );
 }
+
+export const metadata = { title: "Dateien abgeben" };

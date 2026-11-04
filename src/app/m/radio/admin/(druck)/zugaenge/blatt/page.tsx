@@ -210,3 +210,5 @@ export default async function RadioZugangsblattSeite() {
     </div>
   );
 }
+
+export const metadata = { title: "Zugangsblatt" };

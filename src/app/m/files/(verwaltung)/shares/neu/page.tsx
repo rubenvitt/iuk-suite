@@ -53,3 +53,5 @@ export default async function NeueFreigabeSeite() {
     </div>
   );
 }
+
+export const metadata = { title: "Neue Freigabe" };

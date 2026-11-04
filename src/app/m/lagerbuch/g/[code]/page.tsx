@@ -116,3 +116,5 @@ export default async function GeraetDeepLink({ params }: Props) {
     </VerwaltungsRahmen>
   );
 }
+
+export const metadata = { title: "Gerät" };

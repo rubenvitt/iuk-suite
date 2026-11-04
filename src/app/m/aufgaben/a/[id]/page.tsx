@@ -239,3 +239,5 @@ export default async function AufgabeDetailPage({ params }: { params: Promise<{ 
   const heute = isoTag(new Date());
   return aufgabeInhalt(db, akteur, task, heute);
 }
+
+export const metadata = { title: "Aufgabe" };

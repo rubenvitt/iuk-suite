@@ -410,3 +410,5 @@ export default async function FilesFreigabeSeite({
       notFound();
   }
 }
+
+export const metadata = { title: "Freigabe" };

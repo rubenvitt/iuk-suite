@@ -38,3 +38,5 @@ export default async function LoginPage() {
     </Suspense>
   );
 }
+
+export const metadata = { title: "Anmelden" };

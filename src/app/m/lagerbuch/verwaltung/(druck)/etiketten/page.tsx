@@ -97,3 +97,5 @@ export default async function EtikettenSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Artikeletiketten" };

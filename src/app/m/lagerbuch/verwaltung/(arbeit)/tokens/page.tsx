@@ -111,3 +111,5 @@ export default function TokensSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Zugangs-Codes" };

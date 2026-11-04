@@ -122,3 +122,5 @@ export default async function RueckgabePage() {
     </AusleihRahmen>
   );
 }
+
+export const metadata = { title: "Geräte zurückgeben" };
