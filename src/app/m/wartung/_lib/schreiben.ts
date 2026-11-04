@@ -348,6 +348,12 @@ export function pruefungAbschliessen(
         tx.update(mangel).set({ einsatzbereit: false, herabgestuftAm: k.jetzt }).where(and(eq(mangel.id, m.id), eq(mangel.einsatzbereit, true))).run();
       }
     }
+    // Fehlt sie weiter und gibt es eine neue Angabe dazu („nur noch einer da“), gilt die neue.
+    for (const pk of mitMangel) {
+      const alt = offenFehlt.get(pk.id);
+      const angabe = antwort.get(pk.id)!.text;
+      if (alt && angabe) tx.update(mangel).set({ text: `Fehlt: ${pk.text} (Soll ${pk.soll}) – ${angabe}` }).where(eq(mangel.id, alt.id)).run();
+    }
     for (const m of wiederDa) {
       tx.update(mangel).set({ behobenAm: k.jetzt, behobenVon: k.wer }).where(eq(mangel.id, m.id)).run();
       tx.insert(eintrag).values({

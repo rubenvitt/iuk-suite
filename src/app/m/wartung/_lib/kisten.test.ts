@@ -117,7 +117,9 @@ describe("Materialkisten (IDA-335)", () => {
     const { db, id, liste } = mitKiste();
     expect(zaehle(db, id, liste, { 1: "" }).maengel).toBe(1);
     expect(zaehle(db, id, liste, { 1: "immer noch weg" }).maengel).toBe(0);
-    expect(offen(db, id)).toHaveLength(1);
+    expect(offen(db, id)).toMatchObject([{ text: "Fehlt: USB-C-Hub (Soll 2) – immer noch weg" }]);
+    zaehle(db, id, liste, { 1: "" });
+    expect(offen(db, id)).toMatchObject([{ text: "Fehlt: USB-C-Hub (Soll 2) – immer noch weg" }]);
     expect(ladeGeraet(db, id, HEUTE)!.fehlend).toBe(1);
     expect(zaehle(db, id, liste, { 0: "" }).maengel).toBe(1);
     expect(offen(db, id).map((m) => m.inhaltId)).toEqual([liste[0].id]);
