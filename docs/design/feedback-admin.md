@@ -857,8 +857,8 @@ Zwei Entscheidungen, weil `aggregation.ts:35-41` beide Skalen in denselben Mitte
 `Descriptions.Item`, `List.Item`, `Card.Meta`, `Collapse.Panel`, `Breadcrumb.Item`, `Input.Group`,
 `Input.TextArea`, `Space.Compact`, `Statistic.Countdown`, `Table.Summary`, `Tag.CheckableTag`,
 `Badge.Ribbon`, `Layout.Header`, `Grid.useBreakpoint` → HTTP 500, den `pnpm build` nicht sieht.
-`Layout.Header`/`Content` nur als Named-Import aus `antd/es/layout/layout` (so macht es
-`core/shell/SuiteHeader.tsx` bereits, mit Begründung im Kommentar).
+`Layout.Header`/`Content` nur als Named-Import aus `antd/es/layout/layout` (so machen es
+`core/shell/SuiteHeader.tsx` mit `Header` und `core/shell/MenueRahmen.tsx` mit `Content`).
 **Falle 2 — Funktions-Props.** Eine Server Component kann `columns[].render`, `onRow`, `onChange`,
 `onConfirm`, `Statistic.formatter`, `Progress.format`, `Collapse.onChange` nicht übergeben.
 „`Table` ist sicher" heißt nur: die Komponente selbst ist unproblematisch — `columns` mit `render`

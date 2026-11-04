@@ -4,7 +4,7 @@
  * Jeder Ton setzt EINE Variable, `--sc-ton`; Kontur und Fläche werden daraus gemischt. So bleibt die
  * Fläche ruhig (8 %), auf Karte wie auf Grund, hell wie dunkel, ohne dass je Ton drei Werte
  * gepflegt werden. Die Textfarben tragen 4,5:1 auf `karte`, `papier` und der eigenen Fläche
- * (`statuschip.test.ts` rechnet nach).
+ * (`statuschip.test.tsx` rechnet nach).
  *
  * KEINE `--ant-*`-VARIABLEN (Falle 2) und KEINE `.ant-*`-SELEKTOREN (Falle 20).
  */
