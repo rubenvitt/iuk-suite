@@ -12,13 +12,13 @@ export function PlanVerweisWahl({ stelle, ziele, aendere }: { stelle: Stelle; zi
   const basis = useId();
   const [fehler, setFehler] = useState<string | null>(null);
   const jetzt = stelle.planVerweis;
-  const optionen = ziele.map((z) => ({ value: z.id, label: z.titel.trim() || "(ohne Titel)" }));
+  const optionen = ziele.map((z) => ({ value: z.id, label: [z.titel.trim() || "(ohne Titel)", z.zusatz].filter(Boolean).join(" · ") }));
   // Ein Ziel, das nicht mehr zur Wahl steht (archiviert, nicht mehr sichtbar), bleibt mit seinem gespeicherten Titel sichtbar.
   if (jetzt && !ziele.some((z) => z.id === jetzt.id)) optionen.unshift({ value: jetzt.id, label: jetzt.titel.trim() || "(ohne Titel)" });
   const setze = (id: string | undefined) => {
     const ziel = id === undefined ? null : ziele.find((z) => z.id === id);
     if (ziel === undefined) return; // das gespeicherte, nicht mehr wählbare Ziel bleibt
-    setFehler(aendere((p) => aendereStelle(p, stelle.id, { planVerweis: ziel === null ? null : verweisAuf(ziel) })));
+    setFehler(aendere((p) => aendereStelle(p, stelle.id, { planVerweis: ziel === null ? undefined : verweisAuf(ziel) })));
   };
   return (
     <fieldset className="kp-abschnitt" data-planverweis-wahl="">

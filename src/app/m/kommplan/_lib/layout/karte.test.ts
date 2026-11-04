@@ -6,7 +6,7 @@ import { textBreite } from "./text";
 
 const stelle = (rest: Partial<Stelle> = {}): Stelle => ({
   id: "s", eltern: null, lage: "unter", reihenfolge: 0, zeichen: "rezept:D.1.4", titel: "Einsatzleitung",
-  leiter: null, hervorheben: false, verbindungId: null, kanaele: [], kontakte: [], einheiten: [], planVerweis: null, ...rest,
+  leiter: null, hervorheben: false, verbindungId: null, kanaele: [], kontakte: [], einheiten: [], ...rest,
 });
 const mass = (s: Partial<Stelle> = {}, e: Partial<Omit<KartenEingabe, "stelle">> = {}) =>
   kartenMass({ stelle: stelle(s), leerzeilen: false, darstellung: "normal", versteckt: 0, anzahlGruppen: 0, kanaele: [], ...e });

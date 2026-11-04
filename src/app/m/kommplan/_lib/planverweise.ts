@@ -3,6 +3,7 @@ import type { KommplanDb } from "../_db/client";
 import { plan } from "../_db/schema";
 import type { PlanInhalt } from "./plan/schema";
 import { verweisIds, type PlanZiel } from "./plan/verweis";
+import { kalendertag, STAND_ZEIT } from "./rahmen";
 import { sichtbarFuer, type Person } from "./rechte";
 
 /**
@@ -17,7 +18,8 @@ export function erreichbareVerweise(db: KommplanDb, inhalt: PlanInhalt, wer: Per
 
 /** Die Ziele für die Auswahl im Flyin: nicht archivierte Pläne (keine Vorlagen), die `wer` sieht, ohne den Plan selbst. */
 export function verweisZiele(db: KommplanDb, wer: Person, ohne: string): PlanZiel[] {
-  return db.select({ id: plan.id, titel: plan.titel }).from(plan)
+  return db.select({ id: plan.id, titel: plan.titel, datum: plan.datum, stand: plan.aktualisiertAm }).from(plan)
     .where(and(sichtbarFuer(wer), isNull(plan.archiviertAm), eq(plan.istVorlage, false), ne(plan.id, ohne)))
-    .orderBy(plan.titel, plan.id).all();
+    .orderBy(plan.titel, plan.id).all()
+    .map((z) => ({ id: z.id, titel: z.titel, zusatz: kalendertag(z.datum?.getTime() ?? null) ?? `Stand ${STAND_ZEIT.format(z.stand)}` }));
 }

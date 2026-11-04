@@ -14,7 +14,7 @@ export type StelleEingabe = {
   hervorheben?: boolean; verbindung?: string | null; kanaele?: string[];
   kontakte?: Partial<Record<KontaktArt, string | string[]>>;
   einheiten?: EinheitEingabe[];
-  planVerweis?: PlanVerweis | null;
+  planVerweis?: PlanVerweis;
 };
 
 function einheitAus(stelleId: string, e: EinheitEingabe, i: number): Einheit {
@@ -40,7 +40,8 @@ export function baue(eingabe: { optionen?: Partial<PlanOptionen>; verbindungen?:
     return {
       id: e.id, eltern, lage, reihenfolge, zeichen: e.zeichen ?? null, titel: e.titel, leiter: e.leiter ?? null,
       hervorheben: e.hervorheben ?? false, verbindungId: e.verbindung ?? null, kanaele: e.kanaele ?? [], kontakte,
-      einheiten: (e.einheiten ?? []).map((x, i) => einheitAus(e.id, x, i)), planVerweis: e.planVerweis ?? null,
+      einheiten: (e.einheiten ?? []).map((x, i) => einheitAus(e.id, x, i)),
+      ...(e.planVerweis ? { planVerweis: e.planVerweis } : {}),
     };
   });
   return planInhaltSchema.parse({

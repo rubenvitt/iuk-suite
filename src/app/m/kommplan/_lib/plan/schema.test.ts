@@ -4,7 +4,7 @@ import { GRENZE, KONTAKT_ARTEN, LAENGE, VERBINDUNGS_ARTEN, ZU_GROSS, ZU_TIEF, in
 
 const stelle = (id: string, eltern: string | null, rest: Partial<Stelle> = {}): Stelle => ({
   id, eltern, lage: "unter", reihenfolge: 0, zeichen: null, titel: id, leiter: null, hervorheben: false,
-  verbindungId: null, kanaele: [], kontakte: [], einheiten: [], planVerweis: null, ...rest,
+  verbindungId: null, kanaele: [], kontakte: [], einheiten: [], ...rest,
 });
 const plan = (stellen: Stelle[], verbindungen: PlanInhalt["verbindungen"] = []): unknown => ({
   schema: 1,
@@ -23,10 +23,11 @@ describe("planInhaltSchema", () => {
       [{ id: "v1", art: "tmo", bezeichnung: "R_UE_2" }],
     ))).toEqual([]);
   });
-  it("Verweis auf einen anderen Plan (IDA-355): fehlt er, ist er null; Kennung und Titel werden geprüft", () => {
-    const { planVerweis: _weg, ...alt } = stelle("a", null);
-    const r = leseInhalt(plan([alt as Stelle]));
-    expect(r.ok && r.inhalt.stellen[0].planVerweis).toBeNull();
+  it("Verweis auf einen anderen Plan (IDA-355): fehlt er, bleibt er weg (kein Byte mehr beim Lesen); Kennung und Titel werden geprüft", () => {
+    const roh = plan([stelle("a", null)]);
+    const r = leseInhalt(roh);
+    expect(r.ok && "planVerweis" in r.inhalt.stellen[0]).toBe(false);
+    expect(r.ok && inhaltBytes(r.inhalt)).toBe(inhaltBytes(roh));
     expect(fehler(plan([stelle("a", null, { planVerweis: { id: "p-2", titel: "Nord" } })]))).toEqual([]);
     expect(fehler(plan([stelle("a", null, { planVerweis: { id: "../x", titel: "Nord" } })]))).not.toEqual([]);
     expect(fehler(plan([stelle("a", null, { planVerweis: { id: "p", titel: "x".repeat(LAENGE.titel + 1) } })]))).not.toEqual([]);

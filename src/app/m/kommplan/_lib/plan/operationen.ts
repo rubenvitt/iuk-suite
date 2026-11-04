@@ -47,7 +47,7 @@ export function fuegeStelleEin(inhalt: PlanInhalt, neu: NeueStelle): PlanInhalt 
     reihenfolge: neu.reihenfolge ?? naechsteReihenfolge(inhalt, eltern, lage),
     zeichen: neu.zeichen ?? null, titel: neu.titel, leiter: neu.leiter ?? null,
     hervorheben: neu.hervorheben ?? false, verbindungId: neu.verbindungId ?? null,
-    kanaele: neu.kanaele ?? [], kontakte: neu.kontakte ?? [], einheiten: neu.einheiten ?? [], planVerweis: neu.planVerweis ?? null,
+    kanaele: neu.kanaele ?? [], kontakte: neu.kontakte ?? [], einheiten: neu.einheiten ?? [],
   };
   return gueltig({ ...inhalt, stellen: [...inhalt.stellen, stelle] });
 }
@@ -66,7 +66,7 @@ export function stelleOder(inhalt: PlanInhalt, id: string): Stelle {
 export function leereStelle(id: string, eltern: string | null, lage: Lage, reihenfolge: number, verbindungId: string | null): Stelle {
   return {
     id, eltern, lage, reihenfolge, zeichen: null, titel: "", leiter: null, hervorheben: false,
-    verbindungId, kanaele: [], kontakte: [], einheiten: [], planVerweis: null,
+    verbindungId, kanaele: [], kontakte: [], einheiten: [],
   };
 }
 

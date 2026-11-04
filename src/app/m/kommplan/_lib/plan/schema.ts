@@ -58,8 +58,10 @@ export const stelleSchema = z.object({
   /**
    * Verweis auf einen anderen Plan (IDA-355): Kennung und der Titel beim Wählen. Der Titel steht im Dokument, damit
    * Druck und Token-Ansicht ohne Nachschlagen auskommen; ob der Link klickbar ist, entscheidet der Server je Betrachter.
+   * OHNE Vorgabewert: ein ergänztes `"planVerweis":null` je Stelle brächte gespeicherte Pläne nahe `GRENZE.bytes` beim
+   * Lesen über die Grenze (`pruefeGroesse` prüft das geparste Dokument). Fehlt das Feld, gibt es keinen Verweis.
    */
-  planVerweis: planVerweisSchema.nullable().default(null),
+  planVerweis: planVerweisSchema.optional(),
 }).strict();
 export const verbindungSchema = z.object({ id, art: z.enum(VERBINDUNGS_ARTEN), bezeichnung: z.string().max(LAENGE.bezeichnung) }).strict();
 export const optionenSchema = z.object({

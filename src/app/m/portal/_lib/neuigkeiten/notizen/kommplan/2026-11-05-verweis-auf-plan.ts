@@ -10,7 +10,7 @@ const notiz: Releasenotiz = {
   inhalt: [
     absatz(
       "Unter „Verweis auf Plan“ wählst du beim Bearbeiten einer Stelle einen anderen Kommunikationsplan aus. " +
-        "Die Karte zeigt dann seinen Titel und öffnet ihn per Klick, auf dem Ausdruck steht der Titel als Hinweis.",
+        "Die Karte und der Ausdruck zeigen dann seinen Titel. Darfst du den Plan sehen, öffnest du ihn mit einem Klick auf die Karte.",
     ),
   ],
 };

@@ -1,7 +1,8 @@
 import { LAENGE, type PlanInhalt, type PlanVerweis } from "./schema";
 
 /** Ein Plan, auf den eine Stelle verweisen kann (IDA-355): Auswahl im Flyin. */
-export interface PlanZiel { id: string; titel: string }
+/** `zusatz`: Datum oder Stand, damit gleichnamige Pläne (etwa nach „Duplizieren“) in der Auswahl unterscheidbar bleiben. */
+export interface PlanZiel { id: string; titel: string; zusatz?: string }
 
 /** Die Kennungen aller Pläne, auf die dieser Plan verweist — ohne Doppel. */
 export function verweisIds(inhalt: PlanInhalt): string[] {
