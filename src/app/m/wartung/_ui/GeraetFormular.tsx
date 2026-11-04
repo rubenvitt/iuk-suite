@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AutoComplete, Form, Input, InputNumber, Modal, Radio, Select } from "antd";
 import { KURZ_MAX, NAME_MAX, NOTIZ_MAX, type GeraetEingabe } from "../_lib/eingabe";
+import { passt, wahlZuName, type FahrzeugWahl } from "../_lib/fahrzeugsuche";
+import type { BekannteOrte } from "../_lib/typen";
 
 export type GeraetWerte = GeraetEingabe;
 
@@ -12,14 +14,16 @@ export type GeraetWerte = GeraetEingabe;
  * mit `start`.
  */
 export function GeraetFormular({
-  offen, titel, start, gruppen, arten, orte, laeuft, feldFehler, onAbbrechen, onSpeichern,
+  offen, titel, start, gruppen, arten, orte, fahrzeuge, laeuft, feldFehler, onAbbrechen, onSpeichern,
 }: {
   offen: boolean;
   titel: string;
   start: GeraetWerte;
   gruppen: { id: string; name: string }[];
   arten: { id: string; einzahl: string }[];
-  orte: string[];
+  orte: BekannteOrte;
+  /** Die Fahrzeuge der Fahrzeugverwaltung (IDA-342); ein anderer Name im Feld bleibt Freitext. */
+  fahrzeuge: FahrzeugWahl[];
   laeuft: boolean;
   feldFehler: Record<string, string>;
   onAbbrechen: () => void;
@@ -27,6 +31,15 @@ export function GeraetFormular({
 }) {
   const [w, setW] = useState<GeraetWerte>(start);
   const setze = (teil: Partial<GeraetWerte>) => setW((alt) => ({ ...alt, ...teil }));
+  const verknuepft = w.ortArt === "fahrzeug" ? fahrzeuge.find((f) => f.id === w.fahrzeugId) ?? null : null;
+  // Ein Vorschlag trägt die ID des Fahrzeugs als Wert (gleiche Namen, IDA-342); ein unveränderter Name behält
+  // seinen Verweis, auch wenn das Fahrzeug nicht mehr zur Wahl steht (der Server prüft ihn).
+  const setzeOrt = (eingabe: string, ortArt = w.ortArt) => setW((alt) => {
+    const wahl = eingabe.startsWith(VORSCHLAG) ? fahrzeuge.find((f) => VORSCHLAG + f.id === eingabe) : undefined;
+    const ort = wahl ? wahl.name : eingabe;
+    const fahrzeugId = wahl ? wahl.id : ort.trim() === alt.ort.trim() ? alt.fahrzeugId : wahlZuName(fahrzeuge, ort)?.id ?? null;
+    return { ...alt, ort, ortArt, fahrzeugId };
+  });
   const fehler = (feld: string) => (feldFehler[feld] ? { validateStatus: "error" as const, help: feldFehler[feld] } : {});
 
   return (
@@ -65,16 +78,21 @@ export function GeraetFormular({
         <Form.Item label="Steht auf">
           <Radio.Group
             value={w.ortArt}
-            onChange={(e) => setze({ ortArt: e.target.value })}
+            onChange={(e) => setzeOrt(w.ort, e.target.value)}
             options={[{ value: "lager", label: "Lager" }, { value: "fahrzeug", label: "Fahrzeug" }]}
           />
         </Form.Item>
-        <Form.Item label={w.ortArt === "fahrzeug" ? "Fahrzeug" : "Standort"} htmlFor="gw-ort" {...fehler("ort")}>
+        <Form.Item
+          label={w.ortArt === "fahrzeug" ? "Fahrzeug" : "Standort"}
+          htmlFor="gw-ort"
+          extra={verknuepft ? [verknuepft.funkrufname, verknuepft.kennzeichen].filter(Boolean).join(" · ") : undefined}
+          {...fehler("ort")}
+        >
           <AutoComplete
             id="gw-ort"
             value={w.ort}
-            onChange={(v) => setze({ ort: v })}
-            options={orte.filter((o) => o.toLowerCase().includes(w.ort.toLowerCase())).map((o) => ({ value: o }))}
+            onChange={(v: string) => setzeOrt(v)}
+            options={ortOptionen(w.ortArt === "fahrzeug" ? fahrzeuge : [], orte[w.ortArt], w.ort)}
             maxLength={NAME_MAX}
           />
         </Form.Item>
@@ -87,4 +105,31 @@ export function GeraetFormular({
       </Form>
     </Modal>
   );
+}
+
+const zeile = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+
+/** Erst die passenden Fahrzeuge der Fahrzeugverwaltung, dann Namen, die schon vorkommen. */
+interface OrtOption { key: string; value: string; label?: ReactNode }
+
+/** Wert eines Fahrzeug-Vorschlags; das Feld zeigt danach den Namen. */
+const VORSCHLAG = "fahrzeug:";
+
+function ortOptionen(fahrzeuge: FahrzeugWahl[], bisher: string[], eingabe: string): OrtOption[] {
+  const treffer = fahrzeuge.filter((f) => passt(f, eingabe));
+  const namen = new Set(fahrzeuge.map((f) => f.name));
+  const q = eingabe.trim().toLowerCase();
+  return [
+    ...treffer.map((f) => ({
+      key: f.id,
+      value: VORSCHLAG + f.id,
+      label: (
+        <div>
+          <div style={zeile}>{f.name}</div>
+          <div style={{ ...zeile, fontSize: "0.85em", opacity: 0.7 }}>{[f.funkrufname, f.kennzeichen].filter(Boolean).join(" · ")}</div>
+        </div>
+      ),
+    })),
+    ...bisher.filter((o) => !namen.has(o) && o.toLowerCase().includes(q)).map((o) => ({ key: `frei:${o}`, value: o })),
+  ];
 }

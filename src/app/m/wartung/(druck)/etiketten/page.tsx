@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { qrSvg } from "@/core/qr";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -27,7 +28,13 @@ export default async function EtikettenSeite({ searchParams }: { searchParams: P
       <div className={s.druckweg}>
         <Seitenkopf
           titel="QR-Etiketten"
-          aktionen={<span className={s.reihe}><GruppenFilter wahl={auswahl.wahl} gewaehlt={auswahl.gewaehlt} /><DruckKnopf /></span>}
+          aktionen={
+            <span className={s.reihe}>
+              <GruppenFilter wahl={auswahl.wahl} gewaehlt={auswahl.gewaehlt} />
+              {alle.some((g) => g.kiste) && <Link href="/etiketten/kisten">Etiketten der Materialkisten</Link>}
+              <DruckKnopf />
+            </span>
+          }
         />
       </div>
       {geraete.length === 0 ? <p className={s.neben}>Noch keine Geräte.</p> : (

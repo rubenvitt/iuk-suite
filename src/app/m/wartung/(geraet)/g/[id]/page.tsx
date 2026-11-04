@@ -11,11 +11,34 @@ export const dynamic = "force-dynamic";
 
 /**
  * Der Steckbrief am Gerät — das, was der QR-Code öffnet. Ohne Modulzugang (auch ohne Anmeldung) Kopf, Hinweise,
- * Unterlagen und „Mangel melden“ (IDA-300); Fristen, Mängeltexte und Prüfung erst mit Zugang (IDA-337).
+ * Unterlagen, bei einer Materialkiste ihr Inhalt und „Mangel melden“ (IDA-300, IDA-335); Fristen, Mängeltexte und
+ * Prüfung erst mit Zugang (IDA-337).
  */
 export default async function Steckbrief({ params }: { params: Promise<{ id: string }> }) {
   const { g, checkliste, offen, unterlagen, rechte, viewer, zugang } = await geraetOeffentlich(params);
   const pruefung = g.staende.find((f) => f.vorlage.wer === "intern");
+  const verwaltet = zugang && verwaltetGruppe(rechte, g.gruppeId);
+  // Die Inhaltsliste steht auch auf dem Etikett der Kiste, also auch ohne Anmeldung (IDA-335).
+  const inhalt = g.kiste && (
+    <section className={s.karte} aria-label="Inhalt">
+      <Kicker className={s.karteTitel}>Inhalt</Kicker>
+      {checkliste.length === 0 ? <p className={s.neben} style={{ margin: 0 }}>Noch keine Inhaltsliste.</p> : (
+        <ul className={s.inhaltListe}>
+          {checkliste.map((p) => (
+            <li key={p.id} className={s.inhaltPosten} data-rolle="inhalt-posten">
+              <span className={s.soll}>{p.soll} ×</span>
+              <span>{p.text}{p.hinweis && <span className={`${s.neben} ${s.klein}`}> · {p.hinweis}</span>}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {verwaltet && (
+        <Button block href={`/g/${g.id}/inhalt`} icon={<Icons8Ikone name="pencil" groesse={20} />} style={{ marginTop: 12 }}>
+          {checkliste.length === 0 ? "Inhalt erfassen" : "Inhalt bearbeiten"}
+        </Button>
+      )}
+    </section>
+  );
   const kopf = (
     <section className={s.karte}>
       <div className={s.geraetKopf}>
@@ -66,6 +89,7 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
       <div className={s.telefon}>
         {kopf}
         {anleitung}
+        {inhalt}
         <section className={s.karte}>
           <div className={s.knopfstapel}>
             <Button type="primary" block href={`/g/${g.id}/mangel`} icon={<Icons8Ikone name="warning" groesse={20} />}>Mangel melden</Button>
@@ -86,12 +110,14 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
         <section className={s.karte}>
           <Kicker className={s.karteTitel}>{pruefung.vorlage.name}</Kicker>
           <div className={s.quer}><span>{pruefung.text}</span><FristChip f={pruefung} /></div>
-          <div className={s.neben} style={{ margin: "4px 0 12px" }}>{checkliste.length} Punkte</div>
+          <div className={s.neben} style={{ margin: "4px 0 12px" }}>{checkliste.length} {g.kiste ? (checkliste.length === 1 ? "Position" : "Positionen") : "Punkte"}</div>
           <Button type="primary" block href={`/g/${g.id}/pruefung`} icon={<Icons8Ikone name="checklist" groesse={20} />}>
-            Prüfung starten
+            {g.kiste ? "Durchzählen" : "Prüfung starten"}
           </Button>
         </section>
       )}
+
+      {inhalt}
 
       <section className={s.karte}>
         <div className={s.knopfstapel}>
@@ -119,7 +145,7 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
         </ul>
       </section>
 
-      {verwaltetGruppe(rechte, g.gruppeId) && <Link href={`/geraete/${g.id}`} className={s.zurueck}>Zur Akte</Link>}
+      {verwaltet && <Link href={`/geraete/${g.id}`} className={s.zurueck}>Zur Akte</Link>}
     </div>
   );
 }

@@ -2,10 +2,12 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { auditActor, auditDenied } from "@/core/audit/server";
 import { qrSvg } from "@/core/qr";
+import { bereitgestellteFahrzeuge } from "@/app/m/fahrzeuge/_lib/bereitstellung";
 import { getDb } from "../../../_db/client";
 import { linkBasisAus, qrZiel } from "../../../_lib/ansicht";
-import { bekannteOrte, ladeArten, ladeGeraet, ladeGruppen, ladeMaengel, ladeUnterlagen, ladeVerlauf } from "../../../_lib/daten";
+import { bekannteOrte, ladeArten, ladeGeraet, ladeGruppen, ladeInhalt, ladeMaengel, ladeUnterlagen, ladeVerlauf } from "../../../_lib/daten";
 import { idSchema } from "../../../_lib/eingabe";
+import { fahrzeugWahl } from "../../../_lib/fahrzeugbezug";
 import { heute } from "../../../_lib/heute";
 import { requireVerwalter, verwaltetGruppe } from "../../../_lib/zugang";
 import { GeraetAkte } from "../../../_ui/GeraetAkte";
@@ -29,6 +31,7 @@ export default async function AktenSeite({ params }: { params: Promise<{ id: str
   return (
     <GeraetAkte
       g={g}
+      inhalt={g.kiste ? ladeInhalt(db, id) : []}
       maengel={ladeMaengel(db, { gruppen: null, geraetId: id, offen: true })}
       verlauf={ladeVerlauf(db, { gruppen: null, geraetId: id, grenze: 200 })}
       unterlagen={ladeUnterlagen(db, id)}
@@ -37,6 +40,7 @@ export default async function AktenSeite({ params }: { params: Promise<{ id: str
       arten={ladeArten(db).map((a) => ({ id: a.id, einzahl: a.einzahl }))}
       gruppen={ladeGruppen(db).filter((x) => verwaltetGruppe(rechte, x.id)).map((x) => ({ id: x.id, name: x.name }))}
       orte={bekannteOrte(db)}
+      fahrzeuge={fahrzeugWahl(bereitgestellteFahrzeuge().fahrzeuge)}
     />
   );
 }

@@ -20,6 +20,10 @@ import {
   darfWartungFaelligkeitenSehen, vermerkeWartungSofortmeldungen, WARTUNG_FAELLIGKEITS_ARTEN, wartungFaelligkeiten,
   wartungSofortmeldungen,
 } from "@/app/m/wartung/_lib/faelligkeiten";
+import {
+  darfVerpflegungFaelligkeitenSehen, vermerkeVerpflegungSofortmeldungen, VERPFLEGUNG_FAELLIGKEITS_ARTEN, verpflegungFaelligkeiten,
+  verpflegungSofortmeldungen,
+} from "@/app/m/verpflegung/_lib/faelligkeiten";
 
 export interface FaelligkeitsQuelle {
   /** Modul-Schlüssel aus `core/registry.ts` — daraus entsteht die Adresse der Links. */
@@ -48,6 +52,10 @@ export const QUELLEN: readonly FaelligkeitsQuelle[] = [
   // IDA-312: die Einträge tragen `sichtbarFuer` — jede Gruppe sieht nur ihre Geräte.
   { modul: "wartung", titel: "Gerätewartung", arten: WARTUNG_FAELLIGKEITS_ARTEN, darfSehen: (g) => darfWartungFaelligkeitenSehen(g), lesen: (j) => wartungFaelligkeiten(j),
     sofort: { lesen: (seit) => wartungSofortmeldungen(seit), vermerken: (ids, j) => vermerkeWartungSofortmeldungen(ids, j) } },
+  // IDA-316: rote MHD-Ampel; die Tagesmeldung ab 07:00 rechnet mit der Uhrzeit von jetzt, nicht mit `seit`.
+  { modul: "verpflegung", titel: "Verpflegungslager", arten: VERPFLEGUNG_FAELLIGKEITS_ARTEN, darfSehen: darfVerpflegungFaelligkeitenSehen,
+    lesen: (j) => verpflegungFaelligkeiten(j),
+    sofort: { lesen: () => verpflegungSofortmeldungen(new Date()), vermerken: (ids, j) => vermerkeVerpflegungSofortmeldungen(ids, j) } },
   // IDA-314: „Ehrlich gesagt" hat keine Fristen, nur den Sofort-Push an die Vertrauenspersonen (ohne Inhalt).
   { modul: "feedback", titel: "Ehrlich gesagt", arten: FEEDBACK_FAELLIGKEITS_ARTEN, darfSehen: darfFeedbackFaelligkeitenSehen, lesen: () => feedbackFaelligkeiten(),
     sofort: { lesen: (seit) => feedbackSofortmeldungen(seit), vermerken: (ids) => vermerkeFeedbackSofortmeldungen(ids) } },

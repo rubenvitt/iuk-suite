@@ -14,6 +14,7 @@ export default async function PruefungSeite({ params }: { params: Promise<{ id: 
       geraetName={g.name}
       titel={frist.vorlage.name}
       checkliste={checkliste}
+      kiste={g.kiste}
       stundenPflicht={g.stundenPflicht}
       stundenZuletzt={g.stunden}
     />

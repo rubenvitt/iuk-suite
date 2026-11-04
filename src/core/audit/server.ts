@@ -10,8 +10,9 @@ export function auditActor(viewer: { sub?: string | null; id?: string | null; na
   return id ? { kind: "user", id, ...(viewer?.name ? { name: viewer.name.slice(0, 256) } : {}) } : { kind: "anonymous" };
 }
 /** A shared credential identifies access, never an individual. No code or label from input. */
-export function auditAccessActor(module: "lagerbuch" | "radio", id: string): AuditActor {
-  return { kind: "access", id: `${module}:${module === "radio" ? "code" : "token"}:${id}`, name: "Gemeinsamer Zugangscode" };
+export function auditAccessActor(module: "lagerbuch" | "radio" | "verpflegung", id: string): AuditActor {
+  const art = module === "radio" ? "code" : module === "verpflegung" ? "link" : "token";
+  return { kind: "access", id: `${module}:${art}:${id}`, name: module === "verpflegung" ? "Helfer-Link" : "Gemeinsamer Zugangscode" };
 }
 export function auditParticipantActor(id: string): AuditActor {
   return { kind: "user", id: `uav:participant:${id}` };

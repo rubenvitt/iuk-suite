@@ -29,6 +29,20 @@
       "when": 1793773441217,
       "tag": "0003_unterlagen",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793778775121,
+      "tag": "0004_fahrzeugbezug",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793785895809,
+      "tag": "0005_materialkisten",
+      "breakpoints": true
     }
   ]
 }

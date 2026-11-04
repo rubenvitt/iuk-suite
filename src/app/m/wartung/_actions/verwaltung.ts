@@ -5,11 +5,12 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDirectory, type DirectoryResult } from "@/core/directory";
+import { bereitgestellteFahrzeuge } from "@/app/m/fahrzeuge/_lib/bereitstellung";
 import { getDb } from "../_db/client";
 import { geraet } from "../_db/schema";
 import { ladeMangel, ladeUnterlage } from "../_lib/daten";
 import {
-  artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, verwalterEingabe,
+  artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, verwalterEingabe,
 } from "../_lib/eingabe";
 import {
   SUCHE_MAX_TREFFER, SUCHE_MIN_ZEICHEN, verwalterEntfernen, verwalterHinzufuegen, vorschlaege,
@@ -17,9 +18,10 @@ import {
 import { heute } from "../_lib/heute";
 import {
   Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
-  gruppeSpeichern, mangelBeheben, unterlageLoeschen, unterlageVerschieben,
+  gruppeSpeichern, inhaltSpeichern, mangelBeheben, unterlageLoeschen, unterlageVerschieben,
 } from "../_lib/schreiben";
 import { entferneUnterlage } from "../_lib/unterlagen";
+import { mitFahrzeugbezug } from "../_lib/fahrzeugbezug";
 import type { Ergebnis, PersonVorschlag } from "../_lib/typen";
 import { anzeigename, requireAktion, verwaltetGruppe, type Rechte, type Stufe, type Viewer } from "../_lib/zugang";
 
@@ -72,7 +74,7 @@ export async function geraetAnlegenAction(eingabe: unknown): Promise<Ergebnis> {
   if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
   return schreibe("verwalter", ({ rechte }) => {
     if (!verwaltetGruppe(rechte, e.wert.gruppeId)) throw new Abgelehnt("Diese Gruppe verwaltest du nicht.", "gruppeId");
-    return { ok: true, id: geraetAnlegen(getDb(), e.wert, Date.now()) };
+    return { ok: true, id: geraetAnlegen(getDb(), mitFahrzeugbezug(e.wert, bereitgestellteFahrzeuge().fahrzeuge), Date.now()) };
   });
 }
 
@@ -81,11 +83,11 @@ export async function geraetAendernAction(id: string, eingabe: unknown): Promise
   const e = geprueft(geraetEingabe, eingabe);
   if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
   return schreibe("verwalter", ({ rechte }) => {
-    const alt = gruppeDesGeraets(id);
+    const alt = getDb().select({ gruppeId: geraet.gruppeId, fahrzeugId: geraet.fahrzeugId }).from(geraet).where(eq(geraet.id, id)).get();
     if (!alt) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
-    if (!verwaltetGruppe(rechte, alt)) throw new Abgelehnt(NICHT_DEINE);
+    if (!verwaltetGruppe(rechte, alt.gruppeId)) throw new Abgelehnt(NICHT_DEINE);
     if (!verwaltetGruppe(rechte, e.wert.gruppeId)) throw new Abgelehnt("Diese Gruppe verwaltest du nicht.", "gruppeId");
-    geraetAendern(getDb(), id, e.wert, Date.now());
+    geraetAendern(getDb(), id, mitFahrzeugbezug(e.wert, bereitgestellteFahrzeuge().fahrzeuge, alt.fahrzeugId), Date.now());
   });
 }
 
@@ -109,6 +111,19 @@ export async function erledigtEintragenAction(geraetId: string, eingabe: unknown
     if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
     if (!verwaltetGruppe(rechte, g)) throw new Abgelehnt(NICHT_DEINE);
     erledigtEintragen(getDb(), geraetId, e.wert, kontext(viewer));
+  });
+}
+
+/** Die Inhaltsliste einer Materialkiste (IDA-335) — Verwalter ihrer Gruppe, auch am Telefon in der Halle. */
+export async function inhaltSpeichernAction(geraetId: string, eingabe: unknown, stand: unknown): Promise<Ergebnis> {
+  if (!idSchema.safeParse(geraetId).success || typeof stand !== "string") return { ok: false, fehler: UNGUELTIG };
+  const e = geprueft(inhaltEingabe, eingabe);
+  if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
+  return schreibe("verwalter", ({ rechte }) => {
+    const g = gruppeDesGeraets(geraetId);
+    if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
+    if (!verwaltetGruppe(rechte, g)) throw new Abgelehnt(NICHT_DEINE);
+    inhaltSpeichern(getDb(), geraetId, e.wert, stand);
   });
 }
 

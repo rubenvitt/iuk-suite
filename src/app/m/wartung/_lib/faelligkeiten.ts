@@ -8,7 +8,8 @@
  * Was herausgegeben wird:
  *   * jede Frist, die nicht im Plan ist (überfällig oder in den nächsten 30 Tagen bzw. 20 Betriebsstunden);
  *   * jedes Gerät, das nicht einsatzbereit ist → überfällig; neue „nicht einsatzbereit“-Mängel gehen außerdem
- *     sofort als Push hinaus (`wartungSofortmeldungen`), nicht erst am Montag.
+ *     sofort als Push hinaus (`wartungSofortmeldungen`), nicht erst am Montag;
+ *   * jede einsatzbereite Materialkiste, in der beim Durchzählen etwas fehlte (IDA-335) → bald.
  * Jeder Eintrag trägt `sichtbarFuer`: die Personenschlüssel der Verwalter seiner Gruppe (`personSchluessel`,
  * IDA-337) und die Admin-Gruppen. So sehen die Verwalter von Technik nur Technik (Entscheidung 2026-11-03 an
  * IDA-307).
@@ -24,7 +25,7 @@ import { tagInZone } from "./heute";
 import { ungepushteAusfaelle, vermerkeGepusht } from "./schreiben";
 import { hatWartungZugang } from "./zugang";
 
-export const WARTUNG_FAELLIGKEITS_ARTEN = ["Prüfung am Gerät", "Wartung", "Elektroprüfung", "Nicht einsatzbereit"] as const;
+export const WARTUNG_FAELLIGKEITS_ARTEN = ["Prüfung am Gerät", "Wartung", "Elektroprüfung", "Nicht einsatzbereit", "Kiste unvollständig"] as const;
 type WartungFaelligkeit = Faelligkeit & { art: (typeof WARTUNG_FAELLIGKEITS_ARTEN)[number] };
 
 const ART_JE_WER: Record<Wer, WartungFaelligkeit["art"]> = {
@@ -89,7 +90,18 @@ export function wartungFaelligkeiten(jetzt: Date, db: Leser = getDb()): Faelligk
     pfad: `/geraete/${g.id}`,
     sichtbarFuer: fuer(g.gruppeId),
   })));
-  return [...ausfaelle, ...fristen];
+  const unvollstaendig = geraete.filter((g) => g.fehlend > 0 && g.zustand !== "defekt").map((g): WartungFaelligkeit => ({
+    id: `fehlt:${g.id}`,
+    art: "Kiste unvollständig",
+    titel: g.name,
+    wo: g.ort,
+    zustand: g.fehlend === 1 ? "1 Position fehlt" : `${g.fehlend} Positionen fehlen`,
+    dringlichkeit: "bald",
+    sortierung: "",
+    pfad: `/geraete/${g.id}`,
+    sichtbarFuer: fuer(g.gruppeId),
+  }));
+  return [...ausfaelle, ...unvollstaendig, ...fristen];
 }
 
 /** Neue „nicht einsatzbereit“-Meldungen für den Sofort-Push — ohne Freitext und ohne Namen. */

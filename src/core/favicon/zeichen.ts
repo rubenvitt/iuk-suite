@@ -236,6 +236,17 @@ const WARTUNG = modulZeichen(
 );
 
 /**
+ * Verpflegungslager: eine Konservendose mit ausgespartem Etikettband und daneben ein Löffel.
+ */
+const VERPFLEGUNG = modulZeichen(
+  "Verpflegungslager",
+  `<mask id="v"><rect width="64" height="64" fill="#fff"/><rect x="6" y="41" width="26" height="8" rx="2"/></mask>` +
+    `<rect class="t" mask="url(#v)" x="4" y="30" width="30" height="31" rx="4"/>` +
+    `<rect class="t" x="6" y="25" width="26" height="4" rx="2"/>` +
+    `<ellipse class="t" cx="43" cy="33" rx="5" ry="7"/><rect class="t" x="41" y="38" width="4" height="23" rx="2"/>`,
+);
+
+/**
  * Die Zeichen nach Dateiname (`/favicon/<name>.svg`). Die Namen sind die
  * Modulschlüssel der Registry, `ida` ist das Suite-Zeichen.
  */
@@ -257,6 +268,7 @@ export const FORMEN: Readonly<Record<string, Form>> = {
   wartung: WARTUNG,
   gemeinschaft: GEMEINSCHAFT,
   unterkunft: UNTERKUNFT,
+  verpflegung: VERPFLEGUNG,
 };
 
 /** Die Favicons als fertige SVG-Dateien, gefärbt mit Hell/Dunkel-Umschaltung. */

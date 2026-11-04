@@ -40,9 +40,9 @@
 // ⚠️ DIE ALTE FORM (6 Ziffern, `NNN-NNN`, 10^6) BLEIBT GUELTIG, bis ihre Karte
 // neu gedruckt ist (Betreiberentscheidung 24.09.2026) — aber nur hinter der
 // Sperre. Erzeugt wird sie nie mehr; erkannt wird sie in `code.ts`.
-export const TOKEN_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-export const TOKEN_ZEICHEN = 28;
-export const TOKEN_GRUPPE = 4;
+// Die Form selbst steht seit IDA-316 in `core/helferlink/code.ts`: die Helfer-Links des
+// Verpflegungslagers tragen dieselbe. Die Namen hier bleiben, damit kein Leser umzieht.
+export { ZUGANG_ALPHABET as TOKEN_ALPHABET, ZUGANG_ZEICHEN as TOKEN_ZEICHEN, ZUGANG_GRUPPE as TOKEN_GRUPPE } from "@/core/helferlink/code";
 
 /**
  * DAS EINGABEFELD FUER EINEN CODE — am Gate (`_ui/Gate.tsx`) und bei der

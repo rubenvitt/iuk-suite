@@ -257,6 +257,12 @@ export const MODULES: ModuleDef[] = [
   { key: "wartung", title: "Gerätewartung", icon: "engine", shell: "full",
     requiresAuth: false, requiredGroups: ["wartung-nutzer", "wartung-admin"], adminGroups: ["wartung-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
+  // verpflegung: Verpflegungslager (IDA-316, POC IDA-311) — Lebensmittel mit tagesgenauem MHD. requiresAuth: false,
+  // weil Helferinnen und Helfer am Telefon per Helfer-Link ohne Anmeldung buchen (`/t/<code>`, wie im Lagerbuch).
+  // Alles andere riegelt `_lib/zugang.ts` (Login, `requiredGroups`, Admin für Lagerorte und Helfer-Links).
+  { key: "verpflegung", title: "Verpflegungslager", icon: "cutlery", shell: "full",
+    requiresAuth: false, requiredGroups: ["verpflegung-nutzer", "verpflegung-admin"], adminGroups: ["verpflegung-admin"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   // lagemonitor: Verwaltung des Lagemonitors im FüKw (LGM-5). requiresAuth: false, weil der Lagemonitor
   // seine Einstellungen mit eigenem Schlüssel unter `api/konfiguration` abholt; die Seiten riegelt
   // `_lib/zugang.ts` über die Admin-Gruppe (der Suite-Admin zählt mit).
@@ -413,7 +419,7 @@ export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[
  */
 export const APP_BEREICHE: readonly { titel: string; module: readonly string[] }[] = [
   { titel: "Einsatz & Lage", module: ["einsatzbuch", "lagemonitor", "kommplan", "radio", "uav"] },
-  { titel: "Material & Technik", module: ["lagerbuch", "fahrzeuge", "wartung", "qr", "unterkunft"] },
+  { titel: "Material & Technik", module: ["lagerbuch", "verpflegung", "fahrzeuge", "wartung", "qr", "unterkunft"] },
   { titel: "Menschen & Planung", module: ["helfer", "schichtplan", "aufgaben", "gemeinschaft"] },
   { titel: "Austausch", module: ["portal", "files", "feedback"] },
 ];

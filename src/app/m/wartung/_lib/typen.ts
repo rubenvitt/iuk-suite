@@ -32,6 +32,16 @@ export interface CheckpunktDTO {
   id: string;
   text: string;
   hinweis: string;
+  /** Nur beim Durchzählen einer Materialkiste: die Soll-Menge der Position. */
+  soll?: number;
+}
+
+/** Eine Position der Inhaltsliste einer Materialkiste (IDA-335). */
+export interface InhaltDTO {
+  id: string;
+  text: string;
+  soll: number;
+  bemerkung: string;
 }
 
 export interface ArtDTO {
@@ -40,6 +50,7 @@ export interface ArtDTO {
   einzahl: string;
   ikone: string;
   stundenPflicht: boolean;
+  kiste: boolean;
   fristen: FristDTO[];
   checkliste: CheckpunktDTO[];
   geraete: number;
@@ -57,8 +68,11 @@ export interface GeraetZeile {
   artEinzahl: string;
   ikone: string;
   stundenPflicht: boolean;
+  /** Materialkiste mit Inhaltsliste (IDA-335). */
+  kiste: boolean;
   ortArt: "lager" | "fahrzeug";
   ort: string;
+  fahrzeugId: string | null;
   stunden: number | null;
   /** Freitext für den Steckbrief am QR-Code (IDA-300). */
   hinweise: string;
@@ -67,6 +81,8 @@ export interface GeraetZeile {
   staende: FristStand[];
   naechste: FristStand | null;
   offeneMaengel: number;
+  /** Davon beim Durchzählen als fehlend gemeldet. */
+  fehlend: number;
 }
 
 export interface EintragDTO {
@@ -116,3 +132,9 @@ export type { Wer, Zustand };
 
 /** Ergebnis einer Server Action, mit Fehlern am Feld. */
 export type Ergebnis = { ok: true; id?: string } | { ok: false; fehler: string; feldFehler?: Record<string, string> };
+
+/** Orte, die schon vorkommen, je Art — Vorschläge im Gerät-Formular. */
+export interface BekannteOrte {
+  lager: string[];
+  fahrzeug: string[];
+}

@@ -20,7 +20,7 @@ function mitStromerzeuger() {
   const db = testDb();
   const id = geraetAnlegen(db, {
     gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Stromerzeuger 8 kVA", hersteller: "", typ: "", hinweise: "",
-    seriennr: "", ortArt: "fahrzeug", ort: "GW-Technik", stunden: 100,
+    seriennr: "", ortArt: "fahrzeug", ort: "GW-Technik", fahrzeugId: null, stunden: 100,
   }, K.jetzt);
   const punkte = db.select().from(checkpunkt).where(eq(checkpunkt.artId, START.art.stromerzeuger)).orderBy(checkpunkt.position).all();
   return { db, id, punkte };
@@ -29,9 +29,9 @@ function mitStromerzeuger() {
 const alleOk = (punkte: { id: string }[]) => punkte.map((p) => ({ punktId: p.id, ok: true, text: "" }));
 
 describe("Startbestand", () => {
-  it("bringt vier Arten mit Fristen und Checklisten mit", () => {
+  it("bringt vier Arten mit Fristen und Checklisten mit, dazu die Materialkisten", () => {
     const arten = ladeArten(testDb());
-    expect(arten.map((a) => a.name)).toEqual(["Stromerzeuger", "Heizungen", "Akkus und Powerstationen", "IT und Netzwerk"]);
+    expect(arten.map((a) => a.name)).toEqual(["Stromerzeuger", "Heizungen", "Akkus und Powerstationen", "IT und Netzwerk", "Materialkisten"]);
     const strom = arten[0];
     expect(strom.stundenPflicht).toBe(true);
     expect(strom.fristen.map((f) => [f.wer, f.monate, f.stunden])).toEqual([["intern", 3, null], ["fachfirma", 12, 100], ["elektrofachkraft", 12, null]]);
@@ -131,7 +131,7 @@ describe("Verwaltung", () => {
     const db = testDb();
     const vorher = ladeArten(db).find((a) => a.id === START.art.heizung)!;
     artSpeichern(db, vorher.id, {
-      name: "Heizungen", einzahl: "Heizung", ikone: "fire", stundenPflicht: false,
+      name: "Heizungen", einzahl: "Heizung", ikone: "fire", stundenPflicht: false, kiste: false,
       fristen: [vorher.fristen[0], { id: null, name: "Elektroprüfung", wer: "elektrofachkraft", monate: 12, stunden: null }],
       checkliste: [vorher.checkliste[1], { id: null, text: "Neu", hinweis: "" }],
     }, K.jetzt);

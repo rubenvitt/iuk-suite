@@ -739,6 +739,30 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "inhalt": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    }
+  },
+  "verpflegung": {
+    "lagerort": { "mode": "audited", "primaryKey": ["id"] },
+    "artikel": { "mode": "audited", "primaryKey": ["id"] },
+    "charge": { "mode": "audited", "primaryKey": ["id"] },
+    "buchung": { "mode": "audited", "primaryKey": ["id"] },
+    "helfer_link": {
+      "mode": "audited",
+      "primaryKey": ["id"],
+      "unauditedColumns": {
+        "columns": ["zuletzt_am"],
+        "reason": "Zeitpunkt des letzten Öffnens, reine Anzeige in der Linkliste; Anlegen und Sperren sind auditiert, das Öffnen steht als Anmeldeereignis im Log."
+      }
+    },
+    "vermerk": {
+      "mode": "excluded",
+      "reason": "Technischer Versandvermerk der Tagesmeldung (welcher Tag schon gemeldet wurde); kein fachlicher Inhalt."
     }
   },
   "lagemonitor": {

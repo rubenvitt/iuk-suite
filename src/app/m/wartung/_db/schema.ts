@@ -63,6 +63,11 @@ export const art = sqliteTable("art", {
   position: integer("position").notNull().default(0),
   angelegtAm: integer("angelegt_am").notNull(),
   aktualisiertAm: integer("aktualisiert_am").notNull(),
+  /**
+   * Materialkiste (IDA-335): jedes Gerät dieser Art hat eine eigene Inhaltsliste (`inhalt`), und die Prüfung am
+   * Gerät zählt sie durch statt der Checkliste der Art.
+   */
+  kiste: integer("kiste", { mode: "boolean" }).notNull().default(false),
 });
 
 /**
@@ -104,6 +109,11 @@ export const geraet = sqliteTable("geraet", {
   seriennr: text("seriennr").notNull().default(""),
   ortArt: text("ort_art", { enum: ["lager", "fahrzeug"] }).notNull(),
   ort: text("ort").notNull(),
+  /**
+   * Das Stammfahrzeug (Modul fahrzeuge, IDA-342), wenn das Gerät auf einem Fahrzeug der Fahrzeugverwaltung
+   * steht; `ort` trägt dann dessen Namen. `null` im Lager und bei einem Fahrzeug, das es dort nicht gibt.
+   */
+  fahrzeugId: text("fahrzeug_id"),
   /** Zuletzt abgelesener Stand; `null`, solange nichts erfasst ist. */
   stunden: integer("stunden"),
   /** Was jeder am Gerät wissen muss, bevor er es benutzt (IDA-300); steht auf dem Steckbrief. */
@@ -117,6 +127,22 @@ export const geraet = sqliteTable("geraet", {
   index("geraet_art_idx").on(t.artId),
   check("geraet_ort_art", sql`ort_art IN ('lager','fahrzeug')`),
   check("geraet_stunden", sql`stunden IS NULL OR stunden >= 0`),
+]);
+
+/**
+ * Die Inhaltsliste einer Materialkiste (IDA-335): je Position die Soll-Menge. Beim Durchzählen wird jede Position
+ * „vollständig“ oder „fehlt“; was fehlt, wird ein Mangel mit `fehlt`.
+ */
+export const inhalt = sqliteTable("inhalt", {
+  id: text("id").primaryKey(),
+  geraetId: text("geraet_id").notNull().references(() => geraet.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  soll: integer("soll").notNull(),
+  bemerkung: text("bemerkung").notNull().default(""),
+  position: integer("position").notNull().default(0),
+}, (t) => [
+  index("inhalt_geraet_idx").on(t.geraetId, t.position),
+  check("inhalt_soll", sql`soll >= 1`),
 ]);
 
 /**
@@ -164,6 +190,19 @@ export const mangel = sqliteTable("mangel", {
   behobenAm: integer("behoben_am"),
   behobenVon: text("behoben_von"),
   gepushtAm: integer("gepusht_am"),
+  /** Beim Durchzählen einer Materialkiste als fehlend gemeldet (IDA-335). */
+  fehlt: integer("fehlt", { mode: "boolean" }).notNull().default(false),
+  /**
+   * Welche Position fehlt: je Position steht höchstens ein offener Fehlt-Mangel, und wer sie wieder vollständig
+   * zählt, behebt ihn (`_lib/schreiben.ts`). `null`, wenn die Position inzwischen von der Liste ist.
+   */
+  inhaltId: text("inhalt_id").references(() => inhalt.id, { onDelete: "set null" }),
+  /**
+   * Seit wann ein zunächst einsatzbereit gemeldeter Mangel nicht mehr einsatzbereit ist (eine Kiste, deren
+   * Position weiter fehlt, wird als nicht einsatzbereit durchgezählt). Der Sofort-Push rechnet ab hier, nicht ab
+   * `gemeldetAm`, das der Meldezeitpunkt bleibt.
+   */
+  herabgestuftAm: integer("herabgestuft_am"),
 }, (t) => [
   index("mangel_geraet_idx").on(t.geraetId, t.behobenAm),
   index("mangel_offen_idx").on(t.behobenAm, t.gemeldetAm),

@@ -10,7 +10,8 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { erledigtEintragenAction, geraetAendernAction, geraetAktivAction, mangelBehebenAction } from "../_actions/verwaltung";
 import { NAME_MAX, NOTIZ_MAX } from "../_lib/eingabe";
 import { ERGEBNIS_TEXT, intervallText, WER_TEXT, type FristStand } from "../_lib/fristen";
-import type { EintragDTO, GeraetZeile, MangelDTO, UnterlageDTO } from "../_lib/typen";
+import type { FahrzeugWahl } from "../_lib/fahrzeugsuche";
+import type { BekannteOrte, EintragDTO, GeraetZeile, InhaltDTO, MangelDTO, UnterlageDTO } from "../_lib/typen";
 import { GeraetFormular } from "./GeraetFormular";
 import { MangelEintrag } from "./MangelEintrag";
 import { UnterlagenKarte } from "./UnterlagenKarte";
@@ -21,9 +22,11 @@ import s from "./wartung.module.css";
 type Erledigt = { am: string; stunden: number | null; wer: string; notiz: string };
 
 export function GeraetAkte({
-  g, maengel, verlauf, unterlagen, qr, heute, arten, gruppen, orte,
+  g, inhalt, maengel, verlauf, unterlagen, qr, heute, arten, gruppen, orte, fahrzeuge,
 }: {
   g: GeraetZeile;
+  /** Nur bei einer Materialkiste (IDA-335). */
+  inhalt: InhaltDTO[];
   maengel: MangelDTO[];
   unterlagen: UnterlageDTO[];
   verlauf: EintragDTO[];
@@ -31,7 +34,8 @@ export function GeraetAkte({
   heute: string;
   arten: { id: string; einzahl: string }[];
   gruppen: { id: string; name: string }[];
-  orte: string[];
+  orte: BekannteOrte;
+  fahrzeuge: FahrzeugWahl[];
 }) {
   const { laeuft, feldFehler, setFeldFehler, fuehreAus } = useAktion();
   const [eintragen, setEintragen] = useState<FristStand | null>(null);
@@ -126,7 +130,7 @@ export function GeraetAkte({
                       </div>
                       {v.notiz && <div>{v.notiz}</div>}
                       {v.antworten && v.antworten.some((a) => !a.ok) && (
-                        <div className={s.neben}>Mangel bei: {v.antworten.filter((a) => !a.ok).map((a) => a.text).join(", ")}</div>
+                        <div className={s.neben}>{g.kiste ? "Unvollständig (Soll)" : "Mangel bei"}: {v.antworten.filter((a) => !a.ok).map((a) => a.text).join(", ")}</div>
                       )}
                     </div>
                   </li>
@@ -147,14 +151,31 @@ export function GeraetAkte({
                 { key: "o", label: g.ortArt === "fahrzeug" ? "Fahrzeug" : "Standort", children: <OrtText ortArt={g.ortArt} ort={g.ort} /> },
                 { key: "b", label: "Betriebsstunden", children: <span className={s.ziffern}>{g.stunden !== null ? stundenText(g.stunden) : "nicht erfasst"}</span> },
                 { key: "i", label: "Hinweise", children: g.hinweise ? <p className={s.hinweise}>{g.hinweise}</p> : "—" },
-              ]}
+              ].filter((z) => !g.kiste || (z.key === "h" ? Boolean(g.hersteller || g.typ) : z.key === "s" ? Boolean(g.seriennr) : z.key === "b" ? g.stunden !== null : z.key === "i" ? Boolean(g.hinweise) : true))}
             />
           </Card>
+          {g.kiste && (
+            <Card
+              title={`Inhalt (${inhalt.length})`}
+              extra={g.aktiv && <Button href={`/g/${g.id}/inhalt`} icon={<Icons8Ikone name="pencil" groesse={16} />}>Bearbeiten</Button>}
+            >
+              {inhalt.length === 0 ? <p className={s.neben} style={{ margin: 0 }}>Noch keine Inhaltsliste.</p> : (
+                <ul className={s.inhaltListe} aria-label="Inhalt">
+                  {inhalt.map((p) => (
+                    <li key={p.id} className={s.inhaltPosten}>
+                      <span className={s.soll}>{p.soll} ×</span>
+                      <span>{p.text}{p.bemerkung && <span className={s.neben}> · {p.bemerkung}</span>}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          )}
           <UnterlagenKarte geraetId={g.id} unterlagen={unterlagen} aktiv={g.aktiv} />
           <Card title="QR-Etikett">
             <div className={s.qrRahmen}>
               <div className={s.qr} dangerouslySetInnerHTML={{ __html: qr }} />
-              <Link href={`/etiketten?geraet=${g.id}`}>Etikett drucken</Link>
+              <Link href={g.kiste ? `/etiketten/kisten?geraet=${g.id}` : `/etiketten?geraet=${g.id}`}>Etikett drucken</Link>
             </div>
           </Card>
         </div>
@@ -203,10 +224,11 @@ export function GeraetAkte({
       {aendern && <GeraetFormular
         offen
         titel="Gerät bearbeiten"
-        start={{ gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, stunden: g.stunden, hinweise: g.hinweise }}
+        start={{ gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise }}
         gruppen={gruppen}
         arten={arten}
         orte={orte}
+        fahrzeuge={fahrzeuge}
         laeuft={laeuft}
         feldFehler={feldFehler}
         onAbbrechen={() => setAendern(false)}

@@ -19,9 +19,9 @@ const BREITEN = [320, 390] as const;
 const VIELE_GRUPPEN = [
   "admin", "lagerbuch-admin", "files-admin", "feedback-admin", "kommplan-admin", "helfer-admin",
   "fahrzeuge-admin", "schichtplan-admin", "gemeinschaft-admin", "lagemonitor-admin", "uav-admin",
-  "einsatzbuch-nutzer", "aufgaben-nutzer", "radio-admin", "wartung-admin", "qr-admin",
+  "einsatzbuch-nutzer", "aufgaben-nutzer", "radio-admin", "wartung-admin", "verpflegung-admin", "qr-admin",
   // Zugangsgruppen, die eine Admin-Gruppe nicht mitbringt (`requiredGroups` in `core/registry`).
-  "helfer-nutzer", "kommplan-nutzer", "feedback-nutzer", "wartung-nutzer", "alpha-users",
+  "helfer-nutzer", "kommplan-nutzer", "feedback-nutzer", "wartung-nutzer", "verpflegung-nutzer", "alpha-users",
   // Die Gruppen der lokalen Demodienste (`portal/_lib/seedLokal.ts`): ohne sie fehlen die langen Namenslisten.
   "da-einsatz", "da-ausbildung", "da-verwaltung",
 ].join(",");

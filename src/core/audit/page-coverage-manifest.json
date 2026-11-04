@@ -291,6 +291,14 @@
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
   },
+  "src/app/m/wartung/(geraet)/g/[id]/inhalt/page.tsx#notFound:!g.kiste:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/wartung/(geraet)/g/[id]/inhalt/page.tsx#notFound:!verwaltetGruppe(rechte, g.gruppeId):1": {
+    "kind": "denial",
+    "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
+  },
   "src/app/m/wartung/(verwaltung)/geraete/[id]/page.tsx#notFound:!idSchema.safeParse(id).success:1": {
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."

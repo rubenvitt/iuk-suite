@@ -5,10 +5,12 @@
  * Erwartbare Ablehnungen werfen `Abgelehnt` mit einem Satz für den Bildschirm; alles andere ist ein Fehler.
  */
 import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
-import { art, checkpunkt, eintrag, frist, geraet, gruppe, mangel, unterlage, verwalter } from "../_db/schema";
-import { artIkone, UNTERLAGEN_MAX, type ArtEingabe, type ErledigtEingabe, type GeraetEingabe, type GruppeEingabe, type PruefungEingabe } from "./eingabe";
+import { art, checkpunkt, eintrag, frist, geraet, gruppe, inhalt, mangel, unterlage, verwalter } from "../_db/schema";
+import {
+  artIkone, UNTERLAGEN_MAX, type ArtEingabe, type ErledigtEingabe, type GeraetEingabe, type GruppeEingabe, type InhaltEingabe, type PruefungEingabe,
+} from "./eingabe";
 
 export class Abgelehnt extends Error {
   constructor(text: string, readonly feld?: string) {
@@ -65,7 +67,7 @@ export function gruppeLoeschen(db: WartungDb, id: string): void {
 export function artSpeichern(db: WartungDb, id: string | null, e: ArtEingabe, jetzt: number): string {
   return db.transaction((tx) => {
     const artId = id ?? neueId();
-    const werte = { name: e.name, einzahl: e.einzahl, ikone: artIkone(e.ikone), stundenPflicht: e.stundenPflicht, aktualisiertAm: jetzt };
+    const werte = { name: e.name, einzahl: e.einzahl, ikone: artIkone(e.ikone), stundenPflicht: e.stundenPflicht, kiste: e.kiste, aktualisiertAm: jetzt };
     if (id) {
       const r = tx.update(art).set(werte).where(eq(art.id, id)).run();
       if (r.changes === 0) throw new Abgelehnt("Diese Geräteart gibt es nicht mehr.");
@@ -118,6 +120,52 @@ export function geraetAendern(db: WartungDb, id: string, e: GeraetEingabe, jetzt
 
 export function geraetAktiv(db: WartungDb, id: string, aktiv: boolean, jetzt: number): void {
   db.update(geraet).set({ aktiv, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
+}
+
+/** Fingerabdruck einer Inhaltsliste, wie sie angezeigt wurde: wer speichert, schickt ihn mit (IDA-335). */
+export function inhaltStand(liste: readonly { id: string; text: string; soll: number; bemerkung: string }[]): string {
+  return createHash("sha256").update(JSON.stringify(liste.map((p) => [p.id, p.text, p.soll, p.bemerkung]))).digest("hex").slice(0, 32);
+}
+
+/**
+ * Ersetzt die Inhaltsliste einer Materialkiste (IDA-335). Bekannte Positionen behalten ihre ID, neue bekommen
+ * eine; was fehlt, geht weg. Der Verlauf hält den Text zum Zeitpunkt jeder Prüfung selbst fest. Mit `stand`
+ * wird nur gespeichert, wenn die Liste noch so ist wie beim Öffnen — sonst ginge die Änderung eines anderen verloren.
+ */
+export function inhaltSpeichern(db: WartungDb, geraetId: string, liste: InhaltEingabe, stand?: string): void {
+  db.transaction((tx) => {
+    const g = aktivesGeraet(tx, geraetId);
+    if (!tx.select({ kiste: art.kiste }).from(art).where(eq(art.id, g.artId)).get()?.kiste) {
+      throw new Abgelehnt("Nur eine Materialkiste hat eine Inhaltsliste.");
+    }
+    if (stand !== undefined) {
+      const jetzt = tx.select({ id: inhalt.id, text: inhalt.text, soll: inhalt.soll, bemerkung: inhalt.bemerkung }).from(inhalt)
+        .where(eq(inhalt.geraetId, geraetId)).orderBy(asc(inhalt.position)).all();
+      if (inhaltStand(jetzt) !== stand) throw new Abgelehnt("Die Inhaltsliste wurde inzwischen geändert. Bitte die Seite neu laden.");
+    }
+    const bestehend = new Map(tx.select({ id: inhalt.id, text: inhalt.text }).from(inhalt).where(eq(inhalt.geraetId, geraetId)).all().map((x) => [x.id, x.text]));
+    const behalten = liste.map((p) => p.id).filter((x): x is string => x !== null && bestehend.has(x));
+    tx.delete(inhalt).where(behalten.length ? and(eq(inhalt.geraetId, geraetId), notInArray(inhalt.id, behalten)) : eq(inhalt.geraetId, geraetId)).run();
+    liste.forEach((p, position) => {
+      const w = { text: p.text, soll: p.soll, bemerkung: p.bemerkung, position };
+      if (p.id && bestehend.has(p.id)) {
+        // Neuer Wortlaut ist eine andere Sache: ein offener Fehlt-Mangel der alten löst sich wie bei einer
+        // gelöschten Position von ihr und bleibt offen, statt durch die Zählung der neuen behoben zu werden.
+        if (bestehend.get(p.id) !== p.text) tx.update(mangel).set({ inhaltId: null }).where(and(eq(mangel.inhaltId, p.id), isNull(mangel.behobenAm))).run();
+        tx.update(inhalt).set(w).where(eq(inhalt.id, p.id)).run();
+      } else tx.insert(inhalt).values({ id: neueId(), geraetId, ...w }).run();
+    });
+  });
+}
+
+/** Die Punkte der Prüfung am Gerät: die Checkliste der Art, bei einer Materialkiste ihre Inhaltsliste. */
+function pruefpunkte(db: WartungSchreiber, g: { id: string; artId: string }, kiste: boolean) {
+  if (kiste) {
+    return db.select().from(inhalt).where(eq(inhalt.geraetId, g.id)).orderBy(inhalt.position).all()
+      .map((p) => ({ id: p.id, text: p.text, soll: p.soll as number | null, bemerkung: p.bemerkung }));
+  }
+  return db.select().from(checkpunkt).where(eq(checkpunkt.artId, g.artId)).orderBy(checkpunkt.position).all()
+    .map((p) => ({ id: p.id, text: p.text, soll: null as number | null, bemerkung: "" }));
 }
 
 // ---------------------------------------------------------------- Unterlagen (IDA-300)
@@ -230,6 +278,11 @@ export function schonGesendet(
  * dem Foto, das die Route schon abgelegt hat). „In Ordnung“ geht nur ohne Mangel, und ein schlechteres Ergebnis
  * ohne einzelnen Punkt braucht eine Bemerkung: sie wird dann der Mangel — sonst stünde ein Gerät auf „mit
  * Mangel“, das niemand beheben kann.
+ *
+ * Bei einer Materialkiste (IDA-335) sind die Punkte ihre Inhaltsliste: „fehlt“ braucht keinen Text, denn die
+ * Position sagt schon, was fehlt; der Mangel trägt `fehlt` und die Position und erscheint so in „Was steht an“.
+ * Je Position gibt es höchstens einen offenen Fehlt-Mangel, und eine wieder vollständig gezählte behebt ihn.
+ * Fotos, die so keinem neuen Mangel zugeordnet werden, nennt `ungenutzteFotos`; die Route räumt sie weg.
  */
 export function pruefungAbschliessen(
   db: WartungDb,
@@ -237,44 +290,82 @@ export function pruefungAbschliessen(
   p: PruefungEingabe,
   fotos: ReadonlyMap<string, string>,
   k: Kontext,
-): { maengel: number } {
+): { maengel: number; ungenutzteFotos: string[] } {
   return db.transaction((tx) => {
     const g = aktivesGeraet(tx, geraetId);
     const a = tx.select().from(art).where(eq(art.id, g.artId)).get()!;
-    const punkte = tx.select().from(checkpunkt).where(eq(checkpunkt.artId, g.artId)).orderBy(checkpunkt.position).all();
+    const punkte = pruefpunkte(tx, g, a.kiste);
+    if (a.kiste && punkte.length === 0) throw new Abgelehnt("Die Kiste hat noch keine Inhaltsliste.");
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));
-    if (punkte.some((pk) => !antwort.has(pk.id))) throw new Abgelehnt("Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.");
-    if (a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
+    const meldung = a.kiste ? "Die Inhaltsliste hat sich geändert. Bitte neu durchzählen." : "Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.";
+    if (punkte.some((pk) => !antwort.has(pk.id)) || (a.kiste && antwort.size !== punkte.length)) throw new Abgelehnt(meldung);
+    // Gezählt wurde gegen Menge, Wortlaut und Bemerkung auf dem Bildschirm; hat sie jemand inzwischen geändert, gilt die Zählung nicht.
+    const anders = (pk: (typeof punkte)[number]) => {
+      const x = antwort.get(pk.id)!;
+      return x.soll !== pk.soll || x.punkt !== pk.text || (x.hinweis ?? "") !== pk.bemerkung;
+    };
+    if (a.kiste && punkte.some(anders)) throw new Abgelehnt(meldung);
+    if (!a.kiste && a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
     pruefeStunden(p.stunden, g.stunden);
 
     const mitMangel = punkte.filter((pk) => !antwort.get(pk.id)!.ok);
-    if (mitMangel.some((pk) => !antwort.get(pk.id)!.text)) throw new Abgelehnt("Bei jedem Mangel kurz beschreiben, was los ist.");
+    if (!a.kiste && mitMangel.some((pk) => !antwort.get(pk.id)!.text)) throw new Abgelehnt("Bei jedem Mangel kurz beschreiben, was los ist.");
     if (mitMangel.length > 0 && p.ergebnis === "ok") throw new Abgelehnt("Mit Mangel ist das Ergebnis nicht „In Ordnung“.", "ergebnis");
     if (mitMangel.length === 0 && p.ergebnis !== "ok" && !p.notiz) {
       throw new Abgelehnt("Bitte in der Bemerkung beschreiben, was nicht stimmt.", "notiz");
     }
 
-    const maengel: NeuerMangel[] = mitMangel.map((pk) => {
+    // Je Position höchstens ein offener Fehlt-Mangel: fehlt sie wieder, bleibt der alte stehen; ist sie wieder
+    // vollständig, ist er behoben.
+    const offenFehlt = a.kiste
+      ? new Map(tx.select({ id: mangel.id, inhaltId: mangel.inhaltId, text: mangel.text }).from(mangel)
+        .where(and(eq(mangel.geraetId, geraetId), eq(mangel.fehlt, true), isNull(mangel.behobenAm))).all()
+        .filter((m) => m.inhaltId !== null).map((m) => [m.inhaltId!, m]))
+      : new Map<string, { id: string; text: string }>();
+    const maengel: (NeuerMangel & { inhaltId: string | null })[] = mitMangel.filter((pk) => !offenFehlt.has(pk.id)).map((pk) => {
       const x = antwort.get(pk.id)!;
       const id = fotos.get(pk.id) ?? neueId();
-      return { id, text: `${pk.text}: ${x.text}`, foto: fotos.has(pk.id) };
+      const text = a.kiste ? `Fehlt: ${pk.text} (Soll ${pk.soll})${x.text ? ` – ${x.text}` : ""}` : `${pk.text}: ${x.text}`;
+      return { id, text, foto: fotos.has(pk.id), inhaltId: a.kiste ? pk.id : null };
     });
-    if (mitMangel.length === 0 && p.ergebnis !== "ok") maengel.push({ id: neueId(), text: p.notiz, foto: false });
+    if (mitMangel.length === 0 && p.ergebnis !== "ok") maengel.push({ id: neueId(), text: p.notiz, foto: false, inhaltId: null });
+    const nochOffen = mitMangel.filter((pk) => offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
+    const wiederDa = punkte.filter((pk) => antwort.get(pk.id)!.ok && offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
 
     const pruefFrist = tx.select().from(frist).where(and(eq(frist.artId, g.artId), eq(frist.wer, "intern"))).get();
     tx.insert(eintrag).values({
       id: p.sendung, geraetId, typ: "pruefung", fristId: pruefFrist?.id ?? null, titel: pruefFrist?.name ?? "Prüfung",
       am: k.heute, stunden: p.stunden, wer: k.wer, notiz: p.notiz, ergebnis: p.ergebnis,
-      antworten: JSON.stringify(punkte.map((pk) => ({ text: pk.text, ok: antwort.get(pk.id)!.ok }))),
+      antworten: JSON.stringify(punkte.map((pk) => ({ text: pk.soll === null ? pk.text : `${pk.soll} × ${pk.text}`, ok: antwort.get(pk.id)!.ok }))),
       maengel: maengel.length, angelegtAm: k.jetzt,
     }).run();
     if (p.stunden !== null) tx.update(geraet).set({ stunden: p.stunden, aktualisiertAm: k.jetzt }).where(eq(geraet.id, geraetId)).run();
     for (const m of maengel) {
       tx.insert(mangel).values({
         id: m.id, geraetId, text: m.text, foto: m.foto, einsatzbereit: p.ergebnis !== "defekt", gemeldetAm: k.jetzt, gemeldetVon: k.wer,
+        fehlt: m.inhaltId !== null, inhaltId: m.inhaltId,
       }).run();
     }
-    return { maengel: maengel.length };
+    // Fehlt eine Position weiter und ist die Kiste jetzt nicht einsatzbereit, gilt das auch für ihren alten Mangel.
+    if (p.ergebnis === "defekt") {
+      for (const m of nochOffen) {
+        tx.update(mangel).set({ einsatzbereit: false, herabgestuftAm: k.jetzt }).where(and(eq(mangel.id, m.id), eq(mangel.einsatzbereit, true))).run();
+      }
+    }
+    // Fehlt sie weiter und gibt es eine neue Angabe dazu („nur noch einer da“), gilt die neue.
+    for (const pk of mitMangel) {
+      const alt = offenFehlt.get(pk.id);
+      const angabe = antwort.get(pk.id)!.text;
+      if (alt && angabe) tx.update(mangel).set({ text: `Fehlt: ${pk.text} (Soll ${pk.soll}) – ${angabe}` }).where(eq(mangel.id, alt.id)).run();
+    }
+    for (const m of wiederDa) {
+      tx.update(mangel).set({ behobenAm: k.jetzt, behobenVon: k.wer }).where(eq(mangel.id, m.id)).run();
+      tx.insert(eintrag).values({
+        id: neueId(), geraetId, typ: "behoben", titel: "Wieder vollständig", am: k.heute, wer: k.wer, notiz: m.text, angelegtAm: k.jetzt,
+      }).run();
+    }
+    const genutzt = new Set(maengel.map((m) => m.id));
+    return { maengel: maengel.length, ungenutzteFotos: [...fotos.values()].filter((id) => !genutzt.has(id)) };
   });
 }
 
@@ -291,11 +382,11 @@ export function mangelBeheben(db: WartungDb, id: string, k: Kontext): void {
 
 // ---------------------------------------------------------------- Sofort-Push
 
-/** Neue „nicht einsatzbereit“-Mängel, noch nicht gepusht, ab `seit`. */
+/** Neue „nicht einsatzbereit“-Mängel, noch nicht gepusht, ab `seit` (gemeldet oder später herabgestuft). */
 export function ungepushteAusfaelle(db: Pick<WartungDb, "select">, seit: number) {
   return db.select({ id: mangel.id, geraetId: mangel.geraetId, geraetName: geraet.name, ort: geraet.ort, gruppeId: geraet.gruppeId, foto: mangel.foto })
     .from(mangel).innerJoin(geraet, eq(geraet.id, mangel.geraetId))
-    .where(and(eq(mangel.einsatzbereit, false), isNull(mangel.gepushtAm), isNull(mangel.behobenAm), sql`${mangel.gemeldetAm} >= ${seit}`))
+    .where(and(eq(mangel.einsatzbereit, false), isNull(mangel.gepushtAm), isNull(mangel.behobenAm), sql`coalesce(${mangel.herabgestuftAm}, ${mangel.gemeldetAm}) >= ${seit}`))
     .all();
 }
 

@@ -1,6 +1,6 @@
 import type { WartungDb } from "../_db/client";
-import { checkpunkt, eintrag, geraet, mangel } from "../_db/schema";
-import { eq } from "drizzle-orm";
+import { checkpunkt, eintrag, geraet, inhalt, mangel } from "../_db/schema";
+import { eq, ne } from "drizzle-orm";
 import { tagInZone } from "./heute";
 import { neueId } from "./schreiben";
 import { START } from "./startbestand";
@@ -8,15 +8,15 @@ import { START } from "./startbestand";
 /**
  * Lokale Demodaten — bewusst NICHT am Boot. Die neun Geräte des POC (IDA-307) mit Verlauf und zwei offenen
  * Mängeln; Tage relativ zu heute, damit die Fristen immer gleich aussehen (eine überfällig, einige bald).
- * Gruppen, Arten und Checklisten bringt die Migration mit. Idempotent: gibt es schon ein Gerät, bleibt alles.
+ * Gruppen, Arten und Checklisten bringt die Migration mit. Idempotent: gibt es schon ein Gerät (außer Kisten),
+ * bleibt alles; die Materialkisten legt `seedKisten` getrennt an.
  */
 export async function seedLokalWartung(db: WartungDb, jetzt = Date.now()): Promise<string[]> {
-  if (db.select({ id: geraet.id }).from(geraet).limit(1).get()) return ["wartung: Geräte vorhanden, nichts geändert"];
-  const heute = tagInZone(jetzt);
-  const tag = (n: number) => {
-    const [j, m, t] = heute.split("-").map(Number);
-    return new Date(Date.UTC(j, m - 1, t + n)).toISOString().slice(0, 10);
-  };
+  const kisten = seedKisten(db, jetzt);
+  if (db.select({ id: geraet.id }).from(geraet).where(ne(geraet.artId, START.art.kiste)).limit(1).get()) {
+    return ["wartung: Geräte vorhanden, nichts geändert", ...kisten];
+  }
+  const tag = tagRechner(jetzt);
   const { gruppe: G, art: A, frist: F } = START;
 
   type E = [vorTagen: number, frist: string | null, titel: string, wer: string, rest?: { ergebnis?: "ok" | "mangel" | "defekt"; stunden?: number; notiz?: string; maengel?: number }];
@@ -100,5 +100,60 @@ export async function seedLokalWartung(db: WartungDb, jetzt = Date.now()): Promi
       }
     }
   });
-  return [`wartung: ${geraete.length} Geräte mit Verlauf und 2 offenen Mängeln angelegt`];
+  return [`wartung: ${geraete.length} Geräte mit Verlauf und 2 offenen Mängeln angelegt`, ...kisten];
+}
+
+function tagRechner(jetzt: number) {
+  const heute = tagInZone(jetzt);
+  return (n: number) => {
+    const [j, m, t] = heute.split("-").map(Number);
+    return new Date(Date.UTC(j, m - 1, t + n)).toISOString().slice(0, 10);
+  };
+}
+
+/**
+ * Zwei Materialkisten der I&K mit Inhaltsliste (IDA-335), eine davon mit einer fehlenden Position. Eigener
+ * Schritt, damit auch eine Datenbank von vor den Kisten sie bekommt; gibt es schon eine Kiste, bleibt alles.
+ */
+function seedKisten(db: WartungDb, jetzt: number): string[] {
+  if (db.select({ id: geraet.id }).from(geraet).where(eq(geraet.artId, START.art.kiste)).limit(1).get()) return [];
+  const tag = tagRechner(jetzt);
+  type Position = [text: string, soll: number, bemerkung?: string];
+  const kisten: { name: string; ortArt: "lager" | "fahrzeug"; ort: string; inhalt: Position[]; vorTagen: number; fehlt?: { index: number; notiz: string } }[] = [
+    { name: "I&K-Kiste 1 – Kabel", ortArt: "lager", ort: "Lager I&K, Regal 1", vorTagen: 50, inhalt: [
+      ["Netzwerkkabel 5 m", 6, "Cat 6, grau"], ["Netzwerkkabel 20 m", 2], ["HDMI-Kabel 2 m", 3], ["USB-C-Ladekabel", 4],
+      ["Steckdosenleiste 5-fach", 3], ["Kabeltrommel 25 m", 1],
+    ] },
+    { name: "I&K-Kiste 2 – Adapter", ortArt: "fahrzeug", ort: "ELW 1", vorTagen: 10, fehlt: { index: 1, notiz: "nur einer da" }, inhalt: [
+      ["HDMI-auf-VGA-Adapter", 2], ["USB-C-Hub", 2], ["Kaltgerätekabel", 4], ["Gewebeband", 2, "schwarz"], ["Kabelbinder", 1, "Beutel mit 100 Stück"],
+    ] },
+  ];
+  db.transaction((tx) => {
+    for (const k of kisten) {
+      const id = neueId();
+      tx.insert(geraet).values({
+        id, gruppeId: START.gruppe.iuk, artId: START.art.kiste, name: k.name, ortArt: k.ortArt, ort: k.ort,
+        stunden: null, aktiv: true, angelegtAm: jetzt, aktualisiertAm: jetzt,
+      }).run();
+      const inhaltIds = k.inhalt.map(([text, soll, bemerkung = ""], position) => {
+        const inhaltId = neueId();
+        tx.insert(inhalt).values({ id: inhaltId, geraetId: id, text, soll, bemerkung, position }).run();
+        return inhaltId;
+      });
+      const am = jetzt - k.vorTagen * 86_400_000;
+      tx.insert(eintrag).values({
+        id: neueId(), geraetId: id, typ: "pruefung", fristId: START.frist.kiste.quartal, titel: "Quartalsprüfung", am: tag(-k.vorTagen),
+        wer: "Helfer C", ergebnis: k.fehlt ? "mangel" : "ok", maengel: k.fehlt ? 1 : 0, angelegtAm: am,
+        antworten: JSON.stringify(k.inhalt.map(([text, soll], i) => ({ text: `${soll} × ${text}`, ok: i !== k.fehlt?.index }))),
+      }).run();
+      if (k.fehlt) {
+        const [text, soll] = k.inhalt[k.fehlt.index];
+        tx.insert(mangel).values({
+          id: neueId(), geraetId: id, text: `Fehlt: ${text} (Soll ${soll}) – ${k.fehlt.notiz}`, foto: false, einsatzbereit: true,
+          gemeldetAm: am, gemeldetVon: "Helfer C", gepushtAm: am, fehlt: true, inhaltId: inhaltIds[k.fehlt.index],
+        }).run();
+      }
+    }
+  });
+  return [`wartung: ${kisten.length} Materialkisten mit Inhaltsliste angelegt`];
 }
