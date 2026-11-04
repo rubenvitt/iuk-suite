@@ -3,18 +3,18 @@ import { headers } from "next/headers";
 import { Button } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { loginZiel, verwaltetGruppe } from "../../../_lib/zugang";
-import { ArtZeichen, FristChip, Kicker, OrtText, stundenText, ZustandChip } from "../../../_ui/teile";
+import { ArtZeichen, FristChip, groesseText, Kicker, OrtText, stundenText, ZustandChip } from "../../../_ui/teile";
 import s from "../../../_ui/wartung.module.css";
 import { geraetOeffentlich } from "./laden";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Der Steckbrief am Gerät — das, was der QR-Code öffnet. Ohne Modulzugang (auch ohne Anmeldung) nur Kopf und
- * „Mangel melden“; Fristen, Mängeltexte und Prüfung erst mit Zugang (IDA-337).
+ * Der Steckbrief am Gerät — das, was der QR-Code öffnet. Ohne Modulzugang (auch ohne Anmeldung) Kopf, Hinweise,
+ * Unterlagen und „Mangel melden“ (IDA-300); Fristen, Mängeltexte und Prüfung erst mit Zugang (IDA-337).
  */
 export default async function Steckbrief({ params }: { params: Promise<{ id: string }> }) {
-  const { g, checkliste, offen, rechte, viewer, zugang } = await geraetOeffentlich(params);
+  const { g, checkliste, offen, unterlagen, rechte, viewer, zugang } = await geraetOeffentlich(params);
   const pruefung = g.staende.find((f) => f.vorlage.wer === "intern");
   const kopf = (
     <section className={s.karte}>
@@ -33,11 +33,39 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
     </section>
   );
 
+  const anleitung = (
+    <>
+      {g.hinweise && (
+        <section className={s.karte}>
+          <Kicker className={s.karteTitel}>Hinweise</Kicker>
+          <p className={s.hinweise}>{g.hinweise}</p>
+        </section>
+      )}
+      {unterlagen.length > 0 && (
+        <section className={s.karte}>
+          <Kicker className={s.karteTitel}>Unterlagen</Kicker>
+          <ul className={s.zeilen} aria-label="Unterlagen">
+            {unterlagen.map((u) => (
+              <li key={u.id}>
+                <a href={`/g/${g.id}/unterlagen/${u.id}`} className={s.unterlage}>
+                  <Icons8Ikone name={u.typ === "pdf" ? "document" : "image"} groesse={20} />
+                  <span className={s.unterlageTitel}>{u.titel}</span>
+                  <span className={`${s.neben} ${s.klein}`}>{u.typ === "pdf" ? "PDF" : "Bild"} · {groesseText(u.bytes)}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+
   if (!zugang) {
     const anmelden = `/login?callbackUrl=${encodeURIComponent(loginZiel(await headers(), `/g/${g.id}`))}`;
     return (
       <div className={s.telefon}>
         {kopf}
+        {anleitung}
         <section className={s.karte}>
           <div className={s.knopfstapel}>
             <Button type="primary" block href={`/g/${g.id}/mangel`} icon={<Icons8Ikone name="warning" groesse={20} />}>Mangel melden</Button>
@@ -51,6 +79,8 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
   return (
     <div className={s.telefon}>
       {kopf}
+
+      {anleitung}
 
       {pruefung && checkliste.length > 0 && (
         <section className={s.karte}>

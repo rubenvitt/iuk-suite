@@ -183,6 +183,11 @@ if [ -d "$DATA_DIR/wartung/maengel" ]; then
   mkdir -p "$work/wartung"
   rsync -a --exclude='*.tmp' "$DATA_DIR/wartung/maengel/" "$work/wartung/maengel/"
 fi
+# Die Unterlagen am Geraet (IDA-300, `wartung/_lib/unterlagen.ts`): dasselbe Muster, Datei vor Zeile.
+if [ -d "$DATA_DIR/wartung/unterlagen" ]; then
+  mkdir -p "$work/wartung"
+  rsync -a --exclude='*.tmp' "$DATA_DIR/wartung/unterlagen/" "$work/wartung/unterlagen/"
+fi
 
 # Der stille Fall: vollstaendige Zeilen in der DB, aber kein einziger Blob kopiert
 # (falsch belegtes BLOB_DIR, leerer Mountpunkt). Dieselbe Linie wie der Abbruch oben
@@ -268,6 +273,23 @@ for modul in lagerbuch wartung; do
     exit 1
   fi
 done
+
+# Und fuer die Unterlagen am Geraet (IDA-300): Zeilen in `unterlage`, aber keine Datei
+# kopiert. Jede Zeile hat ihre Datei, weil die Datei vor der Zeile entsteht.
+if [ -f "$work/wartung.db" ]; then
+  zeilen_unterlagen="$(sqlite3 "$work/wartung.db" "select count(*) from unterlage" \
+    2>/dev/null || echo 0)"
+  [ -n "$zeilen_unterlagen" ] || zeilen_unterlagen=0
+  unterlagen=0
+  if [ -d "$work/wartung/unterlagen" ]; then
+    unterlagen="$(find "$work/wartung/unterlagen" -type f | wc -l | tr -d ' ')"
+  fi
+  if [ "$zeilen_unterlagen" -gt 0 ] && [ "$unterlagen" -eq 0 ]; then
+    echo "backup: $zeilen_unterlagen rows in wartung.db (unterlage) but no files from $DATA_DIR/wartung/unterlagen — aborting" >&2
+    rm -rf "$work"
+    exit 1
+  fi
+fi
 
 # ⚠️ GEPACKT WIRD UNTER EINEM NAMEN, DER NICHT ALS GENERATION ZAEHLT (DRK-416). `tar`
 # schrieb frueher direkt auf `$stamp.tar.gz`, und ein WACHSENDES Archiv passt auf das

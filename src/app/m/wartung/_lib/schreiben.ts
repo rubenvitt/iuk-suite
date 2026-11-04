@@ -4,11 +4,11 @@
  *
  * Erwartbare Ablehnungen werfen `Abgelehnt` mit einem Satz für den Bildschirm; alles andere ist ein Fehler.
  */
-import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
-import { art, checkpunkt, eintrag, frist, geraet, gruppe, mangel, verwalter } from "../_db/schema";
-import { artIkone, type ArtEingabe, type ErledigtEingabe, type GeraetEingabe, type GruppeEingabe, type PruefungEingabe } from "./eingabe";
+import { art, checkpunkt, eintrag, frist, geraet, gruppe, mangel, unterlage, verwalter } from "../_db/schema";
+import { artIkone, UNTERLAGEN_MAX, type ArtEingabe, type ErledigtEingabe, type GeraetEingabe, type GruppeEingabe, type PruefungEingabe } from "./eingabe";
 
 export class Abgelehnt extends Error {
   constructor(text: string, readonly feld?: string) {
@@ -118,6 +118,41 @@ export function geraetAendern(db: WartungDb, id: string, e: GeraetEingabe, jetzt
 
 export function geraetAktiv(db: WartungDb, id: string, aktiv: boolean, jetzt: number): void {
   db.update(geraet).set({ aktiv, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
+}
+
+// ---------------------------------------------------------------- Unterlagen (IDA-300)
+
+/** Trägt eine schon abgelegte Datei am Gerät ein, hinten an. */
+export function unterlageAnlegen(
+  db: WartungDb, geraetId: string, u: { id: string; titel: string; typ: "pdf" | "bild"; bytes: number }, k: Pick<Kontext, "jetzt" | "wer">,
+): void {
+  db.transaction((tx) => {
+    aktivesGeraet(tx, geraetId);
+    const n = tx.select({ n: sql<number>`count(*)`, p: sql<number>`coalesce(max(position), -1) + 1` }).from(unterlage)
+      .where(eq(unterlage.geraetId, geraetId)).get();
+    if ((n?.n ?? 0) >= UNTERLAGEN_MAX) throw new Abgelehnt(`Höchstens ${UNTERLAGEN_MAX} Unterlagen je Gerät.`);
+    tx.insert(unterlage).values({ ...u, geraetId, position: n?.p ?? 0, angelegtAm: k.jetzt, angelegtVon: k.wer }).run();
+  });
+}
+
+/** Entfernt den Eintrag; die Datei räumt der Aufrufer danach weg. */
+export function unterlageLoeschen(db: WartungDb, id: string): void {
+  db.delete(unterlage).where(eq(unterlage.id, id)).run();
+}
+
+/** Eine Stelle nach oben oder unten. */
+export function unterlageVerschieben(db: WartungDb, id: string, richtung: -1 | 1): void {
+  db.transaction((tx) => {
+    const u = tx.select({ geraetId: unterlage.geraetId }).from(unterlage).where(eq(unterlage.id, id)).get();
+    if (!u) throw new Abgelehnt("Diese Unterlage gibt es nicht mehr.");
+    const reihe = tx.select({ id: unterlage.id }).from(unterlage).where(eq(unterlage.geraetId, u.geraetId))
+      .orderBy(asc(unterlage.position), asc(unterlage.angelegtAm)).all().map((r) => r.id);
+    const i = reihe.indexOf(id);
+    const j = i + richtung;
+    if (j < 0 || j >= reihe.length) return;
+    [reihe[i], reihe[j]] = [reihe[j], reihe[i]];
+    reihe.forEach((uid, position) => tx.update(unterlage).set({ position }).where(eq(unterlage.id, uid)).run());
+  });
 }
 
 /** Wartung oder Elektroprüfung, von der Verwaltung eingetragen. */

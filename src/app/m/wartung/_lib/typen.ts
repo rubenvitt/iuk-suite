@@ -60,6 +60,8 @@ export interface GeraetZeile {
   ortArt: "lager" | "fahrzeug";
   ort: string;
   stunden: number | null;
+  /** Freitext für den Steckbrief am QR-Code (IDA-300). */
+  hinweise: string;
   aktiv: boolean;
   zustand: Zustand;
   staende: FristStand[];
@@ -95,6 +97,14 @@ export interface MangelDTO {
   gemeldetVon: string;
   behobenAm: number | null;
   behobenVon: string | null;
+}
+
+/** Eine Unterlage am Gerät (IDA-300); die Datei liefert `g/[id]/unterlagen/[uid]` aus. */
+export interface UnterlageDTO {
+  id: string;
+  titel: string;
+  typ: "pdf" | "bild";
+  bytes: number;
 }
 
 export interface FristZeile {

@@ -4,7 +4,7 @@ import { auditActor, auditDenied } from "@/core/audit/server";
 import { qrSvg } from "@/core/qr";
 import { getDb } from "../../../_db/client";
 import { linkBasisAus, qrZiel } from "../../../_lib/ansicht";
-import { bekannteOrte, ladeArten, ladeGeraet, ladeGruppen, ladeMaengel, ladeVerlauf } from "../../../_lib/daten";
+import { bekannteOrte, ladeArten, ladeGeraet, ladeGruppen, ladeMaengel, ladeUnterlagen, ladeVerlauf } from "../../../_lib/daten";
 import { idSchema } from "../../../_lib/eingabe";
 import { heute } from "../../../_lib/heute";
 import { requireVerwalter, verwaltetGruppe } from "../../../_lib/zugang";
@@ -31,6 +31,7 @@ export default async function AktenSeite({ params }: { params: Promise<{ id: str
       g={g}
       maengel={ladeMaengel(db, { gruppen: null, geraetId: id, offen: true })}
       verlauf={ladeVerlauf(db, { gruppen: null, geraetId: id, grenze: 200 })}
+      unterlagen={ladeUnterlagen(db, id)}
       qr={await qrSvg(qrZiel(linkBasisAus(kopf), id))}
       heute={tag}
       arten={ladeArten(db).map((a) => ({ id: a.id, einzahl: a.einzahl }))}
