@@ -46,6 +46,13 @@ import type { CheckPlombeRoh } from "../_lib/checkErgebnis";
 const CheckSchema = z.object({
   fahrzeugId: z.string().min(1),
   /*
+   * IDA-358: die Sendungs-ID des Geräts (`core/entwurf`). Sie bleibt über alle
+   * Sendeversuche gleich und wird die ID des Checks — kam ein Versuch an und nur
+   * die Antwort ging verloren (Rollout mitten in der Antwort), findet der
+   * nächste Versuch den Check vor und bucht nicht ein zweites Mal.
+   */
+  sendungId: z.string().uuid().optional(),
+  /*
    * IDA-222: Kurz- oder Vollcheck. Vorgabe „voll", weil jeder Check vor
    * IDA-222 einer war — eine Nutzlast ohne `art` meint genau das.
    *
@@ -188,6 +195,22 @@ export async function checkAbschluss(
     }
     const v = geparst.data;
 
+    /*
+     * IDA-358 — DIE WIEDERHOLUNG EINES SCHON GEBUCHTEN CHECKS. Direkt hinter der
+     * Validierung und VOR jeder fachlichen Prüfung: nach dem ersten Abschluss hat
+     * sich der Bestand bewegt, und eine Prüfung weiter unten (Entnahmebox,
+     * Handlager) könnte die Wiederholung abweisen, obwohl der Check längst steht.
+     * Geantwortet wird mit dem Ergebnis von damals (`abschluss` im Ergebnis-JSON).
+     */
+    if (v.sendungId) {
+      const frueher = db.select().from(checks).where(eq(checks.id, v.sendungId)).get();
+      if (frueher) {
+        const wert = frueher.fahrzeugId === v.fahrzeugId ? frueherAbschluss(frueher.id, frueher.ergebnis) : null;
+        if (wert) return { ok: true, wert };
+        return { ok: false, grund: "eingabe", text: "Dieser Check passt nicht zu dieser Einheit." };
+      }
+    }
+
     // WURF-FREIER RIEGEL 5 — die WURZEL-ID gegen die Datenbank, wie die vier
     // Kind-IDs unten (:153, :198, :212, :255 im Vorzustand).
     //
@@ -276,7 +299,7 @@ export async function checkAbschluss(
     }
 
     const quelle = journalQuelle(riegel.zugang);
-    const checkId = newId();
+    const checkId = v.sendungId ?? newId();
     let nachgefuellt = 0;              // TATSAECHLICH umgelagert, nach Handlager-Kappung
     let nachfuellBestaetigt = 0;       // was der Helfer bestaetigt hat (§7.9.4, NEU)
     let inBox = 0;                     // IDA-247: in die Entnahmebox umgelagert
@@ -567,6 +590,12 @@ export async function checkAbschluss(
           verfall: verfallErgebnis,
           art: v.art,
           plomben: plombenErgebnis,
+          // IDA-358: die Rückmeldung an das Gerät, für eine Wiederholung derselben Sendung.
+          abschluss: {
+            nachgefuellt, nachfuellBestaetigt, inBox, offen,
+            geraeteAuffaellig, flaschenAuffaellig, flaschenNichtBewertbar, verfallAuffaellig,
+            plombenOffen, plombenGesetzt,
+          },
         }),
       }).run();
     });
@@ -601,4 +630,28 @@ export async function checkAbschluss(
       },
     };
   });
+}
+
+/** IDA-358: das gespeicherte Ergebnis eines Checks als Rückmeldung — `null`, wenn es fehlt. */
+function frueherAbschluss(checkId: string, ergebnis: string | null): CheckAbschlussWert | null {
+  try {
+    const a = (JSON.parse(ergebnis ?? "null") as { abschluss?: Record<string, unknown> } | null)?.abschluss;
+    if (!a) return null;
+    const zahl = (k: string) => (typeof a[k] === "number" ? (a[k] as number) : 0);
+    return {
+      checkId,
+      nachgefuellt: zahl("nachgefuellt"),
+      nachfuellBestaetigt: zahl("nachfuellBestaetigt"),
+      inBox: zahl("inBox"),
+      offen: zahl("offen"),
+      geraeteAuffaellig: zahl("geraeteAuffaellig"),
+      flaschenAuffaellig: zahl("flaschenAuffaellig"),
+      flaschenNichtBewertbar: zahl("flaschenNichtBewertbar"),
+      verfallAuffaellig: zahl("verfallAuffaellig"),
+      plombenOffen: zahl("plombenOffen"),
+      plombenGesetzt: zahl("plombenGesetzt"),
+    };
+  } catch {
+    return null;
+  }
 }
