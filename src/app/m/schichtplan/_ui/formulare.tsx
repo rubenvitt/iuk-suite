@@ -2,6 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import { App, Button, Checkbox, Input, InputNumber, Radio, Select } from "antd";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { einheitSpeichernAction, planungSpeichernAction, tempHelferSpeichernAction } from "../_actions/planung";
 import type { ActionErgebnis, FeldFehler } from "../_lib/actionErgebnis";
@@ -61,6 +64,15 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
   const [minRuhe, setMinRuhe] = useState((planung?.minRuheMin ?? 480) / 60);
   const [fehler, setFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
+  // IDA-358: die Eingaben liegen auf dem Gerät, bis das Speichern bestätigt ist.
+  const entwurf = useEntwurf({
+    schluessel: planung ? `schichtplan:planung:${planung.id}:${fingerabdruck(planung)}` : "schichtplan:planung:neu",
+    stand: { name, art, ort, zeitraum, laenge, abschnitte, gewaehlt, maxDienst, minRuhe },
+    wiederherstellen: (w) => {
+      setName(w.name); setArt(w.art); setOrt(w.ort); setZeitraum(w.zeitraum); setLaenge(w.laenge);
+      setAbschnitte(w.abschnitte); setGewaehlt(w.gewaehlt); setMaxDienst(w.maxDienst); setMinRuhe(w.minRuhe);
+    },
+  });
 
   async function speichern() {
     const { von, bis } = zeitraum;
@@ -85,11 +97,13 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
       }
     }
     setLaeuft(false);
+    entwurf.verwerfen();
     onGespeichert(id, letzte);
   }
 
   return (
     <div>
+      <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
       <Feld titel="Name" fehler={fehler.name}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Stadtfest Uelzen" maxLength={120} /></Feld>
       <Feld titel="Art">
         <Radio.Group value={art} onChange={(e) => setArt(e.target.value as PlanungArt)} options={[{ value: "veranstaltung", label: "Veranstaltung" }, { value: "lage", label: "Lage" }]} />
@@ -145,6 +159,15 @@ export function EinheitFormular({ planId, einheit, fahrzeuge, katalog, einteilun
   const [neuAufteilen, setNeuAufteilen] = useState(false);
   const [fehler, setFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
+  // IDA-358: je Zeile ein Entwurf, bis das Speichern bestätigt ist.
+  const entwurf = useEntwurf({
+    schluessel: einheit ? `schichtplan:einheit:${planId}:${einheit.id}:${fingerabdruck(einheit)}` : `schichtplan:einheit:${planId}:neu`,
+    stand: { art, name, fahrzeugId, kenner, laenge, soll, anf, neuAufteilen },
+    wiederherstellen: (w) => {
+      setArt(w.art); setName(w.name); setFahrzeugId(w.fahrzeugId); setKenner(w.kenner);
+      setLaenge(w.laenge); setSoll(w.soll); setAnf(w.anf); setNeuAufteilen(w.neuAufteilen);
+    },
+  });
   // Ein Fahrzeug, das inzwischen außer Dienst ist, bleibt wählbar, solange es hier steht.
   const wahl = einheit?.fahrzeugId && !fahrzeuge.some((f) => f.id === einheit.fahrzeugId)
     ? [...fahrzeuge, { id: einheit.fahrzeugId, name: einheit.name, kenner: einheit.kenner }] : fahrzeuge;
@@ -161,7 +184,7 @@ export function EinheitFormular({ planId, einheit, fahrzeuge, katalog, einteilun
     setLaeuft(true);
     const p = await senden(() => einheitSpeichernAction(planId, einheit?.id ?? null, eingabe), setFehler, (t) => void message.warning(t));
     setLaeuft(false);
-    if (p) onPlanung(p);
+    if (p) { entwurf.verwerfen(); onPlanung(p); }
   }
 
   const qualiOptionen = katalog.map((q) => ({ value: q.kurz, label: q.name === q.kurz ? q.kurz : `${q.name} (${q.kurz})` }));
@@ -169,6 +192,7 @@ export function EinheitFormular({ planId, einheit, fahrzeuge, katalog, einteilun
 
   return (
     <div>
+      <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
       {einheit ? null : (
         <Feld titel="Art">
           <Radio.Group value={art} onChange={(e) => setArt(e.target.value as EinheitArt)} options={[{ value: "abschnitt", label: "Abschnitt" }, { value: "fahrzeug", label: "Fahrzeug" }]} />
@@ -224,6 +248,14 @@ export function TempFormular({ planId, helfer, katalog, onPlanung }: {
   const [qualis, setQualis] = useState<string[]>(helfer?.qualifikationen.map((q) => q.kurz) ?? []);
   const [fehler, setFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
+  // IDA-358: die Eingaben liegen auf dem Gerät, bis das Speichern bestätigt ist.
+  const entwurf = useEntwurf({
+    schluessel: helfer ? `schichtplan:helfer:${planId}:${helfer.id}:${fingerabdruck(helfer)}` : `schichtplan:helfer:${planId}:neu`,
+    stand: { vorname, nachname, telefon, organisation, qualis },
+    wiederherstellen: (w) => {
+      setVorname(w.vorname); setNachname(w.nachname); setTelefon(w.telefon); setOrganisation(w.organisation); setQualis(w.qualis);
+    },
+  });
   const zuQuali = (kurz: string): Quali => katalog.find((q) => q.kurz === kurz) ?? helfer?.qualifikationen.find((q) => q.kurz === kurz) ?? { kurz, name: kurz };
 
   async function speichern() {
@@ -233,11 +265,12 @@ export function TempFormular({ planId, helfer, katalog, onPlanung }: {
       setFehler, (t) => void message.warning(t),
     );
     setLaeuft(false);
-    if (p) onPlanung(p);
+    if (p) { entwurf.verwerfen(); onPlanung(p); }
   }
 
   return (
     <div>
+      <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
       <div className={s.zweiSpalten}>
         <Feld titel="Vorname" fehler={fehler.vorname}><Input value={vorname} onChange={(e) => setVorname(e.target.value)} maxLength={80} /></Feld>
         <Feld titel="Nachname" fehler={fehler.nachname}><Input value={nachname} onChange={(e) => setNachname(e.target.value)} maxLength={80} /></Feld>

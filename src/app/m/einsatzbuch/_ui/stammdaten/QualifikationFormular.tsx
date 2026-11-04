@@ -2,6 +2,9 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { Alert, Button, Input, InputNumber } from "antd";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { qualifikationSpeichernAction } from "../../_actions/stammdaten";
@@ -36,6 +39,12 @@ export function QualifikationFormular({
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
   const basis = useId();
+  // IDA-358: die Eingaben liegen je Qualifikation auf dem Gerät, bis das Speichern bestätigt ist.
+  const entwurf = useEntwurf({
+    schluessel: eintrag ? `einsatzbuch:qualifikation:${eintrag.id}:${fingerabdruck(eintrag)}` : "einsatzbuch:qualifikation:neu",
+    stand: { kurz, lang, rang },
+    wiederherstellen: (w) => { setKurz(w.kurz); setLang(w.lang); setRang(w.rang); },
+  });
 
   function absenden(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
@@ -50,6 +59,7 @@ export function QualifikationFormular({
     void qualifikationSpeichernAction(eintrag?.id ?? null, { kurz, lang, rang })
       .then((ergebnis) => {
         if (ergebnis.ok) {
+          entwurf.verwerfen();
           onGespeichert();
           return;
         }
@@ -64,6 +74,7 @@ export function QualifikationFormular({
 
   return (
     <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.md }}>
+      <EntwurfHinweis entwurf={entwurf} />
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
       <Feld id={`${basis}-kurz`} label="Kurzform" fehler={feldFehler.kurz}>

@@ -3,6 +3,8 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { Alert, Button, Input } from "antd";
 import { teilnehmerAnlegenAction } from "../../_actions/teilnehmer";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { Datumsfeld } from "./Datumsfeld";
@@ -31,6 +33,12 @@ export function TeilnehmerAnlegen() {
   const [beginn, setBeginn] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // IDA-358: Name und Beginn liegen auf dem Gerät, bis der Teilnehmer angelegt ist.
+  const entwurf = useEntwurf({
+    schluessel: "uav:teilnehmer:neu",
+    stand: { name, beginn },
+    wiederherstellen: (w) => { setName(w.name); setBeginn(w.beginn); },
+  });
 
   function anlegen(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
@@ -43,8 +51,7 @@ export function TeilnehmerAnlegen() {
         fd.set("name", gestutzterName);
         if (beginn) fd.set("beginn", beginn);
         await teilnehmerAnlegenAction(fd);
-        setName("");
-        setBeginn("");
+        entwurf.verwerfen();
       } catch {
         setFehler("Teilnehmer konnte nicht angelegt werden.");
       }
@@ -54,6 +61,7 @@ export function TeilnehmerAnlegen() {
   return (
     <>
       <form onSubmit={anlegen} className={s.formular} style={{ marginBlockEnd: SPACE.lg }}>
+        <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
         <div className={s.feld}>
           <label htmlFor="tn-name" style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
             Name

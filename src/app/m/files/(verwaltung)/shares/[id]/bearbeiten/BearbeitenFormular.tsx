@@ -1,9 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Alert, Button, Card, Checkbox, Input } from "antd";
 
 import { bearbeitenAction, type ShareFormZustand } from "../../../actions";
+import { fingerabdruck, loescheEntwurf } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
 import css from "./bearbeiten.module.css";
 
@@ -117,6 +120,24 @@ export function BearbeitenFormular(props: BearbeitenFormularProps) {
    */
   const ablaufGeaendert = tage.trim() !== ausDerZeile;
 
+  /*
+   * IDA-358: die Eingaben liegen auf dem Gerät, bis die Action sie annimmt — ohne Passwort.
+   * Nach dem Erfolg wird nur der Entwurf gelöscht, nicht `verwerfen` gerufen: das setzte die
+   * Felder auf den Stand vor dem Speichern zurück. Die Statuszeile weicht dann der Erfolgsmeldung.
+   */
+  // Der Serverstand beim Aufbau, gegen den getippt wird (`fingerabdruck`); nach dem Speichern bleibt
+  // der Schluessel stehen, bis die Seite neu aufgebaut wird.
+  const [basis] = useState(() => fingerabdruck([props.titel, props.beschreibung, props.maxDownloadsText, props.restTage]));
+  const schluessel = `files:share:${props.shareId}:${basis}`;
+  const entwurf = useEntwurf({
+    schluessel,
+    stand: { titel, beschreibung, limit, tage },
+    wiederherstellen: (w) => { setTitel(w.titel); setBeschreibung(w.beschreibung); setLimit(w.limit); setTage(w.tage); },
+  });
+  useEffect(() => {
+    if (zustand.ok) loescheEntwurf(schluessel);
+  }, [zustand, schluessel]);
+
   /**
    * NACH EINER ERFOLGREICHEN RUNDE FANGEN PASSWORT UND HAEKCHEN WIEDER BEI NULL
    * AN — die einzigen beiden Felder, deren Inhalt sich nicht aus den Props
@@ -186,6 +207,8 @@ export function BearbeitenFormular(props: BearbeitenFormularProps) {
             }
           />
         )}
+
+        {zustand.ok ? null : <EntwurfHinweis entwurf={entwurf} />}
 
         {zustand.ok && (
           <Alert

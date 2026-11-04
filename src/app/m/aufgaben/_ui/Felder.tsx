@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useContext, useRef, useState } from "react";
 import { DatePicker, Select, TimePicker } from "antd";
 import deDE from "antd/es/date-picker/locale/de_DE";
 import dayjs, { type Dayjs } from "dayjs";
@@ -8,6 +8,7 @@ import customParseFormat from "dayjs/plugin/customParseFormat";
 import "dayjs/locale/de";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
+import { WahlEntwurfKontext } from "./entwurf";
 
 /*
  * `customParseFormat` AUSDRUECKLICH, OBWOHL antd DENSELBEN PLUGIN SCHON LAEDT
@@ -136,7 +137,9 @@ interface FeldProps {
 /* ── DATUM ──────────────────────────────────────────────────────────────────────────────────── */
 
 export function DatumFeld({ stand, ...rest }: FeldProps): React.ReactElement {
-  return <DatumFeldInnen key={`${stand ?? ""}\0${rest.wert ?? ""}`} {...rest} />;
+  const entwurf = useContext(WahlEntwurfKontext); // IDA-358, `entwurf.ts`
+  const wert = entwurf?.start[rest.name] ?? rest.wert;
+  return <DatumFeldInnen key={`${stand ?? ""}\0${wert ?? ""}`} {...rest} wert={wert} />;
 }
 
 function DatumFeldInnen({
@@ -147,7 +150,12 @@ function DatumFeldInnen({
   beschriebenVon,
   imPortal = false,
 }: Omit<FeldProps, "stand">): React.ReactElement {
-  const [iso, setIso] = useState(wert);
+  const [iso, setzeIso] = useState(wert);
+  const entwurf = useContext(WahlEntwurfKontext);
+  const setIso = (neu: string): void => {
+    setzeIso(neu);
+    entwurf?.setze(name, neu);
+  };
 
   return (
     <>
@@ -174,7 +182,9 @@ function DatumFeldInnen({
 /* ── UHRZEIT ────────────────────────────────────────────────────────────────────────────────── */
 
 export function ZeitFeld({ stand, ...rest }: FeldProps): React.ReactElement {
-  return <ZeitFeldInnen key={`${stand ?? ""}\0${rest.wert ?? ""}`} {...rest} />;
+  const entwurf = useContext(WahlEntwurfKontext); // IDA-358, `entwurf.ts`
+  const wert = entwurf?.start[rest.name] ?? rest.wert;
+  return <ZeitFeldInnen key={`${stand ?? ""}\0${wert ?? ""}`} {...rest} wert={wert} />;
 }
 
 function ZeitFeldInnen({
@@ -185,7 +195,12 @@ function ZeitFeldInnen({
   beschriebenVon,
   imPortal = false,
 }: Omit<FeldProps, "stand">): React.ReactElement {
-  const [iso, setIso] = useState(wert);
+  const [iso, setzeIso] = useState(wert);
+  const entwurf = useContext(WahlEntwurfKontext);
+  const setIso = (neu: string): void => {
+    setzeIso(neu);
+    entwurf?.setze(name, neu);
+  };
 
   return (
     <>
@@ -253,7 +268,9 @@ interface WahlFeldProps extends FeldProps {
 }
 
 export function WahlFeld({ stand, ...rest }: WahlFeldProps): React.ReactElement {
-  return <WahlFeldInnen key={`${stand ?? ""}\0${rest.wert ?? ""}`} {...rest} />;
+  const entwurf = useContext(WahlEntwurfKontext); // IDA-358, `entwurf.ts`
+  const wert = entwurf?.start[rest.name] ?? rest.wert;
+  return <WahlFeldInnen key={`${stand ?? ""}\0${wert ?? ""}`} {...rest} wert={wert} />;
 }
 
 function WahlFeldInnen({
@@ -267,6 +284,7 @@ function WahlFeldInnen({
   beiWahl,
 }: Omit<WahlFeldProps, "stand">): React.ReactElement {
   const [gewaehlt, setGewaehlt] = useState(wert);
+  const entwurf = useContext(WahlEntwurfKontext);
   /*
    * DAS VERSTECKTE FELD WIRD ZUSAETZLICH VON HAND GESCHRIEBEN, UND ZWAR VOR `beiWahl`.
    * `setGewaehlt` wirkt erst beim naechsten Rendern; ein `requestSubmit()` im selben Handler saehe
@@ -279,6 +297,7 @@ function WahlFeldInnen({
     const feld = versteckt.current;
     if (feld) feld.value = neu;
     setGewaehlt(neu);
+    entwurf?.setze(name, neu);
     if (feld) beiWahl?.(neu, feld);
   };
 

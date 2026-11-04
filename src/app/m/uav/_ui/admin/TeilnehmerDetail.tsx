@@ -6,6 +6,9 @@ import { Alert, Button, Input, Popconfirm, Progress, Switch, Tag } from "antd";
 import { codeNeuAction, teilnehmerAendernAction, teilnehmerLoeschenAction } from "../../_actions/teilnehmer";
 import { datumZeit } from "../../_lib/datum";
 import type { ParticipantDetailDTO, ParticipantDTO, Teil } from "../../_lib/typen";
+import { fingerabdruck, loescheEntwurf } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { Datumsfeld } from "./Datumsfeld";
@@ -53,6 +56,19 @@ export function TeilnehmerDetail({
   const [fehler, setFehler] = useState<string | null>(null);
   const [kopiert, setKopiert] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  /*
+   * IDA-358: Änderungen liegen je Teilnehmer auf dem Gerät, bis das Speichern bestätigt ist. Danach
+   * nur den Entwurf löschen — `verwerfen` setzte die Felder auf den Stand vor dem Speichern.
+   */
+  // Der Serverstand beim Aufbau (`fingerabdruck`, ohne `lastSeen`, das die App laufend fortschreibt).
+  const [basis] = useState(() => fingerabdruck([detail.participant.name, detail.participant.beginn, detail.participant.aktiv]));
+  const schluessel = `uav:teilnehmer:${teilnehmer.id}:${basis}`;
+  const [gesichert, setGesichert] = useState(false);
+  const entwurf = useEntwurf({
+    schluessel,
+    stand: { name, beginn, aktiv },
+    wiederherstellen: (w) => { setName(w.name); setBeginn(w.beginn); setAktiv(w.aktiv); },
+  });
 
   function kopieren(text: string, markierung: string): void {
     navigator.clipboard?.writeText(text).then(
@@ -79,6 +95,8 @@ export function TeilnehmerDetail({
           aktiv,
         });
         setTeilnehmer(aktualisiert);
+        loescheEntwurf(schluessel);
+        setGesichert(true);
       } catch {
         setFehler("Speichern fehlgeschlagen.");
       }
@@ -150,6 +168,7 @@ export function TeilnehmerDetail({
       </div>
 
       <form onSubmit={speichern} className={s.formular}>
+        <div className={s.entwurf}>{gesichert ? null : <EntwurfHinweis entwurf={entwurf} />}</div>
         <div className={s.feld}>
           <label htmlFor="tn-detail-name" style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
             Name

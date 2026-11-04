@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { click, fill, mount, query, queryAll, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { click, fill, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 import { feldWertImDom, listenOptionen, oeffneListe, waehleDatum } from "./testFelder";
 import { FORM_START, type FormState } from "../_lib/formState";
+import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
 
 /*
@@ -37,6 +38,9 @@ function stelleZustandEin(zustand: FormState, laeuft = false): void {
 }
 
 beforeEach(() => {
+  // IDA-358: das Formular legt seine Eingaben auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   useActionStateMock.mockReset();
   stelleZustandEin(FORM_START);
 });
@@ -280,5 +284,39 @@ describe("AufgabeFormular — Bearbeiten (DRK-487)", () => {
     await mount(<AufgabeFormular darfFuerAndere bestand={{ ...BESTAND }} />);
     expect(queryAll("#af-fuerSichSelbst")).toHaveLength(0);
     expect(queryAll("input[name='fuerSichSelbst']")).toHaveLength(0);
+  });
+});
+
+describe("AufgabeFormular — Entwurf auf dem Geraet (IDA-358)", () => {
+  it("Text, Haken und Frist ueberstehen das Neuladen; ein angenommenes Absenden raeumt den Entwurf", async () => {
+    await mount(<AufgabeFormular darfFuerAndere />);
+    await fill("#af-titel", "Tupfer steril nachfuellen");
+    await fill("#af-beschreibung", "Rucksack 92-2");
+    await click("#af-nachweispflicht");
+    await waehleDatum("#af-faelligAm", "2026-11-05");
+    await unmount();
+
+    await mount(<AufgabeFormular darfFuerAndere />);
+    expect(query<HTMLInputElement>("#af-titel").value).toBe("Tupfer steril nachfuellen");
+    expect(query<HTMLTextAreaElement>("#af-beschreibung").value).toBe("Rucksack 92-2");
+    expect(query<HTMLInputElement>("#af-nachweispflicht").checked).toBe(true);
+    expect(feldWertImDom("faelligAm")).toBe("2026-11-05");
+    expect(query("[data-rolle='entwurf-hinweis']").textContent).toContain("Eingaben wiederhergestellt.");
+
+    await submitForm();
+    expect((absendenMock.mock.calls[0]![0] as FormData).get("faelligAm")).toBe("2026-11-05");
+    // Die Action meldet Erfolg: ein neuer `ok`-Zustand.
+    stelleZustandEin({ ok: true });
+    await rerender(<AufgabeFormular darfFuerAndere />);
+    expect(ladeEntwurf("aufgaben:einstellen:neu")).toBeNull();
+    expect(ladeEntwurf("aufgaben:einstellen:neu:wahl")).toBeNull();
+  });
+
+  it("ein Feldfehler laesst den Entwurf liegen", async () => {
+    await mount(<AufgabeFormular darfFuerAndere />);
+    await fill("#af-titel", "x");
+    stelleZustandEin({ ok: false, fieldErrors: { dauerMinuten: "fehlt" }, values: { titel: "x" } });
+    await rerender(<AufgabeFormular darfFuerAndere />);
+    expect(ladeEntwurf("aufgaben:einstellen:neu")).not.toBeNull();
   });
 });

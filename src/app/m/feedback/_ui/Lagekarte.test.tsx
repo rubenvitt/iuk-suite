@@ -643,9 +643,16 @@ describe("StartFormular — Fehler am Feld statt technischer Fehlerseite (§4.4)
     <StartFormular groupId={7} heute="2026-07-22" teilnehmerVorbelegung={20} stunden={48} />
   );
 
-  it("uebergibt startFeedbackAction an useActionState", () => {
+  // IDA-358: `useActionState` bekommt eine Hülle, die den Entwurf nach dem Erfolg verwirft;
+  // abgesendet wird weiterhin über `startFeedbackAction`, mit unveränderter Nutzlast.
+  it("sendet ueber startFeedbackAction (Huelle um useActionState)", async () => {
     zeichne(formular);
-    expect(useActionStateMock).toHaveBeenCalledWith(startFeedbackActionMock, { ok: true });
+    const [huelle, start] = useActionStateMock.mock.calls.at(-1)!;
+    expect(start).toEqual({ ok: true });
+    startFeedbackActionMock.mockResolvedValueOnce({ ok: true });
+    const daten = new FormData();
+    await expect(huelle({ ok: true }, daten)).resolves.toEqual({ ok: true });
+    expect(startFeedbackActionMock).toHaveBeenCalledWith({ ok: true }, daten);
   });
 
   it("zeigt den Feldfehler am Feld und behaelt die Eingaben", () => {

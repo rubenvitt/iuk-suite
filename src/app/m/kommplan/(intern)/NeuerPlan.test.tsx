@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import { act } from "react";
 import { click, existsPortal, fill, mount, query, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 
@@ -9,6 +10,8 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 import { NeuerPlan, NeuerPlanFormular } from "./NeuerPlan";
 
+// IDA-358: das Formular legt seine Eingaben auf dem Gerät ab.
+beforeEach(() => { localStorage.clear(); vergissFluechtig(); });
 afterEach(async () => { await unmount(); aktion.legePlanAnAction.mockReset(); router.push.mockReset(); });
 
 describe("Neuer Plan", () => {
@@ -80,5 +83,26 @@ describe("Neuer Plan", () => {
     await submitForm('form[aria-label="Neuer Plan"]');
     await act(async () => {});
     expect(aktion.legePlanAnAction).toHaveBeenCalledWith(expect.objectContaining({ vorlage: null, datum: null }));
+  });
+  it("IDA-358: Getipptes übersteht Neuladen und Wurf; erst das Anlegen räumt den Entwurf", async () => {
+    aktion.legePlanAnAction.mockRejectedValueOnce(new Error("502"));
+    const ansicht = () => mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} />);
+    await ansicht();
+    expect(ladeEntwurf("kommplan:neuer-plan:neu")).toBeNull();
+    await fill('input[name="titel"]', "Übung Süd");
+    await fill('input[name="anlass"]', "Probe");
+    await submitForm();
+    await act(async () => {});
+    await unmount();
+
+    await ansicht();
+    expect(query<HTMLInputElement>('input[name="titel"]').value).toBe("Übung Süd");
+    expect(query<HTMLInputElement>('input[name="anlass"]').value).toBe("Probe");
+    expect(query("[data-rolle='entwurf-hinweis']").textContent).toContain("Eingaben wiederhergestellt.");
+
+    aktion.legePlanAnAction.mockResolvedValue({ ok: true, id: "p-neu" });
+    await submitForm();
+    await act(async () => {});
+    expect(ladeEntwurf("kommplan:neuer-plan:neu")).toBeNull();
   });
 });

@@ -820,15 +820,44 @@ jobs:
       # still weg von dem Stand, den Git-Tag und Release nennen. Geprueft wird HIER, im
       # Moment der Veroeffentlichung, gegen die Registry — nicht als Momentaufnahme im
       # Job `version`, die bei zwei parallelen Laeufen schon wieder alt waere.
+      #
+      # `:latest` GEHT NIE RUECKWAERTS. Zwei main-Merges kurz nacheinander: endet der
+      # merge-Job des AELTEREN zuletzt, laege `:latest` wieder auf dem aelteren Stand, und
+      # dessen deploy rollte ihn als „nicht ueberholt" aus (gemessen am 2026-11-04: #502
+      # nach #500, Produktion lief danach ohne #500). Traegt `:latest` schon einen
+      # Nachfolger dieses Commits (Compare-API: `ahead`), bleibt es stehen.
       - name: Manifest-Liste erzeugen
         working-directory: /tmp/digests
         env:
           VERSIONSTAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}
+          LATESTTAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          GH_TOKEN: ${{ github.token }}
         run: |
           tags="$(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")"
           if docker buildx imagetools inspect "$VERSIONSTAG" >/dev/null 2>&1; then
             echo "$VERSIONSTAG existiert bereits und bleibt auf seinem Digest (wiederholter oder ueberholter Lauf)."
             tags="$(grep -vxF "$VERSIONSTAG" <<< "$tags" || true)"
+          fi
+          # Ein Prüfungsfehler bricht ab, statt `:latest` blind zu schreiben; nur ein
+          # nachweislich fehlendes Tag (erster Lauf) gilt als „nichts zu schützen".
+          if grep -qxF "$LATESTTAG" <<< "$tags"; then
+            if ! jetzt="$(docker buildx imagetools inspect "$LATESTTAG" \
+              --format '{{ index (index .Image "linux/amd64").Config.Labels "org.opencontainers.image.revision" }}' 2>/tmp/latest.err)"; then
+              if grep -qiE 'not found|manifest unknown' /tmp/latest.err; then
+                jetzt=""
+              else
+                cat /tmp/latest.err >&2
+                echo "::error::$LATESTTAG liess sich nicht pruefen — es wird nicht ueberschrieben."
+                exit 1
+              fi
+            fi
+            if printf '%s' "$jetzt" | grep -qE '^[0-9a-f]{40}$' && [ "$jetzt" != "$GITHUB_SHA" ]; then
+              stand="$(gh api "repos/$GITHUB_REPOSITORY/compare/$GITHUB_SHA...$jetzt" --jq .status)"
+              if [ "$stand" = "ahead" ]; then
+                echo "$LATESTTAG traegt schon den neueren Commit $jetzt und bleibt stehen (ueberholter Lauf)."
+                tags="$(grep -vxF "$LATESTTAG" <<< "$tags" || true)"
+              fi
+            fi
           fi
           docker buildx imagetools create \
             $(printf -- '-t %s ' $tags) \

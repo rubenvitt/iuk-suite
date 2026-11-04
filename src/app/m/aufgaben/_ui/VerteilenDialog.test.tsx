@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   click,
@@ -13,6 +14,7 @@ import {
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
+import { entwurfSchluessel, ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import s from "./aufgaben.module.css";
 
 /*
@@ -23,8 +25,9 @@ import s from "./aufgaben.module.css";
  */
 const { useActionStateMock, VERTEILEN_MARKER, UMVERTEILEN_MARKER } = vi.hoisted(() => ({
   useActionStateMock: vi.fn(),
-  VERTEILEN_MARKER: Symbol("verteilenAction"),
-  UMVERTEILEN_MARKER: Symbol("umverteilenAction"),
+  // IDA-358: aufrufbar, weil die Action-Huelle des Dialogs sie ruft (Entwurf verwerfen).
+  VERTEILEN_MARKER: vi.fn(),
+  UMVERTEILEN_MARKER: vi.fn(),
 }));
 
 vi.mock("react", async (echt) => {
@@ -40,6 +43,12 @@ vi.mock("../actions", () => ({
 }));
 
 import { UmverteilenKnopf, VerteilenKnopf } from "./VerteilenDialog";
+
+/** IDA-358: der Schluessel eines Bearbeiten-Entwurfs traegt den Fingerabdruck des Serverstands. */
+const entwurfZu = (anfang: string) => {
+  const k = entwurfSchluessel().find((x) => x.startsWith(anfang) && !x.endsWith(":wahl"));
+  return k ? ladeEntwurf(k) : null;
+};
 
 function aufgabe(over: Partial<AufgabeRow> & Pick<AufgabeRow, "id">): AufgabeRow {
   return {
@@ -93,6 +102,9 @@ function stelleZustandEin(zustand: FormState, laeuft = false): void {
 }
 
 beforeEach(() => {
+  // IDA-358: der Dialog legt seine Eingaben auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   useActionStateMock.mockReset();
   stelleZustandEin(FORM_START);
 });
@@ -307,5 +319,29 @@ describe("VerteilenModal — Zielliste, Auslastung, Schliessen", () => {
     expect(queryPortal(".ant-modal").textContent).toContain(
       "Zielperson nicht gefunden, nicht aktiv oder kein BuFDi.",
     );
+  });
+});
+
+describe("VerteilenModal — Entwurf auf dem Geraet (IDA-358)", () => {
+  it("blosses Oeffnen legt nichts ab; das gewaehlte Ziel uebersteht Schliessen und Neuladen; Erfolg raeumt", async () => {
+    const alina = person({ id: "alina", name: "Alina" });
+    const ansicht = () => mount(
+      <VerteilenKnopf aufgabe={aufgabe({ id: "a1", titel: "Nur eine", erstellerId: "malte" })} bufdis={[alina]} auslastung={[auslastung(alina)]} tage={TAGE} />,
+    );
+    await ansicht();
+    await click("[data-testid='verteilen-a1']");
+    expect(entwurfZu("aufgaben:verteilen:a1")).toBeNull();
+    await clickPortal("#vd-ziel-alina");
+    await unmount();
+
+    await ansicht();
+    await click("[data-testid='verteilen-a1']");
+    expect(queryPortal<HTMLInputElement>("#vd-ziel-alina").checked).toBe(true);
+
+    VERTEILEN_MARKER.mockResolvedValue({ ok: true });
+    const aktion = useActionStateMock.mock.calls.at(-1)![0] as (v: FormState, d: FormData) => Promise<FormState>;
+    await act(async () => { await aktion(FORM_START, new FormData()); });
+    expect(VERTEILEN_MARKER).toHaveBeenCalledTimes(1);
+    expect(entwurfZu("aufgaben:verteilen:a1")).toBeNull();
   });
 });

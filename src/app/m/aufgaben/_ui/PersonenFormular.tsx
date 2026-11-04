@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useContext, useEffect, useRef, useState } from "react";
 import { AutoComplete, Button, Input } from "antd";
 import { personAendernAction, personAnlegenAction, personenSucheAction } from "../actions";
 import type { PersonRow } from "../_db/schema";
@@ -8,6 +8,9 @@ import { ROLLE_TEXT, initialenAus } from "../_lib/anzeige";
 import { ROLLEN } from "../_db/schema";
 import { PERSONEN_SUCHE_MIN_ZEICHEN } from "../_lib/eingabe";
 import { DatumFeld, WahlFeld } from "./Felder";
+import { useFormularEntwurf, useVerwerfenBeiErfolg, WahlEntwurfKontext } from "./entwurf";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import type { DirectoryPerson, DirectoryStatus } from "@/core/directory";
@@ -123,9 +126,14 @@ export function PersonenFormular({
    */
   const [treffer, setTreffer] = useState<DirectoryPerson | null>(null);
   const [absendeZaehler, setAbsendeZaehler] = useState(0);
+  // IDA-358: die Eingaben liegen auf dem Geraet, bis die Action sie angenommen hat.
+  const formRef = useRef<HTMLFormElement>(null);
+  const entwurf = useFormularEntwurf(formRef, person ? `aufgaben:person:${person.id}:${fingerabdruck(person)}` : "aufgaben:person:neu");
+  useVerwerfenBeiErfolg(state, entwurf.verwerfen);
   const absenden = (daten: FormData) => {
     setTreffer(null);
     setAbsendeZaehler((n) => n + 1);
+    entwurf.abgesendet();
     formAction(daten);
   };
   const sucheAktiv = verzeichnisAktiv && !person;
@@ -162,10 +170,13 @@ export function PersonenFormular({
   const subFehler = feldFehler(state, "sub");
 
   return (
+    <WahlEntwurfKontext.Provider value={entwurf.wahl}>
     <form
+      ref={formRef}
       action={absenden}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480 }}
     >
+      <EntwurfHinweis entwurf={entwurf} />
       {person ? <input type="hidden" name="personId" value={person.id} /> : null}
 
       {!person ? (
@@ -190,8 +201,8 @@ export function PersonenFormular({
                *     leeren Stand des Absendens stehen, und die getippte Kennung waere weg — genau
                *     die Eingabe, die der Feldfehler zurueckbringen soll.
                */
-              key={`${absendeZaehler}:${feldWert(state, "sub", "")}`}
-              startWert={feldWert(state, "sub", "")}
+              key={`${absendeZaehler}:${entwurf.wahl.start.sub ?? feldWert(state, "sub", "")}`}
+              startWert={entwurf.wahl.start.sub ?? feldWert(state, "sub", "")}
               fehler={subFehler}
               sucheVerzoegerungMs={sucheVerzoegerungMs}
               onTreffer={setTreffer}
@@ -365,6 +376,7 @@ export function PersonenFormular({
         {person ? "Speichern" : "Person anlegen"}
       </Button>
     </form>
+    </WahlEntwurfKontext.Provider>
   );
 }
 
@@ -398,7 +410,12 @@ function Verzeichnisfeld({
   sucheVerzoegerungMs?: number;
   onTreffer: (person: DirectoryPerson) => void;
 }) {
-  const [wert, setWert] = useState(startWert);
+  const [wert, setzeWert] = useState(startWert);
+  const entwurf = useContext(WahlEntwurfKontext);
+  const setWert = (neu: string) => {
+    setzeWert(neu);
+    entwurf?.setze("sub", neu);
+  };
   const [vorschlaege, setVorschlaege] = useState<DirectoryPerson[]>([]);
   const [sucht, setSucht] = useState(false);
   const [status, setStatus] = useState<DirectoryStatus>("ok");

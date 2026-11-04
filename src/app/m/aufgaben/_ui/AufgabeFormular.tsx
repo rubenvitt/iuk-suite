@@ -1,15 +1,18 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button, Input } from "antd";
 import { aufgabeBearbeitenAction, aufgabeEinstellenAction } from "../actions";
 import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
 import { NACHWEIS_ARTEN, PRIORITAETEN, type AufgabeRow } from "../_db/schema";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { FELD_BREIT, Feld, Felder } from "@/core/seite/Seite";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { SPACE } from "@/core/theme/tokens";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
 import { PrioritaetChip } from "./Chip";
+import { useFormularEntwurf, useVerwerfenBeiErfolg, WahlEntwurfKontext } from "./entwurf";
 import { DatumFeld, WahlFeld, ZeitFeld } from "./Felder";
 import s from "./aufgaben.module.css";
 
@@ -98,8 +101,22 @@ export function AufgabeFormular({
    * zurueckgetragenen Eingabe (s. Kopfkommentar von `Felder.tsx`).
    */
   const [absendeZaehler, setAbsendeZaehler] = useState(0);
+  /*
+   * IDA-358: die Eingaben liegen auf dem Geraet, bis die Action sie angenommen hat. Beim
+   * Bearbeiten traegt der Schluessel den Serverstand der Aufgabe (`fingerabdruck`): ein Entwurf
+   * gegen einen aelteren Stand kommt nie wieder hoch und ueberschreibt keine neueren Werte.
+   */
+  const formRef = useRef<HTMLFormElement>(null);
+  const entwurf = useFormularEntwurf(
+    formRef,
+    bestand
+      ? `aufgaben:bearbeiten:${bestand.id}:${fingerabdruck(bestand)}`
+      : "aufgaben:einstellen:neu",
+  );
+  useVerwerfenBeiErfolg(state, entwurf.verwerfen);
   const absenden = (daten: FormData): void => {
     setAbsendeZaehler((n) => n + 1);
+    entwurf.abgesendet();
     formAction(daten);
   };
 
@@ -114,9 +131,11 @@ export function AufgabeFormular({
   const fuerSichSelbstVorbelegt = checkboxVorbelegt(state, "fuerSichSelbst", false);
 
   return (
-    <form action={absenden}>
+    <WahlEntwurfKontext.Provider value={entwurf.wahl}>
+    <form ref={formRef} action={absenden}>
       {/* Die Breite trägt die Seite (`formular`); Titel, Erklärung und Knöpfe über die ganze Zeile. */}
       <Felder style={{ rowGap: SPACE.md }}>
+        {entwurf.wiederhergestellt ? <Feld breit><EntwurfHinweis entwurf={entwurf} /></Feld> : null}
         {bestand ? <input type="hidden" name="aufgabeId" value={bestand.id} /> : null}
         <Feld breit>
           <label htmlFor="af-titel" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
@@ -348,5 +367,6 @@ export function AufgabeFormular({
         </div>
       </Felder>
     </form>
+    </WahlEntwurfKontext.Provider>
   );
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Alert, App, Button, Input, InputNumber, Switch } from "antd";
 import { Felder } from "@/core/seite/Seite";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -20,6 +23,20 @@ import { Feld } from "./stammdaten/StammdatenFormular";
  * wird mit „Höchstens 120 Minuten“ am Feld abgelehnt.
  */
 export function EinstellungenFormular({ start }: { start: Einstellungen }) {
+  /*
+   * IDA-358: nach dem Speichern baut sich das Formular mit dem gespeicherten Stand neu auf. Der
+   * gilt dann als „leer", und der Entwurf, der ihm gleicht, fällt weg; `verwerfen` setzte die
+   * Felder dagegen auf den Stand vor dem Speichern zurück.
+   */
+  const [gespeichert, setGespeichert] = useState(start);
+  const [runde, setRunde] = useState(0);
+  return (
+    <Formular key={runde} start={gespeichert}
+      onGespeichert={(neu) => { setGespeichert(neu); setRunde((n) => n + 1); }} />
+  );
+}
+
+function Formular({ start, onGespeichert }: { start: Einstellungen; onGespeichert: (neu: Einstellungen) => void }) {
   const { message } = App.useApp();
   const [frist, setFrist] = useState<number | null>(start.fristMinuten);
   const [besatzung, setBesatzung] = useState(start.besatzung);
@@ -27,6 +44,11 @@ export function EinstellungenFormular({ start }: { start: Einstellungen }) {
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
+  const entwurf = useEntwurf({
+    schluessel: `einsatzbuch:einstellungen:${fingerabdruck(start)}`,
+    stand: { frist, besatzung, bereitschaft },
+    wiederherstellen: (w) => { setFrist(w.frist); setBesatzung(w.besatzung); setBereitschaft(w.bereitschaft); },
+  });
 
   function absenden(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
@@ -38,10 +60,13 @@ export function EinstellungenFormular({ start }: { start: Einstellungen }) {
       return;
     }
     setLaeuft(true);
-    void einstellungenSpeichernAction({ fristMinuten: frist, besatzung, bereitschaft })
+    const eingabe = { fristMinuten: frist, besatzung, bereitschaft };
+    void einstellungenSpeichernAction(eingabe)
       .then((ergebnis) => {
         if (ergebnis.ok) {
           void message.success("Gespeichert.");
+          entwurf.verwerfen(); // der Entwurf zum alten Serverstand; der Neuaufbau hat einen neuen Schluessel
+          onGespeichert({ ...start, ...eingabe });
           return;
         }
         setFehler(ergebnis.fehler);
@@ -53,6 +78,7 @@ export function EinstellungenFormular({ start }: { start: Einstellungen }) {
 
   return (
     <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.lg }}>
+      <EntwurfHinweis entwurf={entwurf} />
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
       <Felder style={{ rowGap: SPACE.lg }}>

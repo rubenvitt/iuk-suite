@@ -1,8 +1,11 @@
 "use client";
 
-import { useActionState, useState, useTransition, type CSSProperties } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, Collapse, Input, InputNumber, Modal, Popconfirm } from "antd";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useFeldEntwurf } from "@/core/entwurf/useFeldEntwurf";
 import { SPACE } from "@/core/theme/tokens";
 import { deleteGroupAction, regenerateSecretAction, updateGroupAction } from "../actions";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
@@ -153,15 +156,25 @@ function GruppenFormular({
   closeAfterHours: number | null;
 }) {
   const [state, formAction, isPending] = useActionState(updateGroupAction, FORM_START);
+  // IDA-358: Name und Frist liegen auf dem Gerät, bis die Action sie angenommen hat (ein neuer `ok`).
+  const formRef = useRef<HTMLFormElement>(null);
+  const entwurf = useFeldEntwurf(formRef, `feedback:gruppe:${groupId}:${fingerabdruck({ name, closeAfterHours })}`);
+  const ersterStand = useRef(state);
+  const { verwerfen } = entwurf;
+  useEffect(() => {
+    if (state !== ersterStand.current && state.ok) verwerfen();
+  }, [state, verwerfen]);
   const nameFehler = feldFehler(state, "name");
   const fristFehler = feldFehler(state, "closeAfterHours");
 
   return (
     <form
+      ref={formRef}
       action={formAction}
       className="fb-form"
       style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}
     >
+      <EntwurfHinweis entwurf={entwurf} />
       <input type="hidden" name="id" value={groupId} />
       <label style={FELD}>
         <span style={T.kicker}>Gruppenname</span>

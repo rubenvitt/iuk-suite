@@ -1,12 +1,15 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button, Input } from "antd";
 import { routineAendernAction, routineAnlegenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import type { RoutineRow } from "../_db/schema";
 import { WOCHENTAG_BIT } from "../_lib/anzeige";
 import { ZeitFeld } from "./Felder";
+import { useFormularEntwurf, useVerwerfenBeiErfolg, WahlEntwurfKontext } from "./entwurf";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { SPACE } from "@/core/theme/tokens";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
 
@@ -80,8 +83,13 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
    * steht im Kopf von `_ui/Felder.tsx`.
    */
   const [absendeZaehler, setAbsendeZaehler] = useState(0);
+  // IDA-358: die Eingaben liegen auf dem Geraet, bis die Action sie angenommen hat.
+  const formRef = useRef<HTMLFormElement>(null);
+  const entwurf = useFormularEntwurf(formRef, routine ? `aufgaben:routine:${routine.id}:${fingerabdruck(routine)}` : "aufgaben:routine:neu");
+  useVerwerfenBeiErfolg(state, entwurf.verwerfen);
   const absenden = (daten: FormData): void => {
     setAbsendeZaehler((n) => n + 1);
+    entwurf.abgesendet();
     formAction(daten);
   };
 
@@ -93,10 +101,13 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
   const dauerFehler = feldFehler(state, "dauerMinuten");
 
   return (
+    <WahlEntwurfKontext.Provider value={entwurf.wahl}>
     <form
+      ref={formRef}
       action={absenden}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480 }}
     >
+      <EntwurfHinweis entwurf={entwurf} />
       {routine ? <input type="hidden" name="routineId" value={routine.id} /> : null}
 
       <div>
@@ -198,5 +209,6 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
         {routine ? "Speichern" : "Routine anlegen"}
       </Button>
     </form>
+    </WahlEntwurfKontext.Provider>
   );
 }

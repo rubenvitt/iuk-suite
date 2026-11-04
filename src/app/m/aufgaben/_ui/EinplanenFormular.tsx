@@ -1,11 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { Button, Input } from "antd";
 import { einplanenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import type { AufgabeRow } from "../_db/schema";
 import { DatumFeld, ZeitFeld } from "./Felder";
+import { useFormularEntwurf, useVerwerfenBeiErfolg, WahlEntwurfKontext } from "./entwurf";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { SPACE } from "@/core/theme/tokens";
 
 /*
@@ -63,6 +66,15 @@ export function EinplanenFormular({
 }) {
   const [state, formAction, isPending] = useActionState(einplanenAction, FORM_START);
 
+  // IDA-358: die Eingaben liegen auf dem Geraet, bis die Action sie angenommen hat.
+  const formRef = useRef<HTMLFormElement>(null);
+  const entwurf = useFormularEntwurf(formRef, `aufgaben:einplanen:${task.id}:${idPrefix}:${fingerabdruck(task)}`);
+  useVerwerfenBeiErfolg(state, entwurf.verwerfen);
+  const absenden = (daten: FormData): void => {
+    entwurf.abgesendet();
+    formAction(daten);
+  };
+
   const planDatumFehler = feldFehler(state, "planDatum");
   const planUhrzeitFehler = feldFehler(state, "planUhrzeit");
   const dauerFehler = feldFehler(state, "dauerMinuten");
@@ -72,10 +84,13 @@ export function EinplanenFormular({
   const idDauerMinuten = `${idPrefix}-dauerMinuten`;
 
   return (
+    <WahlEntwurfKontext.Provider value={entwurf.wahl}>
     <form
-      action={formAction}
+      ref={formRef}
+      action={absenden}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480 }}
     >
+      <EntwurfHinweis entwurf={entwurf} />
       <input type="hidden" name="aufgabeId" value={task.id} />
 
       <div>
@@ -145,5 +160,6 @@ export function EinplanenFormular({
         Einplanen
       </Button>
     </form>
+    </WahlEntwurfKontext.Provider>
   );
 }

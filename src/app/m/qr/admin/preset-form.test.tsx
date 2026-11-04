@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 
 /**
@@ -21,6 +21,14 @@ import { PresetForm } from "@/app/m/qr/admin/preset-form";
 import { QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
 import { exists, fill, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { Preset } from "@/app/m/qr/_lib/types";
+import { createPresetAction } from "@/app/m/qr/actions";
+import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
+
+// IDA-358: das Formular legt seine Eingaben auf dem Geraet ab.
+beforeEach(() => {
+  localStorage.clear();
+  vergissFluechtig();
+});
 
 afterEach(async () => {
   await unmount();
@@ -188,5 +196,28 @@ describe("PresetForm: Bearbeiten", () => {
   it("laesst die Art beim Anlegen frei waehlbar", async () => {
     await mount(<PresetForm />);
     expect(query<HTMLSelectElement>('select[name="kind"]').disabled).toBe(false);
+  });
+});
+
+describe("PresetForm — Entwurf auf dem Geraet (IDA-358)", () => {
+  it("Bezeichnung und Adresse ueberstehen das Neuladen; ein durchgelaufenes Anlegen leert Formular und Entwurf", async () => {
+    await mount(<PresetForm />);
+    expect(ladeEntwurf("qr:preset:neu")).toBeNull();
+    await fill('input[name="label"]', "Einsatzstelle");
+    await fill('input[name="value"]', "https://example.org/lage");
+    await unmount();
+
+    await mount(<PresetForm />);
+    expect(query<HTMLInputElement>('input[name="label"]').value).toBe("Einsatzstelle");
+    expect(query<HTMLInputElement>('input[name="value"]').value).toBe("https://example.org/lage");
+
+    vi.mocked(createPresetAction).mockResolvedValueOnce(undefined);
+    await act(async () => {
+      query<HTMLFormElement>('[data-testid="preset-form"]').requestSubmit();
+    });
+    await act(async () => {});
+    expect(createPresetAction).toHaveBeenCalledTimes(1);
+    expect(ladeEntwurf("qr:preset:neu")).toBeNull();
+    expect(query<HTMLInputElement>('input[name="label"]').value).toBe("");
   });
 });

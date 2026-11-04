@@ -2,6 +2,9 @@
 
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Button, Input, InputNumber, Radio, Select } from "antd";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { standortSetzenAction } from "../_actions/verwaltung";
@@ -53,6 +56,14 @@ export function StandortFormular({
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
   const basis = useId();
+  // IDA-358: die Eingaben liegen je Zugang auf dem Gerät, bis das Speichern bestätigt ist.
+  const entwurf = useEntwurf({
+    schluessel: `lagemonitor:standort:${zugangId}:${fingerabdruck(standort ?? null)}`,
+    stand: { art, name, breite, laenge, zeichen, fahrzeugId },
+    wiederherstellen: (w) => {
+      setArt(w.art); setName(w.name); setBreite(w.breite); setLaenge(w.laenge); setZeichen(w.zeichen); setFahrzeugId(w.fahrzeugId);
+    },
+  });
 
   const fahrzeuge = auswahl.fahrzeuge.filter((f) => f.zugangId === null || f.zugangId === zugangId);
 
@@ -66,7 +77,7 @@ export function StandortFormular({
       : { zugangId, art, name, breite, laenge, zeichen: zeichen ?? "" };
     void standortSetzenAction(eingabe)
       .then((r) => {
-        if (r.ok) return onFertig();
+        if (r.ok) { entwurf.verwerfen(); return onFertig(); }
         setFehler(r.fehler);
         setFeldFehler(r.feldFehler ?? {});
       })
@@ -91,6 +102,7 @@ export function StandortFormular({
 
   return (
     <form onSubmit={speichern} className={v.standortFormular} aria-label={`Standort von ${bezeichnung}`}>
+      <EntwurfHinweis entwurf={entwurf} />
       <Radio.Group
         aria-label="Woher der Standort kommt"
         value={art}

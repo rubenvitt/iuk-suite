@@ -1,7 +1,10 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button, Input, Modal } from "antd";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useFeldEntwurf } from "@/core/entwurf/useFeldEntwurf";
 import { SPACE } from "@/core/theme/tokens";
 import type { EveningStatus } from "../_lib/lifecycle";
 import { updateEveningAction } from "../actions";
@@ -106,10 +109,13 @@ function BearbeitenFormular({
   schliessen: () => void;
   lage: EveningStatus;
 }) {
+  // IDA-358: die Eingaben liegen je Abend auf dem Gerät, bis die Action sie angenommen hat.
+  const formRef = useRef<HTMLFormElement>(null);
+  const entwurf = useFeldEntwurf(formRef, `feedback:abend:${abend.eveningId}:${fingerabdruck(abend)}`);
   const [state, formAction, isPending] = useActionState(
     async (prev: FormState, daten: FormData) => {
       const ergebnis = await updateEveningAction(prev, daten);
-      if (ergebnis.ok) schliessen();
+      if (ergebnis.ok) { entwurf.verwerfen(); schliessen(); }
       return ergebnis;
     },
     FORM_START,
@@ -121,11 +127,13 @@ function BearbeitenFormular({
 
   return (
     <form
+      ref={formRef}
       data-testid="abend-bearbeiten"
       action={formAction}
       className="fb-form"
       style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
     >
+      <EntwurfHinweis entwurf={entwurf} />
       <input type="hidden" name="id" value={abend.eveningId} />
       <label style={FELD}>
         <span style={T.kicker}>Datum</span>

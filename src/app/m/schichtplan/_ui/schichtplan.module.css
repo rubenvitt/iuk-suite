@@ -126,3 +126,7 @@
 .befund:last-child { border-block-end: 0; }
 
 @media (max-width: 767px) { .rasterInnen { --sp-namen: 132px; } .einheitZelle { padding: 8px; } .nurBreit { display: none; } }
+
+/* IDA-358: Statuszeile des Entwurfs über einem Formular; ohne Meldung kein Abstand. */
+.entwurf { margin-block-end: 16px; }
+.entwurf:empty { display: none; }

@@ -2,6 +2,9 @@
 
 import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Alert, Button, Card, Input, InputNumber, Radio, Switch } from "antd";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -59,6 +62,15 @@ function zustandAus(k: KonfigurationDTO): Zustand {
     tomtomSchluessel: "",
     tomtomEntfernen: false,
   };
+}
+
+/** Was auf dem Gerät liegen darf: alles außer dem Suchlage-Link und dem TomTom-Schlüssel (IDA-358). */
+type Ablage = Omit<Zustand, "suchlageLink" | "tomtomSchluessel">;
+function ablageAus(z: Zustand): Ablage {
+  const kopie: Partial<Zustand> = { ...z };
+  delete kopie.suchlageLink;
+  delete kopie.tomtomSchluessel;
+  return kopie as Ablage;
 }
 
 const MODUL_TEXT: { feld: keyof Omit<Module, "suchlage">; titel: string }[] = [
@@ -138,6 +150,16 @@ export function AnzeigeVerwaltung({
     setZ((alt) => ({ ...alt, [feld]: wert }));
   };
   const geaendert = JSON.stringify(z) !== JSON.stringify(zustandAus(gespeichert));
+  /*
+   * IDA-358: ungespeicherte Änderungen liegen auf dem Gerät. „Leer" ist der Stand vom Server beim
+   * Aufbau: gleicht ein liegender Entwurf ihm (gespeichert, hier oder anderswo), fällt er weg.
+   */
+  const [serverStand] = useState(() => fingerabdruck(konfiguration));
+  const formEntwurf = useEntwurf<Ablage>({
+    schluessel: `lagemonitor:anzeige:${serverStand}`,
+    stand: ablageAus(z),
+    wiederherstellen: (w) => setZ({ ...zustandAus(gespeichert), ...w }),
+  });
   const bandMeldungen = useMemo<VorschauMeldung[]>(() => {
     const zaehler = (ziel: number | null) => (ziel !== null && jetzt !== null ? countdownText(ziel, jetzt) : null);
     const blinkt = (ziel: number | null, k: KategorieDTO | null) => jetzt !== null && istFaellig(ziel, k?.vorlaufMinuten ?? null, jetzt);
@@ -228,6 +250,7 @@ export function AnzeigeVerwaltung({
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg, alignContent: "start" }}>
           <Meldungen liste={meldungen} kategorien={kategorien} jetzt={jetzt} onEntwurf={setEntwurf} />
           <form onSubmit={absenden} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }} aria-label="Einstellungen des Lagemonitors">
+            <EntwurfHinweis entwurf={formEntwurf} />
             {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
             <Card title="Karte und Warnregion">

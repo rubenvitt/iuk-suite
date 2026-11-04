@@ -124,6 +124,24 @@ export function useEntwurf<S, N = unknown, R = unknown>(opt: EntwurfOptionen<S, 
     timer.current = null;
   };
 
+  /*
+   * Ein Versuch, den niemand angestoßen hat (Timer, `online`, Tab wieder vorn): auch in einem
+   * offenen Tab geht eine Sendung nach `SELBST_SENDEN_MS` nicht mehr von selbst raus — wie
+   * beim Aufbau. Die Eingaben bleiben, jemand sendet bewusst.
+   */
+  const selbst = useCallback(() => {
+    const s = sendung.current;
+    if (s && Date.now() - s.seit > SELBST_SENDEN_MS) {
+      halteAn();
+      sendung.current = null;
+      setZustand("ruhe");
+      setNaechsterVersuch(null);
+      ablegen(standText.current);
+      return;
+    }
+    versuchRef.current();
+  }, [ablegen]);
+
   const versuch = useCallback(async () => {
     const s = sendung.current;
     const senden = aktuell.current.senden;
@@ -150,7 +168,7 @@ export function useEntwurf<S, N = unknown, R = unknown>(opt: EntwurfOptionen<S, 
       const warte = wartezeit(s.versuche);
       setZustand("wartet");
       setNaechsterVersuch(Date.now() + warte);
-      timer.current = setTimeout(() => versuchRef.current(), warte);
+      timer.current = setTimeout(selbst, warte);
       return;
     }
     laeuft.current = false;
@@ -164,7 +182,7 @@ export function useEntwurf<S, N = unknown, R = unknown>(opt: EntwurfOptionen<S, 
     } else {
       ablegen(standText.current);
     }
-  }, [ablegen]);
+  }, [ablegen, selbst]);
 
   useLayoutEffect(() => {
     versuchRef.current = () => void versuch();
@@ -208,7 +226,7 @@ export function useEntwurf<S, N = unknown, R = unknown>(opt: EntwurfOptionen<S, 
   // Netz zurück oder Tab wieder vorn: den wartenden Versuch vorziehen.
   useEffect(() => {
     const vor = () => {
-      if (sendung.current && !laeuft.current && document.visibilityState !== "hidden") versuchRef.current();
+      if (sendung.current && !laeuft.current && document.visibilityState !== "hidden") selbst();
     };
     window.addEventListener("online", vor);
     document.addEventListener("visibilitychange", vor);
@@ -216,12 +234,12 @@ export function useEntwurf<S, N = unknown, R = unknown>(opt: EntwurfOptionen<S, 
       window.removeEventListener("online", vor);
       document.removeEventListener("visibilitychange", vor);
     };
-  }, []);
+  }, [selbst]);
 
   const sende = useCallback((nutzlast: N) => {
     const s = sendung.current;
     sendung.current = s
-      ? { ...s, nutzlast }
+      ? { ...s, nutzlast, seit: Date.now() } // bewusst gesendet: die Frist für das Selbst-Senden beginnt neu
       : { id: randomId(), nutzlast, seit: Date.now(), versuche: 0 };
     ablegen(standText.current);
     versuchRef.current();

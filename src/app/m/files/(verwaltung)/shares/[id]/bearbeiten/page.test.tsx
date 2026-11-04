@@ -62,8 +62,15 @@ vi.mock("react", async (importOriginal) => {
 import { click, fill, mount, query, exists, rerender, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { ShareFormZustand } from "../../../actions";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
+import { entwurfSchluessel, ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import ShareBearbeitenSeite from "./page";
 import { BearbeitenFormular, type BearbeitenFormularProps } from "./BearbeitenFormular";
+
+/** IDA-358: der Schluessel eines Bearbeiten-Entwurfs traegt den Fingerabdruck des Serverstands. */
+const entwurfZu = (anfang: string) => {
+  const k = entwurfSchluessel().find((x) => x.startsWith(anfang) && !x.endsWith(":wahl"));
+  return k ? ladeEntwurf(k) : null;
+};
 
 const DIR = "./.data/files-bearbeiten-test";
 
@@ -149,6 +156,9 @@ beforeEach(() => {
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;
 
   zustand = START;
+  // IDA-358: das Formular legt seine Eingaben auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   bearbeitenMock.mockReset();
   notFoundMock.mockClear();
   useActionStateMock.mockReset();
@@ -346,6 +356,33 @@ describe("das Formular ist bedienbar", () => {
     const f = daten();
     expect(f.get("title")).toBe("Übung Süd");
     expect(f.get("description")).toBe("Neuer Text");
+  });
+});
+
+describe("IDA-358 — die Eingaben liegen auf dem Geraet, bis die Action sie annimmt", () => {
+  it("Titel und Beschreibung ueberstehen das Neuladen, das Passwort nicht", async () => {
+    await mount(formular());
+    await fill('input[name="title"]', "Übung Süd");
+    await fill('textarea[name="description"]', "Tupfer steril fehlt");
+    await fill('input[name="password"]', "geheim");
+    expect(JSON.stringify(entwurfZu("files:share:sh1234abcd")?.stand)).not.toContain("geheim");
+    await unmount();
+
+    await mount(formular());
+    expect(query<HTMLInputElement>('input[name="title"]').value).toBe("Übung Süd");
+    expect(query<HTMLTextAreaElement>('textarea[name="description"]').value).toBe("Tupfer steril fehlt");
+    expect(query<HTMLInputElement>('input[name="password"]').value).toBe("");
+    expect(query("[data-rolle='entwurf-hinweis']").textContent).toContain("Eingaben wiederhergestellt.");
+  });
+
+  it("ein angenommenes Speichern loescht den Entwurf und laesst die Felder stehen", async () => {
+    await mount(formular());
+    await fill('input[name="title"]', "Übung Süd");
+    zustand = { ok: true };
+    await rerender(formular());
+    expect(entwurfZu("files:share:sh1234abcd")).toBeNull();
+    expect(query<HTMLInputElement>('input[name="title"]').value).toBe("Übung Süd");
+    expect(exists("[data-rolle='entwurf-hinweis']")).toBe(false);
   });
 });
 

@@ -235,6 +235,32 @@ $(printf '    %s\n' $neu_leer)
   echo "  neue compose.yaml löst sich gegen die Server-.env auf."
 done
 
+# ══ Schritt 1b — nur der Kopf von main wird ausgerollt ═══════════════════════════════════
+# Zwei Merges kurz nacheinander: die Deploy-Läufe stehen in derselben Gruppe an, aber in der
+# Reihenfolge, in der ihre Pipelines fertig wurden — nicht in der der Commits. Am 04.11.2026
+# rollte so der Lauf von #502 NACH dem von #500 aus, und Produktion lief ohne #500. Ist der
+# erwartete Commit ein echter VORFAHR des aktuellen main, rollt dessen Lauf aus; hier endet
+# dieser grün als ÜBERHOLT. Beweis wie unten per `merge-base --is-ancestor`; ohne Historie
+# (unbekannter Commit, kein Netz) läuft der Rollout wie bisher weiter.
+if git -C "$REPO_WURZEL" cat-file -e "$ERWARTET" 2>/dev/null; then
+  GIT_TERMINAL_PROMPT=0 timeout 30 git -C "$REPO_WURZEL" fetch --quiet origin main 2>/dev/null || true
+  main_kopf="$(git -C "$REPO_WURZEL" rev-parse --verify --quiet origin/main 2>/dev/null || true)"
+  if [ -n "$main_kopf" ] && [ "$main_kopf" != "$ERWARTET" ] \
+    && git -C "$REPO_WURZEL" merge-base --is-ancestor "$ERWARTET" "$main_kopf" 2>/dev/null; then
+    melde "ÜBERHOLT: main steht schon auf dem NEUEREN Commit $main_kopf."
+    echo "  Diesen Stand rollt der Lauf des neueren Merges aus — hier gibt es nichts zu tun."
+    echo "  Produktion ist unberührt."
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+      {
+        echo "### Rollout übersprungen — überholt"
+        echo
+        echo "main steht auf \`$main_kopf\`, einem Nachfolger von \`$ERWARTET\`."
+      } >>"$GITHUB_STEP_SUMMARY"
+    fi
+    exit 0
+  fi
+fi
+
 # ══ Schritt 2 — Image ziehen und die Revision prüfen, BEVOR etwas ausgetauscht wird ═══
 # `docker pull` auf das TAG, nicht `docker compose pull`: in der .env kann bereits ein
 # Digest gepinnt sein (vom letzten Lauf oder von einem Rollback) — `compose pull` zöge
