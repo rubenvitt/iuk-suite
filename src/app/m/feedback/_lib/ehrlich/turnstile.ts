@@ -31,6 +31,13 @@ export function turnstileSiteKey(env: EnvLike = process.env): string | null {
   return wert(env, TURNSTILE_SECRET_ENV) ? wert(env, TURNSTILE_SITE_KEY_ENV) : null;
 }
 
+/** Boot-Prüfung (`assertHostConfig`): Site-Key und Secret nur zusammen, sonst liefe der Einwurf still ohne Prüfung. */
+export function turnstileKonfigFehler(env: EnvLike = process.env): string[] {
+  const key = wert(env, TURNSTILE_SITE_KEY_ENV);
+  const secret = wert(env, TURNSTILE_SECRET_ENV);
+  return !key !== !secret ? [`${TURNSTILE_SITE_KEY_ENV} und ${TURNSTILE_SECRET_ENV} müssen zusammen gesetzt sein.`] : [];
+}
+
 /**
  * Prüft das Token bei Cloudflare. Ohne Konfiguration true; mit Konfiguration nur bei `success: true`, passender
  * Aktion und, wenn `TURNSTILE_HOSTNAMES` gesetzt ist, einem erlaubten `hostname`. Netzfehler,

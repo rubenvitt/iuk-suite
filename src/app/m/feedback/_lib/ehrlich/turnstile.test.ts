@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { pruefeTurnstile, turnstileSiteKey } from "./turnstile";
+import { pruefeTurnstile, turnstileKonfigFehler, turnstileSiteKey } from "./turnstile";
 
 const AN = { TURNSTILE_SITE_KEY: "site", TURNSTILE_SECRET: "geheim" };
 const OK = { success: true, action: "ehrlich_einwurf", hostname: "ehrlich-gesagt.example.org" };
@@ -39,5 +39,12 @@ describe("Turnstile (IDA-340)", () => {
     expect(await pruefeTurnstile("tok", AN, vi.fn(async () => antwort({ success: false })))).toBe(false);
     expect(await pruefeTurnstile("tok", AN, vi.fn(async () => antwort({ success: true }, false)))).toBe(false);
     expect(await pruefeTurnstile("tok", AN, vi.fn(async () => { throw new Error("weg"); }))).toBe(false);
+  });
+
+  it("meldet beim Boot, wenn nur einer der beiden Werte gesetzt ist", () => {
+    expect(turnstileKonfigFehler({})).toEqual([]);
+    expect(turnstileKonfigFehler(AN)).toEqual([]);
+    expect(turnstileKonfigFehler({ TURNSTILE_SITE_KEY: "site" })).toHaveLength(1);
+    expect(turnstileKonfigFehler({ TURNSTILE_SECRET: "geheim" })).toHaveLength(1);
   });
 });
