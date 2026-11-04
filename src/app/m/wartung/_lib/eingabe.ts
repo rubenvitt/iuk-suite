@@ -93,6 +93,8 @@ export const artEingabe = z.object({
   message: "Eine Materialkiste hat keine Betriebsstunden.", path: ["stundenPflicht"],
 }).refine((a) => !a.kiste || a.fristen.every((f) => f.stunden === null), {
   message: "Eine Materialkiste hat keine Betriebsstunden.", path: ["fristen"],
+}).refine((a) => !a.kiste || a.fristen.some((f) => f.wer === "intern"), {
+  message: "Eine Materialkiste braucht eine Frist, die selbst durchgezählt wird.", path: ["fristen"],
 }).refine((a) => a.kiste || !a.fristen.some((f) => f.wer === "intern") || a.checkliste.length > 0, {
   message: "Die Prüfung am Gerät braucht mindestens einen Punkt.", path: ["checkliste"],
 });

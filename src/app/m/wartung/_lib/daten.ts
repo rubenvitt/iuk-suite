@@ -106,7 +106,7 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
       zustand: zustandAus(eigene), staende, naechste: naechsteFrist(staende), offeneMaengel: eigene.length,
       // Nur Positionen, die noch auf der Liste stehen: ein Mangel zu einer entfernten Position bleibt offen,
       // lässt sich aber durch Durchzählen nicht mehr beheben.
-      fehlend: eigene.filter((m) => m.fehlt && m.inhaltId !== null).length,
+      fehlend: kiste ? eigene.filter((m) => m.fehlt && m.inhaltId !== null).length : 0,
     };
   });
 }

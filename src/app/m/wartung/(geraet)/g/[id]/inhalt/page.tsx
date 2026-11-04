@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { auditActor, auditDenied } from "@/core/audit/server";
 import { getDb } from "../../../../_db/client";
 import { ladeInhalt } from "../../../../_lib/daten";
+import { inhaltStand } from "../../../../_lib/schreiben";
 import { verwaltetGruppe } from "../../../../_lib/zugang";
 import { InhaltAmGeraet } from "../../../../_ui/telefon/InhaltAmGeraet";
 import { geraetOder404 } from "../laden";
@@ -16,5 +17,6 @@ export default async function InhaltSeite({ params }: { params: Promise<{ id: st
     auditDenied("wartung", auditActor(viewer));
     notFound();
   }
-  return <InhaltAmGeraet geraetId={g.id} geraetName={g.name} inhalt={ladeInhalt(getDb(), g.id)} />;
+  const inhalt = ladeInhalt(getDb(), g.id);
+  return <InhaltAmGeraet geraetId={g.id} geraetName={g.name} inhalt={inhalt} stand={inhaltStand(inhalt)} />;
 }

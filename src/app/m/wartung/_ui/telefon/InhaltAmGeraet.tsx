@@ -20,7 +20,7 @@ const neuerSchluessel = () => `neu-${++zaehler}`;
  * Die Inhaltsliste einer Materialkiste bearbeiten (IDA-335) — gebaut fürs Telefon in der Halle: Kiste auf,
  * zählen, Zeile für Zeile eintippen. Gespeichert wird die ganze Liste auf einmal.
  */
-export function InhaltAmGeraet({ geraetId, geraetName, inhalt }: { geraetId: string; geraetName: string; inhalt: InhaltDTO[] }) {
+export function InhaltAmGeraet({ geraetId, geraetName, inhalt, stand }: { geraetId: string; geraetName: string; inhalt: InhaltDTO[]; stand: string }) {
   const { message } = App.useApp();
   const router = useRouter();
   const [zeilen, setZeilen] = useState<Zeile[]>(() => inhalt.map((p) => ({ schluessel: p.id, id: p.id, text: p.text, soll: p.soll, bemerkung: p.bemerkung })));
@@ -47,7 +47,7 @@ export function InhaltAmGeraet({ geraetId, geraetName, inhalt }: { geraetId: str
     setFehler(null);
     starte(async () => {
       try {
-        const r = await inhaltSpeichernAction(geraetId, zeilen.map((z) => ({ id: z.id, text: z.text, soll: z.soll, bemerkung: z.bemerkung })));
+        const r = await inhaltSpeichernAction(geraetId, zeilen.map((z) => ({ id: z.id, text: z.text, soll: z.soll, bemerkung: z.bemerkung })), stand);
         if (r.ok) {
           message.success("Gespeichert.");
           router.push(`/g/${geraetId}`);

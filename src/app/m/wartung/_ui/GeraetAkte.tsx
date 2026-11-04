@@ -128,7 +128,7 @@ export function GeraetAkte({
                       </div>
                       {v.notiz && <div>{v.notiz}</div>}
                       {v.antworten && v.antworten.some((a) => !a.ok) && (
-                        <div className={s.neben}>{g.kiste ? "Fehlt" : "Mangel bei"}: {v.antworten.filter((a) => !a.ok).map((a) => a.text).join(", ")}</div>
+                        <div className={s.neben}>{g.kiste ? "Unvollständig (Soll)" : "Mangel bei"}: {v.antworten.filter((a) => !a.ok).map((a) => a.text).join(", ")}</div>
                       )}
                     </div>
                   </li>

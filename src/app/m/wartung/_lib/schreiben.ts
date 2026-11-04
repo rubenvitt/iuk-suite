@@ -5,7 +5,7 @@
  * Erwartbare Ablehnungen werfen `Abgelehnt` mit einem Satz für den Bildschirm; alles andere ist ein Fehler.
  */
 import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
 import { art, checkpunkt, eintrag, frist, geraet, gruppe, inhalt, mangel, unterlage, verwalter } from "../_db/schema";
 import {
@@ -122,15 +122,26 @@ export function geraetAktiv(db: WartungDb, id: string, aktiv: boolean, jetzt: nu
   db.update(geraet).set({ aktiv, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
 }
 
+/** Fingerabdruck einer Inhaltsliste, wie sie angezeigt wurde: wer speichert, schickt ihn mit (IDA-335). */
+export function inhaltStand(liste: readonly { id: string; text: string; soll: number; bemerkung: string }[]): string {
+  return createHash("sha256").update(JSON.stringify(liste.map((p) => [p.id, p.text, p.soll, p.bemerkung]))).digest("hex").slice(0, 32);
+}
+
 /**
  * Ersetzt die Inhaltsliste einer Materialkiste (IDA-335). Bekannte Positionen behalten ihre ID, neue bekommen
- * eine; was fehlt, geht weg. Der Verlauf hält den Text zum Zeitpunkt jeder Prüfung selbst fest.
+ * eine; was fehlt, geht weg. Der Verlauf hält den Text zum Zeitpunkt jeder Prüfung selbst fest. Mit `stand`
+ * wird nur gespeichert, wenn die Liste noch so ist wie beim Öffnen — sonst ginge die Änderung eines anderen verloren.
  */
-export function inhaltSpeichern(db: WartungDb, geraetId: string, liste: InhaltEingabe): void {
+export function inhaltSpeichern(db: WartungDb, geraetId: string, liste: InhaltEingabe, stand?: string): void {
   db.transaction((tx) => {
     const g = aktivesGeraet(tx, geraetId);
     if (!tx.select({ kiste: art.kiste }).from(art).where(eq(art.id, g.artId)).get()?.kiste) {
       throw new Abgelehnt("Nur eine Materialkiste hat eine Inhaltsliste.");
+    }
+    if (stand !== undefined) {
+      const jetzt = tx.select({ id: inhalt.id, text: inhalt.text, soll: inhalt.soll, bemerkung: inhalt.bemerkung }).from(inhalt)
+        .where(eq(inhalt.geraetId, geraetId)).orderBy(asc(inhalt.position)).all();
+      if (inhaltStand(jetzt) !== stand) throw new Abgelehnt("Die Inhaltsliste wurde inzwischen geändert. Bitte die Seite neu laden.");
     }
     const bestehend = new Map(tx.select({ id: inhalt.id, text: inhalt.text }).from(inhalt).where(eq(inhalt.geraetId, geraetId)).all().map((x) => [x.id, x.text]));
     const behalten = liste.map((p) => p.id).filter((x): x is string => x !== null && bestehend.has(x));

@@ -4,7 +4,7 @@ import { eintrag, inhalt, mangel } from "../_db/schema";
 import { ladeArten, ladeGeraet, ladeInhalt } from "./daten";
 import { artEingabe, inhaltEingabe } from "./eingabe";
 import { wartungFaelligkeiten } from "./faelligkeiten";
-import { Abgelehnt, geraetAnlegen, inhaltSpeichern, neueId, pruefungAbschliessen, ungepushteAusfaelle } from "./schreiben";
+import { Abgelehnt, geraetAnlegen, inhaltSpeichern, inhaltStand, neueId, pruefungAbschliessen, ungepushteAusfaelle } from "./schreiben";
 import { START } from "./startbestand";
 import { ladeAmGeraet } from "./telefon";
 import { testDb } from "./testDb";
@@ -196,5 +196,21 @@ describe("Materialkisten (IDA-335)", () => {
     const nurStunden = [{ ...art.fristen[0], monate: null, stunden: 500 }];
     expect(artEingabe.safeParse({ ...art, stundenPflicht: false, fristen: nurStunden }).success).toBe(false);
     expect(artEingabe.safeParse({ ...art, stundenPflicht: false, kiste: false, checkliste: [{ id: null, text: "Sicht", hinweis: "" }], fristen: nurStunden }).success).toBe(true);
+  });
+
+  it("eine Materialkiste braucht eine Frist, die selbst durchgezählt wird", () => {
+    const art = { name: "Kisten", einzahl: "Kiste", ikone: "package", kiste: true, checkliste: [], stundenPflicht: false,
+      fristen: [{ id: null, name: "Sichtprüfung", wer: "fachfirma" as const, monate: 12, stunden: null }] };
+    expect(artEingabe.safeParse(art).success).toBe(false);
+  });
+
+  it("eine inzwischen von jemand anderem geänderte Inhaltsliste wird nicht überschrieben", () => {
+    const { db, id, liste } = mitKiste();
+    const geoeffnet = inhaltStand(liste);
+    inhaltSpeichern(db, id, [...liste, { id: null, text: "Mehrfachsteckdose", soll: 1, bemerkung: "" }], geoeffnet);
+    expect(() => inhaltSpeichern(db, id, [liste[0]], geoeffnet)).toThrow(/inzwischen geändert/);
+    expect(ladeInhalt(db, id).map((p) => p.text)).toEqual(["HDMI-Kabel 2 m", "USB-C-Hub", "Mehrfachsteckdose"]);
+    inhaltSpeichern(db, id, [liste[0]], inhaltStand(ladeInhalt(db, id)));
+    expect(ladeInhalt(db, id)).toHaveLength(1);
   });
 });

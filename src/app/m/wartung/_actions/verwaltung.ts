@@ -113,15 +113,15 @@ export async function erledigtEintragenAction(geraetId: string, eingabe: unknown
 }
 
 /** Die Inhaltsliste einer Materialkiste (IDA-335) — Verwalter ihrer Gruppe, auch am Telefon in der Halle. */
-export async function inhaltSpeichernAction(geraetId: string, eingabe: unknown): Promise<Ergebnis> {
-  if (!idSchema.safeParse(geraetId).success) return { ok: false, fehler: UNGUELTIG };
+export async function inhaltSpeichernAction(geraetId: string, eingabe: unknown, stand: unknown): Promise<Ergebnis> {
+  if (!idSchema.safeParse(geraetId).success || typeof stand !== "string") return { ok: false, fehler: UNGUELTIG };
   const e = geprueft(inhaltEingabe, eingabe);
   if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
   return schreibe("verwalter", ({ rechte }) => {
     const g = gruppeDesGeraets(geraetId);
     if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
     if (!verwaltetGruppe(rechte, g)) throw new Abgelehnt(NICHT_DEINE);
-    inhaltSpeichern(getDb(), geraetId, e.wert);
+    inhaltSpeichern(getDb(), geraetId, e.wert, stand);
   });
 }
 
