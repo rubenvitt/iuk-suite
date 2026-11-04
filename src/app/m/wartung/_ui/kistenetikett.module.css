@@ -32,9 +32,10 @@
 .dicht .liste td { padding-block: .5mm; }
 .leer { color: #5b6570; }
 
-@page kistenetikett { size: 105mm 148mm; margin: 0; }
+/* Der Rand gehört an die Seite, nicht ans Etikett: Padding wiederholt sich auf einem Folgeblatt nicht. */
+@page kistenetikett { size: 105mm 148mm; margin: 6mm; }
 @media print {
   .bogen { display: block; }
-  .etikett { page: kistenetikett; width: 105mm; min-height: 148mm; border: none; border-radius: 0; break-after: page; }
+  .etikett { page: kistenetikett; width: auto; min-height: 0; padding: 0; border: none; border-radius: 0; break-after: page; }
   .etikett:last-child { break-after: auto; }
 }

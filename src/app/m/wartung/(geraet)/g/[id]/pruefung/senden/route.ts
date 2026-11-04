@@ -70,6 +70,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         fotos.set(punktId, mangelId);
       }
       const r = pruefungAbschliessen(db, id, p.data, fotos, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer) });
+      await entferneFotos(r.ungenutzteFotos);
       return antwort(200, { ok: true, maengel: r.maengel });
     } catch (e) {
       await entferneFotos(fotos.values());

@@ -232,6 +232,7 @@ export function schonGesendet(
  * Bei einer Materialkiste (IDA-335) sind die Punkte ihre Inhaltsliste: „fehlt“ braucht keinen Text, denn die
  * Position sagt schon, was fehlt; der Mangel trägt `fehlt` und die Position und erscheint so in „Was steht an“.
  * Je Position gibt es höchstens einen offenen Fehlt-Mangel, und eine wieder vollständig gezählte behebt ihn.
+ * Fotos, die so keinem neuen Mangel zugeordnet werden, nennt `ungenutzteFotos`; die Route räumt sie weg.
  */
 export function pruefungAbschliessen(
   db: WartungDb,
@@ -239,7 +240,7 @@ export function pruefungAbschliessen(
   p: PruefungEingabe,
   fotos: ReadonlyMap<string, string>,
   k: Kontext,
-): { maengel: number } {
+): { maengel: number; ungenutzteFotos: string[] } {
   return db.transaction((tx) => {
     const g = aktivesGeraet(tx, geraetId);
     const a = tx.select().from(art).where(eq(art.id, g.artId)).get()!;
@@ -274,6 +275,7 @@ export function pruefungAbschliessen(
       return { id, text, foto: fotos.has(pk.id), inhaltId: a.kiste ? pk.id : null };
     });
     if (mitMangel.length === 0 && p.ergebnis !== "ok") maengel.push({ id: neueId(), text: p.notiz, foto: false, inhaltId: null });
+    const nochOffen = mitMangel.filter((pk) => offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
     const wiederDa = punkte.filter((pk) => antwort.get(pk.id)!.ok && offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
 
     const pruefFrist = tx.select().from(frist).where(and(eq(frist.artId, g.artId), eq(frist.wer, "intern"))).get();
@@ -290,13 +292,18 @@ export function pruefungAbschliessen(
         fehlt: m.inhaltId !== null, inhaltId: m.inhaltId,
       }).run();
     }
+    // Fehlt eine Position weiter und ist die Kiste jetzt nicht einsatzbereit, gilt das auch für ihren alten Mangel.
+    if (p.ergebnis === "defekt") {
+      for (const m of nochOffen) tx.update(mangel).set({ einsatzbereit: false }).where(eq(mangel.id, m.id)).run();
+    }
     for (const m of wiederDa) {
       tx.update(mangel).set({ behobenAm: k.jetzt, behobenVon: k.wer }).where(eq(mangel.id, m.id)).run();
       tx.insert(eintrag).values({
         id: neueId(), geraetId, typ: "behoben", titel: "Wieder vollständig", am: k.heute, wer: k.wer, notiz: m.text, angelegtAm: k.jetzt,
       }).run();
     }
-    return { maengel: maengel.length };
+    const genutzt = new Set(maengel.map((m) => m.id));
+    return { maengel: maengel.length, ungenutzteFotos: [...fotos.values()].filter((id) => !genutzt.has(id)) };
   });
 }
 

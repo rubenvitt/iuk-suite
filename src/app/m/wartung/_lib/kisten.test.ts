@@ -125,6 +125,17 @@ describe("Materialkisten (IDA-335)", () => {
       .toEqual(["Wieder vollständig"]);
   });
 
+  it("fehlt eine Position weiter und ist die Kiste nicht einsatzbereit, gilt das für den alten Mangel; ein Foto dazu geht weg", () => {
+    const { db, id, liste } = mitKiste();
+    zaehle(db, id, liste, { 1: "" });
+    const foto = neueId();
+    const r = pruefungAbschliessen(db, id, {
+      sendung: neueId(), stunden: null, ergebnis: "defekt", notiz: "", antworten: zaehlung(liste, { 1: "" }),
+    }, new Map([[liste[1].id, foto]]), K);
+    expect(r).toEqual({ maengel: 0, ungenutzteFotos: [foto] });
+    expect(offen(db, id)).toMatchObject([{ inhaltId: liste[1].id, einsatzbereit: false }]);
+  });
+
   it("eine inzwischen geänderte Soll-Menge macht die Zählung ungültig", () => {
     const { db, id, liste } = mitKiste();
     const angezeigt = zaehlung(liste);
