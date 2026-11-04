@@ -309,7 +309,9 @@ export async function warteAufDarstellung(page: Page): Promise<void> {
 
 /**
  * WARTET, BIS DIE HUELLE IHRE SPALTEN AUFGETEILT HAT — der Inhalt beginnt dort,
- * wo die Seitenleiste endet (DRK-322, nach `fixtures.ts` gehoben mit DRK-361).
+ * wo das Menue endet (DRK-322, nach `fixtures.ts` gehoben mit DRK-361; seit
+ * IDA-347 Etappe 2 gegen das Raster von `MenueRahmen`, nicht mehr gegen antds
+ * `Sider`).
  *
  * ⚠️ DER ANLASS IST EINE GEMESSENE ROETE, KEINE VORSORGE. Gemessen am
  * 2026-09-15 auf dem Fahrzeugblatt bei 834px, dreimal in Folge gleich:
@@ -317,44 +319,119 @@ export async function warteAufDarstellung(page: Page): Promise<void> {
  *     sofort nach dem ersten sichtbaren Treffer   main 834px — Tabellenkasten 802/802
  *     nach der Hydration                          main 594px — Tabellenkasten 562/746
  *
- * Die Leiste steht in BEIDEN Zustaenden mit 240px da (`display: block`) — wer
- * nur nach ihr sieht, schliesst faelschlich, das Raster stehe. Der Inhalt lag
- * anfangs bloss UNTER ihr statt neben ihr, weil `ant-layout-has-sider` erst mit
- * der Hydration kam (Falle 12, zweiter Absatz, in `CLAUDE.md`).
- *
- * ⚠️ SEIT DRK-363 IST DIE PROBE SOFORT WAHR: `SuiteRahmen` setzt `hasSider`,
- * die Klasse steht im Server-HTML (`shell-spaltenaufteilung.spec.ts`). Sie
- * bleibt trotzdem vor jeder Messung stehen, die von der Breite der
- * Inhaltsspalte abhaengt — sie kostet nichts und faengt es, falls die Klasse je
- * wieder erst mit der Hydration kommt oder ein CSS-Modul unter `next dev`
- * nachgereicht wird.
+ * Damals lag der Inhalt anfangs UNTER der Seitenleiste statt neben ihr, weil
+ * `ant-layout-has-sider` erst mit der Hydration kam (Falle 12, zweiter Absatz,
+ * in `CLAUDE.md`). Seit dem Menue (`core/shell/MenueRahmen.tsx`) sind die
+ * Spalten ein eigenes CSS-Raster (`menue.module.css`, `.rahmen`) und stehen im
+ * Server-HTML; die Probe ist im fertigen Stand sofort wahr. Sie bleibt trotzdem
+ * vor jeder Messung stehen, die von der Breite der Inhaltsspalte abhaengt — sie
+ * kostet nichts und faengt es, falls ein CSS-Modul unter `next dev`
+ * nachgereicht wird oder das Raster je wieder vom Client abhaengt.
  *
  * ⚠️ DIE RICHTUNG DES FEHLERS IST MEIST DIE STILLE. Im Zwischenzustand hat der
- * Inhalt 240px MEHR Platz: „die Tabelle scrollt in sich" faellt dann laut, aber
- * „kein Ueberlauf", „Kachel mindestens 190px" oder „Spalten nebeneinander"
- * bestehen, obwohl die fertige Seite sie verletzen koennte.
+ * Inhalt die Breite des Menues MEHR Platz: „die Tabelle scrollt in sich"
+ * faellt dann laut, aber „kein Ueberlauf", „Kachel mindestens 190px" oder
+ * „Spalten nebeneinander" bestehen, obwohl die fertige Seite sie verletzen
+ * koennte.
  *
  * ⚠️ NICHT MIT EINEM GROESSEREN ZEITBUDGET ZU HEILEN, und `networkidle` ist
  * keine Zusage ueber das Raster: wer einmal per `evaluate` misst und danach nur
  * noch rechnet, hat genau einen Versuch. Diese Probe fragt die Invariante ab,
  * nicht eine Frist.
  *
- * Unterhalb von 768px steht die Leiste auf `display: none`
- * (`core/shell/shell.module.css`), ihr Kasten ist durchweg 0; ohne Navigation
- * gibt es gar keine. In beiden Faellen ist die Probe sofort wahr, ohne etwas
- * zu behaupten — und das ist richtig: ohne Leiste gibt es nichts zu warten.
+ * WAS GEPRUEFT WIRD: ab 768px und unter `MenueRahmen`
+ * (`[data-rahmen="menue"]`) muss das Menue eine Spalte mit Breite sein UND der
+ * Inhalt rechts davon beginnen. Unterhalb von 768px ist das Menue die Ort-Zeile
+ * UEBER dem Inhalt, unter `MinimalShell` gibt es keine Spalte — in beiden
+ * Faellen ist die Probe sofort wahr, ohne etwas zu behaupten.
  */
 export async function warteAufSpaltenaufteilung(page: Page): Promise<void> {
   await warteAufGestreamteInhalte(page); await expect.poll(() => page.evaluate(() => {
     const inhalt = document.querySelector(".ant-layout-content");
-    const leiste = document.querySelector(".ant-layout-sider");
     if (!inhalt) return false;
-    const links = inhalt.getBoundingClientRect().left;
-    const rechts = leiste ? leiste.getBoundingClientRect().right : 0;
-    return links >= rechts - 1;
+    const menue = document.querySelector('[data-rahmen="menue"]');
+    if (!menue || window.innerWidth < 768) return true;
+    const leiste = menue.getBoundingClientRect();
+    return leiste.width > 0 && leiste.width < window.innerWidth / 2
+      && inhalt.getBoundingClientRect().left >= leiste.right - 1;
   }), {
-    message: "Der Inhalt liegt noch unter der Seitenleiste statt neben ihr",
+    message: "Der Inhalt liegt noch unter dem Menue statt neben ihm",
   }).toBe(true);
+}
+
+/** Unterhalb von 768px steht das Menue hinter dem Ort-Knopf (`MenueRahmen`). */
+export function istTelefon(page: Page): boolean {
+  return (page.viewportSize()?.width ?? 1280) < 768;
+}
+
+/**
+ * DIE TESTID EINES MENUE-KNOTENS IN DER AUSPRAEGUNG, DIE ZU SEHEN IST.
+ *
+ * Seitenleiste (Desktop) und Blatt (Telefon) stehen beide im Baum; einmalige
+ * Knoten tragen im Blatt `-drawer` (`core/shell/Navigator.tsx`,
+ * `testIdZusatz`). `nav-link`, `app-eintrag` und `befehl` tragen keinen
+ * Zusatz — die greift man ueber den Bereich, den `oeffneMenue` liefert.
+ */
+export function menueTestId(page: Page, basis: string): string {
+  return istTelefon(page) ? `${basis}-drawer` : basis;
+}
+
+/**
+ * OEFFNET DAS MENUE VON `FullShell` UND GIBT SEINEN BEREICH ZURUECK — am
+ * Telefon das Blatt hinter dem Ort-Knopf (`suite-drawer`), am Desktop die
+ * Seitenleiste (`suite-header`), die ohnehin offen steht.
+ *
+ * Der Ort-Knopf ueber `klickeWennRuhig` (Falle 12): er steht oben in der
+ * Huelle und ist das Erste, was ein Test nach `load` anfasst.
+ */
+export async function oeffneMenue(page: Page): Promise<Locator> {
+  if (!istTelefon(page)) {
+    const leiste = page.getByTestId("suite-header");
+    await expect(leiste).toBeVisible();
+    return leiste;
+  }
+  const blatt = page.getByTestId("suite-drawer");
+  if (!(await blatt.isVisible())) {
+    await klickeWennRuhig(page.getByTestId("menue-knopf"));
+  }
+  await expect(blatt).toBeVisible();
+  return blatt;
+}
+
+/**
+ * OEFFNET DIE EBENE „ALLE APPS" UND GIBT SIE ZURUECK (`app-panel`, am Telefon
+ * `app-panel-drawer`).
+ *
+ * ⚠️ `toBeVisible` REICHT HIER NICHT: die verdeckte Ebene steht mit
+ * `opacity: 0` und verschoben in der Spur, Playwright nennt sie trotzdem
+ * sichtbar. Gewartet wird deshalb auf `aria-expanded` am App-Knopf und darauf,
+ * dass die Ebene an der linken Kante ihrer Spur angekommen ist (die Feder der
+ * Suite, `--iuk-feder-dauer`).
+ */
+export async function oeffneAlleApps(page: Page): Promise<Locator> {
+  const menue = await oeffneMenue(page);
+  const knopf = menue.getByTestId(menueTestId(page, "app-umschalter"));
+  if ((await knopf.getAttribute("aria-expanded")) !== "true") await knopf.click();
+  await expect(knopf).toHaveAttribute("aria-expanded", "true");
+  const panel = menue.getByTestId(menueTestId(page, "app-panel"));
+  await expect.poll(() => panel.evaluate((el) => {
+    const spur = el.parentElement!.getBoundingClientRect();
+    return Math.abs(el.getBoundingClientRect().left - spur.left) < 1
+      && getComputedStyle(el).opacity === "1";
+  }), { message: "Die Ebene „Alle Apps“ ist noch nicht hereingeschoben" }).toBe(true);
+  return panel;
+}
+
+/**
+ * OEFFNET DAS NUTZERMENUE (Avatar): am Desktop am Fuss der Seitenleiste, am
+ * Telefon am Fuss des Blatts. Die Eintraege (`abmelden`, `profil-link`,
+ * `feedback-link`, `modul-version`) haengen per Portal an `body` und sind
+ * danach ueber `page` greifbar.
+ */
+export async function oeffneNutzermenue(page: Page): Promise<void> {
+  const menue = await oeffneMenue(page);
+  await menue.getByTestId(menueTestId(page, "nutzermenue")).click();
+  await expect(page.getByTestId("abmelden")).toBeVisible();
 }
 
 /**

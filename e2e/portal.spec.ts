@@ -1,20 +1,21 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, E2E_PORT, warteAufGestreamteInhalte } from "./fixtures";
+import { devLogin, E2E_PORT, oeffneAlleApps, warteAufGestreamteInhalte } from "./fixtures";
 
-test("portal und Kopfumschalter blenden Apps ohne passende Pocket-ID-Gruppe aus", async ({
+test("portal und App-Umschalter blenden Apps ohne passende Pocket-ID-Gruppe aus", async ({
   page,
 }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "" });
   await expect(page.getByTestId("portal-grid")).toBeVisible();
-  await expect(page.getByText("BookStack")).toBeVisible();
+  await expect(page.getByRole("main").getByText("BookStack")).toBeVisible();
   // group-gated service hidden without admin group
   await expect(page.getByText("Vaultwarden")).toHaveCount(0);
 
   // Die alte Modulknopfreihe (`modulzeile`) ist entfallen — der Modul-Wechsel
-  // hängt jetzt am Umschalter der Kopfzeile, erst öffnen, dann prüfen
-  // (dieselbe Vertragsänderung wie in `keystone.spec.ts`).
-  await page.getByTestId("app-umschalter").click();
-  const panel = page.getByTestId("app-panel");
+  // hängt seit dem Menue (IDA-347, Etappe 2) an der Ebene „Alle Apps", erst
+  // öffnen, dann prüfen (dieselbe Vertragsänderung wie in `keystone.spec.ts`).
+  // Die Kacheln oben greifen über `main`: dieselben Namen stehen auch in der
+  // verdeckten App-Ebene des Menüs.
+  const panel = await oeffneAlleApps(page);
   await expect(panel.getByRole("link", { name: "QR-Codes" })).toBeVisible();
   await expect(panel.getByRole("link", { name: "Feedback" })).toHaveCount(0);
   await expect(panel.getByRole("link", { name: "Dateien" })).toHaveCount(0);
@@ -23,7 +24,7 @@ test("portal und Kopfumschalter blenden Apps ohne passende Pocket-ID-Gruppe aus"
 
 test("portal zeigt eine geschuetzte App bei passender Pocket-ID-Gruppe", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "admin" });
-  await expect(page.getByText("Vaultwarden")).toBeVisible();
+  await expect(page.getByRole("main").getByText("Vaultwarden")).toBeVisible();
 });
 
 test("admin can create a service", async ({ page }) => {
@@ -33,7 +34,7 @@ test("admin can create a service", async ({ page }) => {
   await page.getByLabel("url").fill("https://neu.iuk-ue.de");
   await page.getByRole("button", { name: /anlegen|create/i }).click();
   await page.goto(`http://portal.localtest.me:${E2E_PORT}/`);
-  await expect(page.getByText("Neuer Dienst")).toBeVisible();
+  await expect(page.getByRole("main").getByText("Neuer Dienst")).toBeVisible();
 });
 
 /*
@@ -68,7 +69,7 @@ test("admin legt einen Dienst nur fuer eine Gruppe an", async ({ page }) => {
 
   await page.context().clearCookies();
   await devLogin(page, { host: "portal.localtest.me", groups: "e2e-funk" });
-  await expect(page.getByText("Funk intern")).toBeVisible();
+  await expect(page.getByRole("main").getByText("Funk intern")).toBeVisible();
 });
 
 test("admin can delete a service", async ({ page }) => {

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
+import { devLogin, klickeWennRuhig, oeffneMenue, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
 import {
   LAGERBUCH_ADMIN_GRUPPE,
   LAGERBUCH_HOST,
@@ -164,8 +164,10 @@ test.describe("lagerbuch — Modulnavigation", () => {
      * 1280px (passt) und 900px (überläuft) auf der Breitenachse. Als
      * Seitenleiste ist die Zusage dieselbe — die Navigation bringt die Seite
      * nicht zum Scrollen —, nur der Container fängt seinen Überlauf jetzt
-     * senkrecht ab (`.sider` in `shell.module.css`: `block-size:
-     * calc(100vh - 64px)`, `overflow-y: auto`).
+     * senkrecht ab. Seit dem Menue (IDA-347, Etappe 2) ist der Scroller die
+     * Ebene der Seiten (`.ebene` in `menue.module.css`, `overflow-y: auto`,
+     * unmittelbarer Elternknoten von `modulleiste`) in einer fensterhohen
+     * Leiste (`.kopf`, `100dvh`).
      *
      * GEMESSEN, nicht angenommen (Fix-Runde 1, vor Aufgabe 9s sechzehntem
      * Eintrag „Lagerorte“): zwanzig Zeilen (damals fünfzehn 56px-Links plus
@@ -184,8 +186,8 @@ test.describe("lagerbuch — Modulnavigation", () => {
     await page.setViewportSize({ width: 900, height: 720 });
     await expect(leiste).toBeVisible(); await warteAufSpaltenaufteilung(page);
     const ueberlaeuft = await leiste.evaluate((element) => {
-      const aside = element.closest("aside")!;
-      return aside.scrollHeight > aside.clientHeight;
+      const ebene = element.parentElement!;
+      return ebene.scrollHeight > ebene.clientHeight;
     });
     expect(ueberlaeuft).toBe(true);
     const lastMasse = await page.evaluate(() => ({
@@ -207,14 +209,14 @@ test.describe("lagerbuch — Modulnavigation", () => {
     await page.goto(lagerbuchUrl("/verwaltung"));
     const nav = page.getByTestId("modulleiste");
     const ueberlaeuft = await nav.evaluate((element) => {
-      const aside = element.closest("aside")!;
-      return aside.scrollHeight > aside.clientHeight;
+      const ebene = element.parentElement!;
+      return ebene.scrollHeight > ebene.clientHeight;
     });
     expect(ueberlaeuft).toBe(true);
     const letzter = nav.getByRole("link", { name: "Import" });
     await letzter.focus();
     await expect(letzter).toBeFocused();
-    const scrollTop = await nav.evaluate((element) => element.closest("aside")!.scrollTop);
+    const scrollTop = await nav.evaluate((element) => element.parentElement!.scrollTop);
     expect(scrollTop).toBeGreaterThan(0);
   });
 
@@ -225,20 +227,17 @@ test.describe("lagerbuch — Modulnavigation", () => {
     /*
      * NICHT-VAKUÄRE GEGENPROBE (Fix-Runde 1). `toBeHidden()` ist in
      * Playwright auch dann wahr, wenn der Knoten gar nicht existiert. Im
-     * Code nachgesehen (`SuiteRahmen.tsx`, `shell.module.css`): der `Sider`
-     * wird unabhängig von der Fensterbreite gerendert (er steht immer da,
-     * wenn `nav.length > 0` ist — nicht erst ab einer bestimmten Größe) —
-     * nur `.sider` trägt `display: none` unterhalb von 768px. Die Leiste
+     * Code nachgesehen (`Navigator.tsx`, `menue.module.css`): die
+     * Seitenleiste wird unabhängig von der Fensterbreite gerendert —
+     * nur `.nurDesktop` trägt `display: none` unterhalb von 768px. Die Leiste
      * steht also im DOM und wird ausschließlich per CSS unsichtbar gemacht.
      * `toHaveCount(1)` davor beweist das, bevor `toBeHidden()` etwas über die
      * Sichtbarkeit sagt.
      */
     await expect(leiste).toHaveCount(1);
     await expect(leiste).toBeHidden();
-    await page.getByTestId("menue-knopf").click();
-    await expect(
-      page.getByTestId("suite-drawer").getByRole("link", { name: "Journal" }),
-    ).toBeVisible();
+    const blatt = await oeffneMenue(page);
+    await expect(blatt.getByRole("link", { name: "Journal" })).toBeVisible();
   });
 });
 

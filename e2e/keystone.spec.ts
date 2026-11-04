@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, E2E_PORT } from "./fixtures";
+import { devLogin, E2E_PORT, oeffneAlleApps } from "./fixtures";
 
 test("anonymous beta host renders minimal shell WITH suite header", async ({ page }) => {
   // BEWUSSTE AENDERUNG (Suite-Chrome): `minimal` hatte vorher keine Kopfzeile.
@@ -39,8 +39,6 @@ test("SSO: one login serves alpha + gamma; switcher reflects groups", async ({ p
   // Der App-Wechsel hängt seit dem Navigations-Umbau am Modultitel, nicht mehr
   // an einer Knopfreihe: erst öffnen, dann prüfen. Die Zusage dahinter ist
   // unverändert — die Session trägt `alpha-users`, also steht Alpha drin.
-  await page.getByTestId("app-umschalter").click();
-  await expect(
-    page.getByTestId("app-panel").getByRole("link", { name: /Alpha/ }),
-  ).toBeVisible();
+  const panel = await oeffneAlleApps(page);
+  await expect(panel.getByRole("link", { name: /Alpha/ })).toBeVisible();
 });

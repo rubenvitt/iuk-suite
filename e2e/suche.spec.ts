@@ -69,7 +69,7 @@ test("ein Zeichen ist zu kurz; die Leiste führt zur Suche", async ({ page }) =>
   await expect(page.getByRole("link", { name: "Suche", exact: true }).first()).toBeVisible();
 });
 
-test("Strg+K öffnet die Befehlspalette: springen und in die Suche weiterreichen (IDA-303)", async ({ page }) => {
+test("Strg+K springt nach „Springen zu“: springen und in die Suche weiterreichen (IDA-303)", async ({ page }) => {
   await devLogin(page, { host: PORTAL, groups: "", callbackPath: "/" });
   await page.goto(url(PORTAL, "/"));
   await page.waitForLoadState("networkidle");
@@ -83,8 +83,11 @@ test("Strg+K öffnet die Befehlspalette: springen und in die Suche weiterreichen
   await expect(page).toHaveURL(url(PORTAL, "/neuigkeiten"));
   await warteAufGestreamteInhalte(page);
 
-  await klickeWennRuhig(page.getByTestId("befehlspalette-knopf"));
+  // Seit dem Menue (IDA-347, Etappe 2) gibt es keinen eigenen Palettenknopf
+  // mehr: „Springen zu" steht dauerhaft oben in der Seitenleiste.
+  await klickeWennRuhig(feld);
   await expect(feld).toBeFocused();
+  await expect(feld).toHaveValue("");
   await feld.pressSequentially("UE-RK 831");
   await expect(page.getByTestId("befehl")).toHaveText(["In allen Modulen nach „UE-RK 831“ suchen"]);
   await page.keyboard.press("Enter");

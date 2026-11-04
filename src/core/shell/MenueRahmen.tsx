@@ -61,7 +61,7 @@ export async function MenueRahmen({
 
   return (
     <div className={druck ? `${m.rahmen} ${m.druckRahmen}` : m.rahmen}>
-      <header data-testid="suite-header" className={m.kopf}>
+      <header data-testid="suite-header" data-rahmen="menue" className={m.kopf}>
         {/* 44px auch im Menü (Falle 4: `FullShell` 44, „auch Telefon und Seitenleiste"). */}
         <Arbeitsdichte>
           <SuiteLeiste

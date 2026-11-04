@@ -1,23 +1,26 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, oeffneAlleApps, oeffneMenue } from "./fixtures";
 
 test("Umschalter öffnet, filtert und wechselt das Modul", async ({ page }) => {
   await devLogin(page, { host: "alpha.localtest.me", groups: "alpha-users", callbackPath: "/" });
 
-  // Geschlossen steht keine Modulliste in der Kopfzeile — das ist der ganze
-  // Zweck des Umbaus.
-  await expect(page.getByTestId("app-panel")).toHaveCount(0);
+  // Geschlossen steht keine Modulliste im Bild — das ist der ganze Zweck des
+  // Umbaus. Seit dem Menue (IDA-347, Etappe 2) steht „Alle Apps" als zweite
+  // Ebene schon im Baum, aber `inert` und verdeckt.
+  const menue = await oeffneMenue(page);
   await expect(page.getByTestId("modulzeile")).toHaveCount(0);
+  await expect(menue.getByTestId("app-umschalter")).toHaveAttribute("aria-expanded", "false");
+  await expect(menue.getByTestId("app-panel")).toHaveAttribute("inert", "");
 
-  await page.getByTestId("app-umschalter").click();
-  const panel = page.getByTestId("app-panel");
-  await expect(panel).toBeVisible();
+  // Gefiltert wird im Feld „Springen zu" (das alte `app-suche` im Panel ist
+  // entfallen): „gamma" trifft genau eine App, dazu die suiteweite Suche.
+  const feld = menue.getByTestId("befehlspalette-eingabe");
+  await feld.fill("gamma");
+  await expect(menue.getByTestId("befehl").filter({ hasNotText: "In allen Modulen" })).toHaveText([/^Gamma/]);
+  await feld.fill("");
 
-  await panel.getByTestId("app-suche").fill("gamma");
-  await expect(panel.getByTestId("app-eintrag")).toHaveCount(1);
-
-  // `link`, nicht `menuitem`: das Panel trägt bewusst keine ARIA-Menürollen —
-  // es enthält ein Suchfeld, und das Menümodell verträgt kein Textfeld.
+  // `link`, nicht `menuitem`: das Panel trägt bewusst keine ARIA-Menürollen.
+  const panel = await oeffneAlleApps(page);
   await panel.getByRole("link", { name: /Gamma/ }).click();
   await expect(page.getByTestId("gamma-content")).toBeVisible();
   // Der Modultitel folgt dem Modul — sonst wäre der Wechsel nur halb passiert.
@@ -26,28 +29,36 @@ test("Umschalter öffnet, filtert und wechselt das Modul", async ({ page }) => {
 
 test("das aktuelle Modul ist im Panel markiert, und zwar genau einmal", async ({ page }) => {
   await devLogin(page, { host: "gamma.localtest.me", groups: "", callbackPath: "/" });
-  await page.getByTestId("app-umschalter").click();
-  const panel = page.getByTestId("app-panel");
+  const panel = await oeffneAlleApps(page);
   await expect(panel.locator("[aria-current]")).toHaveCount(1);
   await expect(panel.locator("[aria-current]")).toContainText("Gamma");
 });
 
-test("mobil öffnen Titel und Menü-Knopf zwei verschiedene Dinge", async ({ page }) => {
+test("mobil führt der eine Ort-Knopf zu beiden Ebenen", async ({ page }) => {
+  /*
+   * Bis zum Menue (IDA-347, Etappe 2) stand hier „mobil öffnen Titel und
+   * Menü-Knopf zwei verschiedene Dinge" — App-Umschalter im Titel und Drawer
+   * mit der Seitenliste. Jetzt gibt es am Telefon EINEN Einstieg: der Ort-Knopf
+   * oeffnet das Blatt auf der ersten Ebene, der App-Knopf darin schiebt die
+   * Apps herein, und ein neues Oeffnen beginnt wieder auf der ersten Ebene
+   * (`destroyOnHidden`).
+   */
   await page.setViewportSize({ width: 390, height: 844 });
   await devLogin(page, { host: "gamma.localtest.me", groups: "", callbackPath: "/" });
 
-  await page.getByTestId("app-umschalter").click();
-  await expect(page.getByTestId("app-panel")).toBeVisible();
-  // Der Drawer bleibt zu — die zwei Öffner teilen sich keinen Zustand.
-  await expect(page.getByTestId("suite-drawer")).toBeHidden();
+  await expect(page.getByTestId("app-umschalter")).toBeHidden();
+  const blatt = await oeffneMenue(page);
+  await expect(blatt.getByTestId("app-umschalter-drawer")).toHaveAttribute("aria-expanded", "false");
+
+  const panel = await oeffneAlleApps(page);
+  expect(await panel.getByTestId("app-eintrag").count()).toBeGreaterThan(0);
 
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("app-panel")).toHaveCount(0);
+  await expect(page.getByTestId("suite-drawer")).toBeHidden();
+  await expect(page.getByTestId("menue-knopf")).toHaveAttribute("aria-expanded", "false");
 
-  await page.getByTestId("menue-knopf").click();
-  await expect(page.getByTestId("suite-drawer")).toBeVisible();
-  // Und im Drawer stehen KEINE Apps mehr.
-  await expect(page.getByTestId("suite-drawer").getByTestId("app-eintrag")).toHaveCount(0);
+  await oeffneMenue(page);
+  await expect(page.getByTestId("app-umschalter-drawer")).toHaveAttribute("aria-expanded", "false");
 });
 
 /*

@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, E2E_PORT, warteAufSpaltenaufteilung } from "./fixtures";
+import {
+  devLogin,
+  E2E_PORT,
+  oeffneAlleApps,
+  oeffneMenue,
+  oeffneNutzermenue,
+  warteAufSpaltenaufteilung,
+} from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
 
 /**
@@ -20,23 +27,18 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
  */
 test.use({ viewport: { width: 390, height: 844 } });
 
-test("mobil: der App-Wechsel hängt am Umschalter der Kopfzeile, nicht am Menü", async ({
-  page,
-}) => {
+test("mobil: der App-Wechsel steht im Blatt hinter dem Ort-Knopf", async ({ page }) => {
   /*
-   * Die alte Modulknopfreihe (`modulzeile`) ist ersatzlos entfallen, und mit
-   * ihr auch die Modulliste im Drawer — der App-Wechsel hängt seit dem
-   * Navigations-Umbau am Umschalter der Kopfzeile, UND ZWAR AUF JEDER GRÖSSE
-   * (SuiteHeader.tsx, `AppUmschalter` trägt kein `.nurDesktop`/`.nurMobil`).
-   * Anders als der Menü-Knopf (`.nurMobil`, mobil-only) ist der Umschalter
-   * hier also direkt erreichbar, ohne den Drawer erst zu öffnen.
+   * Seit dem Menue (IDA-347, Etappe 2) gibt es am Telefon EINEN Einstieg: den
+   * Ort-Knopf (`menue-knopf`). Er oeffnet das Blatt mit derselben ersten Ebene
+   * wie die Seitenleiste am Desktop; der App-Knopf darin schiebt „Alle Apps"
+   * herein. Einen zweiten Umschalter in einer Kopfzeile gibt es nicht mehr.
    */
   await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
   await expect(page.getByTestId("suite-header")).toBeVisible();
-  await page.getByTestId("app-umschalter").click();
-  await expect(
-    page.getByTestId("app-panel").getByRole("link", { name: /Alpha/ }),
-  ).toBeVisible();
+  await expect(page.getByTestId("app-umschalter")).toBeHidden();
+  const panel = await oeffneAlleApps(page);
+  await expect(panel.getByRole("link", { name: /Alpha/ })).toBeVisible();
 });
 
 test("mobil: das offene Panel fuellt die Bildschirmbreite und scrollt nicht seitwaerts", async ({
@@ -62,11 +64,12 @@ test("mobil: das offene Panel fuellt die Bildschirmbreite und scrollt nicht seit
    * Ueberlauf zu schmal sein).
    */
   await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
-  await page.getByTestId("app-umschalter").click();
-  await expect(page.getByTestId("app-panel")).toBeVisible();
+  // Seit dem Menue ist das Panel die zweite Ebene im Blatt (`app-panel-drawer`);
+  // die Zusage — vollbreit, nichts seitwaerts — gilt dort unveraendert.
+  await oeffneAlleApps(page);
 
   const mass = await page.evaluate(() => {
-    const panel = document.querySelector('[data-testid="app-panel"]') as HTMLElement;
+    const panel = document.querySelector('[data-testid="app-panel-drawer"]') as HTMLElement;
     return {
       breite: Math.round(panel.getBoundingClientRect().width),
       scrollWidth: panel.scrollWidth,
@@ -78,35 +81,40 @@ test("mobil: das offene Panel fuellt die Bildschirmbreite und scrollt nicht seit
   console.log(`Panel bei 390x844: ${JSON.stringify(mass)}`);
 
   // Vollbreit: nicht mehr die Breite des Ausloesers (die lag bei ~124px).
-  expect(mass.breite).toBe(mass.innerWidth);
+  expect(Math.abs(mass.breite - mass.innerWidth)).toBeLessThanOrEqual(1);
   // Und nichts, was sich seitwaerts schieben liesze — weder im Panel noch auf
   // der Seite dahinter.
   expect(mass.scrollWidth).toBeLessThanOrEqual(mass.clientWidth);
   expect(mass.dokument).toBeLessThanOrEqual(mass.innerWidth);
 });
 
-test("desktop: das Panel bleibt ab 768px ein Popover am Ausloeser", async ({ page }) => {
+test("desktop: „Alle Apps“ bleibt ab 768px in der Seitenleiste", async ({ page }) => {
   /*
-   * Die Gegenprobe zur Zusage darueber, und sie ist noetig: der Fix nimmt
-   * `.umschalter` sein `position: relative` und gibt es ab 768px zurueck. Faellt
-   * die Media-Query-Haelfte weg, klebt das Popover am linken BILDSCHIRMrand
-   * statt unter dem Modultitel — um die Kopfzeilen-Polsterung daneben. Keine
-   * andere Messung in dieser Datei saehe das.
+   * Die Gegenprobe zur Zusage darueber. Bis zum Menue (IDA-347, Etappe 2) war
+   * das Panel am Desktop ein Popover am Ausloeser in der Kopfzeile; jetzt ist
+   * es die zweite Ebene der Seitenleiste und ersetzt dort die Seitenliste. Es
+   * darf also weder ueber die Leiste hinausragen noch den Inhalt daneben
+   * ueberdecken — das saehe die 390px-Messung nicht, dort ist das Blatt ohnehin
+   * vollbreit.
    */
   await page.setViewportSize({ width: 1280, height: 720 });
   await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
-  await page.getByTestId("app-umschalter").click();
+  await oeffneAlleApps(page);
 
   const mass = await page.evaluate(() => {
     const panel = document.querySelector('[data-testid="app-panel"]')!.getBoundingClientRect();
-    const ausloeser = document
-      .querySelector('[data-testid="app-umschalter"]')!
-      .getBoundingClientRect();
-    return { panelX: Math.round(panel.x), ausloeserX: Math.round(ausloeser.x) };
+    const leiste = document.querySelector('[data-testid="suite-header"]')!.getBoundingClientRect();
+    return {
+      panelLinks: Math.round(panel.left),
+      panelRechts: Math.round(panel.right),
+      leisteLinks: Math.round(leiste.left),
+      leisteRechts: Math.round(leiste.right),
+    };
   });
-  console.log(`Popover bei 1280x720: ${JSON.stringify(mass)}`);
-  expect(mass.ausloeserX).toBeGreaterThan(0);
-  expect(Math.abs(mass.panelX - mass.ausloeserX)).toBeLessThanOrEqual(1);
+  console.log(`Alle Apps bei 1280x720: ${JSON.stringify(mass)}`);
+  expect(mass.leisteRechts).toBeLessThan(400);
+  expect(mass.panelLinks).toBeGreaterThanOrEqual(mass.leisteLinks);
+  expect(mass.panelRechts).toBeLessThanOrEqual(mass.leisteRechts);
 });
 
 test("mobil: der Drawer schlieszt sich nach der Wahl eines Navigationsziels", async ({ page }) => {
@@ -134,11 +142,9 @@ test("mobil: der Drawer schlieszt sich nach der Wahl eines Navigationsziels", as
     groups: "feedback-admin",
     callbackPath: "/",
   });
-  await page.getByTestId("menue-knopf").click();
-  await expect(page.getByTestId("suite-drawer")).toBeVisible();
+  const blatt = await oeffneMenue(page);
 
-  await page
-    .getByTestId("suite-drawer")
+  await blatt
     .getByTestId("nav-link")
     .filter({ hasText: "Vergleich" })
     .click();
@@ -150,17 +156,21 @@ test("mobil: der Drawer schlieszt sich nach der Wahl eines Navigationsziels", as
   // `trial` klickt nicht wirklich, sondern prueft nur, ob der Punkt getroffen
   // wuerde ("intercepts pointer events") — dieselbe Bauform wie beim
   // Stapelkontext-Test weiter unten.
-  await page.getByTestId("app-umschalter").click({ trial: true, timeout: 2000 });
+  await page.getByTestId("menue-knopf").click({ trial: true, timeout: 2000 });
 });
 
-test("mobil: die Kopfzeile bleibt einzeilig", async ({ page }) => {
+test("mobil: die Ort-Zeile bleibt einzeilig", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "alpha-users" });
   const kopf = page.getByTestId("suite-header");
-  const hoehe = await kopf.evaluate((el) => el.getBoundingClientRect().height);
-  console.log(`Kopfzeilenhoehe bei 390x844: ${hoehe}px`);
-  // 64px ist `Layout.headerHeight`. Bricht die Leiste um, wird sie hoeher —
-  // genau der Defekt, den der alte `overflow: hidden` kaschierte.
-  expect(hoehe).toBeLessThanOrEqual(72);
+  const mass = await kopf.evaluate((el) => ({
+    kopf: el.getBoundingClientRect().height,
+    knopf: document.querySelector('[data-testid="menue-knopf"]')!.getBoundingClientRect().height,
+  }));
+  console.log(`Ort-Zeile bei 390x844: ${JSON.stringify(mass)}`);
+  // Der Ort-Knopf ist ein Tap-Ziel (mindestens 44px, Falle 4) und die Zeile EINE
+  // Zeile: bricht sie um oder waechst ein zweiter Block hinein, wird sie hoeher.
+  expect(mass.knopf).toBeGreaterThanOrEqual(44);
+  expect(mass.kopf).toBeLessThanOrEqual(72);
 });
 
 test("mobil: die Modulnavigation steht nicht im Weg", async ({ page }) => {
@@ -185,34 +195,27 @@ test("mobil: die Modulnavigation steht nicht im Weg", async ({ page }) => {
   expect(gesamt).toBeLessThanOrEqual(72);
 });
 
-test("mobil: abmelden haengt am Nutzermenue, nicht mehr im Drawer", async ({ page }) => {
-  // Der Nutzerblock ist aus dem Drawer ans Avatar-Menue gewandert, damit es ihn
-  // auf BEIDEN Groeszen genau einmal gibt (siehe SuiteNav.tsx). Ein zweiter
-  // Knoten mit derselben testId waere hier eine Strict-Mode-Verletzung — genau
-  // das prueft die erste Zusicherung mit.
-  await devLogin(page, { host: "portal.localtest.me", groups: "" });
-  await page.getByTestId("menue-knopf").click();
-  await expect(page.getByTestId("suite-drawer")).toBeVisible();
-  await expect(page.getByTestId("suite-drawer").getByTestId("abmelden")).toHaveCount(0);
-
+test("mobil: abmelden haengt am Nutzermenue am Fuss des Blatts", async ({ page }) => {
   /*
-   * Erst schlieszen, DANN das Nutzermenue. Und zwar mit einer Zusicherung
-   * dazwischen, nicht bloss mit einem `press`: der Drawer hat eine Maske, und
-   * eine noch ausblendende Maske faengt Klicks weiterhin ab. Ohne das Warten
-   * haengt der Test daran, dass die Animation schneller fertig ist als der
-   * naechste Klick — gruen auf dem Entwicklerrechner, rot auf einem kalten
-   * CI-Runner.
+   * Seit dem Menue (IDA-347, Etappe 2) steht das Nutzermenue am Telefon am Fuss
+   * des Blatts (`nutzermenue-drawer`) — die Ort-Zeile traegt nur den Ort-Knopf.
+   * Das Menue selbst entsteht erst beim Oeffnen (kein `forceRender`), vorher
+   * gibt es `abmelden` nicht.
    *
-   * Nebenbei die Zusage, dass `aria-expanded` am Oeffner nach dem Schlieszen
+   * Zuerst die Zusage, dass `aria-expanded` am Ort-Knopf nach dem Schlieszen
    * wieder stimmt: `setOffen(false)` haengt an `Drawer.onClose`, und Escape
    * laeuft ueber genau diesen Weg. Faende es nicht statt, meldete der Knopf
-   * dauerhaft "offen".
+   * dauerhaft "offen". Mit einer Zusicherung dazwischen, nicht bloss mit einem
+   * `press`: eine noch ausblendende Maske faengt Klicks weiterhin ab.
    */
+  await devLogin(page, { host: "portal.localtest.me", groups: "" });
+  await oeffneMenue(page);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("suite-drawer")).toBeHidden();
   await expect(page.getByTestId("menue-knopf")).toHaveAttribute("aria-expanded", "false");
 
-  await page.getByTestId("nutzermenue").click();
+  await expect(page.getByTestId("abmelden")).toHaveCount(0);
+  await oeffneNutzermenue(page);
   await expect(page.getByTestId("abmelden")).toBeVisible();
 });
 
@@ -317,16 +320,21 @@ for (const breite of [768, 820, 900]) {
       expect(sichtbar).toBeGreaterThan(0);
 
       /*
-       * Und die Struktur selbst, nicht nur ihr Symptom. Die beiden Zusagen
-       * darueber waeren auch mit der Leiste als drittem Flex-Kind DER
-       * KOPFZEILE erfuellbar, sobald es zufaellig passt — dann faellt die
-       * Kopfzeile beim naechsten Modul mit einem Eintrag mehr wieder um. Die
-       * Modulnavigation gehoert UNTER die Kopfzeile, als eigene Seitenleiste
-       * (`SuiteRahmen`), nicht als Kind von `.kopf`.
+       * Und die Struktur selbst, nicht nur ihr Symptom. Seit dem Menue
+       * (IDA-347, Etappe 2) gibt es keine Kopfzeile mehr: die Seitenliste
+       * steht IN der Leiste links (`suite-header`), und der Inhalt beginnt
+       * rechts davon. In EINEM Lesevorgang gemessen (Begruendung am
+       * Scroll-Test unten).
        */
-      const kopf = (await page.getByTestId("suite-header").boundingBox())!;
-      const nav = (await page.getByTestId("modulleiste").boundingBox())!;
-      expect(nav.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
+      const mass = await page.evaluate(() => {
+        const kopf = document.querySelector('[data-testid="suite-header"]')!.getBoundingClientRect();
+        const nav = document.querySelector('[data-testid="modulleiste"]')!.getBoundingClientRect();
+        const inhalt = document.querySelector(".ant-layout-content")!.getBoundingClientRect();
+        return { kopfLinks: kopf.left, kopfRechts: kopf.right, navLinks: nav.left, navRechts: nav.right, inhalt: inhalt.left };
+      });
+      expect(mass.navLinks).toBeGreaterThanOrEqual(mass.kopfLinks);
+      expect(mass.navRechts).toBeLessThanOrEqual(mass.kopfRechts + 1);
+      expect(mass.inhalt).toBeGreaterThanOrEqual(mass.kopfRechts - 1);
     });
   });
 }
@@ -376,32 +384,33 @@ test.describe("Modulnavigation am laufenden Server", () => {
   // Desktop-Viewport (Standard), weil `.sider`/`modulleiste` dort sichtbar ist.
   test.use({ viewport: { width: 1280, height: 720 } });
 
-  test("steht als Seitenleiste UNTER der Kopfzeile, nicht neben dem Avatar", async ({ page }) => {
+  test("steht als Seitenleiste links in voller Hoehe, ohne Kopfzeile darueber", async ({ page }) => {
     /*
-     * Die letzte Zeile der Messtabelle aus dem Fundbericht: bei 1280px stand
-     * die Modulnavigation RECHTS NEBEN dem Avatar (x=981, y=-1) statt unter der
-     * Kopfzeile. Das war schon auf dem Desktop nicht der Entwurf (§4, Tabelle
-     * "zweite Zeile") — nur fiel es dort nicht auf, weil genug Platz da war.
-     * Seit 2026-08-13 ist die Modulnavigation keine Zeile mehr, sondern die
-     * Seitenleiste (`modulleiste`) — die Zusage bleibt dieselbe: sie beginnt
-     * links, unterhalb der Kopfzeile, nicht daneben.
-     *
-     * Ohne diese Zusage waere die Struktur ungeprueft: bei 1280px scrollt auch
-     * eine fehlerhafte Fassung nicht seitwaerts und der Titel ist breit genug.
-     * Ein Rueckbau in ein drittes Flex-Kind der Kopfzeile waere gruen
-     * durchgelaufen.
+     * Bis zum Menue (IDA-347, Etappe 2) stand hier „UNTER der Kopfzeile, nicht
+     * neben dem Avatar" — der Befund von damals (die Modulnavigation rechts
+     * neben dem Avatar bei x=981, y=-1) betraf eine Kopfzeile, die es in
+     * `FullShell` nicht mehr gibt. Die Zusage an die neue Bauform: das Menue
+     * ist eine Spalte am linken Rand ueber die volle Fensterhoehe, die
+     * Seitenliste steht darin, und nichts liegt darueber.
      */
     await devLogin(page, {
       host: "feedback.localtest.me",
       groups: "feedback-admin",
       callbackPath: "/",
     });
-    const kopf = (await page.getByTestId("suite-header").boundingBox())!;
-    const nav = (await page.getByTestId("modulleiste").boundingBox())!;
-    console.log(`1280px: Kopf ${JSON.stringify(kopf)}, Modulleiste ${JSON.stringify(nav)}`);
-    // Beginnt links am selben Rand und liegt vollstaendig unterhalb.
-    expect(nav.x).toBeLessThan(kopf.x + 32);
-    expect(nav.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
+    await expect(page.getByTestId("modulleiste")).toBeVisible();
+    const mass = await page.evaluate(() => {
+      const kopf = document.querySelector('[data-testid="suite-header"]')!.getBoundingClientRect();
+      const nav = document.querySelector('[data-testid="modulleiste"]')!.getBoundingClientRect();
+      return { kopf: { x: kopf.x, y: kopf.y, w: kopf.width, h: kopf.height }, navX: nav.x, navRechts: nav.right, fenster: window.innerHeight };
+    });
+    console.log(`1280px: ${JSON.stringify(mass)}`);
+    expect(mass.kopf.x).toBe(0);
+    expect(mass.kopf.y).toBe(0);
+    expect(Math.round(mass.kopf.h)).toBe(mass.fenster);
+    expect(mass.kopf.w).toBeLessThan(400);
+    expect(mass.navX).toBeGreaterThanOrEqual(0);
+    expect(mass.navRechts).toBeLessThanOrEqual(mass.kopf.w + 1);
 
     // Und die beiden Zusagen der Mittelbreiten gelten hier ebenso.
     await warteAufSpaltenaufteilung(page); const quer = await page.evaluate(() => ({
@@ -409,10 +418,9 @@ test.describe("Modulnavigation am laufenden Server", () => {
       innerWidth: window.innerWidth,
     }));
     expect(quer.scrollWidth).toBeLessThanOrEqual(quer.innerWidth);
-    // `closest("a")` findet hier nichts mehr (angemeldeter Titel = `<strong>`
-    // in einem `<button>`, nicht in einem `<a>`) — der Fallback `?? el` misst
-    // dann den `<strong>` selbst, und der klippt seit dem App-Umschalter
-    // wieder korrekt ueber `.umschalterAusloeser strong`. Ausfuehrliche
+    // `closest("a")` findet hier nichts (angemeldeter Titel = `<strong>` im
+    // App-Knopf, einem `<button>`) — der Fallback `?? el` misst dann den
+    // `<strong>` selbst, der in `.appKnopfText strong` klippt. Ausfuehrliche
     // Begruendung am ersten Vorkommen dieser Messung oben in dieser Datei.
     const sichtbar = await page
       .getByTestId("module-title")
@@ -484,6 +492,10 @@ test.describe("Modulnavigation am laufenden Server", () => {
  * `.ant-layout-header`, `--font-display` nirgends deklariert). Nur ein echter
  * Browser wertet Kaskade UND Media Query aus — das leisten die Tests hier.
  *
+ * SEIT DEM MENUE (IDA-347, Etappe 2) TRAEGT NUR NOCH `MinimalShell` DEN
+ * STREIFEN (`SuiteRahmen`, `qr`); `FullShell` hat keine Kopfzeile und keinen
+ * Streifen mehr (Haarlinie). Beides wird unten belegt.
+ *
  * DER STREIFEN HAT KEIN `data-testid`. Er ist ein Geschwister VOR `<Header
  * data-testid="suite-header">` innerhalb von antds `<Layout>` (SuiteHeader.tsx,
  * SuiteRahmen.tsx) — `Layout` fuegt zwischen seinen Kindern kein zusaetzliches
@@ -501,50 +513,39 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
   test.describe("Desktop 1280x720", () => {
     test.use({ viewport: { width: 1280, height: 720 } });
 
-    test("der Markenstreifen ist gerendert, 5px hoch und traegt Markenrot", async ({ page }) => {
-      // KEIN Zustand aus dem Seed noetig — jede angemeldete Seite reicht.
-      await devLogin(page, { host: "portal.localtest.me", groups: "" });
+    test("der Markenstreifen steht nur noch ueber MinimalShell, 5px hoch in Markenrot", async ({
+      page,
+    }) => {
+      // `qr` (MinimalShell, `SuiteRahmen`) traegt ihn unveraendert, anonym erreichbar.
+      await page.goto(`http://qr.localtest.me:${E2E_PORT}/`);
       const streifen = streifenLocator(page);
       await expect(streifen).toBeVisible();
       await expect(streifen).toHaveCSS("height", "5px");
       await expect(streifen).toHaveCSS("background-color", "rgb(200, 0, 15)");
+
+      // `FullShell` (`MenueRahmen`): die Leiste ist das erste Kind des Rahmens,
+      // davor steht nichts — und nichts in Markenrot.
+      await devLogin(page, { host: "portal.localtest.me", groups: "" });
+      await expect(page.getByTestId("suite-header")).toBeVisible();
+      await expect(streifenLocator(page)).toHaveCount(0);
     });
 
-    test("der aktive Navigationseintrag traegt den 3px-Linksakzent in Markenrot, plus Gewicht 600", async ({
+    test("der aktive Navigationseintrag ist eine leise Flaeche mit Gewicht 600, ohne rote Kante", async ({
       page,
     }) => {
-      // `.navLink[aria-current]` lebt in der Seitenleiste (`modulleiste`). Die
-      // Apps haengen am Umschalter der Kopfzeile (`.umschalter`) und tragen
-      // eine eigene Klasse (`.appEintrag`) — der Selektor unten kann sie also
-      // nicht mitgreifen. feedback-admin auf der Modulwurzel markiert die
-      // Uebersicht mit `aria-current="page"` — derselbe Aufbau wie im
-      // bestehenden Test "markiert die Uebersicht auf der Modulwurzel" oben.
-      //
-      // DIESER BLOCK PRUEFTE FRUEHER "Schrift UND Unterkante", und beides war
-      // falsch geworden:
-      //
-      // Die Unterkante zuerst. `.navLink` setzt nur `border-inline-start`;
-      // `border-bottom-style` ist `none`, die Breite 0, und
-      // `border-bottom-color` faellt damit auf `currentcolor` zurueck — also
-      // auf genau die `color`, die eine Zeile darueber schon zugesichert war.
-      // Die Zusicherung konnte nicht fallen: wer den Linksakzent ersatzlos
-      // loescht, haette hier weiterhin Gruen bekommen. Damit war die sichtbare
-      // Aktivmarkierung der Seitenleiste im Browser nirgends belegt, nur als
-      // Regeltext in `shell-css.test.ts`.
-      //
-      // Die Schriftfarbe danach: sie ist mit der Kontrast-Korrektur des
-      // Schlussreviews entfallen (`#e45a66` auf der getoenten Flaeche ergab im
-      // Dunkeln 3.96:1). `.navLink[aria-current]` traegt keine eigene `color`
-      // mehr; eine Zusicherung darauf haette die Regression festgehalten.
-      //
-      // Zugesichert wird deshalb der Traeger, der wirklich da ist: Farbe UND
-      // Breite des linken Akzents. Beide einzeln, weil eine allein nicht
-      // reicht — ohne die Breite bliebe der Ausfall von `border-inline-start`
-      // unbemerkt, ohne die Farbe der Ausfall von `--iuk-marke`.
-      //
-      // `border-inline-start-*` meldet sich in `getComputedStyle` unter der
-      // physischen Eigenschaft — Schreibmodus der Suite ist horizontal-tb/ltr,
-      // "inline-start" ist dort "left".
+      /*
+       * Haarlinie (IDA-347, Etappe 2): `.eintrag[aria-current]` in
+       * `menue.module.css` traegt `--iuk-flaeche-aktiv` als Hintergrund, Tinte
+       * als Schrift und Gewicht 600 — keinen roten Linksakzent mehr (der 3px-
+       * Akzent der alten Seitenleiste ist entfallen). Zugesichert werden die
+       * drei Traeger einzeln, weil einer allein nicht reicht: ohne den
+       * Hintergrund bliebe der Ausfall von `--iuk-flaeche-aktiv` unbemerkt,
+       * ohne den Vergleich mit dem Nachbarn ein Wert, der zufaellig auf jedem
+       * Eintrag steht.
+       *
+       * feedback-admin auf der Modulwurzel markiert die Uebersicht mit
+       * `aria-current="page"`.
+       */
       await devLogin(page, {
         host: "feedback.localtest.me",
         groups: "feedback-admin",
@@ -552,9 +553,23 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
       });
       const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current]');
       await expect(aktiv).toHaveCount(1);
-      await expect(aktiv).toHaveCSS("border-left-color", "rgb(200, 0, 15)");
-      await expect(aktiv).toHaveCSS("border-left-width", "3px");
       await expect(aktiv).toHaveCSS("font-weight", "600");
+      await expect(aktiv).toHaveCSS("border-left-width", "0px");
+      const farben = await page.evaluate(() => {
+        const a = document.querySelector('[data-testid="modulleiste"] a[aria-current]')!;
+        const b = document.querySelector('[data-testid="modulleiste"] a:not([aria-current])')!;
+        return {
+          aktiv: getComputedStyle(a).backgroundColor,
+          andere: getComputedStyle(b).backgroundColor,
+          aktivSchrift: getComputedStyle(a).color,
+          andereSchrift: getComputedStyle(b).color,
+        };
+      });
+      console.log(`Aktivmarkierung: ${JSON.stringify(farben)}`);
+      expect(farben.aktiv).not.toBe("rgba(0, 0, 0, 0)");
+      expect(farben.aktiv).not.toBe(farben.andere);
+      expect(farben.aktivSchrift).not.toBe(farben.andereSchrift);
+      expect(farben.aktiv).not.toBe("rgb(200, 0, 15)");
     });
 
     test("die Display-Familie kommt im Modultitel an", async ({ page }) => {
@@ -568,19 +583,17 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
     });
   });
 
-  test("mobil bleibt die Kopfzeile 64px hoch — der Streifen davor dehnt sie nicht", async ({
-    page,
-  }) => {
+  test("mobil steht die Ort-Zeile ganz oben — kein Streifen davor", async ({ page }) => {
     // Viewport 390x844 kommt vom Datei-weiten `test.use` oben.
     //
-    // DER 390er LAUF IST NICHT DIE ZUGABE, sondern der Gegenpart zum
-    // Desktop-Streifentest: haenge der Streifen versehentlich INNERHALB des
-    // `<Header>` statt davor, waere `suite-header` 69px hoch statt 64 — und
-    // bei 1280px faellt das niemandem auf (dort ist reichlich Luft).
+    // DER 390er LAUF IST DER GEGENPART ZUM DESKTOP-STREIFENTEST: am Telefon ist
+    // `suite-header` die Ort-Zeile ueber dem Inhalt. Stuende davor noch ein
+    // Streifen, laege sie nicht bei y=0.
     await devLogin(page, { host: "portal.localtest.me", groups: "" });
-    const kopf = page.getByTestId("suite-header");
-    const box = await kopf.boundingBox();
-    expect(box?.height).toBe(64);
+    const box = (await page.getByTestId("suite-header").boundingBox())!;
+    expect(box.y).toBe(0);
+    expect(box.width).toBe(390);
+    await expect(streifenLocator(page)).toHaveCount(0);
   });
 
   test("im Dunkelmodus loest --iuk-marke zu #e45a66 auf, nicht zum hellen Wert", async ({
@@ -631,56 +644,46 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
 test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () => {
   test.use({ viewport: { width: 1280, height: 720 } });
 
-  test("die Kopfzeile vererbt dem Umschalter keine Zeilenhöhe mehr", async ({ page }) => {
+  test("das Menue erbt dem App-Knopf keine 64px-Zeilenhoehe", async ({ page }) => {
     /*
-     * DIE EINZIGE STELLE, DIE DAS BEWEISEN KANN. antd setzt auf
-     * `.ant-layout-header` ein `line-height: 64px` (layout/style/index.js:50)
-     * und spritzt die Regel zur Laufzeit über cssinjs ein — sie steht in
-     * keiner Datei dieses Repos. `shell-css.test.ts` hält fest, dass die
-     * Gegenmaßnahme DASTEHT; ob sie WIRKT, weiß nur der Browser.
-     *
-     * Gemessen wird der Auslöser und nicht das Panel, weil er auch
-     * geschlossen existiert — und weil er es war, der mit 76px in einer 64px
-     * hohen Kopfzeile stand.
+     * Falle 8: antd setzt auf `.ant-layout-header` ein `line-height: 64px` und
+     * vererbt es jedem Kind. `MenueRahmen` nimmt keinen antd-`Header` mehr,
+     * `.kopf` setzt trotzdem `line-height: normal` am gemeinsamen Vorfahren.
+     * Ob das wirkt, weiss nur der Browser — gemessen am App-Knopf, weil er
+     * zweizeilig ist (App und Bereich) und eine geerbte Zeilenhoehe ihn auf
+     * ueber 128px aufblaehte.
      */
     await devLogin(page, { host: "portal.localtest.me", groups: "" });
 
-    const ausloeser = page.getByTestId("app-umschalter");
-    await expect(ausloeser).toBeVisible();
-    expect(await ausloeser.evaluate((el) => getComputedStyle(el).lineHeight)).not.toBe("64px");
-    expect((await ausloeser.boundingBox())!.height).toBeLessThan(56);
+    const knopf = page.getByTestId("app-umschalter");
+    await expect(knopf).toBeVisible();
+    expect(await knopf.evaluate((el) => getComputedStyle(el).lineHeight)).not.toBe("64px");
+    const hoehe = (await knopf.boundingBox())!.height;
+    expect(hoehe).toBeGreaterThanOrEqual(44);
+    expect(hoehe).toBeLessThan(72);
   });
 
   test("ein Panel-Eintrag ist eine Zeile, keine Fläche", async ({ page }) => {
     await devLogin(page, { host: "portal.localtest.me", groups: "" });
-    await page.getByTestId("app-umschalter").click();
+    const panel = await oeffneAlleApps(page);
 
-    const eintrag = page.getByTestId("app-eintrag").first();
+    const eintrag = panel.getByTestId("app-eintrag").first();
     await expect(eintrag).toBeVisible();
     expect((await eintrag.boundingBox())!.height).toBeLessThan(56);
   });
 
-  test("das offene Panel liegt über der Seitenleiste", async ({ page }) => {
+  test("nur die gezeigte Ebene ist bedienbar", async ({ page }) => {
     /*
-     * DIE EINE MESSUNG ZUM STAPELKONTEXT, den dieser Umbau NEU einführt.
+     * Bis zum Menue (IDA-347, Etappe 2) stand hier „das offene Panel liegt
+     * ueber der Seitenleiste" — ein Stapelkontext zwischen Kopfzeile und Leiste,
+     * den es nicht mehr gibt. Die Frage dahinter bleibt: ist das, was man
+     * sieht, auch das, was man trifft? Beide Ebenen stehen nebeneinander in der
+     * Spur; die verdeckte ist `inert`. Nach dem Wechsel muss der erste
+     * App-Eintrag treffbar sein und ein Seiten-Eintrag NICHT mehr.
      *
-     * `.kopfBlock` bekommt `position: sticky` und `z-index: 100` und wird damit
-     * zum Stapelkontext. Darin liegen `.umschalterFang` (900) und
-     * `.umschalterPanel` (901) — ihre Zahlen gelten ab sofort nur noch
-     * INNERHALB dieses Kontexts, nicht mehr gegen die ganze Seite. Die
-     * Seitenleiste ist ebenfalls `position: sticky`, aber ohne `z-index`
-     * (`auto`) und außerhalb des Kontexts: sie malt über nicht-positionierten
-     * Inhalt und unter `.kopfBlock`.
-     *
-     * Das ist das gewünschte Ergebnis — und genau deshalb wird es gemessen.
-     * Das Panel klappt nach UNTEN auf und deckt dabei die obersten Zeilen der
-     * Leiste ab; kippte die Reihenfolge, wäre der erste Eintrag des Panels
-     * unklickbar, und keine der anderen fünf Messungen sähe das.
-     *
-     * `hit-testable` und nicht nur `visible`: ein verdeckter Knoten ist im
-     * Sinne von Playwright weiterhin sichtbar. `click` mit kurzem Timeout
-     * schlägt fehl, sobald ein anderer Knoten den Punkt abfängt („intercepts
-     * pointer events") — das ist die Aussage, die hier gebraucht wird.
+     * `trial` klickt nicht wirklich, sondern prueft nur, ob der Punkt getroffen
+     * wuerde. Fuer den verdeckten Eintrag zusaetzlich `inert` am Vorfahren:
+     * eine fehlschlagende Probe allein saehe gleich aus wie ein langsamer Test.
      */
     await devLogin(page, {
       host: LAGERBUCH_HOST,
@@ -688,11 +691,15 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () 
       callbackPath: "/verwaltung",
     });
     await expect(page.getByTestId("modulleiste")).toBeVisible();
+    await page.getByTestId("nav-link").first().click({ trial: true, timeout: 2000 });
 
-    await page.getByTestId("app-umschalter").click();
-    const ersterEintrag = page.getByTestId("app-eintrag").first();
+    const panel = await oeffneAlleApps(page);
+    const ersterEintrag = panel.getByTestId("app-eintrag").first();
     await expect(ersterEintrag).toBeVisible();
     await ersterEintrag.click({ trial: true, timeout: 2000 });
+    expect(
+      await page.getByTestId("nav-link").first().evaluate((el) => !!el.closest("[inert]")),
+    ).toBe(true);
   });
 
   test("die Leiste trägt die Navigation, es gibt keine zweite Zeile", async ({ page }) => {
@@ -706,11 +713,15 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () 
     await expect(page.getByTestId("modulnav")).toHaveCount(0);
   });
 
-  test("die Kopfzeile bleibt stehen und lässt kein Loch über der Leiste", async ({ page }) => {
+  test("die Leiste bleibt beim Scrollen in voller Hoehe stehen", async ({ page }) => {
     /*
-     * Der Defekt war NICHT sichtbar, solange man nicht scrollte: die Leiste
-     * klebte bei 64px unter einer Kopfzeile, die mitscrollte. Deshalb das
-     * `wheel` — ohne es sagen die richtige und die kaputte Fassung dasselbe.
+     * Bis zum Menue (IDA-347, Etappe 2) hiess dieser Test „die Kopfzeile bleibt
+     * stehen und laesst kein Loch ueber der Leiste": die Leiste klebte bei 64px
+     * unter einer Kopfzeile, die mitscrollte. Die Kopfzeile ist entfallen; die
+     * Zusage an die neue Bauform ist, dass die Leiste (`suite-header`,
+     * `.kopf`: `position: sticky`, `100dvh`) nach dem Scrollen weiter bei y=0
+     * beginnt und das Fenster ganz fuellt. Der Defekt waere auch hier ohne
+     * Scrollen unsichtbar — deshalb das `wheel`.
      */
     await devLogin(page, {
       host: LAGERBUCH_HOST,
@@ -718,55 +729,33 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () 
       callbackPath: "/verwaltung",
     });
     await expect(page.getByTestId("modulleiste")).toBeVisible();
-    /*
-     * ERST WENN DIE LEISTE WIRKLICH KLEBT, DANN SCROLLEN. `next dev` reicht
-     * antds cssinjs-Regeln nach; bis dahin steht die Seitenleiste UEBER dem
-     * Inhalt statt daneben und traegt `position: relative`. Eine Messung in
-     * diesem Zustand beschriebe eine andere Seite als die, ueber die dieser
-     * Test etwas sagt — und `toHaveCSS` faellt LAUT, falls die Regel gar nicht
-     * kommt, statt still den falschen Zustand zu vermessen. (Genau diese Regel
-     * ist der Befund dieses Umbaus: antds `.ant-layout-sider` traegt
-     * `position: relative`, gleiche Spezifitaet, spaeter im Dokument — deshalb
-     * `.sider.sider` in `shell.module.css`.)
-     */
-    await expect(page.locator(".ant-layout-sider")).toHaveCSS("position", "sticky");
+    // `toHaveCSS` faellt LAUT, falls die Regel gar nicht kommt (CSS-Modul unter
+    // `next dev` nachgereicht), statt still den falschen Zustand zu vermessen.
+    await expect(page.getByTestId("suite-header")).toHaveCSS("position", "sticky");
+    await page.mouse.move(900, 400);
     await page.mouse.wheel(0, 600);
     /*
      * AUF DAS SCROLLEN WARTEN, NICHT NUR ES AUSLOESEN — und das ist ein Befund,
      * kein vorsorgliches Warten. `mouse.wheel` schickt das Ereignis ab; das
      * Scrollen selbst passiert danach. Ohne dieses Warten stand `window.scrollY`
      * in DREI von drei Wiederholungen (`--repeat-each=3`) noch auf 0, und die
-     * Messung unten beschrieb die UNGESCROLLTE Seite. Dort steht die Leiste
-     * ohnehin an der Unterkante der Kopfzeile — die Zusicherung war also gruen,
-     * ohne je die Aussage zu pruefen, fuer die es sie gibt („die richtige und
-     * die kaputte Fassung sagen ohne Scrollen dasselbe", Absatz oben).
+     * Messung unten beschrieb die UNGESCROLLTE Seite.
      */
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 
     /*
-     * BEIDE KAESTEN IN EINEM LESEVORGANG. Zwei `boundingBox()`-Aufrufe sind
-     * zwei Playwright-Rundlaeufe und damit zwei Zeitpunkte; verglichen wuerden
-     * sie, als waeren sie derselbe Zustand. Auf einer Seite MIT Seitenleiste
-     * ist das nachweislich falsch — in `e2e/files-mobil.spec.ts` (`kaesten`)
-     * steht der gemessene Fall ausgeschrieben, dort verschob derselbe
-     * Zwischenzustand einen Knopf um 240px waagerecht und 180px senkrecht.
-     * Ein `evaluate` ist EIN Layout-Lesevorgang.
+     * EIN LESEVORGANG fuer alle Werte. Zwei `boundingBox()`-Aufrufe sind zwei
+     * Playwright-Rundlaeufe und damit zwei Zeitpunkte; in `e2e/files-mobil.spec.ts`
+     * (`kaesten`) steht der gemessene Fall ausgeschrieben.
      */
     const mass = await page.evaluate(() => {
       const kopf = document.querySelector('[data-testid="suite-header"]')!.getBoundingClientRect();
-      const leiste = document.querySelector('[data-testid="modulleiste"]')!.getBoundingClientRect();
-      return {
-        scrollY: window.scrollY,
-        kopfUnterkante: kopf.y + kopf.height,
-        leisteOberkante: leiste.y,
-      };
+      return { scrollY: window.scrollY, oben: kopf.top, hoehe: kopf.height, fenster: window.innerHeight };
     });
-    console.log(`Kopf/Leiste nach wheel(0,600): ${JSON.stringify(mass)}`);
-    // Ohne echtes Scrollen sagen die richtige und die kaputte Fassung dasselbe —
-    // die Messung muss also zuerst belegen, dass ueberhaupt gescrollt wurde.
+    console.log(`Leiste nach wheel(0,600): ${JSON.stringify(mass)}`);
     expect(mass.scrollY).toBeGreaterThan(0);
-    expect(mass.leisteOberkante).toBeGreaterThanOrEqual(mass.kopfUnterkante - 1);
-    expect(mass.leisteOberkante).toBeLessThan(mass.kopfUnterkante + 8);
+    expect(Math.abs(mass.oben)).toBeLessThanOrEqual(1);
+    expect(Math.abs(mass.hoehe - mass.fenster)).toBeLessThanOrEqual(1);
   });
 
   test("Arbeitsflächen sind dichter als Einsatzformulare", async ({ page }) => {
@@ -778,8 +767,8 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () 
      * KORREKTUR GEGENUEBER DEM BRIEF: `button.ant-btn` ohne Einschraenkung
      * traf nicht den beabsichtigten Arbeitsflaechen-Knopf, sondern den ERSTEN
      * `.ant-btn` im DOM ueberhaupt — das ist der mobile Menue-Knopf in der
-     * Kopfzeile (`SuiteNav.tsx`, `data-testid="menue-knopf"`, Klasse
-     * `.nurMobil`). Er steht bei 1280px auf `display:none` und ist trotzdem
+     * Kopfzeile (heute die Ort-Zeile, `Navigator.tsx`, `data-testid="menue-knopf"`,
+     * Klasse `.nurMobil`). Er steht bei 1280px auf `display:none` und ist trotzdem
      * IMMER im Markup (dasselbe Muster wie ueberall in dieser Suite: „beide
      * Auspraegungen stehen im DOM, CSS blendet eine aus"). `boundingBox()`
      * auf einem unsichtbaren Knoten liefert `null`, `.height` darauf ein
@@ -914,14 +903,17 @@ test.describe("Seitenleiste auf dem Tablet", () => {
   // 768×1024 = iPad hochkant: die kleinste Breite, an der die Leiste steht.
   test.use({ viewport: { width: 768, height: 1024 } });
 
-  test("gibt jeder Zeile und jedem Abschnittsschalter 44px (ARBEITSDICHTE)", async ({ page }) => {
+  test("gibt jeder Zeile und dem App-Knopf 44px (ARBEITSDICHTE)", async ({ page }) => {
     /*
      * DRK-420, Betreiberentscheidung 2026-09-24. Die Leiste lief auf 40px mit
      * der Begründung, sie werde mit Maus bedient — ab 768px steht sie aber auch
-     * auf dem Tablet unter dem Finger. `shell-css.test.ts` prüft den Regeltext;
-     * ob die 44 nach Polsterung, Rahmen und Kaskade im Browser ANKOMMEN, weiß
-     * nur der Browser. Das Lagerbuch, weil nur seine Leiste (21 Einträge,
-     * ab `NAV_LANG_AB_EINTRAEGEN`) auch Abschnittsschalter trägt.
+     * auf dem Tablet unter dem Finger. Ob die 44 nach Polsterung, Rahmen und
+     * Kaskade im Browser ANKOMMEN, weiß nur der Browser.
+     *
+     * Seit dem Menue (IDA-347, Etappe 2) sind die Abschnitte keine Schalter mehr,
+     * sondern Ueberschriften (`nav-abschnitt`, ein `div`): sie zaehlen nicht als
+     * Bedienelement und duerfen kein Knopf sein. Das Lagerbuch, weil nur seine
+     * Leiste (21 Einträge) Abschnitte trägt.
      */
     await devLogin(page, {
       host: LAGERBUCH_HOST,
@@ -930,18 +922,17 @@ test.describe("Seitenleiste auf dem Tablet", () => {
     });
     const leiste = page.getByTestId("modulleiste");
     await expect(leiste).toBeVisible();
-    const hoehen = async (selektor: string) =>
-      leiste.locator(selektor).evaluateAll((els) =>
-        els
-          .filter((el) => (el as HTMLElement).offsetParent !== null)
-          .map((el) => Math.round(el.getBoundingClientRect().height)),
-      );
-    const zeilen = await hoehen('[data-testid="nav-link"]');
-    const schalter = await hoehen('button[data-testid="nav-abschnitt"]');
-    console.log(`768px: Zeilen ${JSON.stringify(zeilen)}, Schalter ${JSON.stringify(schalter)}`);
+    const zeilen = await leiste.locator('[data-testid="nav-link"]').evaluateAll((els) =>
+      els
+        .filter((el) => (el as HTMLElement).offsetParent !== null)
+        .map((el) => Math.round(el.getBoundingClientRect().height)),
+    );
+    const knopf = (await page.getByTestId("app-umschalter").boundingBox())!.height;
+    console.log(`768px: Zeilen ${JSON.stringify(zeilen)}, App-Knopf ${knopf}`);
     expect(zeilen.length).toBeGreaterThan(0);
-    expect(schalter.length).toBeGreaterThan(0);
     expect(Math.min(...zeilen)).toBeGreaterThanOrEqual(44);
-    expect(Math.min(...schalter)).toBeGreaterThanOrEqual(44);
+    expect(knopf).toBeGreaterThanOrEqual(44);
+    expect(await leiste.getByTestId("nav-abschnitt").count()).toBeGreaterThan(0);
+    await expect(leiste.locator('button[data-testid="nav-abschnitt"]')).toHaveCount(0);
   });
 });
