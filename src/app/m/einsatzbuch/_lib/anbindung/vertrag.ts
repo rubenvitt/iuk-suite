@@ -58,6 +58,10 @@ export const einrichtenAntwort = z.object({
 }).strict();
 export type EinrichtenAntwort = z.infer<typeof einrichtenAntwort>;
 
+/** Suchlage zählt ihre Einsätze ganzzahlig; eine andere Kennung fände sie nie (404 schlösse die Meldung). */
+const umsystemVerweis = z.object({ system: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/), id: z.string().min(1).max(80) }).strict()
+  .refine((v) => v.system !== "suchlage" || /^[1-9]\d{0,15}$/.test(v.id), { message: "Suchlage-Einsätze haben eine Zahl als Kennung.", path: ["id"] });
+
 /**
  * `umsysteme` (IDA-359): die Einsätze der Umsysteme, die der Block nennt. Die Suite sperrt sie dort
  * und bietet sie keinem Rechner mehr an. Ohne Verknüpfung fehlt der Schlüssel; ein Rechner vor
@@ -66,7 +70,7 @@ export type EinrichtenAntwort = z.infer<typeof einrichtenAntwort>;
 export const ankerAnfrage = z.object({
   block: z.number().int().min(1).max(10_000),
   hash: hex(64),
-  umsysteme: z.array(z.object({ system: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/), id: z.string().min(1).max(80) }).strict()).min(1).max(10).optional(),
+  umsysteme: z.array(umsystemVerweis).min(1).max(10).optional(),
 }).strict();
 
 /**

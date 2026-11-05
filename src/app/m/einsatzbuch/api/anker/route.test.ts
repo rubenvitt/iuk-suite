@@ -181,7 +181,7 @@ describe("POST /api/anker mit umsysteme (IDA-359)", () => {
   it("leeres oder falsch geformtes umsysteme → 400", async () => {
     const { geraeteToken } = await einRechner();
     const { POST } = await import("./route");
-    for (const umsysteme of [[], [{ system: "Suchlage", id: "1" }], [{ system: "suchlage", id: "" }], [{ system: "suchlage", id: "1", name: "x" }]]) {
+    for (const umsysteme of [[], [{ system: "Suchlage", id: "1" }], [{ system: "suchlage", id: "" }], [{ system: "suchlage", id: "1", name: "x" }], [{ system: "suchlage", id: "abc" }], [{ system: "suchlage", id: "07" }]]) {
       const res = await POST(req({ bearer: geraeteToken, body: { block: 1, hash: "a".repeat(64), umsysteme } }));
       expect(res.status, JSON.stringify(umsysteme)).toBe(400);
     }
