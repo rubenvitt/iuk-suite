@@ -23,6 +23,15 @@ describe("planInhaltSchema", () => {
       [{ id: "v1", art: "tmo", bezeichnung: "R_UE_2" }],
     ))).toEqual([]);
   });
+  it("Verweis auf einen anderen Plan (IDA-355): fehlt er, bleibt er weg (kein Byte mehr beim Lesen); Kennung und Titel werden geprüft", () => {
+    const roh = plan([stelle("a", null)]);
+    const r = leseInhalt(roh);
+    expect(r.ok && "planVerweis" in r.inhalt.stellen[0]).toBe(false);
+    expect(r.ok && inhaltBytes(r.inhalt)).toBe(inhaltBytes(roh));
+    expect(fehler(plan([stelle("a", null, { planVerweis: { id: "p-2", titel: "Nord" } })]))).toEqual([]);
+    expect(fehler(plan([stelle("a", null, { planVerweis: { id: "../x", titel: "Nord" } })]))).not.toEqual([]);
+    expect(fehler(plan([stelle("a", null, { planVerweis: { id: "p", titel: "x".repeat(LAENGE.titel + 1) } })]))).not.toEqual([]);
+  });
   it("nimmt einen leeren Plan und mehrere Wurzeln an", () => {
     expect(fehler(plan([]))).toEqual([]);
     expect(fehler(plan([stelle("a", null), stelle("b", null)]))).toEqual([]);

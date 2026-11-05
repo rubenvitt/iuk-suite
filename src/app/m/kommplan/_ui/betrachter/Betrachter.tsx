@@ -10,6 +10,7 @@ import type { Symbolsatz } from "../zeichnung/Symbole";
 import { Flaeche } from "./Flaeche";
 import { Legende } from "./Legende";
 import { Umschalter } from "./EinklappKnopf";
+import { PlanVerweisLink } from "./PlanVerweisLink";
 import { useEingeklappt } from "./einklappen";
 
 /**
@@ -26,15 +27,20 @@ import { useEingeklappt } from "./einklappen";
  * ist Ansichtszustand. Die Symbole stehen in einem eigenen, unsichtbaren <svg>, damit Legende und
  * Zeichnung sie auch dann finden, wenn der Plan keine Stellen hat.
  */
-export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanInhalt; symbole: Symbolsatz; titel: string; schrift: string }) {
+export function Betrachter({ inhalt, symbole, titel, schrift, verweiseErreichbar = [] }: {
+  inhalt: PlanInhalt; symbole: Symbolsatz; titel: string; schrift: string;
+  /** Verweise auf andere Pläne, die dieser Betrachter öffnen darf (IDA-355; vom Server aufgelöst). Die Token-Ansicht gibt keine. */
+  verweiseErreichbar?: readonly string[];
+}) {
   const { eingeklappt, setEingeklappt, umschalten } = useEingeklappt();
   const daten = useMemo(() => layout(inhalt, "bildschirm", { eingeklappt }), [inhalt, eingeklappt]);
   const eintraege = useMemo(() => legende(inhalt, baueSicht(inhalt)), [inhalt]);
+  const erreichbar = useMemo(() => new Set(verweiseErreichbar), [verweiseErreichbar]);
   return (
     <div className="kp-betrachter-wurzel">
       <Flaeche daten={daten} symbole={symbole} titel={titel} schrift={schrift}
         bedienhinweis="Pfeiltasten verschieben, Plus und Minus zoomen, 0 passt ein"
-        zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
+        zusatz={(k) => <><Umschalter k={k} onUmschalten={umschalten} /><PlanVerweisLink k={k} erreichbar={erreichbar} /></>}
         leer={<p style={{ padding: 16 }}>Dieser Plan hat noch keine Stellen.</p>}
         werkzeuge={eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null} />
       <Legende eintraege={eintraege} />

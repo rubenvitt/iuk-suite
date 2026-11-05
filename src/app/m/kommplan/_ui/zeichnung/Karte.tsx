@@ -24,7 +24,7 @@ export function Karte({ k, zusatz, gleitend = false }: { k: KarteL; zusatz?: (k:
       {k.leiter ? <Text z={k.leiter} farbe={tinte} /> : null}
       {k.kontakte.length > 0 || k.verweis ? trenner(k.kopfHoehe) : null}
       {k.kontakte.length > 0 ? (
-        <line x1={KARTE.piktoSpalte} y1={k.kopfHoehe} x2={KARTE.piktoSpalte} y2={k.hoehe} stroke={tinte} strokeWidth={STRICH.karte} />
+        <line x1={KARTE.piktoSpalte} y1={k.kopfHoehe} x2={KARTE.piktoSpalte} y2={k.planVerweis?.y ?? k.hoehe} stroke={tinte} strokeWidth={STRICH.karte} />
       ) : null}
       {k.kontakte.map((z, i) => (
         <g key={i} data-kontakt={z.art}>
@@ -38,6 +38,7 @@ export function Karte({ k, zusatz, gleitend = false }: { k: KarteL; zusatz?: (k:
         </g>
       ))}
       {k.verweis ? <Text z={k.verweis} farbe={tinte} /> : null}
+      {k.planVerweis ? <g data-planverweis-zeile={k.planVerweis.planId}>{trenner(k.planVerweis.y)}<Text z={k.planVerweis.zeile} farbe={tinte} /></g> : null}
       {zusatz?.(k)}
     </g>
   );

@@ -39,6 +39,7 @@ const id = z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
 const zeichenSchluessel = z.string().min(1).max(80).nullable();
 
 export const kontaktSchema = z.object({ art: z.enum(KONTAKT_ARTEN), wert: z.string().max(LAENGE.kontakt) }).strict();
+export const planVerweisSchema = z.object({ id, titel: z.string().max(LAENGE.titel) }).strict();
 export const einheitSchema = z.object({ id, typ: z.string().max(LAENGE.typ), rufname: z.string().max(LAENGE.rufname), zeichen: zeichenSchluessel }).strict();
 export const stelleSchema = z.object({
   id,
@@ -54,6 +55,13 @@ export const stelleSchema = z.object({
   kanaele: z.array(id).max(GRENZE.kanaele).default([]),
   kontakte: z.array(kontaktSchema).max(GRENZE.kontakte),
   einheiten: z.array(einheitSchema).max(GRENZE.einheiten),
+  /**
+   * Verweis auf einen anderen Plan (IDA-355): Kennung und der Titel beim Wählen. Der Titel steht im Dokument, damit
+   * Druck und Token-Ansicht ohne Nachschlagen auskommen; ob der Link klickbar ist, entscheidet der Server je Betrachter.
+   * OHNE Vorgabewert: ein ergänztes `"planVerweis":null` je Stelle brächte gespeicherte Pläne nahe `GRENZE.bytes` beim
+   * Lesen über die Grenze (`pruefeGroesse` prüft das geparste Dokument). Fehlt das Feld, gibt es keinen Verweis.
+   */
+  planVerweis: planVerweisSchema.optional(),
 }).strict();
 export const verbindungSchema = z.object({ id, art: z.enum(VERBINDUNGS_ARTEN), bezeichnung: z.string().max(LAENGE.bezeichnung) }).strict();
 export const optionenSchema = z.object({
@@ -121,6 +129,7 @@ export const planInhaltSchema = z.object({
 
 export type Kontakt = z.infer<typeof kontaktSchema>;
 export type Einheit = z.infer<typeof einheitSchema>;
+export type PlanVerweis = z.infer<typeof planVerweisSchema>;
 export type Stelle = z.infer<typeof stelleSchema>;
 export type Verbindung = z.infer<typeof verbindungSchema>;
 export type PlanOptionen = z.infer<typeof optionenSchema>;

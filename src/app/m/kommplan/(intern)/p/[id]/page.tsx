@@ -8,6 +8,7 @@ import { freigabenFuer } from "@/app/m/kommplan/_lib/freigaben";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { leseEditorAnsicht } from "@/app/m/kommplan/_lib/editorAnsicht";
 import { mitgliederVon } from "@/app/m/kommplan/_lib/mitglieder";
+import { erreichbareVerweise, verweisZiele } from "@/app/m/kommplan/_lib/planverweise";
 import { archivTag, beschreibungFuer, ladePlanFuerOder404 } from "@/app/m/kommplan/_lib/plaene";
 import { kalendertag } from "@/app/m/kommplan/_lib/rahmen";
 import { kopieHinweis } from "@/app/m/kommplan/_lib/tagesfassung";
@@ -36,7 +37,9 @@ export default async function PlanAnsicht({ params, searchParams }: {
   requireKommplanHost(await headers());
   const viewer = await requireKommplanZugang();
   const { id } = await params;
-  const { plan, rechte } = ladePlanFuerOder404(getDb(), id, personAus(viewer));
+  const wer = personAus(viewer);
+  const { plan, rechte } = ladePlanFuerOder404(getDb(), id, wer);
+  const erreichbar = plan.inhalt ? erreichbareVerweise(getDb(), plan.inhalt, wer) : [];
   // Archiviert ist nur lesbar (Phase 4, Entscheidung 10): Betrachter mit Hinweis, auch für Bearbeitende.
   if (plan.archiviertAm === null && plan.inhalt && rechte.bearbeiten) {
     const suche = await searchParams;
@@ -48,6 +51,7 @@ export default async function PlanAnsicht({ params, searchParams }: {
             wie im Betrachter-Zweig; die Zeichnung setzt ihre Familie selbst, die Legende bekommt die Klasse. */}
         <Editor key={plan.id} symbole={symboleFuerPlan(getDb(), plan.inhalt)} zeichenIndex={zeichenIndexMitEigenen(getDb())} schrift={ZEICHENSCHRIFT.style.fontFamily} schriftKlasse={ZEICHENSCHRIFT.className} ansicht={ansicht} kopieHinweis={kopie} bibliothek={ladeBibliothek(getDb())}
           bibliothekPflegen={darfKommplanBearbeiten(viewer.groups)}
+          verweise={{ ziele: verweisZiele(getDb(), wer, plan.id), erreichbar }}
           teilen={rechte.verwalten ? {
             freigaben: freigabenFuer(getDb(), plan.id, new Date().getTime()), basis: moduleUrl("kommplan"),
             sichtbarkeit: plan.sichtbarkeit, mitglieder: mitgliederVon(getDb(), plan.id),
@@ -72,7 +76,7 @@ export default async function PlanAnsicht({ params, searchParams }: {
       ) : null}
       {plan.inhalt ? (
         <div className={ZEICHENSCHRIFT.className}>
-          <Betrachter inhalt={plan.inhalt} symbole={symboleFuerPlan(getDb(), plan.inhalt)} titel={plan.titel} schrift={ZEICHENSCHRIFT.style.fontFamily} />
+          <Betrachter inhalt={plan.inhalt} symbole={symboleFuerPlan(getDb(), plan.inhalt)} titel={plan.titel} schrift={ZEICHENSCHRIFT.style.fontFamily} verweiseErreichbar={erreichbar} />
         </div>
       ) : (
         <Card>Dieser Plan lässt sich nicht lesen: der gespeicherte Inhalt ist beschädigt. Ansehen, Bearbeiten und Drucken gehen erst wieder, wenn die Daten repariert sind.</Card>

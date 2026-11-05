@@ -161,3 +161,21 @@ describe("kartenMass", () => {
     expect(mass({}, { versteckt: 1 }).abzeichen?.text.text).toBe("+1 Stelle");
   });
 });
+
+describe("Verweis auf einen anderen Plan (IDA-355)", () => {
+  const eingabe = (st: Stelle) => ({ stelle: st, leerzeilen: false, darstellung: "normal" as const, versteckt: 0, anzahlGruppen: 0, kanaele: [] });
+  it("eine Zeile „→ Titel“ unter den Kontakten, die Karte wird um genau diese Zeile höher", () => {
+    const ohne = kartenMass(eingabe(stelle()));
+    const mit = kartenMass(eingabe(stelle({ planVerweis: { id: "p2", titel: "Abschnitt Nord" } })));
+    expect(mit.planVerweis).toMatchObject({ planId: "p2", y: ohne.hoehe, hoehe: KARTE.kontaktHoehe });
+    expect(mit.planVerweis!.zeile.text).toBe("→ Abschnitt Nord");
+    expect(mit.hoehe).toBeCloseTo(ohne.hoehe + KARTE.kontaktHoehe);
+    expect(ohne.planVerweis).toBeNull();
+  });
+  it("ein langer Titel wird gekürzt und bleibt in der Karte", () => {
+    const m = kartenMass(eingabe(stelle({ planVerweis: { id: "p2", titel: "Kommunikationsplan Großschadenslage Abschnitt Süd mit Bereitstellungsraum" } })));
+    const z = m.planVerweis!.zeile;
+    expect(z.text.endsWith("…")).toBe(true);
+    expect(z.x + textBreite(z.text, z.groesse, true)).toBeLessThanOrEqual(KARTE.breite);
+  });
+});

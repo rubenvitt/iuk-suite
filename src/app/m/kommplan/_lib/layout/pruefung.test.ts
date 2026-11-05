@@ -7,7 +7,7 @@ import { zeichne } from "./zeichne";
 const leer = (): Zeichnungsdaten => ({ ...leereElemente(), breite: 100, hoehe: 100, legende: [] });
 const karte = (id: string, x: number, y: number) => ({
   id, x, y, breite: 46, hoehe: 12, kopfHoehe: 12, art: "normal" as const, hervorheben: false, zeichen: null,
-  titel: [], titelVoll: id, gekuerzt: false, leiter: null, kontakte: [], verweis: null, einklappbar: false, eingeklappt: false,
+  titel: [], titelVoll: id, gekuerzt: false, leiter: null, kontakte: [], verweis: null, planVerweis: null, einklappbar: false, eingeklappt: false,
 });
 const linie = (netz: string, x1: number, y1: number, x2: number, y2: number) => ({ netz, x1, y1, x2, y2, duenn: false });
 const sechseck = (netz: string, x: number, y: number) => ({
