@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb, type GemeinschaftDb } from "../_db/client";
 import { leseVorlage } from "../_lib/dokumentPdf";
-import { fassungMitMieter } from "../_lib/dokumentErzeugen";
+import { fassungMitLeitung, fassungMitMieter } from "../_lib/dokumentErzeugen";
 import {
   Abgelehnt, dokumentGrundlage, entferneVertrag, entferneVorlage, erstelleDokument, gebeDokumentFrei, ladeVorlage, legeSperrzeitAn, legeUnterschriebenAb, lehneAb,
-  loescheSperrzeit, NichtGefunden, nimmFreigabeZurueck, nimmZusageZurueck, pruefeUnterschreibbar, sageZu, setzeVertrag, setzeVorlageFelder, setzeVorlageZeichnen,
+  loescheSperrzeit, NichtGefunden, nimmFreigabeZurueck, nimmZusageZurueck, pruefeLeitungUnterschreibbar, pruefeUnterschreibbar, sageZu, setzeVertrag, setzeVorlageFelder, setzeVorlageZeichnen,
   speichereWerte, unterschreibeAlsLeitung, verwirfDokument, zeichnenErlaubt,
 } from "../_lib/vermietung";
 import { begruendungSchema, idSchema, pruefeSperrzeit, vertragSchema, type Ergebnis } from "../_lib/vermietungEingabe";
@@ -125,7 +125,7 @@ const zieleOk = (id: unknown, art: unknown): art is Dokumentart => idSchema.safe
 export async function dokumentErstellenAction(id: unknown, art: unknown): Promise<Ergebnis> {
   const viewer = await requireLeitungAktion();
   if (!zieleOk(id, art)) return { ok: false, fehler: UNGUELTIG };
-  return ohneWert(await alsLeitung(viewer, (db, jetzt) => erstelleDokument(db, id as string, art, jetzt)));
+  return ohneWert(await alsLeitung(viewer, (db, jetzt) => erstelleDokument(db, id as string, art, jetzt, viewer.name ?? null)));
 }
 
 export async function dokumentVerwerfenAction(id: unknown, art: unknown): Promise<Ergebnis> {
@@ -145,7 +145,7 @@ export async function dokumentWerteAction(id: unknown, art: unknown, werte: unkn
   return alsLeitung(viewer, (db) => speichereWerte(db, id as string, art, w, version));
 }
 
-/** Die Leitung unterschreibt ihre Felder; gibt die neue Version zurück. */
+/** Die Leitung unterschreibt ihre Felder, nach der mietenden Person (IDA-364); gibt die neue Version zurück. */
 export async function dokumentLeitungUnterschriftAction(id: unknown, art: unknown, version: unknown, eingabe: { name?: unknown; bild?: unknown }): Promise<Ergebnis<number>> {
   const viewer = await requireLeitungAktion();
   if (!zieleOk(id, art) || !versionOk(version)) return { ok: false, fehler: UNGUELTIG };
@@ -153,7 +153,26 @@ export async function dokumentLeitungUnterschriftAction(id: unknown, art: unknow
   if (name.length < 2 || name.length > NAME_MAX) return { ok: false, fehler: "Bitte deinen Namen eingeben.", feldFehler: { name: "Bitte deinen Namen eingeben." } };
   const bild = unterschriftAusDataUrl(eingabe?.bild);
   if (!bild) return { ok: false, fehler: "Bitte unterschreib im Feld." };
-  return alsLeitung(viewer, (db, jetzt) => unterschreibeAlsLeitung(db, id as string, art, version, { name, bild, am: jetzt }));
+  const db = getDb();
+  let p: ReturnType<typeof pruefeLeitungUnterschreibbar>;
+  let g: NonNullable<ReturnType<typeof dokumentGrundlage>>;
+  try {
+    p = pruefeLeitungUnterschreibbar(db, id as string, art, version);
+    const geladen = dokumentGrundlage(db, id as string, art);
+    if (!geladen) return { ok: false, fehler: "Dieses Dokument gibt es nicht mehr. Bitte die Seite neu laden." };
+    g = geladen;
+  } catch (e) {
+    if (e instanceof NichtGefunden || e instanceof Abgelehnt) return { ok: false, fehler: e.message };
+    throw e;
+  }
+  const am = Date.now();
+  let inhalt: Buffer;
+  try {
+    inhalt = await fassungMitLeitung(g, art, p, { name, bild, am });
+  } catch {
+    return { ok: false, fehler: p.herkunft === "hochgeladen" ? "An diese hochgeladene Fassung lässt sich keine Unterschrift anhängen." : "Die Unterschrift ließ sich nicht übernehmen. Bitte noch einmal zeichnen." };
+  }
+  return alsLeitung(viewer, (db2) => unterschreibeAlsLeitung(db2, id as string, art, version, { name, bild, am }, { inhalt, abgelegtAm: p.abgelegtAm }));
 }
 
 export async function dokumentFreigebenAction(id: unknown, art: unknown, version: unknown): Promise<Ergebnis> {

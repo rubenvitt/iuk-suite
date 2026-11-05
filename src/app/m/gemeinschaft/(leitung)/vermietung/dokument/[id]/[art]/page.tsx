@@ -13,17 +13,17 @@ import { Dokumentfueller } from "../../../../../_ui/vermietung/Dokumentfueller";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Dokument der Vermietung" };
 
-/** Ein Dokument einer Zusage ausfüllen, unterschreiben, freigeben (IDA-354). Die Kennung wird gegen die Datenbank aufgelöst. */
+/** Ein Dokument einer Zusage ausfüllen, freigeben, unterschreiben (IDA-354, IDA-364). Die Kennung wird gegen die Datenbank aufgelöst. */
 export default async function DokumentSeite({ params }: { params: Promise<{ id: string; art: string }> }) {
   requireGemeinschaftHost(await headers());
-  await requireLeitung();
+  const viewer = await requireLeitung();
   const { id, art } = await params;
   if (!idSchema.safeParse(id).success || !istDokumentart(art)) notFound();
   const d = ladeDokument(getDb(), id, art);
   if (!d) notFound();
   return (
     <Seite typ="formular">
-      <Dokumentfueller key={d.version} d={d} />
+      <Dokumentfueller key={d.version} d={d} ich={viewer.name ?? ""} />
     </Seite>
   );
 }

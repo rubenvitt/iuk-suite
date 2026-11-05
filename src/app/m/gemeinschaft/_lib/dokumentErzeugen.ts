@@ -1,8 +1,8 @@
-import { dokumentPdf, type Unterschrift } from "./dokumentPdf";
+import { dokumentPdf, mitLeitungsSeite, type Unterschrift } from "./dokumentPdf";
 import type { dokumentGrundlage } from "./vermietung";
 import { zeitraumText } from "./vermietungText";
 import { DOKUMENT_TITEL, type Dokumentart } from "./vermietungTypen";
-import { mieterFeldIds } from "./vertragFeld";
+import { mieterFeldIds, unterschriftfelder } from "./vertragFeld";
 import { dokumentTitel } from "./vertragName";
 
 /**
@@ -27,4 +27,20 @@ export async function fassungMitMieter(g: Grundlage, art: Dokumentart, u: { name
   const neu: Unterschrift[] = feldIds.map((feldId) => ({ feldId, rolle: "mieter", name: u.name, am: u.am, bild: u.bild }));
   const alle = [...g.unterschriften.filter((x) => x.rolle !== "mieter"), ...neu];
   return { inhalt: Buffer.from(await dokumentPdf(g.inhalt, g.felder, g.werte, alle, rahmen(g, art, true, u.am))), feldIds };
+}
+
+/**
+ * Die fertige Fassung mit der Unterschrift der Leitung (IDA-364), nach der mietenden Person: gezeichnet = aus der
+ * Vorlage neu, mit allen Unterschriften in ihren Feldern; hochgeladen = die hochgeladene Fassung plus eine Seite mit
+ * der Unterschrift der Leitung. Wirft, wenn das Bild nicht dekodiert oder die hochgeladene PDF sich nicht schreiben lässt.
+ */
+export async function fassungMitLeitung(
+  g: Grundlage, art: Dokumentart, abgelegt: { herkunft: "gezeichnet" | "hochgeladen"; inhalt: Buffer }, u: { name: string; bild: Buffer; am: number },
+): Promise<Buffer> {
+  if (abgelegt.herkunft === "hochgeladen") {
+    return Buffer.from(await mitLeitungsSeite(abgelegt.inhalt, { feldId: "", rolle: "leitung", ...u }, rahmen(g, art, true, u.am)));
+  }
+  const neu: Unterschrift[] = unterschriftfelder(g.felder, "leitung").map((f) => ({ feldId: f.id, rolle: "leitung", ...u }));
+  const alle = [...g.unterschriften.filter((x) => x.rolle === "mieter"), ...neu];
+  return Buffer.from(await dokumentPdf(g.inhalt, g.felder, g.werte, alle, rahmen(g, art, true, u.am)));
 }

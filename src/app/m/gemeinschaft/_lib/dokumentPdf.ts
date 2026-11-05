@@ -223,23 +223,42 @@ export async function dokumentPdf(vorlage: Uint8Array, felder: readonly Vertrags
     p.drawImage(bild, indenKasten(bild, f));
     zeileUnterFeld(p, `${winAnsi(u.name)} · ${winAnsi(eingangText(u.am))} · digital unterschrieben`, f.x, Math.max(2, f.y - 8), Math.max(f.b, 160), schrift);
   }
-  if (eigene) {
-    const bild = await doc.embedPng(eigene.bild);
-    const p = doc.addPage([A4.b, A4.h]);
-    let y = A4.h - 90;
-    p.drawText(winAnsi(`Unterschrift: ${r.dokument}`), { x: 60, y, size: 16, font: fett });
-    y -= 36;
-    for (const [k, v] of [["Mietsache", "Bar"], ["Zeitraum", r.zeitraum], ["Anlass", r.anlass], ["Name", eigene.name], ["Unterschrieben", eingangText(eigene.am)]] as const) {
-      p.drawText(winAnsi(k), { x: 60, y, size: 10, font: fett });
-      p.drawText(winAnsi(v).slice(0, 90), { x: 170, y, size: 10, font: schrift });
-      y -= 18;
-    }
-    const kasten = { x: 60, y: y - 140, b: 300, h: 110 };
-    p.drawImage(bild, indenKasten(bild, kasten));
-    p.drawLine({ start: { x: kasten.x, y: kasten.y - 4 }, end: { x: kasten.x + kasten.b, y: kasten.y - 4 }, thickness: 0.6, color: rgb(0.3, 0.3, 0.3) });
-    zeileUnterFeld(p, `${winAnsi(eigene.name)} · ${winAnsi(eingangText(eigene.am))} · digital unterschrieben`, kasten.x, kasten.y - 16, kasten.b, schrift);
-  }
+  if (eigene) await unterschriftSeite(doc, `Unterschrift: ${r.dokument}`, eigene, r, schrift, fett);
   // Ein XMP-Paket der Vorlage (Word, Acrobat) trüge den alten Titel weiter, und Betrachter wie pdf.js ziehen es vor.
+  doc.catalog.delete(PDFName.of("Metadata"));
+  doc.setTitle(r.titel);
+  doc.setModificationDate(new Date(r.am));
+  return doc.save();
+}
+
+async function unterschriftSeite(doc: PDFDocument, titel: string, u: Unterschrift, r: Rahmen, schrift: PDFFont, fett: PDFFont) {
+  const bild = await doc.embedPng(u.bild);
+  const p = doc.addPage([A4.b, A4.h]);
+  let y = A4.h - 90;
+  p.drawText(winAnsi(titel), { x: 60, y, size: 16, font: fett });
+  y -= 36;
+  for (const [k, v] of [["Mietsache", "Bar"], ["Zeitraum", r.zeitraum], ["Anlass", r.anlass], ["Name", u.name], ["Unterschrieben", eingangText(u.am)]] as const) {
+    p.drawText(winAnsi(k), { x: 60, y, size: 10, font: fett });
+    p.drawText(winAnsi(v).slice(0, 90), { x: 170, y, size: 10, font: schrift });
+    y -= 18;
+  }
+  const kasten = { x: 60, y: y - 140, b: 300, h: 110 };
+  p.drawImage(bild, indenKasten(bild, kasten));
+  p.drawLine({ start: { x: kasten.x, y: kasten.y - 4 }, end: { x: kasten.x + kasten.b, y: kasten.y - 4 }, thickness: 0.6, color: rgb(0.3, 0.3, 0.3) });
+  zeileUnterFeld(p, `${winAnsi(u.name)} · ${winAnsi(eingangText(u.am))} · digital unterschrieben`, kasten.x, kasten.y - 16, kasten.b, schrift);
+}
+
+/**
+ * Hängt die Unterschrift der Leitung als eigene letzte Seite an eine hochgeladene Fassung (Ausdruck oder Foto der
+ * mietenden Person, IDA-364); in deren Felder lässt sich nicht zeichnen. Wirft bei einer PDF, die pdf-lib nicht
+ * schreiben kann (verschlüsselt, kaputt).
+ */
+export async function mitLeitungsSeite(fassung: Uint8Array, u: Unterschrift, r: Rahmen): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(fassung, { updateMetadata: false });
+  const schrift = await doc.embedFont(StandardFonts.Helvetica);
+  const fett = await doc.embedFont(StandardFonts.HelveticaBold);
+  await unterschriftSeite(doc, `Unterschrift der Leitung: ${r.dokument}`, u, r, schrift, fett);
+  // Wie in `dokumentPdf`: ein XMP-Paket der hochgeladenen PDF trüge sonst den alten Titel weiter.
   doc.catalog.delete(PDFName.of("Metadata"));
   doc.setTitle(r.titel);
   doc.setModificationDate(new Date(r.am));

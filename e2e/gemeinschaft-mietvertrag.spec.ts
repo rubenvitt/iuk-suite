@@ -4,9 +4,9 @@ import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte } from "
 
 /**
  * Modul gemeinschaft, Dokumente der Vermietung (IDA-343, IDA-354): Vorlage mit Formularfeldern hochladen und
- * Unterschriftenfelder aufziehen (Leitung), je Zusage ein Dokument ausfüllen, als Leitung unterschreiben und
- * freigeben; die mietende Person unterschreibt auf der Statusseite am Handy, vor Ort am Gerät der Leitung oder lädt
- * einen Ausdruck hoch. Telefonbreiten 320 und 390 ohne seitlichen Überlauf. Der Zustand entsteht im Test; Tage und
+ * Unterschriftenfelder aufziehen (Leitung), je Zusage ein Dokument ausfüllen und freigeben; die mietende Person
+ * unterschreibt auf der Statusseite am Handy, vor Ort am Gerät der Leitung oder lädt einen Ausdruck hoch, danach die
+ * Leitung (IDA-364). Telefonbreiten 320 und 390 ohne seitlichen Überlauf. Der Zustand entsteht im Test; Tage und
  * Anlässe sind je Lauf neu.
  */
 const HOST = "gemeinschaft.localtest.me";
@@ -117,7 +117,7 @@ async function ziehe(page: Page, x1: number, y1: number, x2: number, y2: number)
 
 test.describe.configure({ mode: "serial" });
 
-test("Formularvorlage: Leitung füllt aus, unterschreibt, gibt frei; Unterschrift am Telefon, danach nur noch Download", async ({ page, browser }) => {
+test("Formularvorlage: Leitung füllt aus und gibt frei; Unterschrift am Telefon, danach die Leitung und nur noch Download", async ({ page, browser }) => {
   await devLogin(page, { host: HOST, groups: LEITUNG, callbackPath: "/vermietung/mietvertrag" });
   await ladeVorlageHoch(page, "mietvertrag", "Mietvertrag Bar", await formularVorlage());
   // Die beiden Formularfelder kommen beim Hochladen mit.
@@ -150,15 +150,11 @@ test("Formularvorlage: Leitung füllt aus, unterschreibt, gibt frei; Unterschrif
   await page.setViewportSize({ width: 1280, height: 900 });
   await erstelleDokument(page, anlass, "mietvertrag");
 
-  // Ausfüllen; die Unterschrift der Leitung speichert die Werte mit.
+  // Ausfüllen; die Leitung unterschreibt erst nach der mietenden Person, Freigeben speichert die Werte mit.
   await page.locator('[data-feld="f:0"]').fill("200 €");
   await page.getByText("Reinigung", { exact: true }).click();
-  await expect(page.getByTestId("freigeben")).toBeDisabled();
-  await page.getByTestId("leitung-name").fill("Leitung Bar");
-  await zeichne(page, "leitung-flaeche");
-  await klickeWennRuhig(page.getByTestId("leitung-unterschreiben"));
-  await expect(page.getByTestId("leitung-unterschrieben")).toContainText("Leitung Bar");
-  await expect(page.locator('[data-feld="f:0"]')).toHaveValue("200 €");
+  await expect(page.getByTestId("leitung-wartet")).toBeVisible();
+  await expect(page.getByTestId("zeichnen-leitung")).toHaveCount(0);
   await keinUeberlauf(page, 390);
   await page.setViewportSize({ width: 1280, height: 900 });
 
@@ -168,6 +164,7 @@ test("Formularvorlage: Leitung füllt aus, unterschreibt, gibt frei; Unterschrif
   await klickeWennRuhig(page.getByTestId("freigeben"));
   await expect(page.getByTestId("freigabe-zurueck")).toBeVisible();
   await expect(page.locator('[data-feld="f:0"]')).toBeDisabled();
+  await expect(page.locator('[data-feld="f:0"]')).toHaveValue("200 €");
 
   await oeffne(gast, status);
   const bereich = gast.getByTestId("dokument-mietvertrag");
@@ -203,6 +200,16 @@ test("Formularvorlage: Leitung füllt aus, unterschreibt, gibt frei; Unterschrif
   await page.reload();
   await expect(page.getByTestId("mieter-unterschrieben")).toBeVisible();
   await expect(page.getByTestId("freigabe-zurueck")).toHaveCount(0);
+
+  // Jetzt die Leitung; ihr Name ist der der Person, die das Dokument erstellt hat.
+  await expect(page.getByTestId("leitung-name")).toHaveValue("Dev User");
+  await page.getByTestId("leitung-name").fill("Leitung Bar");
+  await zeichne(page, "leitung-flaeche");
+  await klickeWennRuhig(page.getByTestId("leitung-unterschreiben"));
+  await expect(page.getByTestId("leitung-unterschrieben")).toContainText("Leitung Bar");
+  const mitLeitung = await gast.request.get(url(`${status}/vertrag?art=mietvertrag`));
+  expect((await PDFDocument.load(await mitLeitung.body())).getPageCount()).toBe(2);
+  expect((await mitLeitung.body()).length).toBeGreaterThan((await fertig.body()).length);
 
   await zieheZurueck(gast, status);
 });

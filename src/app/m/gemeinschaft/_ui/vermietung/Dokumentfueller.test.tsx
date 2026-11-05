@@ -7,10 +7,10 @@ import type { DokumentDTO } from "../../_lib/vermietungTypen";
 import { zeitpunkt } from "../../_lib/zeit";
 import { Dokumentfueller } from "./Dokumentfueller";
 
-const aktion = vi.hoisted(() => ({ werte: vi.fn(), freigeben: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
+const aktion = vi.hoisted(() => ({ werte: vi.fn(), freigeben: vi.fn(), leitung: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
 vi.mock("../../_actions/vermietung", () => ({
   dokumentWerteAction: aktion.werte, dokumentFreigebenAction: aktion.freigeben, dokumentFreigabeZurueckAction: vi.fn(),
-  dokumentLeitungUnterschriftAction: vi.fn(), dokumentVerwerfenAction: vi.fn(), dokumentVorOrtAction: vi.fn(),
+  dokumentLeitungUnterschriftAction: aktion.leitung, dokumentVerwerfenAction: vi.fn(), dokumentVorOrtAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: aktion.refresh, push: aktion.push }) }));
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
@@ -22,7 +22,7 @@ afterEach(async () => { await unmount(); Object.values(aktion).forEach((f) => f.
 
 const feld = { quelle: "gezogen" as const, seite: 0, x: 10, y: 10, b: 100, h: 30 };
 const D: DokumentDTO = {
-  anfrageId: "a1", art: "uebergabe", version: 3, freigegebenAm: null, werte: { "g:t": "alt" }, unterschriften: [], datei: null, zeichnen: true,
+  anfrageId: "a1", art: "uebergabe", version: 3, freigegebenAm: null, werte: { "g:t": "alt" }, unterschriften: [], datei: null, zeichnen: true, erstelltVon: "Leitung Bar",
   felder: [{ ...feld, id: "g:t", art: "text", name: "Zählerstand" }, { ...feld, id: "g:k", art: "ankreuz", name: "Schlüssel" }],
   anfrage: { person: "Erika Sommer", anlass: "Geburtstag", von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-07", "23:00") },
 };
@@ -32,7 +32,7 @@ describe("Ausfüllseite", () => {
   it("ohne Leitungsfeld: Freigeben speichert vorher geänderte Werte und nimmt deren Version", async () => {
     aktion.werte.mockResolvedValue({ ok: true, wert: 4 });
     aktion.freigeben.mockResolvedValue({ ok: true });
-    await mount(<App><Dokumentfueller d={D} /></App>);
+    await mount(<App><Dokumentfueller d={D} ich="Andere Leitung" /></App>);
     expect(document.body.textContent).toContain("Zählerstand");
     expect(knopf("Speichern")).toBeUndefined();
     const t = query<HTMLTextAreaElement>('textarea[data-feld="g:t"]');
@@ -48,27 +48,38 @@ describe("Ausfüllseite", () => {
     expect(aktion.refresh).toHaveBeenCalled();
   });
 
-  it("mit Leitungsfeld ohne Unterschrift: Freigeben gesperrt; freigegeben: Werte gesperrt, vor Ort mit Name vorbelegt", async () => {
+  it("mit Leitungsfeld: Freigeben ohne Leitung; die Leitung unterschreibt erst nach der mietenden Person, Name vom Ersteller", async () => {
     const mitLeitung: DokumentDTO = { ...D, felder: [...D.felder, { ...feld, id: "g:l", art: "unterschrift", name: "Leitung", rolle: "leitung" }] };
-    await mount(<App><Dokumentfueller d={mitLeitung} /></App>);
-    expect(query<HTMLButtonElement>('[data-testid="freigeben"]').disabled).toBe(true);
-    expect(query('[data-testid="zeichnen-leitung"]')).toBeTruthy();
-    await unmount();
-    // Unterschrieben, dann einen Wert geändert: die Unterschrift gälte nicht mehr, Freigeben gesperrt.
-    await mount(<App><Dokumentfueller d={{ ...mitLeitung, unterschriften: [{ feldId: "g:l", rolle: "leitung", name: "Leitung Bar", am: zeitpunkt("2026-11-05", "09:00") }] }} /></App>);
+    await mount(<App><Dokumentfueller d={mitLeitung} ich="Andere Leitung" /></App>);
     expect(query<HTMLButtonElement>('[data-testid="freigeben"]').disabled).toBe(false);
-    const t = query<HTMLTextAreaElement>('textarea[data-feld="g:t"]');
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(t, "neu");
-      t.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    expect(query<HTMLButtonElement>('[data-testid="freigeben"]').disabled).toBe(true);
+    expect(document.querySelector('[data-testid="zeichnen-leitung"]')).toBeNull();
+    expect(query('[data-testid="leitung-wartet"]')).toBeTruthy();
     await unmount();
-    await mount(<App><Dokumentfueller d={{ ...mitLeitung, freigegebenAm: zeitpunkt("2026-11-05", "10:00"), unterschriften: [{ feldId: "g:l", rolle: "leitung", name: "Leitung Bar", am: zeitpunkt("2026-11-05", "09:00") }] }} /></App>);
+
+    const frei = { ...mitLeitung, freigegebenAm: zeitpunkt("2026-11-05", "10:00") };
+    await mount(<App><Dokumentfueller d={frei} ich="Andere Leitung" /></App>);
     expect(query<HTMLTextAreaElement>('textarea[data-feld="g:t"]').disabled).toBe(true);
+    expect(query<HTMLInputElement>('[data-testid="mieter-name"]').value).toBe("Erika Sommer");
+    expect(document.querySelector('[data-testid="zeichnen-leitung"]')).toBeNull();
+    expect(query('[data-testid="freigabe-zurueck"]')).toBeTruthy();
+    await unmount();
+
+    const datei = { name: "x.pdf", groesse: 10, abgelegtAm: zeitpunkt("2026-11-05", "11:00"), herkunft: "gezeichnet" as const, unterschriebenVon: "Erika Sommer" };
+    await mount(<App><Dokumentfueller d={{ ...frei, datei }} ich="Andere Leitung" /></App>);
+    expect(query<HTMLInputElement>('[data-testid="leitung-name"]').value).toBe("Leitung Bar");
+    expect(document.body.textContent).toContain("Unterschrift Leitung offen");
+    await unmount();
+    // Älteres Dokument ohne Ersteller: die angemeldete Leitung.
+    await mount(<App><Dokumentfueller d={{ ...frei, datei, erstelltVon: null }} ich="Andere Leitung" /></App>);
+    expect(query<HTMLInputElement>('[data-testid="leitung-name"]').value).toBe("Andere Leitung");
+    await unmount();
+
+    await mount(<App><Dokumentfueller d={{ ...frei, datei, unterschriften: [{ feldId: "g:l", rolle: "leitung", name: "Leitung Bar", am: zeitpunkt("2026-11-05", "12:00") }] }} ich="Andere Leitung" /></App>);
     expect(query('[data-testid="leitung-unterschrieben"]').textContent).toContain("Leitung Bar");
     expect(document.querySelector('[data-testid="zeichnen-leitung"]')).toBeNull();
-    expect(query<HTMLInputElement>('[data-testid="mieter-name"]').value).toBe("Erika Sommer");
-    expect(query('[data-testid="freigabe-zurueck"]')).toBeTruthy();
+    await unmount();
+    // Von der Leitung selbst abgelegt (Papier): keine digitale Unterschrift der Leitung.
+    await mount(<App><Dokumentfueller d={{ ...frei, datei: { ...datei, herkunft: "leitung", unterschriebenVon: null } }} ich="Andere Leitung" /></App>);
+    expect(document.body.textContent).not.toContain("Unterschrift der Leitung");
   });
 });
