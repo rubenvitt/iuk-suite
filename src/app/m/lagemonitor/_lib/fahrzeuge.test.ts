@@ -44,6 +44,20 @@ describe("Fahrzeuge auf der Karte", () => {
     expect(alsVehicles(db, zugangId, JETZT, Q)[0].own).toBe(true);
   });
 
+  it("der eigene Eintrag ist grob und bleibt über Abholungen stehen, sonst gäbe es im Fahrzeug nie ein 304", () => {
+    const { db, zugangId } = mitFuekw();
+    const eigener = (lat: number, jetzt: Date) => {
+      meldePosition(db, zugangId, { lat, lon: 10.57721, alterS: 2 }, jetzt);
+      return alsVehicles(db, zugangId, jetzt, Q)[0];
+    };
+    const erster = eigener(52.96371, new Date("2026-11-02T14:10:00Z"));
+    expect(erster).toMatchObject({ lat: 52.96, lon: 10.58, at: "2026-11-02T14:00:00.000Z", own: true });
+    // GPS-Zittern und die nächste Minute ändern nichts.
+    expect(eigener(52.96402, new Date("2026-11-02T14:11:00Z"))).toEqual(erster);
+    // Die anderen Monitore sehen das Fahrzeug genau.
+    expect(alsVehicles(db, null, JETZT, Q)[0]).toMatchObject({ lat: 52.96402, lon: 10.57721, at: "2026-11-02T14:10:58.000Z", own: false });
+  });
+
   it("ein älterer Fix überschreibt den gespeicherten neueren nicht", () => {
     const { db, zugangId } = mitFuekw();
     expect(meldePosition(db, zugangId, { lat: 53.0, lon: 10.6, alterS: 5 }, JETZT)).toBe(true);
