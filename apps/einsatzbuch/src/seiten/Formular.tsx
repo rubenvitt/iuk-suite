@@ -88,7 +88,6 @@ export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbei
   const [fzFilter, setFzFilter] = useState("Alle");
   const [peSuche, setPeSuche] = useState("");
   const [peFilter, setPeFilter] = useState("Alle");
-  const [suchlageOffen, setSuchlageOffen] = useState(false);
 
   const setze = (feld: Textfeld) => (wert: string) => beiAenderung({ ...e, [feld]: wert });
   const unvollstaendig = !kannAbsenden(e);
@@ -125,6 +124,22 @@ export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbei
   const anzPe = peAuswahl.length;
   const suchlage = verknuepfterEinsatz(e, "suchlage");
   const suchlageEinsaetze = umsysteme.filter((u) => u.system === "suchlage");
+  // Ein schon gewählter Einsatz, den die Liste nicht mehr nennt, bleibt als Zeile stehen.
+  const suchlageZeilen: UmsystemEinsatzAuswahl[] =
+    suchlage && !suchlageEinsaetze.some((u) => u.id === suchlage.id)
+      ? [{ system: "suchlage", id: suchlage.id, name: suchlage.name, ort: null, beginn: null, ende: null }, ...suchlageEinsaetze]
+      : suchlageEinsaetze;
+
+  /** Radiogruppe nach APG: Pfeiltasten wechseln Fokus und Wahl, Tab erreicht nur die gewählte Zeile. */
+  const pfeilWahl = (ev: KeyboardEvent<HTMLDivElement>) => {
+    const schritt = ev.key === "ArrowDown" || ev.key === "ArrowRight" ? 1 : ev.key === "ArrowUp" || ev.key === "ArrowLeft" ? -1 : 0;
+    if (schritt === 0) return;
+    ev.preventDefault();
+    const zeilen = Array.from(ev.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+    const ziel = zeilen[(zeilen.indexOf(document.activeElement as HTMLButtonElement) + schritt + zeilen.length) % zeilen.length];
+    ziel?.focus();
+    ziel?.click();
+  };
 
   return (
     <>
@@ -203,50 +218,31 @@ export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbei
         {suchlage || suchlageEinsaetze.length > 0 || umsystemFehler ? (
           <Karte titel="Suchlage-Einsatz">
             <div className="stapel stapel-12">
-              {suchlage ? (
-                <div className="reihe-umbruch">
-                  <button
-                    type="button"
-                    className="auswahl-chip"
-                    aria-label={`Verknüpfung mit ${suchlage.name || `Einsatz ${suchlage.id}`} lösen`}
-                    onClick={() => {
-                      beiAenderung(loeseVerknuepfung(e, "suchlage"));
-                      setSuchlageOffen(false);
-                    }}
-                  >
-                    <span className="auswahl-chip-person">{suchlage.name || `Einsatz ${suchlage.id}`}</span>
-                    <Zeichen name="kreuz" groesse={14} />
-                  </button>
-                </div>
-              ) : umsystemFehler ? (
+              {umsystemFehler ? (
                 <span className="feld-fehler" role="alert">
                   {umsystemFehler}
                 </span>
-              ) : suchlageOffen ? (
-                <div className="trefferliste trefferliste-fz">
-                  {suchlageEinsaetze.map((u) => (
+              ) : null}
+              <div className="trefferliste trefferliste-fz" role="radiogroup" aria-label="Suchlage-Einsatz" onKeyDown={pfeilWahl}>
+                {[null, ...suchlageZeilen].map((u) => {
+                  const an = u ? suchlage?.id === u.id : !suchlage;
+                  return (
                     <button
-                      key={u.id}
+                      key={u?.id ?? "ohne"}
                       type="button"
+                      role="radio"
                       className="treffer treffer-umsystem"
-                      aria-pressed={false}
-                      onClick={() => {
-                        beiAenderung(verknuepfe(e, u));
-                        setSuchlageOffen(false);
-                      }}
+                      aria-checked={an}
+                      tabIndex={an ? 0 : -1}
+                      onClick={() => beiAenderung(u ? verknuepfe(e, u) : loeseVerknuepfung(e, "suchlage"))}
                     >
-                      <span className="treffer-umsystem-name">{u.name}</span>
-                      <span className="treffer-neben">{[u.ort, umsystemZeitraum(u)].filter(Boolean).join(" · ")}</span>
+                      <span className="punkt" />
+                      <span className="treffer-umsystem-name">{u ? u.name || `Einsatz ${u.id}` : "Ohne Suchlage-Einsatz"}</span>
+                      {u ? <span className="treffer-neben">{[u.ort, umsystemZeitraum(u)].filter(Boolean).join(" · ")}</span> : <span />}
                     </button>
-                  ))}
-                </div>
-              ) : (
-                <div>
-                  <Knopf zeichen="verketten" onClick={() => setSuchlageOffen(true)}>
-                    Mit Suchlage-Einsatz verknüpfen
-                  </Knopf>
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </div>
           </Karte>
         ) : null}
