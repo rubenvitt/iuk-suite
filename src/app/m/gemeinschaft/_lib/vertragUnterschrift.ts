@@ -1,16 +1,14 @@
 import { createHash } from "node:crypto";
-import { PDFDocument, PDFName, StandardFonts, rgb, type PDFImage, type PDFPage } from "pdf-lib";
-import { winAnsi } from "@/core/pdf/winAnsi";
-import type { Feld, Seitenmass } from "./vertragFeld";
-import { eingangText } from "./vermietungText";
+import { PDFDocument } from "pdf-lib";
+import { indenKasten } from "./dokumentPdf";
 import { sichererName, VERTRAG_MAX_BYTES } from "./vermietungPdf";
 
 /**
- * Der digitale Mietvertrag (IDA-343), Serverseite: Vorlage lesen, Unterschrift einsetzen, Foto zu PDF machen.
+ * Unterschriften und hochgeladene Fassungen der Vermietungsdokumente (IDA-343), Serverseite: prüfen, Foto zu PDF.
+ * Einsetzen in die Vorlage: `dokumentPdf.ts`.
  *
- * Die gezeichnete Unterschrift kommt als PNG aus dem Browser und wird NICHT geglaubt: Magic Bytes, Größe, und
- * `embedPng` muss sie dekodieren. Text aus Eingabefeldern läuft durch `winAnsi()` (sonst wirft `pdf-lib` erst beim
- * Zeichnen). Ohne Unterschriftenfeld der Vorlage kommt die Unterschrift auf eine eigene letzte Seite.
+ * Die gezeichnete Unterschrift kommt als PNG aus dem Browser und wird NICHT geglaubt: Magic Bytes, Größe, Pixel, und
+ * `embedPng` muss sie dekodieren.
  */
 
 const PNG_KOPF = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -50,20 +48,6 @@ const UNTERSCHRIFT_MAX_PIXEL = 4_000_000;
 const FOTO_MAX_PIXEL = 40_000_000;
 const pngPasst = (bytes: Buffer, max: number) => { const px = pngPixel(bytes); return px !== "animiert" && px > 0 && px <= max; };
 
-export type VorlagePruefung = { ok: true; seiten: Seitenmass[] } | { ok: false; fehler: string };
-
-/** Lässt sich die PDF weiterverarbeiten? Verschlüsselte oder kaputte Dateien taugen nicht als Vorlage. */
-export async function leseVorlage(bytes: Uint8Array): Promise<VorlagePruefung> {
-  try {
-    const doc = await PDFDocument.load(bytes, { updateMetadata: false });
-    const seiten = doc.getPages().map((p) => { const { width, height } = p.getSize(); return { b: width, h: height }; });
-    if (seiten.length === 0) return { ok: false, fehler: "Die PDF hat keine Seiten." };
-    return { ok: true, seiten };
-  } catch {
-    return { ok: false, fehler: "Diese PDF lässt sich nicht verarbeiten (geschützt oder beschädigt). Bitte ohne Passwort neu speichern." };
-  }
-}
-
 /** `data:image/png;base64,…` → PNG-Bytes, oder `null`, wenn es keine plausible Unterschrift ist. */
 export function unterschriftAusDataUrl(roh: unknown): Buffer | null {
   if (typeof roh !== "string") return null;
@@ -71,56 +55,6 @@ export function unterschriftAusDataUrl(roh: unknown): Buffer | null {
   if (!m || m[1].length > Math.ceil(UNTERSCHRIFT_MAX_BYTES / 3) * 4) return null;
   const bytes = Buffer.from(m[1], "base64");
   return bytes.length > 60 && bytes.length <= UNTERSCHRIFT_MAX_BYTES && beginntMit(bytes, PNG_KOPF) && pngPasst(bytes, UNTERSCHRIFT_MAX_PIXEL) ? bytes : null;
-}
-
-/** `titel` landet im Feld Titel der PDF (`vertragName.ts`); sonst bliebe der der Vorlage, etwa „IDA“ aus einem Browserdruck. */
-export type Angaben = { name: string; am: number; zeitraum: string; anlass: string; titel: string };
-
-function zeileUnterFeld(seite: PDFPage, text: string, x: number, y: number, breite: number, schrift: Awaited<ReturnType<PDFDocument["embedFont"]>>) {
-  let grad = 7;
-  while (grad > 4 && schrift.widthOfTextAtSize(text, grad) > breite) grad -= 0.5;
-  seite.drawText(text, { x, y, size: grad, font: schrift, color: rgb(0.25, 0.25, 0.25) });
-}
-
-/** Bild so groß wie möglich in den Kasten, Seitenverhältnis bleibt, zentriert. */
-function indenKasten(bild: PDFImage, k: { x: number; y: number; b: number; h: number }) {
-  const s = Math.min(k.b / bild.width, k.h / bild.height);
-  const b = bild.width * s, h = bild.height * s;
-  return { x: k.x + (k.b - b) / 2, y: k.y + (k.h - h) / 2, width: b, height: h };
-}
-
-/** Die Vorlage mit eingesetzter Unterschrift. Wirft nur bei einer Vorlage, die `leseVorlage` schon abgelehnt hätte. */
-export async function unterschriebenePdf(vorlage: Uint8Array, feld: Feld | null, png: Buffer, a: Angaben): Promise<Uint8Array> {
-  const doc = await PDFDocument.load(vorlage, { updateMetadata: false });
-  const bild = await doc.embedPng(png);
-  const schrift = await doc.embedFont(StandardFonts.Helvetica);
-  const fett = await doc.embedFont(StandardFonts.HelveticaBold);
-  const name = winAnsi(a.name);
-  const wann = winAnsi(eingangText(a.am));
-  const seite = feld ? doc.getPage(Math.min(feld.seite, doc.getPageCount() - 1)) : null;
-  if (feld && seite) {
-    seite.drawImage(bild, indenKasten(bild, feld));
-    zeileUnterFeld(seite, `${name} · ${wann} · digital unterschrieben`, feld.x, Math.max(2, feld.y - 8), Math.max(feld.b, 160), schrift);
-  } else {
-    const p = doc.addPage([A4.b, A4.h]);
-    let y = A4.h - 90;
-    p.drawText("Unterschrift zum Mietvertrag", { x: 60, y, size: 16, font: fett });
-    y -= 36;
-    for (const [k, v] of [["Mietsache", "Bar"], ["Zeitraum", a.zeitraum], ["Anlass", a.anlass], ["Name", a.name], ["Unterschrieben", eingangText(a.am)]] as const) {
-      p.drawText(winAnsi(k), { x: 60, y, size: 10, font: fett });
-      p.drawText(winAnsi(v).slice(0, 90), { x: 170, y, size: 10, font: schrift });
-      y -= 18;
-    }
-    const kasten = { x: 60, y: y - 140, b: 300, h: 110 };
-    p.drawImage(bild, indenKasten(bild, kasten));
-    p.drawLine({ start: { x: kasten.x, y: kasten.y - 4 }, end: { x: kasten.x + kasten.b, y: kasten.y - 4 }, thickness: 0.6, color: rgb(0.3, 0.3, 0.3) });
-    zeileUnterFeld(p, `${name} · ${wann} · digital unterschrieben`, kasten.x, kasten.y - 16, kasten.b, schrift);
-  }
-  // Ein XMP-Paket der Vorlage (Word, Acrobat) trüge den alten Titel weiter, und Betrachter wie pdf.js ziehen es vor.
-  doc.catalog.delete(PDFName.of("Metadata"));
-  doc.setTitle(a.titel);
-  doc.setModificationDate(new Date(a.am));
-  return doc.save();
 }
 
 export type DateiPruefung = { ok: true; name: string; art: "pdf" | "jpg" | "png" } | { ok: false; fehler: string; status: 400 | 413 | 415 };

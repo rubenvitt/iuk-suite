@@ -131,43 +131,44 @@ describe("Statusseite", () => {
   });
 });
 
-describe("Mietvertrag auf der Statusseite (IDA-343)", () => {
+describe("Dokumente auf der Statusseite (IDA-343, IDA-354)", () => {
   const A = { von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-07", "23:00"), anlass: "Geburtstag", personen: 20, person: "Erika Sommer", kontakt: "05141 12345", begruendung: "" };
   const CODE = "abcdefghijklmnopqrstuv";
-  const STAND = "a".repeat(64);
 
-  it("ohne Vorlage kein Vertrag", async () => {
-    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "offen", vorlage: null, zeichnen: false, datei: null } }} />);
-    expect(exists('[data-testid="vertrag-unterschreiben"]')).toBe(false);
-    expect(exists('[data-testid="vertrag-status"]')).toBe(false);
+  it("nichts freigegeben: keine Karte", async () => {
+    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "offen", dokumente: [] } }} />);
+    expect(exists('[data-testid^="dokument-"]')).toBe(false);
   });
 
-  it("mit Vorlage: ansehen, Name vorbelegt, Unterschreiben erst nach Zeichnen und Haken", async () => {
-    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "verschickt", vorlage: STAND, zeichnen: true, datei: null } }} />);
-    expect(knopf("Vertrag ansehen (PDF)").getAttribute("href")).toBe(`/status/${CODE}/vertrag`);
+  it("freigegeben: ansehen, Name vorbelegt, Unterschreiben erst nach Zeichnen und Haken, mit Version", async () => {
+    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "verschickt", dokumente: [{ art: "mietvertrag", stand: "offen", version: 4, zeichnen: true }] } }} />);
+    expect(knopf("Mietvertrag ansehen (PDF)").getAttribute("href")).toBe(`/status/${CODE}/vertrag?art=mietvertrag`);
     expect(query<HTMLInputElement>('input[autocomplete="name"]').value).toBe("Erika Sommer");
     expect(knopf("Unterschreiben").disabled).toBe(true);
     expect(exists('[data-testid="unterschrift-flaeche"]')).toBe(true);
-    expect(query<HTMLInputElement>('[data-testid="vertrag-hochladen"]').accept).toBe("application/pdf,image/jpeg,image/png");
+    expect(query<HTMLInputElement>('[data-testid="dokument-mietvertrag-hochladen"]').accept).toBe("application/pdf,image/jpeg,image/png");
   });
 
   it("Zeichnen aus: nur ansehen und hochladen", async () => {
-    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "verschickt", vorlage: STAND, zeichnen: false, datei: null } }} />);
-    expect(knopf("Vertrag ansehen (PDF)").getAttribute("href")).toBe(`/status/${CODE}/vertrag`);
+    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "verschickt", dokumente: [{ art: "uebergabe", stand: "offen", version: 1, zeichnen: false }] } }} />);
+    expect(knopf("Übergabeprotokoll ansehen (PDF)").getAttribute("href")).toBe(`/status/${CODE}/vertrag?art=uebergabe`);
     expect(exists('[data-testid="unterschrift-flaeche"]')).toBe(false);
     expect(exists('input[autocomplete="name"]')).toBe(false);
-    expect(knopf("Unterschriebenen Vertrag hochladen").className).not.toContain("go-knopf-leise");
+    expect(knopf("Unterschrieben hochladen").className).not.toContain("go-knopf-leise");
   });
 
-  it("unterschrieben: nur noch herunterladen", async () => {
-    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "unterschrieben", vorlage: STAND, zeichnen: true, datei: { am: A.von, herkunft: "gezeichnet" } } }} />);
-    expect(query('[data-testid="vertrag-status"]').textContent).toContain("Unterschrieben");
-    expect(knopf("Vertrag herunterladen").getAttribute("href")).toBe(`/status/${CODE}/vertrag`);
-    expect(exists('[data-testid="vertrag-unterschreiben"]')).toBe(false);
+  it("je Dokument eine Karte; unterschrieben nur noch herunterladen", async () => {
+    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "unterschrieben", dokumente: [
+      { art: "mietvertrag", stand: "unterschrieben", datei: { am: A.von, herkunft: "gezeichnet" } },
+      { art: "rueckgabe", stand: "offen", version: 2, zeichnen: true },
+    ] } }} />);
+    expect(query('[data-testid="dokument-mietvertrag"]').textContent).toContain("Unterschrieben");
+    expect(knopf("Mietvertrag herunterladen").getAttribute("href")).toBe(`/status/${CODE}/vertrag?art=mietvertrag`);
+    expect(query('[data-testid="dokument-rueckgabe"]').getAttribute("data-stand")).toBe("offen");
   });
 
-  it("bei einer Absage kein Vertrag, auch wenn eine Vorlage liegt", async () => {
+  it("bei einer Absage keine Dokumente", async () => {
     await mount(<Statusansicht code={CODE} a={{ ...A, status: "abgelehnt", vertrag: null }} />);
-    expect(exists('[data-testid="vertrag-unterschreiben"]')).toBe(false);
+    expect(exists('[data-testid^="dokument-"]')).toBe(false);
   });
 });

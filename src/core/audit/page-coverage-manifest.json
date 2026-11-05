@@ -7,6 +7,14 @@
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
   },
+  "src/app/m/gemeinschaft/(leitung)/vermietung/dokument/[id]/[art]/page.tsx#notFound:!idSchema.safeParse(id).success || !istDokumentart(art):1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/gemeinschaft/(leitung)/vermietung/dokument/[id]/[art]/page.tsx#notFound:!d:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
   "src/app/m/aufgaben/a/[id]/page.tsx#notFound:!task:1": {
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."

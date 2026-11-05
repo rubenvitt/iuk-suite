@@ -1,6 +1,6 @@
 import type { Eintrag } from "./belegung";
 import type { VertragStand } from "./vermietungText";
-import type { Feld } from "./vertragFeld";
+import type { Rolle, Vertragsfeld, Werte } from "./vertragFeld";
 
 /**
  * Die Datenformen der Vermietung, ohne Datenbank-Import: die Client-Inseln der Leitung bekommen sie als Props und
@@ -14,20 +14,45 @@ export type AnfrageDTO = {
   id: string; status: AnfrageStatus; code: string; von: number; bis: number; anlass: string; personen: number;
   person: string; kontakt: string; hinweis: string; mitglied: boolean; begruendung: string; vertrag: VertragStand;
   eingegangenAm: number; entschiedenAm: number | null;
-  datei: { name: string; groesse: number; abgelegtAm: number; herkunft: Herkunft; unterschriebenVon: string | null } | null;
+  /** Je Art, immer alle drei in `DOKUMENTARTEN`-Reihenfolge: Vorlage da?, erstelltes Dokument, abgelegte Fassung (IDA-354). */
+  dokumente: DokumentKurz[];
 };
+
+/** Die drei Dokumente einer Vermietung (IDA-354), in dieser Reihenfolge. */
+export const DOKUMENTARTEN = ["mietvertrag", "uebergabe", "rueckgabe"] as const;
+export type Dokumentart = (typeof DOKUMENTARTEN)[number];
+export const DOKUMENT_TITEL: Record<Dokumentart, string> = { mietvertrag: "Mietvertrag", uebergabe: "Übergabeprotokoll", rueckgabe: "Rückgabeprotokoll" };
+export const istDokumentart = (x: unknown): x is Dokumentart => typeof x === "string" && (DOKUMENTARTEN as readonly string[]).includes(x);
+
+export type Abgelegt = { name: string; groesse: number; abgelegtAm: number; herkunft: Herkunft; unterschriebenVon: string | null };
+/** `stand`: `null` = kein Dokument erstellt, sonst Entwurf oder freigegeben; `vorlage` = es lässt sich eins erstellen. */
+export type DokumentKurz = { art: Dokumentart; vorlage: boolean; stand: "entwurf" | "freigegeben" | null; datei: Abgelegt | null };
 
 /** Woher der abgelegte Vertrag kommt (IDA-343). */
 export type Herkunft = "leitung" | "gezeichnet" | "hochgeladen";
 
-/** Die Vertragsvorlage für die Verwaltung, ohne Bytes. */
-export type VorlageDTO = { name: string; groesse: number; abgelegtAm: number; sha256: string; feld: Feld | null; zeichnen: boolean };
+/** Eine Vorlage für die Verwaltung, ohne Bytes. */
+export type VorlageDTO = { art: Dokumentart; name: string; groesse: number; abgelegtAm: number; sha256: string; felder: Vertragsfeld[]; zeichnen: boolean };
+
+/** Eine Unterschrift ohne Bild, für die Ausfüllseite. */
+export type UnterschriftKurz = { feldId: string; rolle: Rolle; name: string; am: number };
+
+/** Ein Dokument einer Anfrage für die Ausfüllseite der Leitung (IDA-354). */
+export type DokumentDTO = {
+  anfrageId: string; art: Dokumentart; felder: Vertragsfeld[]; werte: Werte; version: number; freigegebenAm: number | null;
+  unterschriften: UnterschriftKurz[]; datei: Abgelegt | null; zeichnen: boolean;
+  anfrage: { person: string; anlass: string; von: number; bis: number };
+};
 
 /**
- * Der Vertrag auf der Statusseite einer Zusage: `vorlage` = Stand (SHA-256) der Vorlage, falls eine liegt;
- * `zeichnen` = darf dort gezeichnet werden (sonst nur der Upload).
+ * Ein Dokument auf der Statusseite einer Zusage: zum Unterschreiben (freigegeben, `version` schickt die Seite mit,
+ * `zeichnen` = darf dort gezeichnet werden, sonst nur der Upload) oder unterschrieben (`datei` gesetzt, wenn eine
+ * Fassung liegt).
  */
-export type VertragStatus = { stand: VertragStand; vorlage: string | null; zeichnen: boolean; datei: { am: number; herkunft: Herkunft } | null };
+export type StatusDokument =
+  | { art: Dokumentart; stand: "offen"; version: number; zeichnen: boolean }
+  | { art: Dokumentart; stand: "unterschrieben"; datei: { am: number; herkunft: Herkunft } | null };
+export type VertragStatus = { stand: VertragStand; dokumente: StatusDokument[] };
 
 /** Eine Sperrzeit für die Leitung; `eventId` gesetzt = aus einem Event abgeleitet, hier nicht löschbar. */
 export type SperrzeitDTO = { id: string; von: number; bis: number; grund: string; eventId: string | null };
