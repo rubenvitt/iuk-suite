@@ -259,7 +259,7 @@ function naechsterVersionstag(cwd, ziel) {
  *
  * @param {string} cwd Arbeitsverzeichnis im Repo
  * @param {string} ziel Commit, dessen Version gesucht ist
- * @param {{ anker?: { commit: string; version: string } }} [optionen]
+ * @param {{ anker?: { commit: string; version: string }; vorher?: string }} [optionen]
  * @returns {{ version: string; basis: string | null; ankerBenutzt: boolean; ausliefern: boolean; schritte: { commit: string; sprung: Sprung; betreff: string; nurApp: boolean }[] }}
  */
 export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
@@ -322,8 +322,25 @@ export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
    * später der App-Merge #508). Scheitert der Lauf des Vorgängers, wird ER wiederholt;
    * sonst rechnet der nächste Suite-Schritt den Vorgänger mit. Ohne Schritte (dieser
    * Commit IST die Basis, ein wiederholter Lauf) bleibt es beim Ausliefern wie bisher.
+   *
+   * KAM DER STAND MIT EINEM PUSH (`optionen.vorher` = `github.event.before`), zählen
+   * alle Schritte DIESES Pushs: ein direkter Push „Suite-Commit, dann App-Commit" hat nur
+   * einen Lauf, nämlich diesen, und der muss den Suite-Commit ausliefern. Was vor
+   * `vorher` liegt, hatte seinen eigenen Lauf. Ist `vorher` unbrauchbar (Nullen bei
+   * einem neuen Zweig, Force-Push), gilt der letzte Schritt allein.
    */
-  const ausliefern = schritte.length === 0 || !schritte[schritte.length - 1].nurApp;
+  let eigene = [];
+  if (optionen.vorher) {
+    try {
+      git(["merge-base", "--is-ancestor", optionen.vorher, ziel], cwd);
+      const neu = new Set(git(["rev-list", "--first-parent", `${optionen.vorher}..${ziel}`], cwd).split("\n").filter(Boolean));
+      eigene = schritte.filter((s) => neu.has(s.commit));
+    } catch {
+      eigene = [];
+    }
+  }
+  if (eigene.length === 0) eigene = schritte.slice(-1);
+  const ausliefern = schritte.length === 0 || eigene.some((s) => !s.nurApp);
   if (!ausliefern) return { version: nummer, basis, ankerBenutzt: basis === null, schritte, ausliefern };
 
   /*
@@ -384,7 +401,8 @@ export function bericht(ergebnis) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const ziel = process.argv[2] ?? "HEAD";
-  const ergebnis = berechneVersion(process.cwd(), ziel);
+  // `VERSION_VORHER`: der Stand vor dem Push (`github.event.before`), siehe `ausliefern`.
+  const ergebnis = berechneVersion(process.cwd(), ziel, { vorher: process.env.VERSION_VORHER || undefined });
   console.log(bericht(ergebnis));
   /*
    * In der CI landet die Nummer als Job-Ausgabe und die Herleitung in der

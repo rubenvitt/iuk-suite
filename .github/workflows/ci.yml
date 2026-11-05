@@ -206,6 +206,10 @@ jobs:
         with:
           node-version: 22
       - id: rechne
+        # Stand vor dem Push: alle Schritte dieses Pushs entscheiden ueber `ausliefern`,
+        # nicht nur der letzte (scripts/version.mjs, `vorher`).
+        env:
+          VERSION_VORHER: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: node scripts/version.mjs
       - id: module
         run: node scripts/modulversion.mjs

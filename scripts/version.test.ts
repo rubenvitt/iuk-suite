@@ -375,6 +375,26 @@ describe("berechneVersion — an einer echten Historie", () => {
     expect(berechneVersion(repo)).toMatchObject({ version: "4.1.1", ausliefern: true });
   });
 
+  it("ein direkter Push „Suite, dann App“ liefert den Suite-Commit aus — er hat keinen eigenen Lauf", () => {
+    const aendere = (datei: string, nachricht: string) => {
+      mkdirSync(path.dirname(path.join(repo, datei)), { recursive: true });
+      writeFileSync(path.join(repo, datei), `${nachricht}\n`);
+      git("add", "--", datei);
+      git("commit", "-q", "-m", nachricht);
+    };
+    git("tag", "v5.0.0");
+    const vorher = git("rev-parse", "HEAD");
+    aendere("src/app/m/portal/c.ts", "fix(portal): Suite im selben Push");
+    aendere("apps/einsatzbuch/src/c.ts", "fix(einsatzbuch): App im selben Push");
+    // Der Push brachte beide Schritte: dieser Lauf ist der einzige, er liefert aus.
+    expect(berechneVersion(repo, "HEAD", { vorher })).toMatchObject({ version: "5.0.1", ausliefern: true });
+    // Kam nur der App-Schritt mit diesem Push, hatte der Suite-Schritt seinen eigenen Lauf.
+    expect(berechneVersion(repo, "HEAD", { vorher: git("rev-parse", "HEAD^1") })).toMatchObject({ ausliefern: false });
+    // Ohne brauchbares `vorher` (neuer Zweig: Nullen) gilt der letzte Schritt allein.
+    expect(berechneVersion(repo, "HEAD", { vorher: "0".repeat(40) })).toMatchObject({ ausliefern: false });
+    expect(berechneVersion(repo)).toMatchObject({ ausliefern: false });
+  });
+
   it("wirft außerhalb eines Repos, statt still 1.0.0 zu liefern", () => {
     const leer = mkdtempSync(path.join(tmpdir(), "iuk-kein-repo-"));
     try {
