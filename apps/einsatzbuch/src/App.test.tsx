@@ -919,6 +919,22 @@ describe("Formular", () => {
     expect(gespeichert.umsysteme).toEqual([{ system: "suchlage", id: "42", name: "Vermisste Person Stadtwald" }]);
     await clickElement(radio("Ohne Suchlage-Einsatz")!);
     expect(radio("Vermisste Person Stadtwald")?.getAttribute("aria-checked")).toBe("false");
+    expect(radio("Ohne Suchlage-Einsatz")?.tabIndex).toBe(0);
+    expect(radio("Vermisste Person Stadtwald")?.tabIndex).toBe(-1);
+    radio("Ohne Suchlage-Einsatz")!.focus();
+    await act(async () => {
+      radio("Ohne Suchlage-Einsatz")!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    });
+    expect(radio("Vermisste Person Stadtwald")?.getAttribute("aria-checked")).toBe("true");
+    expect(document.activeElement).toBe(radio("Vermisste Person Stadtwald"));
+  });
+
+  it("zeigt einen verknüpften Suchlage-Einsatz als eigene Zeile, wenn die Abfrage ihn nicht enthält", async () => {
+    await starte(status({ entwurf: entwurf({ umsysteme: [{ system: "suchlage", id: "7", name: "Verknüpfter Einsatz" }] }) }));
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warteBis(() => radio("Verknüpfter Einsatz") !== undefined, "Zeile „Verknüpfter Einsatz“");
+    expect(radio("Verknüpfter Einsatz")?.getAttribute("aria-checked")).toBe("true");
+    expect(radio("Ohne Suchlage-Einsatz")?.getAttribute("aria-checked")).toBe("false");
   });
 
   it("zeigt einen gescheiterten Abruf der Suchlage-Einsätze und vergisst die Liste beim Verlassen", async () => {

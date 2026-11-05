@@ -130,6 +130,17 @@ export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbei
       ? [{ system: "suchlage", id: suchlage.id, name: suchlage.name, ort: null, beginn: null, ende: null }, ...suchlageEinsaetze]
       : suchlageEinsaetze;
 
+  /** Radiogruppe nach APG: Pfeiltasten wechseln Fokus und Wahl, Tab erreicht nur die gewählte Zeile. */
+  const pfeilWahl = (ev: KeyboardEvent<HTMLDivElement>) => {
+    const schritt = ev.key === "ArrowDown" || ev.key === "ArrowRight" ? 1 : ev.key === "ArrowUp" || ev.key === "ArrowLeft" ? -1 : 0;
+    if (schritt === 0) return;
+    ev.preventDefault();
+    const zeilen = Array.from(ev.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+    const ziel = zeilen[(zeilen.indexOf(document.activeElement as HTMLButtonElement) + schritt + zeilen.length) % zeilen.length];
+    ziel?.focus();
+    ziel?.click();
+  };
+
   return (
     <>
       <main className="seite seite-form" data-screen-label="Erfassung">
@@ -212,32 +223,25 @@ export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbei
                   {umsystemFehler}
                 </span>
               ) : null}
-              <div className="trefferliste trefferliste-fz" role="radiogroup" aria-label="Suchlage-Einsatz">
-                <button
-                  type="button"
-                  role="radio"
-                  className="treffer treffer-umsystem"
-                  aria-checked={!suchlage}
-                  onClick={() => beiAenderung(loeseVerknuepfung(e, "suchlage"))}
-                >
-                  <span className="punkt" />
-                  <span className="treffer-umsystem-name">Ohne Suchlage-Einsatz</span>
-                  <span />
-                </button>
-                {suchlageZeilen.map((u) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    role="radio"
-                    className="treffer treffer-umsystem"
-                    aria-checked={suchlage?.id === u.id}
-                    onClick={() => beiAenderung(verknuepfe(e, u))}
-                  >
-                    <span className="punkt" />
-                    <span className="treffer-umsystem-name">{u.name || `Einsatz ${u.id}`}</span>
-                    <span className="treffer-neben">{[u.ort, umsystemZeitraum(u)].filter(Boolean).join(" · ")}</span>
-                  </button>
-                ))}
+              <div className="trefferliste trefferliste-fz" role="radiogroup" aria-label="Suchlage-Einsatz" onKeyDown={pfeilWahl}>
+                {[null, ...suchlageZeilen].map((u) => {
+                  const an = u ? suchlage?.id === u.id : !suchlage;
+                  return (
+                    <button
+                      key={u?.id ?? "ohne"}
+                      type="button"
+                      role="radio"
+                      className="treffer treffer-umsystem"
+                      aria-checked={an}
+                      tabIndex={an ? 0 : -1}
+                      onClick={() => beiAenderung(u ? verknuepfe(e, u) : loeseVerknuepfung(e, "suchlage"))}
+                    >
+                      <span className="punkt" />
+                      <span className="treffer-umsystem-name">{u ? u.name || `Einsatz ${u.id}` : "Ohne Suchlage-Einsatz"}</span>
+                      {u ? <span className="treffer-neben">{[u.ort, umsystemZeitraum(u)].filter(Boolean).join(" · ")}</span> : <span />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </Karte>
