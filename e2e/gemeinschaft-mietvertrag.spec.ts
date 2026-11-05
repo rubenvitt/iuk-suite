@@ -258,7 +258,7 @@ test("Rückgabe mit Zeichnen aus: Ausdruck als Foto hochladen; ohne Vorlage kein
   await expect(gast.getByTestId("unterschrift-flaeche")).toHaveCount(0);
   // Ein 1×1-PNG als „Foto“; der Server macht daraus eine PDF.
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
-  const hoch = gast.waitForResponse((r) => r.url().endsWith(`${status}/vertrag?art=rueckgabe`) && r.request().method() === "POST");
+  const hoch = gast.waitForResponse((r) => r.url().includes(`${status}/vertrag?art=rueckgabe`) && r.request().method() === "POST");
   await gast.getByTestId("dokument-rueckgabe-hochladen").setInputFiles({ name: "IMG_0001.png", mimeType: "image/png", buffer: png });
   expect((await hoch).status()).toBe(200);
   await expect(bereich).toHaveAttribute("data-stand", "unterschrieben");

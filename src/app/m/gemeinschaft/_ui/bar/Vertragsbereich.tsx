@@ -75,7 +75,7 @@ function Unterschreiben({ code, person, art, version, zeichnen, pfad, titel, tid
     try {
       const form = new FormData();
       form.append("datei", f);
-      const antwort = await fetch(pfad, { method: "POST", body: form });
+      const antwort = await fetch(`${pfad}&version=${version}`, { method: "POST", body: form });
       const rumpf = (await antwort.json().catch(() => null)) as { ok: boolean; fehler?: string } | null;
       if (!antwort.ok || !rumpf?.ok) { setFehler(rumpf?.fehler ?? "Das Hochladen hat nicht geklappt. Bitte die Seite neu laden."); return; }
       router.refresh();

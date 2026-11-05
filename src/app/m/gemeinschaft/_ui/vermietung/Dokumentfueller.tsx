@@ -37,6 +37,8 @@ export function Dokumentfueller({ d }: { d: DokumentDTO }) {
   const leitung = d.unterschriften.find((u) => u.rolle === "leitung") ?? null;
   const leitungFehlt = leitungFelder.some((f) => !d.unterschriften.some((u) => u.feldId === f.id));
   const geaendert = JSON.stringify(sauber(werte)) !== JSON.stringify(sauber(d.werte));
+  // Geänderte Werte machen die Unterschrift der Leitung ungültig (speichereWerte): erst neu unterschreiben.
+  const freigabeGesperrt = leitungFehlt || (geaendert && leitungFelder.length > 0);
   const ansicht = `/vermietung/dokument/${d.anfrageId}/${d.art}/ansicht`;
 
   /** Speichert geänderte Werte; gibt die gültige Version zurück oder `null` bei Ablehnung. */
@@ -130,7 +132,7 @@ export function Dokumentfueller({ d }: { d: DokumentDTO }) {
         <div className={s.zeile}>
           {!freigegeben ? (
             <>
-              <Button type="primary" loading={laeuft} disabled={leitungFehlt} onClick={() => void freigeben()} data-testid="freigeben">Freigeben</Button>
+              <Button type="primary" loading={laeuft} disabled={freigabeGesperrt} onClick={() => void freigeben()} data-testid="freigeben">Freigeben</Button>
               <Popconfirm title="Dokument verwerfen?" okText="Verwerfen" cancelText="Abbrechen" onConfirm={() => verwerfen()}>
                 <Button type="text" icon={<Icons8Ikone name="trash" groesse={18} />}>Verwerfen</Button>
               </Popconfirm>

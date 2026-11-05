@@ -54,6 +54,16 @@ describe("Ausfüllseite", () => {
     expect(query<HTMLButtonElement>('[data-testid="freigeben"]').disabled).toBe(true);
     expect(query('[data-testid="zeichnen-leitung"]')).toBeTruthy();
     await unmount();
+    // Unterschrieben, dann einen Wert geändert: die Unterschrift gälte nicht mehr, Freigeben gesperrt.
+    await mount(<App><Dokumentfueller d={{ ...mitLeitung, unterschriften: [{ feldId: "g:l", rolle: "leitung", name: "Leitung Bar", am: zeitpunkt("2026-11-05", "09:00") }] }} /></App>);
+    expect(query<HTMLButtonElement>('[data-testid="freigeben"]').disabled).toBe(false);
+    const t = query<HTMLTextAreaElement>('textarea[data-feld="g:t"]');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(t, "neu");
+      t.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(query<HTMLButtonElement>('[data-testid="freigeben"]').disabled).toBe(true);
+    await unmount();
     await mount(<App><Dokumentfueller d={{ ...mitLeitung, freigegebenAm: zeitpunkt("2026-11-05", "10:00"), unterschriften: [{ feldId: "g:l", rolle: "leitung", name: "Leitung Bar", am: zeitpunkt("2026-11-05", "09:00") }] }} /></App>);
     expect(query<HTMLTextAreaElement>('textarea[data-feld="g:t"]').disabled).toBe(true);
     expect(query('[data-testid="leitung-unterschrieben"]').textContent).toContain("Leitung Bar");

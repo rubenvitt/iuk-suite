@@ -67,6 +67,9 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       if (e instanceof Abgelehnt) return jsonAntwort(409, { ok: false, fehler: e.message });
       throw e;
     }
+    // Die Version, die die Seite angezeigt hat: wurde das Dokument seitdem geändert, passt der Ausdruck nicht mehr.
+    const version = Number(new URL(req.url).searchParams.get("version"));
+    if (version !== a.version) return jsonAntwort(409, { ok: false, fehler: "Das Dokument wurde gerade geändert. Bitte die Seite neu laden." });
     const d = await leseDatei(req, VERTRAG_MAX_BYTES, "Bitte eine PDF oder ein Foto wählen.");
     if (!d.ok) return jsonAntwort(d.status, { ok: false, fehler: d.fehler });
     const p = pruefeUnterschriebeneDatei(d.name, d.bytes);
@@ -80,7 +83,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       return jsonAntwort(415, { ok: false, fehler: "Dieses Foto lässt sich nicht lesen. Bitte als JPG oder PNG speichern." });
     }
     try {
-      legeUnterschriebenAb(db, { code }, art, { inhalt, herkunft: "hochgeladen", unterschrift: null, version: null }, Date.now());
+      legeUnterschriebenAb(db, { code }, art, { inhalt, herkunft: "hochgeladen", unterschrift: null, version }, Date.now());
     } catch (e) {
       if (e instanceof NichtGefunden) return NICHT_DA();
       if (e instanceof Abgelehnt) return jsonAntwort(409, { ok: false, fehler: e.message });
