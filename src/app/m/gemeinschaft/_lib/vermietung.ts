@@ -347,7 +347,10 @@ function hatDatei(tx: GemeinschaftSchreiber, id: string, art: Dokumentart): bool
   return tx.select({ a: vertragsdatei.anfrageId }).from(vertragsdatei).where(and(eq(vertragsdatei.anfrageId, id), eq(vertragsdatei.art, art))).get() !== undefined;
 }
 
-/** Erstellt das Dokument einer Zusage aus der aktuellen Vorlage (Kopie von PDF und Feldern). */
+/**
+ * Erstellt das Dokument einer Zusage aus der aktuellen Vorlage (Kopie von PDF und Feldern). Die Version beginnt beim
+ * Erstellzeitpunkt, nicht bei 1: ein verworfenes und neu erstelltes Dokument nimmt keine Version des alten an.
+ */
 export function erstelleDokument(db: GemeinschaftDb, id: string, art: Dokumentart, jetzt: number): void {
   db.transaction((tx) => {
     const a = holeAnfrage(tx, id);
@@ -356,7 +359,7 @@ export function erstelleDokument(db: GemeinschaftDb, id: string, art: Dokumentar
     if (!v) throw new Abgelehnt("Dazu liegt keine Vorlage. Lade sie zuerst unter Vermietung, Verträge hoch.");
     const da = tx.select({ a: vertragsdokument.anfrageId }).from(vertragsdokument).where(dokWo(id, art)).get();
     if (da) throw new Abgelehnt("Dieses Dokument gibt es schon.");
-    tx.insert(vertragsdokument).values({ anfrageId: id, art, name: v.name, inhalt: v.inhalt, felder: v.felder, werte: "{}", version: 1, erstelltAm: jetzt }).run();
+    tx.insert(vertragsdokument).values({ anfrageId: id, art, name: v.name, inhalt: v.inhalt, felder: v.felder, werte: "{}", version: jetzt, erstelltAm: jetzt }).run();
   });
 }
 

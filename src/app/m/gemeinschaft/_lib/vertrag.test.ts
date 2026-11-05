@@ -66,7 +66,7 @@ async function freigegeben(db: TestDb, art: "mietvertrag" | "uebergabe" = "mietv
   setzeVorlageFelder(db, art, [gezogen("text", "text", { h: 20 }), gezogen("leitung", "unterschrift", { rolle: "leitung", y: 200 }), gezogen("mieter", "unterschrift", { rolle: "mieter", seite: 1 })]);
   const z = zusage(db);
   erstelleDokument(db, z.id, art, JETZT);
-  let v = speichereWerte(db, z.id, art, { "g:text": "200 €" }, 1);
+  let v = speichereWerte(db, z.id, art, { "g:text": "200 €" }, JETZT);
   v = unterschreibeAlsLeitung(db, z.id, art, v, { name: "Leitung Bar", bild: PNG, am: JETZT });
   gebeDokumentFrei(db, z.id, art, v, JETZT);
   return { ...z, version: v + 1, pdf };
@@ -216,11 +216,12 @@ describe("Dokument einer Zusage", () => {
     setzeVorlageFelder(db, "mietvertrag", [gezogen("t", "text", { h: 20 }), gezogen("l", "unterschrift", { rolle: "leitung" })]);
     const { id, code } = zusage(db);
     erstelleDokument(db, id, "mietvertrag", JETZT);
-    expect(speichereWerte(db, id, "mietvertrag", { "g:t": "a" }, 1)).toBe(2);
-    expect(speichereWerte(db, id, "mietvertrag", { "g:t": "a" }, 2)).toBe(2);
-    expect(() => speichereWerte(db, id, "mietvertrag", { "g:t": "b" }, 1)).toThrow("gerade geändert");
-    expect(() => gebeDokumentFrei(db, id, "mietvertrag", 2, JETZT)).toThrow("zuerst als Leitung");
-    const v = unterschreibeAlsLeitung(db, id, "mietvertrag", 2, { name: "Leitung", bild: PNG, am: JETZT });
+    expect(ladeDokument(db, id, "mietvertrag")?.version).toBe(JETZT);
+    expect(speichereWerte(db, id, "mietvertrag", { "g:t": "a" }, JETZT)).toBe(JETZT + 1);
+    expect(speichereWerte(db, id, "mietvertrag", { "g:t": "a" }, JETZT + 1)).toBe(JETZT + 1);
+    expect(() => speichereWerte(db, id, "mietvertrag", { "g:t": "b" }, JETZT)).toThrow("gerade geändert");
+    expect(() => gebeDokumentFrei(db, id, "mietvertrag", JETZT + 1, JETZT)).toThrow("zuerst als Leitung");
+    const v = unterschreibeAlsLeitung(db, id, "mietvertrag", JETZT + 1, { name: "Leitung", bild: PNG, am: JETZT });
     const v2 = speichereWerte(db, id, "mietvertrag", { "g:t": "b" }, v);
     expect(ladeDokument(db, id, "mietvertrag")?.unterschriften).toEqual([]);
     const v3 = unterschreibeAlsLeitung(db, id, "mietvertrag", v2, { name: "Leitung", bild: PNG, am: JETZT });
@@ -234,6 +235,8 @@ describe("Dokument einer Zusage", () => {
     expect(ladeAnfragen(db)[0].vertrag).toBe("offen");
     verwirfDokument(db, id, "mietvertrag");
     expect(ladeDokument(db, id, "mietvertrag")).toBeNull();
+    erstelleDokument(db, id, "mietvertrag", JETZT + 60_000);
+    expect(ladeDokument(db, id, "mietvertrag")?.version).toBeGreaterThan(v3 + 1);
   });
 
   it("die Ansicht zeigt Werte und Unterschrift der Leitung", async () => {
