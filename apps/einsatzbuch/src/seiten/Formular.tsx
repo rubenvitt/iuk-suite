@@ -181,7 +181,6 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
             ))}
             <Feld
               label="Einsatznummer der Leitstelle"
-              hilfe="Freiwillig, so wie die Leitstelle sie durchgibt."
               wert={e.leitstellenNummer}
               beiAenderung={setze("leitstellenNummer")}
               placeholder="z. B. RD 2026-08-1234"
@@ -410,7 +409,6 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
                   <option key={v} value={v} />
                 ))}
               </datalist>
-              <div className="neben">Einsatznummer und wer transportiert hat sind freiwillig, je Patient eine Zeile.</div>
               <div className="gesamt">
                 <div className="gesamt-label">Gesamt</div>
                 <div className="gesamt-zahl">{e.vorOrt + e.transport}</div>
