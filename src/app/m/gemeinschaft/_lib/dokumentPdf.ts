@@ -258,6 +258,8 @@ export async function mitLeitungsSeite(fassung: Uint8Array, u: Unterschrift, r: 
   const schrift = await doc.embedFont(StandardFonts.Helvetica);
   const fett = await doc.embedFont(StandardFonts.HelveticaBold);
   await unterschriftSeite(doc, `Unterschrift der Leitung: ${r.dokument}`, u, r, schrift, fett);
+  // Wie in `dokumentPdf`: ein XMP-Paket der hochgeladenen PDF trüge sonst den alten Titel weiter.
+  doc.catalog.delete(PDFName.of("Metadata"));
   doc.setTitle(r.titel);
   doc.setModificationDate(new Date(r.am));
   return doc.save();
