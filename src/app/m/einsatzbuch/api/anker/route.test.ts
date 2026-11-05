@@ -147,7 +147,7 @@ describe("POST /api/anker mit umsysteme (IDA-359)", () => {
     const { verbindeSuchlage } = await import("../../_lib/umsysteme");
     const { umsystemVerknuepfung } = await import("../../_db/schema");
     verbindeSuchlage(db, LINK, "Verwaltung", new Date());
-    const abruf = vi.fn(() => Promise.reject(new Error("weg")));
+    const abruf = vi.fn((): Promise<Response> => Promise.reject(new Error("weg")));
     vi.stubGlobal("fetch", abruf);
     const { POST } = await import("./route");
 
