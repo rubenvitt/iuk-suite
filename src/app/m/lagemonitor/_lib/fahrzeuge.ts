@@ -80,17 +80,28 @@ export interface Vehicle {
   fixed: boolean;
 }
 
+/**
+ * Der eigene Eintrag, grob (LGM-12): Der Monitor zeichnet sein Fahrzeug aus dem eigenen GPS (`mapData.ts`,
+ * `vehicleMarks`) und braucht von hier weder die genaue Position noch die Zeit. Genau änderten sie den Körper bei
+ * jeder Abholung, und der ETag (`_lib/etag.ts`) griffe nie: Im FüKw kam so jede Minute die ganze Konfiguration.
+ * Auf 0,01° (rund 1 km) und die volle Stunde bleibt er stehen, solange das Fahrzeug steht.
+ */
+export const grob = (grad: number) => Math.round(grad * 100) / 100;
+const volleStunde = (d: Date) => new Date(Math.floor(d.getTime() / 3_600_000) * 3_600_000);
+
 export function alsVehicles(db: LagemonitorDb, zugangId: string | null, jetzt = new Date(), q: Quellen = QUELLEN): Vehicle[] {
   const zeilen = db.select().from(fahrzeug).all()
     .filter((f) => f.breite !== null && f.laenge !== null && f.gemeldetAm !== null && jetzt.getTime() - f.gemeldetAm.getTime() <= POSITION_HOECHSTALTER_MS);
   if (zeilen.length === 0) return [];
   const namen = new Map(sicher(q.stamm, []).map((s) => [s.id, s.funkrufname]));
   const bilder = sicher(() => q.svg(zeilen.map((f) => f.zeichen)), {});
-  return zeilen.flatMap((f) => {
+  return zeilen.flatMap((f): Vehicle[] => {
     const callSign = namen.get(f.stammId);
     const symbol = bilder[f.zeichen];
     if (!callSign || !symbol) return [];
-    return [{ id: f.id, callSign, symbol, lat: f.breite!, lon: f.laenge!, at: f.gemeldetAm!.toISOString(), own: f.zugangId !== null && f.zugangId === zugangId, fixed: false }];
+    const own = f.zugangId !== null && f.zugangId === zugangId;
+    if (own) return [{ id: f.id, callSign, symbol, lat: grob(f.breite!), lon: grob(f.laenge!), at: volleStunde(f.gemeldetAm!).toISOString(), own, fixed: false }];
+    return [{ id: f.id, callSign, symbol, lat: f.breite!, lon: f.laenge!, at: f.gemeldetAm!.toISOString(), own, fixed: false }];
   }).sort((a, b) => a.callSign.localeCompare(b.callSign, "de", { numeric: true }));
 }
 

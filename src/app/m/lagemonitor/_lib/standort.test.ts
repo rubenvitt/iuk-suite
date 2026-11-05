@@ -51,7 +51,7 @@ describe("Standort je Monitor", () => {
     expect(setzeStandort(db, e, Q)).toEqual({ ok: true });
     expect(db.select().from(fahrzeug).get()!.zugangId).toBe(fuekw);
     expect(standortFuer(db, fuekw, JETZT)).toEqual({ lat: 52.9, lon: 10.5, label: "FüKw Uelzen" });
-    meldePosition(db, fuekw, { lat: 53.1, lon: 10.7, alterS: 10 }, JETZT);
+    meldePosition(db, fuekw, { lat: 53.10412, lon: 10.69871, alterS: 10 }, JETZT);
     expect(standortFuer(db, fuekw, JETZT)).toEqual({ lat: 53.1, lon: 10.7, label: "FüKw Uelzen" });
     // Ein Zugang mit Fahrzeug ist kein fester Ort.
     expect(festeOrte(db, fuekw, Q)).toEqual([]);

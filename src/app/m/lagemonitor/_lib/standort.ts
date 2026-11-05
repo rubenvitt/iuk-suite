@@ -11,7 +11,7 @@ import { and, eq, isNull, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import type { LagemonitorDb } from "../_db/client";
 import { fahrzeug, zugang } from "../_db/schema";
-import { POSITION_HOECHSTALTER_MS, QUELLEN, sicher, type Quellen, type Vehicle } from "./fahrzeuge";
+import { grob, POSITION_HOECHSTALTER_MS, QUELLEN, sicher, type Quellen, type Vehicle } from "./fahrzeuge";
 import { STANDORT_VORGABE, type Vertrag } from "./konfiguration";
 
 /** Ein fester Ort im Drahtformat: `id` mit eigenem Präfix, damit sie nie mit einer Fahrzeug-ID zusammenfällt. */
@@ -24,8 +24,8 @@ function hatOrt(z: ZugangZeile): z is ZugangZeile & { ortName: string; ortBreite
 }
 
 /**
- * Wo der Monitor dieses Zugangs steht, für `location` im Drahtformat. Mit Fahrzeug die letzte gemeldete Position
- * (der Monitor nimmt den eigenen Fix, sobald er einen hat), ohne Position der eingestellte Ort; fehlt auch der, die
+ * Wo der Monitor dieses Zugangs steht, für `location` im Drahtformat. Mit Fahrzeug die letzte gemeldete Position, grob
+ * wie der eigene Eintrag (`_lib/fahrzeuge.ts`, `grob`; der Monitor nimmt den eigenen Fix), ohne Position der eingestellte Ort; fehlt auch der, die
  * Vorgabe. Der Name ist immer der eingestellte.
  */
 export function standortFuer(db: LagemonitorDb, zugangId: string, jetzt = new Date()): Vertrag["location"] {
@@ -34,7 +34,7 @@ export function standortFuer(db: LagemonitorDb, zugangId: string, jetzt = new Da
   const label = z.ortName ?? z.bezeichnung;
   const f = db.select().from(fahrzeug).where(eq(fahrzeug.zugangId, zugangId)).get();
   if (f && f.breite !== null && f.laenge !== null && f.gemeldetAm && jetzt.getTime() - f.gemeldetAm.getTime() <= POSITION_HOECHSTALTER_MS) {
-    return { lat: f.breite, lon: f.laenge, label };
+    return { lat: grob(f.breite), lon: grob(f.laenge), label };
   }
   if (z.ortBreite !== null && z.ortLaenge !== null) return { lat: z.ortBreite, lon: z.ortLaenge, label };
   return { ...STANDORT_VORGABE, label };
