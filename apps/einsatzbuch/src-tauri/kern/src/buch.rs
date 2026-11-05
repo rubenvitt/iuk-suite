@@ -710,7 +710,12 @@ impl Buch {
     ///
     /// `anker_gemeldet_bis` bleibt 0: Der Rechner meldet danach die ganze Kette als seine Anker.
     /// Scheitert ein Schritt, rollt die `Transaction` beim Verlassen über `?` alles zurück.
-    pub fn uebernehme_sicherung(&mut self, bloecke: &[Block], nummern: &BTreeMap<i64, i64>) -> Result<(), BuchFehler> {
+    pub fn uebernehme_sicherung(
+        &mut self,
+        bloecke: &[Block],
+        nummern: &BTreeMap<i64, i64>,
+        umsysteme: &[(u64, UmsystemVerweis)],
+    ) -> Result<(), BuchFehler> {
         let betrieb = self.betrieb;
         let tx = self.conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
@@ -740,6 +745,14 @@ impl Buch {
         }
         for (jahr, letzte) in nummern {
             tx.execute("INSERT INTO nummern (jahr, letzte) VALUES (?1, ?2)", params![jahr, letzte])?;
+        }
+        // Die Umsysteme der Blöcke wie beim Versiegeln (IDA-359): Ein Block nach dem letzten
+        // Anker trägt sie sonst nicht in seiner Meldung, und Suchlage sperrt den Einsatz nie.
+        for (block, u) in umsysteme {
+            tx.execute(
+                "INSERT OR IGNORE INTO umsystem_meldung (system, id, block) VALUES (?1, ?2, ?3)",
+                params![u.system, u.id, *block as i64],
+            )?;
         }
         tx.commit()?;
         Ok(())

@@ -89,8 +89,10 @@ export function App() {
   const [versatz, setVersatz] = useState(0);
   /** Nach einer Sperre aus der Verwaltung: kurzer Toast auf der Startseite (entsperrt wird über ihren Fuß). */
   const [gesperrtHinweis, setGesperrtHinweis] = useState(false);
-  /** Einsätze der Umsysteme zur Auswahl im Formular (IDA-359), je Öffnen des Formulars einmal geholt; ohne Antwort leer. */
+  /** Einsätze der Umsysteme zur Auswahl im Formular (IDA-359), je Öffnen des Formulars einmal geholt; bis zur Antwort leer. */
   const [umsysteme, setUmsysteme] = useState<UmsystemEinsatzAuswahl[]>([]);
+  /** Warum der letzte Abruf der Umsysteme scheiterte; das Formular zeigt es an der Suchlage-Karte. */
+  const [umsystemFehler, setUmsystemFehler] = useState<string | null>(null);
 
   const statusRef = useRef<Status | null>(null);
   const versatzRef = useRef(0);
@@ -266,11 +268,15 @@ export function App() {
       .then((liste) => {
         if (aktiv) setUmsysteme(liste);
       })
-      .catch(() => {
-        if (aktiv) setUmsysteme([]);
+      .catch((e: unknown) => {
+        if (aktiv) setUmsystemFehler(fehlerText(e));
       });
+    // Beim Verlassen weg damit: Beim nächsten Öffnen ist erst die frische Liste wählbar, nicht ein
+    // inzwischen verknüpfter Einsatz von vorhin.
     return () => {
       aktiv = false;
+      setUmsysteme([]);
+      setUmsystemFehler(null);
     };
   }, [imFormular]);
 
@@ -685,6 +691,7 @@ export function App() {
               entwurf={entwurf}
               paket={paket}
               umsysteme={umsysteme}
+              umsystemFehler={umsystemFehler}
               bearbeiten={lokal.bearbeiten}
               restText={restText(rest)}
               beiAenderung={aendere}

@@ -44,4 +44,11 @@ describe("Suchlage verbinden und trennen", () => {
     const ergebnis = await suchlageVerbindenAction({ link: "https://s.example.org/karte" });
     expect(ergebnis.ok ? null : ergebnis.feldFehler?.link).toBe("Das ist kein Großbild-Link aus Suchlage.");
   });
+
+  it("ein http-Link ist ein Feldfehler, denn das Token ginge im Klartext mit", async () => {
+    gruppen = ["einsatzbuch-nutzer"];
+    const { suchlageVerbindenAction } = await import("./umsysteme");
+    const ergebnis = await suchlageVerbindenAction({ link: `http://s.example.org/kiosk#${TOKEN}` });
+    expect(ergebnis.ok ? null : ergebnis.feldFehler?.link).toBe("Der Großbild-Link muss mit https:// beginnen.");
+  });
 });

@@ -10,7 +10,7 @@ const notiz: Releasenotiz = {
   inhalt: [
     absatz(
       "War Suchlage dabei, wählst du im Formular unter „Suchlage-Einsatz“ den passenden Einsatz. " +
-        "Danach lässt er sich in Suchlage nicht mehr löschen und nicht ein zweites Mal wählen. " +
+        "Ist dein Einsatz in der Suite angekommen, lässt sich der Suchlage-Einsatz nicht mehr löschen oder erneut wählen. " +
         "Unter Einstellungen bei „Suchlage“ trägst du dafür einen Großbild-Link mit „Für die IUK-Suite (Einsatztagebuch)“ ein.",
     ),
   ],

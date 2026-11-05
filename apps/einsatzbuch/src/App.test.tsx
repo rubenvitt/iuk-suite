@@ -913,6 +913,31 @@ describe("Formular", () => {
     expect(gespeichert.umsysteme).toEqual([{ system: "suchlage", id: "42", name: "Vermisste Person Stadtwald" }]);
   });
 
+  it("zeigt einen gescheiterten Abruf der Suchlage-Einsätze und vergisst die Liste beim Verlassen", async () => {
+    befehle.umsysteme.mockRejectedValue("Suchlage antwortet gerade nicht.");
+    await starte(status());
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warteBis(() => text().includes("Suchlage antwortet gerade nicht."), "Fehler an der Suchlage-Karte");
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain("Suchlage antwortet gerade nicht.");
+    expect(knopf("Mit Suchlage-Einsatz verknüpfen")).toBeUndefined();
+    await clickElement(knopf("Zurück")!);
+
+    befehle.umsysteme.mockResolvedValue([
+      { system: "suchlage", id: "42", name: "Vermisste Person Stadtwald", ort: "Uelzen", beginn: "2026-10-31T19:12:00+01:00", ende: null },
+    ]);
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warteBis(() => knopf("Mit Suchlage-Einsatz verknüpfen") !== undefined, "Knopf „Mit Suchlage-Einsatz verknüpfen“");
+    expect(text()).not.toContain("Suchlage antwortet gerade nicht.");
+    await clickElement(knopf("Zurück")!);
+
+    let antworte: (liste: never[]) => void = () => {};
+    befehle.umsysteme.mockReturnValue(new Promise((r) => (antworte = r)));
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warte();
+    expect(knopf("Mit Suchlage-Einsatz verknüpfen")).toBeUndefined();
+    antworte([]);
+  });
+
   it("begrenzt die Textfelder wie der Reader", async () => {
     await starte(status());
     await clickElement(knopf("Einsatz öffnen")!);

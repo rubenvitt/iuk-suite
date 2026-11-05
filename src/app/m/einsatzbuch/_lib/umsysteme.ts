@@ -35,7 +35,13 @@ export function leseSuchlage(db: Db): SuchlageVerbindung | null {
 }
 
 export const suchlageEingabe = z.object({
-  link: z.string().trim().max(500).refine((t) => suchlageLinkAus(t) !== null, "Das ist kein Großbild-Link aus Suchlage."),
+  link: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((t) => suchlageLinkAus(t) !== null, "Das ist kein Großbild-Link aus Suchlage.")
+    // Das Token geht bei jedem Abruf als Bearer mit, über http also im Klartext.
+    .refine((t) => suchlageLinkAus(t)?.adresse.startsWith("https://") !== false, "Der Großbild-Link muss mit https:// beginnen."),
 }).strict();
 
 /** Verbindet mit dem Großbild-Link aus Suchlage (`https://…/kiosk#<token>`); ersetzt eine bestehende Verbindung. */

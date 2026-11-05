@@ -43,8 +43,10 @@ import type { Entwurf, Stammdatenpaket, UmsystemEinsatzAuswahl } from "../typen"
 interface FormularProps {
   entwurf: Entwurf;
   paket: Stammdatenpaket;
-  /** Einsätze der Umsysteme zur Auswahl (IDA-359); leer, wenn keins verbunden ist oder antwortet. */
+  /** Einsätze der Umsysteme zur Auswahl (IDA-359); leer, wenn keins verbunden ist. */
   umsysteme: UmsystemEinsatzAuswahl[];
+  /** Warum die Umsysteme nicht geladen wurden; `null`, wenn der Abruf gelang oder noch läuft. */
+  umsystemFehler: string | null;
   bearbeiten: boolean;
   restText: string;
   beiAenderung: (e: Entwurf) => void;
@@ -80,7 +82,7 @@ function sichererDauerHinweis(e: Entwurf, zeitzone: string): string {
   }
 }
 
-export function Formular({ entwurf: e, paket, umsysteme, bearbeiten, restText, beiAenderung, beiZurueck, beiVerwerfen, beiAbsenden }: FormularProps) {
+export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbeiten, restText, beiAenderung, beiZurueck, beiVerwerfen, beiAbsenden }: FormularProps) {
   const { fahrzeuge, personal, stichworte } = paket.stammdaten;
   const [fzSuche, setFzSuche] = useState("");
   const [fzFilter, setFzFilter] = useState("Alle");
@@ -199,7 +201,7 @@ export function Formular({ entwurf: e, paket, umsysteme, bearbeiten, restText, b
           </div>
         </Karte>
 
-        {suchlage || suchlageEinsaetze.length > 0 ? (
+        {suchlage || suchlageEinsaetze.length > 0 || umsystemFehler ? (
           <Karte titel="Suchlage-Einsatz">
             <div className="stapel stapel-12">
               {suchlage ? (
@@ -217,6 +219,10 @@ export function Formular({ entwurf: e, paket, umsysteme, bearbeiten, restText, b
                     <Zeichen name="kreuz" groesse={14} />
                   </button>
                 </div>
+              ) : umsystemFehler ? (
+                <span className="feld-fehler" role="alert">
+                  {umsystemFehler}
+                </span>
               ) : suchlageOffen ? (
                 <div className="trefferliste trefferliste-fz">
                   {suchlageEinsaetze.map((u) => (

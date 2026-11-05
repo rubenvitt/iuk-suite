@@ -941,17 +941,21 @@ pub fn hole_stammdaten_jetzt(z: &Zustand) -> Result<(), String> {
 }
 
 /// Die Einsätze der Umsysteme, mit denen die Suite verbunden ist (IDA-359), heute nur Suchlage,
-/// für die Auswahl im Formular. Ohne Verbindung leer. Ein Widerruf wird vermerkt wie beim
-/// Stammdatenabruf; jeder andere Fehler geht als Text an die Oberfläche, das Formular bleibt
-/// ohne Auswahl benutzbar.
+/// für die Auswahl im Formular. Ohne Verbindung leer, ebenso ohne Netz zur Suite: Das zeigt die
+/// App schon anderswo, und wer Suchlage nie nutzt, soll im Formular keinen Fehler sehen. Ein
+/// Widerruf wird vermerkt wie beim Stammdatenabruf (nur für denselben Rechner); jeder andere
+/// Fehler, etwa Suchlage antwortet der Suite nicht, geht als Text an die Oberfläche.
 pub fn hole_umsysteme_jetzt(z: &Zustand) -> Result<Vec<UmsystemEinsatzAuswahl>, String> {
     let g = abgleichsgrundlage(z)?;
     match suite::hole_umsysteme(&*z.transport, &g.suite_url, &g.geraet) {
         Ok(liste) => Ok(liste),
+        Err(SuiteFehler::NichtErreichbar(_)) => Ok(Vec::new()),
         Err(SuiteFehler::Widerrufen) => {
             let mut buch = z.buch_zum_schreiben()?;
             if let Some(offen) = buch.as_mut() {
-                offen.widerrufen_setzen(true).map_err(buch_fehler_text)?;
+                if offen.anbindung().map_err(buch_fehler_text)?.map(|a| a.rechner_id) == Some(g.rechner_id) {
+                    offen.widerrufen_setzen(true).map_err(buch_fehler_text)?;
+                }
             }
             Err(SuiteFehler::Widerrufen.to_string())
         }

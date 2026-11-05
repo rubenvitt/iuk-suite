@@ -248,10 +248,10 @@ struct Wiederherstellungsgrundlage {
 /// 4. `GET anker` mit dem Geräte-Token für die Kette dieser Sicherung (`erster` = Hash ihres
 ///    Blocks 1, Entscheidung 5), dann die Ankerregel (`wiederherstellung::pruefe`).
 /// 5. Alle Blöcke mit der Sitzung freigeben lassen; eine 401 verwirft die Sitzung.
-/// 6. Jeden Block öffnen und die Nummern je Jahr zusammenfassen. Scheitert ein Block, bricht
-///    alles ab. CEKs und Klartexte werden danach sofort verworfen, die CEKs (`Cek`, auf dem
-///    Heap) überschrieben.
-/// 7. Blöcke und Nummern in einer Transaktion übernehmen, die die Blöcke noch einmal prüft.
+/// 6. Jeden Block öffnen, Nummern je Jahr und Umsysteme zusammenfassen. Scheitert ein Block,
+///    bricht alles ab. CEKs und Klartexte werden danach sofort verworfen, die CEKs (`Cek`, auf
+///    dem Heap) überschrieben.
+/// 7. Blöcke, Nummern und Umsysteme in einer Transaktion übernehmen, die die Blöcke prüft.
 /// 8. `NeuerBlock` anstoßen: sichern und alle Anker für diesen Rechner melden.
 pub fn stelle_wieder_her(z: &Zustand, datei: &Path) -> Result<Wiederhergestellt, String> {
     let (token, sitzung_rechner) = gueltige_sitzung(z)?;
@@ -290,17 +290,18 @@ pub fn stelle_wieder_her(z: &Zustand, datei: &Path) -> Result<Wiederhergestellt,
 
     let schluessel = suite::gib_frei(&*z.transport, &g.suite_url, &token, &sicherung.bloecke)
         .map_err(|e| freigabe_fehler(z, &token, e, WIEDERHERSTELLEN_BRAUCHT_VERBINDUNG))?;
-    let nummern = {
+    let (nummern, umsysteme) = {
         let ceks = entpacke(schluessel)?;
         let einsaetze = oeffne_alle(&sicherung, &ceks)?;
-        wiederherstellung::nummern(&einsaetze).map_err(|e| e.to_string())?
+        let nummern = wiederherstellung::nummern(&einsaetze).map_err(|e| e.to_string())?;
+        (nummern, wiederherstellung::umsysteme(&sicherung.bloecke, &einsaetze))
         // `einsaetze` und `ceks` enden hier; die CEKs überschreibt `Zeroizing` beim Drop.
     };
 
     {
         let mut buch = z.buch_zum_schreiben()?;
         let offen = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
-        offen.uebernehme_sicherung(&sicherung.bloecke, &nummern).map_err(buch_fehler_text)?;
+        offen.uebernehme_sicherung(&sicherung.bloecke, &nummern, &umsysteme).map_err(buch_fehler_text)?;
     }
     z.stosse_an(Anstoss::NeuerBlock);
     Ok(Wiederhergestellt { bloecke: sicherung.bloecke.len() as u64 })
