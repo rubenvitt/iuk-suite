@@ -169,6 +169,8 @@ impl Buch {
             leitstellen_nummer: (!entwurf.leitstellen_nummer.is_empty()).then(|| entwurf.leitstellen_nummer.clone()),
             // Von `pruefe_entwurf` an den Zählern ausgerichtet, ohne Angaben leer.
             patienten: entwurf.patienten.clone(),
+            // Erst lesen, dann schreiben (IDA-359): Dieser Stand versiegelt noch ohne Umsysteme.
+            umsysteme: Vec::new(),
         };
 
         let suite_spki = krypto::aus_b64(&einrichtung.oeffentlich_spki)?;

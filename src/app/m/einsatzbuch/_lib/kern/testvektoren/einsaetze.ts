@@ -5,8 +5,8 @@ import type { Einsatz } from "../format";
  * umgeschrieben. Mit Absicht dabei: Umlaute, „typografische" und gerade Anführungszeichen,
  * Zeilenumbruch, Tab, Steuerzeichen U+0001, U+2028, DEL, Emoji, leeres Objekt, offenes Ende,
  * Person ohne Fahrzeug, eine Leitstellen-Nummer (nur am zweiten, IDA-284), Angaben je Patient
- * (nur am ersten, IDA-285) — jede Stelle, an der eine JCS-Umsetzung in Rust anders maskieren
- * könnte.
+ * (nur am ersten, IDA-285), ein verknüpftes Umsystem (nur am dritten, IDA-359) — jede Stelle,
+ * an der eine JCS-Umsetzung in Rust anders maskieren könnte.
  */
 export const TESTEINSAETZE: Einsatz[] = [
   {
@@ -44,6 +44,7 @@ export const TESTEINSAETZE: Einsatz[] = [
     ],
     vorOrt: 7, transport: 3,
     notizen: "Übergabe an OrgL RD um 19:05 Uhr.\n„Behandlungsplatz\" am GW-San aufgebaut. 😀\tTab \u0001 \u2028 \u007f Ende",
+    umsysteme: [{ system: "suchlage", id: "17", name: "Personensuche „Waldweg\" Ebstorf" }],
   },
 ];
 

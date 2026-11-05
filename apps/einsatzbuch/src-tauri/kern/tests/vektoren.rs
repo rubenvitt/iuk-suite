@@ -213,3 +213,48 @@ fn patienten_sind_optional_und_nie_leer() {
     block.daten = krypto::b64(&daten);
     assert!(matches!(krypto::oeffne_block(&block, &cek), Err(krypto::KryptoFehler::KeinEinsatz)));
 }
+
+/// Verknüpfte Umsysteme (`umsysteme`, IDA-359) folgen derselben Regel wie `patienten`: Der dritte
+/// Vektor-Einsatz trägt eine Suchlage-Verknüpfung und öffnet zu genau ihr, ohne Verknüpfung fehlt
+/// der Schlüssel, und ein geschriebenes `[]` ist kein Einsatz.
+#[test]
+fn umsysteme_sind_optional_und_nie_leer() {
+    let eingaben = hilfe::vektor("eingaben.json");
+    let spki = b64(eingaben["suite"]["oeffentlichSpki"].as_str().unwrap());
+    let suite = krypto::oeffentlich_aus_spki(&spki).unwrap();
+    let kopf = Blockkopf {
+        v: 1,
+        block: 1,
+        prev: GENESIS.to_string(),
+        versiegelt: "2026-01-01T00:00:00+01:00".to_string(),
+        schluessel_id: krypto::schluessel_id(&spki),
+        umgebung: Umgebung::Echt,
+    };
+    let z = &eingaben["bloecke"][0];
+    let cek: [u8; 32] = b64(z["cek"].as_str().unwrap()).try_into().unwrap();
+    let iv: [u8; 12] = b64(z["iv"].as_str().unwrap()).try_into().unwrap();
+    let versiegle = |einsatz: &Einsatz| {
+        let ephemer = p256::SecretKey::from_slice(&b64url(z["umschlag"]["ephemer"]["d"].as_str().unwrap())).unwrap();
+        let umschlag_iv: [u8; 12] = b64(z["umschlag"]["iv"].as_str().unwrap()).try_into().unwrap();
+        krypto::versiegele(einsatz, &kopf, &suite, Blockzufall::fest(cek, iv, ephemer, umschlag_iv)).unwrap()
+    };
+
+    let mit: Einsatz = serde_json::from_value(eingaben["einsaetze"][2].clone()).unwrap();
+    assert_eq!(mit.umsysteme.len(), 1, "der dritte Vektor-Einsatz trägt eine Suchlage-Verknüpfung");
+    assert_eq!(mit.umsysteme[0].system, "suchlage");
+    assert_eq!(krypto::oeffne_block(&versiegle(&mit), &cek).unwrap(), mit);
+
+    let ohne: Einsatz = serde_json::from_value(eingaben["einsaetze"][1].clone()).unwrap();
+    assert!(ohne.umsysteme.is_empty());
+    assert!(!ohne.kanonisch().unwrap().contains("umsysteme"), "ohne Verknüpfung fehlt der Schlüssel");
+
+    // Derselbe Block, aber mit `"umsysteme":[]` im Klartext (JCS: Schlüssel sortiert,
+    // `umsysteme` steht vor `v`).
+    let mut block = versiegle(&ohne);
+    let klar = ohne.kanonisch().unwrap().replace(",\"v\":1,", ",\"umsysteme\":[],\"v\":1,");
+    assert!(klar.contains("\"umsysteme\":[]"));
+    let aad = block.kopf.kanonisch().unwrap();
+    let daten = Aes256Gcm::new(&cek.into()).encrypt(&iv.into(), Payload { msg: klar.as_bytes(), aad: aad.as_bytes() }).unwrap();
+    block.daten = krypto::b64(&daten);
+    assert!(matches!(krypto::oeffne_block(&block, &cek), Err(krypto::KryptoFehler::KeinEinsatz)));
+}

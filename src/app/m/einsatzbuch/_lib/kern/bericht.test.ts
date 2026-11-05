@@ -34,6 +34,14 @@ describe("bericht", () => {
     expect(bericht(block, beispielEinsatz(), extra).leitstellenNummer).toBeNull();
     expect(bericht(block, { ...beispielEinsatz(), leitstellenNummer: "RD 2026-1234" }, extra).leitstellenNummer).toBe("RD 2026-1234");
   });
+  it("übernimmt verknüpfte Umsysteme mit Anzeigenamen, ohne sie bleibt die Liste leer (IDA-359)", () => {
+    expect(bericht(block, beispielEinsatz(), extra).umsysteme).toEqual([]);
+    const umsysteme = [{ system: "suchlage", id: "42", name: "Vermisste Person" }, { system: "constructor", id: "7", name: "" }];
+    expect(bericht(block, { ...beispielEinsatz(), umsysteme }, extra).umsysteme).toEqual([
+      { system: "suchlage", titel: "Suchlage", einsatz: "Vermisste Person" },
+      { system: "constructor", titel: "constructor", einsatz: "Einsatz 7" },
+    ]);
+  });
   it("markiert Testblöcke", () => {
     expect(bericht(block, beispielEinsatz(), extra).test).toBe(false);
     expect(bericht({ ...block, kopf: { ...block.kopf, umgebung: "test" } }, beispielEinsatz(), extra).test).toBe(true);

@@ -18,10 +18,11 @@
 /*
  * Im Druck ohne Füller: Ohne `min-height` gibt es nichts aufzufüllen, aber ein leeres Flex-Kind
  * kostet trotzdem eine `gap` von 7 mm. Gemessen an der Vektordatei (Reader-E2E): 270,6 mm
- * Inhalt auf 269 mm Satzspiegel, die Fußzeile rutschte allein auf Seite 2.
+ * Inhalt auf 269 mm Satzspiegel, die Fußzeile rutschte allein auf Seite 2. Mit dem verknüpften
+ * Suchlage-Einsatz (IDA-359) waren es 271,6 mm; 6 mm Abstand im Druck holen 9 mm zurück.
  */
 @media print {
-  .blatt { width: auto; min-height: 0; padding: 0; box-shadow: none; }
+  .blatt { width: auto; min-height: 0; padding: 0; box-shadow: none; gap: 6mm; }
   .fueller { display: none; }
 }
 
@@ -50,8 +51,10 @@
 .titel p { margin: 0; font-size: 13pt; }
 
 .raster { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4mm 6mm; }
+.raster dt, .raster dd { overflow-wrap: anywhere; }
 .raster dd { margin: 0; }
 .breit { grid-column: span 3; }
+.zweispaltig { grid-column: span 2; }
 
 .zahlen { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid #d9dde1; border-radius: 2mm; }
 .zahlen > div { padding: 3mm 4mm; }

@@ -46,6 +46,18 @@ pub struct PatientStand {
     pub durch: String,
 }
 
+/// Ein Einsatz in einem Umsystem, mit dem dieser Einsatz verknüpft ist (IDA-359, `UmsystemEinsatz`
+/// im TS-Kern), als Schnappschuss beim Versiegeln. `system` ist eine Kennung (heute nur
+/// `suchlage`) und bewusst kein Enum: Ein weiteres Umsystem kommt ohne Formatänderung dazu, und
+/// ein älterer Leser lehnt seinen Block nicht ab. `id` ist die Einsatz-ID dort, als Text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UmsystemEinsatz {
+    pub system: String,
+    pub id: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Einsatz {
@@ -75,6 +87,12 @@ pub struct Einsatz {
     /// geschriebenes `[]` scheitert am Rundlauf in `krypto::oeffne_block` wie an `istEinsatz`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub patienten: Vec<PatientStand>,
+    /// Verknüpfte Umsysteme (IDA-359), optional und nie leer geschrieben wie `patienten`: Ohne
+    /// Verknüpfung fehlt der Schlüssel, und der Einsatz bleibt byte-gleich zum bisherigen Format.
+    /// Gelesen ab diesem Stand, geschrieben erst ein Release später (Zwei-Schritt-Regel, Runbook
+    /// `einsatzbuch-release.md`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub umsysteme: Vec<UmsystemEinsatz>,
 }
 
 /// Test-Rechner versiegeln immer `Test` (Spec §12). Steht in Hash und AAD, lässt sich also

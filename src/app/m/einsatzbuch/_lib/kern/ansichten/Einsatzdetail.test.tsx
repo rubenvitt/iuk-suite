@@ -39,6 +39,14 @@ describe("Einsatzdetail", () => {
     expect(query("[data-objekt]").textContent).toBe("Stadtfest, ca. 2.500 Besucher");
     expect(exists("[data-notizen]")).toBe(true);
     expect(wert("Leitstelle")).toBe("RD 2026-08-1234");
+    expect(exists("[data-umsystem]")).toBe(false);
+  });
+
+  it("verknüpfte Umsysteme stehen im Raster, ein unbekanntes mit seiner Kennung (IDA-359)", async () => {
+    const e = { ...TESTEINSAETZE[2], umsysteme: [...TESTEINSAETZE[2].umsysteme!, { system: "anderes", id: "9", name: "" }] };
+    await mount(<Einsatzdetail block={blockFuer(2)} einsatz={e} zeitzone={ZONE} dritteKennzahl="gesamt" mitDauerzeile objektImmer />);
+    expect(wert("Suchlage")).toBe("Personensuche „Waldweg\" Ebstorf");
+    expect(wert("anderes")).toBe("Einsatz 9");
   });
 
   it("Kopf, Kennzahlen, Listen, Notizen und Hash-Box", async () => {

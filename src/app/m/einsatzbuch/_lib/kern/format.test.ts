@@ -31,6 +31,14 @@ describe("istEinsatz", () => {
     expect(istEinsatz({ ...beispielEinsatz(), patienten: [{ ...patienten[0], art: "bvo" }] })).toBe(false);
     expect(istEinsatz({ ...beispielEinsatz(), patienten: [{ ...patienten[0], fremd: "x" }] })).toBe(false);
   });
+  it("verknüpfte Umsysteme sind optional, aber nie leer (IDA-359)", () => {
+    const umsysteme = [{ system: "suchlage", id: "42", name: "Vermisste Person Ebstorf" }];
+    expect(istEinsatz({ ...beispielEinsatz(), umsysteme })).toBe(true);
+    expect(istEinsatz({ ...beispielEinsatz(), umsysteme: [] })).toBe(false);
+    expect(istEinsatz({ ...beispielEinsatz(), umsysteme: [{ ...umsysteme[0], id: 42 }] })).toBe(false);
+    expect(istEinsatz({ ...beispielEinsatz(), umsysteme: [{ ...umsysteme[0], fremd: "x" }] })).toBe(false);
+    expect(istEinsatz({ ...beispielEinsatz(), umsysteme: null })).toBe(false);
+  });
   it("eine Person ohne fahrzeugId ist ungültig", () => {
     const einsatz = beispielEinsatz();
     const ohneFahrzeugId: Record<string, unknown> = { ...einsatz.personal[0] };
