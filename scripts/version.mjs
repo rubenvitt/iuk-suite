@@ -32,7 +32,9 @@
  *     Dependabot-Merge: er ergibt ein ausgeliefertes Image, und ein Image ohne Nummer
  *     wäre wieder nur ein SHA. Der kleinste Sprung ist deshalb Patch, nie „kein Sprung".
  *     Ausnahme: ein Schritt, der nur die Desktop-App ändert (`NUR_APP`), ergibt kein
- *     Image und deshalb auch keine Nummer.
+ *     Image und deshalb auch keine Nummer. Er ist auch der Grund, warum Punkt 2 nur für
+ *     Suite-Schritte gilt: ein App-Schritt rechnet dieselbe Nummer wie sein Vorgänger
+ *     und liefert deshalb nie aus (`ausliefern`, unten).
  *
  * DER SPRUNG JE SCHRITT ist der größte über alle Commits, die der Schritt mitbringt
  * (bei einem Merge-Commit: die Commits des PRs), nach Conventional Commits:
@@ -164,9 +166,8 @@ export function spieleNach(basis, schritte) {
 /**
  * Pfade, die das Suite-Image nicht berühren: die Desktop-App (`.dockerignore` schließt
  * `apps` aus), ihr eigener Workflow und ihr Runbook. Ein Schritt, der NUR hier etwas
- * ändert, ist kein Schritt der Suite: Er erhöht die Nummer nicht, und steht seit dem
- * letzten Tag nichts anderes an, baut `ci.yml` weder Image noch Release noch Deploy
- * (`ausliefern`). Die App hat ihren eigenen Release-Weg (`.github/workflows/einsatzbuch.yml`).
+ * ändert, ist kein Schritt der Suite: Er erhöht die Nummer nicht, und ist er der letzte
+ * Schritt, baut `ci.yml` weder Image noch Release noch Deploy (`ausliefern`). Die App hat ihren eigenen Release-Weg (`.github/workflows/einsatzbuch.yml`).
  * Eine Release-Notiz der App unter `src/app/m/portal/…` zeigt die Suite an — sie gehört
  * deshalb bewusst NICHT hierher.
  */
@@ -313,12 +314,16 @@ export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
   const nummer = formatVersion(version);
 
   /*
-   * NUR APP-SCHRITTE SEIT DER BASIS: nichts für die Suite. Die Nummer ist dann die der
-   * Basis, und deren Tag zeigt auf einen älteren Commit — die Prüfung unten schlüge an.
-   * Ohne Schritte (dieser Commit IST die Basis, ein wiederholter Lauf) bleibt es beim
-   * Ausliefern wie bisher.
+   * IST DER LETZTE SCHRITT EIN APP-SCHRITT, liefert dieser Lauf nichts aus — auch dann
+   * nicht, wenn davor noch ein Suite-Schritt OHNE Tag liegt. Der App-Schritt erhöht die
+   * Nummer nicht, dieser Stand hätte also DIESELBE Nummer wie sein Vorgänger, dessen
+   * eigener Lauf sie gerade baut und taggt. Zwei Images mit einer Nummer, und der
+   * langsamere `release` scheitert an F2 (so geschehen mit v1.160.0: #509, dann 19 s
+   * später der App-Merge #508). Scheitert der Lauf des Vorgängers, wird ER wiederholt;
+   * sonst rechnet der nächste Suite-Schritt den Vorgänger mit. Ohne Schritte (dieser
+   * Commit IST die Basis, ein wiederholter Lauf) bleibt es beim Ausliefern wie bisher.
    */
-  const ausliefern = schritte.length === 0 || schritte.some((s) => !s.nurApp);
+  const ausliefern = schritte.length === 0 || !schritte[schritte.length - 1].nurApp;
   if (!ausliefern) return { version: nummer, basis, ankerBenutzt: basis === null, schritte, ausliefern };
 
   /*

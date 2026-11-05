@@ -342,6 +342,39 @@ describe("berechneVersion — an einer echten Historie", () => {
     expect(berechneVersion(repo)).toMatchObject({ version: "3.1.0", ausliefern: true });
   });
 
+  it("ein App-Schritt direkt nach einem ungetaggten Suite-Schritt liefert nicht aus (v1.160.0)", () => {
+    // Zwei Merges kurz nacheinander: erst Suite, dann nur App. Beide Läufe sehen denselben
+    // letzten Tag. Der App-Schritt erhöht nichts, also rechnen beide dieselbe Nummer —
+    // lieferte der zweite aus, gäbe es zwei Images mit einer Nummer und F2 im `release`.
+    const aendere = (datei: string, nachricht: string) => {
+      mkdirSync(path.dirname(path.join(repo, datei)), { recursive: true });
+      writeFileSync(path.join(repo, datei), `${nachricht}\n`);
+      git("add", "--", datei);
+      git("commit", "-q", "-m", nachricht);
+    };
+    git("tag", "v4.0.0");
+    git("checkout", "-q", "-b", "pr-509");
+    aendere("src/app/m/kommplan/a.ts", "feat(kommplan): in der Suite");
+    git("checkout", "-q", "main");
+    git("merge", "-q", "--no-ff", "pr-509", "-m", "Merge pull request #509");
+    const suite = berechneVersion(repo);
+    expect(suite).toMatchObject({ version: "4.1.0", basis: "v4.0.0", ausliefern: true });
+
+    git("checkout", "-q", "-b", "pr-508");
+    aendere("apps/einsatzbuch/src/a.ts", "fix(einsatzbuch): nur die App");
+    git("checkout", "-q", "main");
+    git("merge", "-q", "--no-ff", "pr-508", "-m", "Merge pull request #508");
+    // Ohne Tag auf dem Vorgänger (sein Lauf ist noch unterwegs) …
+    expect(berechneVersion(repo)).toMatchObject({ version: "4.1.0", basis: "v4.0.0", ausliefern: false });
+    // … und mit Tag (sein Lauf war schneller): dasselbe Ergebnis.
+    git("tag", "v4.1.0", "HEAD^1");
+    expect(berechneVersion(repo)).toMatchObject({ version: "4.1.0", basis: "v4.1.0", ausliefern: false });
+
+    // Ein Suite-Schritt danach zählt ganz normal weiter.
+    aendere("src/app/m/portal/b.ts", "fix(portal): wieder Suite");
+    expect(berechneVersion(repo)).toMatchObject({ version: "4.1.1", ausliefern: true });
+  });
+
   it("wirft außerhalb eines Repos, statt still 1.0.0 zu liefern", () => {
     const leer = mkdtempSync(path.join(tmpdir(), "iuk-kein-repo-"));
     try {

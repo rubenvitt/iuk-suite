@@ -191,7 +191,7 @@ jobs:
       # Der Tag, von dem aus gerechnet wurde; leer beim allerersten. Nur zur Auskunft —
       # `release` rechnet seine Basis selbst frisch.
       basis: ${{ steps.rechne.outputs.basis }}
-      # `false`, wenn seit dem letzten Tag nur die Desktop-App geaendert wurde
+      # `false`, wenn der letzte Schritt nur die Desktop-App aendert
       # (`NUR_APP` in scripts/version.mjs): dann auf `main` kein `build`, `merge`,
       # `release`, `deploy`. Die App hat ihren eigenen Release-Weg (einsatzbuch.yml).
       ausliefern: ${{ steps.rechne.outputs.ausliefern }}
