@@ -26,7 +26,7 @@ const um = zeitpunkt;
 function anfrage(id: string, status: AnfrageDTO["status"], vonTag: string, von: string, bisTag: string, bis: string, anlass: string): AnfrageDTO {
   return { id, status, code: `${id}`.padEnd(22, "x"), von: um(vonTag, von), bis: um(bisTag, bis), anlass, personen: 20, person: "Lena Kraus", kontakt: "lena@example.org",
     hinweis: "", mitglied: false, begruendung: "", vertrag: "offen", eingegangenAm: um("2026-11-01", "10:00"), entschiedenAm: null,
-    dokumente: [{ art: "mietvertrag", vorlage: true, stand: null, datei: null }, { art: "uebergabe", vorlage: false, stand: "entwurf", datei: null }, { art: "rueckgabe", vorlage: false, stand: null, datei: null }] };
+    dokumente: [{ art: "mietvertrag", vorlage: true, stand: null, datei: null, leitungOffen: false }, { art: "uebergabe", vorlage: false, stand: "entwurf", datei: null, leitungOffen: false }, { art: "rueckgabe", vorlage: false, stand: null, datei: null, leitungOffen: false }] };
 }
 const ANFRAGEN = [
   anfrage("a1", "zugesagt", "2026-11-07", "18:00", "2026-11-08", "01:00", "40. Geburtstag"),

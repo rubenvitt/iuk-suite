@@ -166,7 +166,8 @@ export const vertragsvorlage = sqliteTable("vertragsvorlage", {
  * Ein Dokument einer Anfrage, aus der Vorlage erstellt (IDA-354): Vorlage und Felder als Kopie, damit ein späteres
  * Ersetzen der Vorlage es nicht ändert. `werte` sind die Einträge der Leitung (JSON, Feld-ID → Text oder Haken).
  * `freigegebenAm` gesetzt = steht auf der Statusseite, Werte gesperrt. `version` zählt jede Änderung; wer
- * unterschreibt, schickt die gesehene Version mit.
+ * unterschreibt, schickt die gesehene Version mit. `erstelltVon` = Name der Leitung, die es erstellt hat (IDA-364):
+ * die Vorgabe für den Namen unter ihrer Unterschrift; älteren Dokumenten fehlt er.
  */
 export const vertragsdokument = sqliteTable("vertragsdokument", {
   anfrageId: text("anfrage_id").notNull().references(() => anfrage.id, { onDelete: "cascade" }),
@@ -177,6 +178,7 @@ export const vertragsdokument = sqliteTable("vertragsdokument", {
   werte: text("werte").notNull().default("{}"),
   version: integer("version").notNull().default(1),
   erstelltAm: integer("erstellt_am").notNull(),
+  erstelltVon: text("erstellt_von"),
   freigegebenAm: integer("freigegeben_am"),
 }, (t) => [
   primaryKey({ columns: [t.anfrageId, t.art] }),

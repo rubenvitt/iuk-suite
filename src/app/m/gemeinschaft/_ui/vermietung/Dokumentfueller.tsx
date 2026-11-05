@@ -19,26 +19,26 @@ import s from "./vermietung.module.css";
 
 /**
  * Ein Dokument einer Zusage ausfüllen (IDA-354), am Computer vorab oder am Tablet vor Ort: Werte der Text- und
- * Ankreuzfelder, Unterschrift der Leitung, Freigabe (dann steht es auf der Statusseite) und die Unterschrift der
- * mietenden Person auf diesem Gerät. Jede Aktion schickt die Version mit; ändert jemand parallel, lehnt der Server ab.
+ * Ankreuzfelder, Freigabe (dann steht es auf der Statusseite), die Unterschrift der mietenden Person auf diesem Gerät
+ * und danach die Unterschrift der Leitung (IDA-364; ihr Name ist vorbelegt mit der Person, die das Dokument erstellt
+ * hat, bei älteren Dokumenten mit `ich`, der angemeldeten Leitung). Jede Aktion schickt die Version mit; ändert jemand parallel, lehnt der Server ab.
  * Die Seite wird nach jeder Aktion neu geladen und diese Insel mit der neuen Version neu aufgebaut.
  */
-export function Dokumentfueller({ d }: { d: DokumentDTO }) {
+export function Dokumentfueller({ d, ich }: { d: DokumentDTO; ich: string }) {
   useTokensAmBody();
   const { message } = App.useApp();
   const router = useRouter();
   const [werte, setWerte] = useState<Werte>(d.werte);
   const [laeuft, setLaeuft] = useState(false);
-  const [neuZeichnen, setNeuZeichnen] = useState(false);
   const titel = DOKUMENT_TITEL[d.art];
   const freigegeben = d.freigegebenAm !== null;
   const eingaben = d.felder.filter((f) => f.art !== "unterschrift");
   const leitungFelder = unterschriftfelder(d.felder, "leitung");
   const leitung = d.unterschriften.find((u) => u.rolle === "leitung") ?? null;
-  const leitungFehlt = leitungFelder.some((f) => !d.unterschriften.some((u) => u.feldId === f.id));
+  // Die Leitung unterschreibt nach der mietenden Person; hat sie die Fassung selbst abgelegt, entfällt es.
+  const leitungZeigen = leitungFelder.length > 0 && d.datei?.herkunft !== "leitung";
+  const leitungOffen = leitungZeigen && !leitung;
   const geaendert = JSON.stringify(sauber(werte)) !== JSON.stringify(sauber(d.werte));
-  // Geänderte Werte machen die Unterschrift der Leitung ungültig (speichereWerte): erst neu unterschreiben.
-  const freigabeGesperrt = leitungFehlt || (geaendert && leitungFelder.length > 0);
   const ansicht = `/vermietung/dokument/${d.anfrageId}/${d.art}/ansicht`;
 
   /** Speichert geänderte Werte; gibt die gültige Version zurück oder `null` bei Ablehnung. */
@@ -81,7 +81,8 @@ export function Dokumentfueller({ d }: { d: DokumentDTO }) {
     return false;
   });
 
-  const stand = d.datei ? <Statuschip ton="ok">Unterschrieben</Statuschip>
+  const stand = d.datei && leitungOffen ? <Statuschip ton="warnung">Unterschrift Leitung offen</Statuschip>
+    : d.datei ? <Statuschip ton="ok">Unterschrieben</Statuschip>
     : freigegeben ? <Statuschip ton="info">Freigegeben</Statuschip> : <Statuschip>Entwurf</Statuschip>;
 
   return (
@@ -107,32 +108,11 @@ export function Dokumentfueller({ d }: { d: DokumentDTO }) {
         </Card>
       ) : null}
 
-      {leitungFelder.length ? (
-        <Card title="Unterschrift der Leitung">
-          {leitung && !leitungFehlt ? (
-            <div className={s.zeile} data-testid="leitung-unterschrieben">
-              <Statuschip ton="ok">{leitung.name}</Statuschip>
-              <span className={s.neben}>{eingangText(leitung.am)}</span>
-            </div>
-          ) : null}
-          {!freigegeben && (!leitung || leitungFehlt || neuZeichnen) ? (
-            <Zeichnen name={leitung?.name ?? ""} knopf="Unterschreiben" laeuft={laeuft} testId="leitung"
-              senden={(name, bild) => lauf(async () => {
-                const v = await sichern();
-                if (v === null) return false;
-                const r = await dokumentLeitungUnterschriftAction(d.anfrageId, d.art, v, { name, bild });
-                if (!r.ok) { message.warning(r.fehler); return true; }
-                return true;
-              })} />
-          ) : !freigegeben ? <Button style={{ marginTop: 12 }} onClick={() => setNeuZeichnen(true)}>Neu unterschreiben</Button> : null}
-        </Card>
-      ) : null}
-
       <Card title="Freigabe">
         <div className={s.zeile}>
           {!freigegeben ? (
             <>
-              <Button type="primary" loading={laeuft} disabled={freigabeGesperrt} onClick={() => void freigeben()} data-testid="freigeben">Freigeben</Button>
+              <Button type="primary" loading={laeuft} onClick={() => void freigeben()} data-testid="freigeben">Freigeben</Button>
               <Popconfirm title="Dokument verwerfen?" okText="Verwerfen" cancelText="Abbrechen" onConfirm={() => verwerfen()}>
                 <Button type="text" icon={<Icons8Ikone name="trash" groesse={18} />}>Verwerfen</Button>
               </Popconfirm>
@@ -163,6 +143,25 @@ export function Dokumentfueller({ d }: { d: DokumentDTO }) {
                 return true;
               })} />
           ) : <Statuschip>Nur Hochladen</Statuschip>}
+        </Card>
+      ) : null}
+
+      {leitungZeigen ? (
+        <Card title="Unterschrift der Leitung">
+          {leitung ? (
+            <div className={s.zeile} data-testid="leitung-unterschrieben">
+              <Statuschip ton="ok">{leitung.name}</Statuschip>
+              <span className={s.neben}>{eingangText(leitung.am)}</span>
+            </div>
+          ) : !d.datei ? <div data-testid="leitung-wartet"><Statuschip>Nach der mietenden Person</Statuschip></div> : (
+            <Zeichnen name={d.erstelltVon ?? ich} knopf="Unterschreiben" laeuft={laeuft} testId="leitung"
+              senden={(name, bild) => lauf(async () => {
+                const r = await dokumentLeitungUnterschriftAction(d.anfrageId, d.art, d.version, { name, bild });
+                if (!r.ok) { message.warning(r.fehler); return false; }
+                message.success("Unterschrieben.");
+                return true;
+              })} />
+          )}
         </Card>
       ) : null}
     </div>

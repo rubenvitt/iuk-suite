@@ -8,11 +8,11 @@ import * as schema from "../_db/schema";
 import { anfrage, vertragsunterschrift } from "../_db/schema";
 import { testDb, type TestDb } from "./testDb";
 import { dokumentPdf, leseVorlage, type Rahmen } from "./dokumentPdf";
-import { ansichtPdf, fassungMitMieter } from "./dokumentErzeugen";
+import { ansichtPdf, fassungMitLeitung, fassungMitMieter } from "./dokumentErzeugen";
 import {
   Abgelehnt, anfrageNachCode, dokumentFuerStatus, dokumentGrundlage, entferneVertrag, entferneVorlage, erstelleDokument, gebeDokumentFrei,
-  ladeAnfragen, ladeDokument, ladeVertragsdatei, ladeVorlage, ladeVorlagenInfo, legeAnfrageAn, legeUnterschriebenAb, legeVorlageAb,
-  nimmFreigabeZurueck, sageZu, setzeVorlageFelder, setzeVorlageZeichnen, speichereWerte, unterschreibeAlsLeitung, verwirfDokument,
+  ladeAnfragen, ladeDokument, ladeVertragsdatei, ladeVorlage, ladeVorlagenInfo, legeAnfrageAn, legeUnterschriebenAb, legeVertragAb, legeVorlageAb,
+  nimmFreigabeZurueck, pruefeLeitungUnterschreibbar, sageZu, setzeVorlageFelder, setzeVorlageZeichnen, speichereWerte, unterschreibeAlsLeitung, verwirfDokument,
 } from "./vermietung";
 import { EIGENE_SEITE, feldAusPixeln, feldInPixeln, mieterFeldIds, pruefeFelder, pruefeRect, pruefeWerte, type Vertragsfeld } from "./vertragFeld";
 import { fotoAlsPdf, pruefeUnterschriebeneDatei, sha256, unterschriftAusDataUrl } from "./vertragUnterschrift";
@@ -20,7 +20,7 @@ import { zeitpunkt } from "./zeit";
 
 /*
  * Die Dokumente der Vermietung (IDA-343, IDA-354): Vorlage mit Formular- und aufgezogenen Feldern, je Zusage ein
- * Dokument mit Werten der Leitung, Unterschrift der Leitung, Freigabe, Unterschrift der mietenden Person.
+ * Dokument mit Werten der Leitung, Freigabe, Unterschrift der mietenden Person, danach die der Leitung (IDA-364).
  */
 
 const JETZT = zeitpunkt("2026-11-01", "12:00");
@@ -59,17 +59,16 @@ function zusage(db: TestDb, tag = "2026-11-07"): { code: string; id: string } {
   return { code, id };
 }
 
-/** Vorlage mit einem Text-, einem Leitungs- und einem Mieterfeld, Dokument erstellt, Leitung unterschrieben, freigegeben. */
+/** Vorlage mit einem Text-, einem Leitungs- und einem Mieterfeld, Dokument erstellt und freigegeben. */
 async function freigegeben(db: TestDb, art: "mietvertrag" | "uebergabe" = "mietvertrag") {
   const pdf = await vorlagePdf();
   legeVorlageAb(db, art, "v.pdf", pdf, sha256(pdf), [], JETZT);
   setzeVorlageFelder(db, art, [gezogen("text", "text", { h: 20 }), gezogen("leitung", "unterschrift", { rolle: "leitung", y: 200 }), gezogen("mieter", "unterschrift", { rolle: "mieter", seite: 1 })]);
   const z = zusage(db);
-  erstelleDokument(db, z.id, art, JETZT);
-  let v = speichereWerte(db, z.id, art, { "g:text": "200 €" }, JETZT);
-  v = unterschreibeAlsLeitung(db, z.id, art, v, { name: "Leitung Bar", bild: PNG, am: JETZT });
+  erstelleDokument(db, z.id, art, JETZT, "Leitung Bar");
+  const v = speichereWerte(db, z.id, art, { "g:text": "200 €" }, JETZT);
   gebeDokumentFrei(db, z.id, art, v, JETZT);
-  return { ...z, version: v + 1, pdf };
+  return { ...z, db, version: v + 1, pdf };
 }
 
 describe("Felder", () => {
@@ -209,41 +208,40 @@ describe("Dokument einer Zusage", () => {
     expect(dokumentFuerStatus(db, code, "mietvertrag")).toBeNull();
   });
 
-  it("Werte ändern löscht die Unterschrift der Leitung; Freigabe braucht sie und sperrt die Werte", async () => {
+  it("Freigabe ohne Unterschrift der Leitung sperrt die Werte; die Leitung unterschreibt davor nicht", async () => {
     const db = testDb();
     const pdf = await vorlagePdf();
     legeVorlageAb(db, "mietvertrag", "v.pdf", pdf, sha256(pdf), [], JETZT);
     setzeVorlageFelder(db, "mietvertrag", [gezogen("t", "text", { h: 20 }), gezogen("l", "unterschrift", { rolle: "leitung" })]);
     const { id, code } = zusage(db);
-    erstelleDokument(db, id, "mietvertrag", JETZT);
-    expect(ladeDokument(db, id, "mietvertrag")?.version).toBe(JETZT);
+    erstelleDokument(db, id, "mietvertrag", JETZT, "  Leitung Bar ");
+    expect(ladeDokument(db, id, "mietvertrag")).toMatchObject({ version: JETZT, erstelltVon: "Leitung Bar" });
     expect(speichereWerte(db, id, "mietvertrag", { "g:t": "a" }, JETZT)).toBe(JETZT + 1);
     expect(speichereWerte(db, id, "mietvertrag", { "g:t": "a" }, JETZT + 1)).toBe(JETZT + 1);
     expect(() => speichereWerte(db, id, "mietvertrag", { "g:t": "b" }, JETZT)).toThrow("gerade geändert");
-    expect(() => gebeDokumentFrei(db, id, "mietvertrag", JETZT + 1, JETZT)).toThrow("zuerst als Leitung");
-    const v = unterschreibeAlsLeitung(db, id, "mietvertrag", JETZT + 1, { name: "Leitung", bild: PNG, am: JETZT });
-    const v2 = speichereWerte(db, id, "mietvertrag", { "g:t": "b" }, v);
-    expect(ladeDokument(db, id, "mietvertrag")?.unterschriften).toEqual([]);
-    const v3 = unterschreibeAlsLeitung(db, id, "mietvertrag", v2, { name: "Leitung", bild: PNG, am: JETZT });
+    expect(() => pruefeLeitungUnterschreibbar(db, id, "mietvertrag", JETZT + 1)).toThrow("nachdem die mietende Person");
     expect(anfrageNachCode(db, code)?.vertrag?.dokumente).toEqual([]);
-    gebeDokumentFrei(db, id, "mietvertrag", v3, JETZT);
+    gebeDokumentFrei(db, id, "mietvertrag", JETZT + 1, JETZT);
+    const v = JETZT + 2;
     expect(ladeAnfragen(db)[0].vertrag).toBe("verschickt");
-    expect(() => speichereWerte(db, id, "mietvertrag", { "g:t": "c" }, v3 + 1)).toThrow("freigegeben");
+    expect(() => pruefeLeitungUnterschreibbar(db, id, "mietvertrag", v)).toThrow("nachdem die mietende Person");
+    expect(() => speichereWerte(db, id, "mietvertrag", { "g:t": "c" }, v)).toThrow("freigegeben");
     expect(() => verwirfDokument(db, id, "mietvertrag")).toThrow("freigegeben");
-    expect(anfrageNachCode(db, code)?.vertrag?.dokumente).toEqual([{ art: "mietvertrag", stand: "offen", version: v3 + 1, zeichnen: true }]);
-    nimmFreigabeZurueck(db, id, "mietvertrag", v3 + 1);
+    expect(anfrageNachCode(db, code)?.vertrag?.dokumente).toEqual([{ art: "mietvertrag", stand: "offen", version: v, zeichnen: true }]);
+    nimmFreigabeZurueck(db, id, "mietvertrag", v);
     expect(ladeAnfragen(db)[0].vertrag).toBe("offen");
     verwirfDokument(db, id, "mietvertrag");
     expect(ladeDokument(db, id, "mietvertrag")).toBeNull();
     erstelleDokument(db, id, "mietvertrag", JETZT + 60_000);
-    expect(ladeDokument(db, id, "mietvertrag")?.version).toBeGreaterThan(v3 + 1);
+    expect(ladeDokument(db, id, "mietvertrag")).toMatchObject({ erstelltVon: null });
+    expect(ladeDokument(db, id, "mietvertrag")!.version).toBeGreaterThan(v);
   });
 
-  it("die Ansicht zeigt Werte und Unterschrift der Leitung", async () => {
+  it("die Ansicht zeigt die Werte, noch ohne Unterschriften", async () => {
     const db = testDb();
     const { id } = await freigegeben(db);
     const g = dokumentGrundlage(db, id, "mietvertrag")!;
-    expect(g.unterschriften.map((u) => u.rolle)).toEqual(["leitung"]);
+    expect(g.unterschriften).toEqual([]);
     expect((await PDFDocument.load(await ansichtPdf(g, "mietvertrag"))).getPageCount()).toBe(2);
   });
 
@@ -262,9 +260,22 @@ describe("Dokument einer Zusage", () => {
     expect(dokumentFuerStatus(db, code, "mietvertrag")).toMatchObject({ art: "unterschrieben", name: "Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf" });
     expect(() => legeUnterschriebenAb(db, { code }, "mietvertrag", { inhalt: f.inhalt, herkunft: "hochgeladen", unterschrift: null, version: null }, JETZT)).toThrow("schon unterschrieben");
     expect(() => nimmFreigabeZurueck(db, id, "mietvertrag", version)).toThrow("schon unterschrieben");
-    // Entfernt die Leitung die Fassung, gehen die Unterschriften der mietenden Person mit; die Freigabe bleibt.
+    expect(ladeAnfragen(db)[0].dokumente[0].leitungOffen).toBe(true);
+
+    // Danach die Leitung: ihre Unterschrift kommt in ihr Feld, die Fassung wird ersetzt, ein zweites Mal geht nicht.
+    const p = pruefeLeitungUnterschreibbar(db, id, "mietvertrag", version);
+    expect(p).toMatchObject({ herkunft: "gezeichnet", feldIds: ["g:leitung"] });
+    const mitLeitung = await fassungMitLeitung(dokumentGrundlage(db, id, "mietvertrag")!, "mietvertrag", p, { name: "Leitung Bar", bild: PNG, am: JETZT + 1 });
+    expect((await PDFDocument.load(mitLeitung)).getPageCount()).toBe(2);
+    expect(() => unterschreibeAlsLeitung(db, id, "mietvertrag", version, { name: "Leitung Bar", bild: PNG, am: JETZT + 1 }, { inhalt: mitLeitung, abgelegtAm: JETZT - 1 })).toThrow("gerade geändert");
+    expect(unterschreibeAlsLeitung(db, id, "mietvertrag", version, { name: "Leitung Bar", bild: PNG, am: JETZT + 1 }, { inhalt: mitLeitung, abgelegtAm: p.abgelegtAm })).toBe(version + 1);
+    expect(ladeVertragsdatei(db, id, "mietvertrag")?.inhalt.equals(mitLeitung)).toBe(true);
+    expect(ladeAnfragen(db)[0].dokumente[0]).toMatchObject({ leitungOffen: false, datei: { groesse: mitLeitung.length } });
+    expect(() => pruefeLeitungUnterschreibbar(db, id, "mietvertrag", version + 1)).toThrow("schon unterschrieben");
+
+    // Entfernt die Leitung die Fassung, gehen alle Unterschriften mit; die Freigabe bleibt.
     entferneVertrag(db, id, "mietvertrag");
-    expect(db.select().from(vertragsunterschrift).all().map((u) => u.rolle)).toEqual(["leitung"]);
+    expect(db.select().from(vertragsunterschrift).all()).toEqual([]);
     expect(ladeAnfragen(db)[0].vertrag).toBe("verschickt");
     expect(ladeVertragsdatei(db, id, "mietvertrag")).toBeNull();
   });
@@ -275,6 +286,25 @@ describe("Dokument einer Zusage", () => {
     legeUnterschriebenAb(db, { id }, "uebergabe", { inhalt: PNG, herkunft: "gezeichnet", unterschrift: { name: "Erika Sommer", bild: PNG, am: JETZT, feldIds: ["g:mieter"] }, version }, JETZT);
     expect(ladeAnfragen(db)[0].vertrag).toBe("offen");
     expect(anfrageNachCode(db, code)?.vertrag?.dokumente).toEqual([{ art: "uebergabe", stand: "unterschrieben", datei: { am: JETZT, herkunft: "gezeichnet" } }]);
+  });
+
+  it("hochgeladener Ausdruck: die Leitung unterschreibt auf einer eigenen letzten Seite; selbst abgelegt: gar nicht", async () => {
+    const db = testDb();
+    const { id, code, version } = await freigegeben(db);
+    const foto = Buffer.from(await fotoAlsPdf(PNG, "png", "x"));
+    legeUnterschriebenAb(db, { code }, "mietvertrag", { inhalt: foto, herkunft: "hochgeladen", unterschrift: null, version: null }, JETZT);
+    const p = pruefeLeitungUnterschreibbar(db, id, "mietvertrag", version);
+    const mitLeitung = await fassungMitLeitung(dokumentGrundlage(db, id, "mietvertrag")!, "mietvertrag", p, { name: "Leitung Bar", bild: PNG, am: JETZT });
+    const fertig = await PDFDocument.load(mitLeitung);
+    expect(fertig.getPageCount()).toBe(2);
+    expect(fertig.getTitle()).toBe("Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben");
+    unterschreibeAlsLeitung(db, id, "mietvertrag", version, { name: "Leitung Bar", bild: PNG, am: JETZT }, { inhalt: mitLeitung, abgelegtAm: p.abgelegtAm });
+    expect(ladeAnfragen(db)[0].dokumente[0].leitungOffen).toBe(false);
+
+    const zwei = await freigegeben(testDb());
+    legeVertragAb(zwei.db, zwei.id, "mietvertrag", "papier.pdf", foto, JETZT);
+    expect(ladeAnfragen(zwei.db)[0].dokumente[0].leitungOffen).toBe(false);
+    expect(() => pruefeLeitungUnterschreibbar(zwei.db, zwei.id, "mietvertrag", zwei.version)).toThrow("schon unterschrieben");
   });
 
   it("nicht freigegeben: die Statusseite nimmt nichts an", async () => {
@@ -298,6 +328,7 @@ describe("Migration der Verträge aus IDA-343", () => {
       .run(Buffer.from("pdf"), JSON.stringify({ seite: 1, x: 300, y: 80, b: 200, h: 60 }));
     roh.prepare("INSERT INTO vertragsdatei (anfrage_id, name, groesse, inhalt, abgelegt_am, herkunft) VALUES ('a2', 'u.pdf', 3, ?, 6, 'gezeichnet')").run(Buffer.from("pdf"));
     roh.exec(sql("0002_dokumente"));
+    roh.exec(sql("0003_erstellt_von"));
     const db = drizzle(roh, { schema });
     expect(ladeVorlage(db, "mietvertrag")?.felder).toEqual([{ id: "g:unterschrift", art: "unterschrift", name: "Unterschrift", quelle: "gezogen", rolle: "mieter", seite: 1, x: 300, y: 80, b: 200, h: 60 }]);
     expect(ladeVertragsdatei(db, "a2", "mietvertrag")).not.toBeNull();

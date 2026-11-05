@@ -84,7 +84,8 @@ function Dokumentzeile({ id, d }: { id: string; d: DokumentKurz }) {
     router.refresh();
   }
 
-  const chip = d.datei ? <Statuschip ton="ok">Unterschrieben</Statuschip>
+  const chip = d.leitungOffen ? <Statuschip ton="warnung">Unterschrift Leitung offen</Statuschip>
+    : d.datei ? <Statuschip ton="ok">Unterschrieben</Statuschip>
     : d.stand === "freigegeben" ? <Statuschip ton="info">Freigegeben</Statuschip>
     : d.stand === "entwurf" ? <Statuschip>Entwurf</Statuschip> : null;
 
@@ -94,7 +95,7 @@ function Dokumentzeile({ id, d }: { id: string; d: DokumentKurz }) {
       <input ref={datei} type="file" accept="application/pdf" hidden aria-hidden="true" data-testid={`dokument-${d.art}-datei`}
         onChange={(ev) => { const f = ev.target.files?.[0]; if (f) void hochladen(f); }} />
       <div className={s.zeile}>
-        {d.stand ? <Button href={seite} icon={<Icons8Ikone name="pencil" groesse={18} />}>{d.datei ? "Ansehen" : "Ausfüllen"}</Button>
+        {d.stand ? <Button href={seite} icon={<Icons8Ikone name="pencil" groesse={18} />}>{d.leitungOffen ? "Unterschreiben" : d.datei ? "Ansehen" : "Ausfüllen"}</Button>
           : d.vorlage && !d.datei ? <Button loading={laeuft} onClick={() => void erstellen()} icon={<Icons8Ikone name="plus" groesse={18} />}>Erstellen</Button> : null}
         {d.datei ? (
           <>

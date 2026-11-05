@@ -1,0 +1,1 @@
+ALTER TABLE `vertragsdokument` ADD `erstellt_von` text;

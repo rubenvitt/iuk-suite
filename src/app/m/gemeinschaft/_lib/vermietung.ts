@@ -37,14 +37,17 @@ export function ladeAnfragen(db: GemeinschaftSchreiber): AnfrageDTO[] {
   }).from(anfrage).where(eq(anfrage.raum, RAUM)).orderBy(asc(anfrage.von)).all();
   const dateien = db.select({ anfrageId: vertragsdatei.anfrageId, art: vertragsdatei.art, groesse: vertragsdatei.groesse, abgelegtAm: vertragsdatei.abgelegtAm, herkunft: vertragsdatei.herkunft, unterschriebenVon: vertragsdatei.unterschriebenVon })
     .from(vertragsdatei).all();
-  const dokumente = db.select({ anfrageId: vertragsdokument.anfrageId, art: vertragsdokument.art, freigegebenAm: vertragsdokument.freigegebenAm }).from(vertragsdokument).all();
+  const dokumente = db.select({ anfrageId: vertragsdokument.anfrageId, art: vertragsdokument.art, freigegebenAm: vertragsdokument.freigegebenAm, felder: vertragsdokument.felder }).from(vertragsdokument).all();
+  const leitungDa = new Set(db.select({ anfrageId: vertragsunterschrift.anfrageId, art: vertragsunterschrift.art }).from(vertragsunterschrift).where(eq(vertragsunterschrift.rolle, "leitung")).all()
+    .map((u) => `${u.anfrageId}/${u.art}`));
   const vorlagen = new Set(db.select({ art: vertragsvorlage.art }).from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).all().map((v) => v.art));
   return zeilen.map((a) => ({
     ...a,
     dokumente: DOKUMENTARTEN.map((art): DokumentKurz => {
       const d = dokumente.find((x) => x.anfrageId === a.id && x.art === art);
       const f = dateien.find((x) => x.anfrageId === a.id && x.art === art);
-      return { art, vorlage: vorlagen.has(art), stand: d ? (d.freigegebenAm !== null ? "freigegeben" : "entwurf") : null, datei: f ? abgelegt(art, a.von, f) : null };
+      const leitungOffen = !!d && !!f && wartetAufLeitung(felderAusJson(d.felder), f.herkunft, leitungDa.has(`${a.id}/${art}`));
+      return { art, vorlage: vorlagen.has(art), stand: d ? (d.freigegebenAm !== null ? "freigegeben" : "entwurf") : null, datei: f ? abgelegt(art, a.von, f) : null, leitungOffen };
     }),
   }));
 }
@@ -263,15 +266,15 @@ export function ladeVertragsdatei(db: GemeinschaftSchreiber, id: string, art: Do
 }
 
 /**
- * Entfernt die abgelegte Fassung. Kam sie aus digitalen Unterschriften, gehen die der mietenden Person mit: sonst
- * stünde das Dokument „fertig unterschrieben“ ohne Fassung da. Der Mietvertrag fällt auf „verschickt“ (Dokument
+ * Entfernt die abgelegte Fassung samt allen digitalen Unterschriften: sonst stünde das Dokument „fertig
+ * unterschrieben“ ohne Fassung da, und die Leitung unterschreibt erst nach der mietenden Person (IDA-364). Der Mietvertrag fällt auf „verschickt“ (Dokument
  * freigegeben) oder „offen“ zurück.
  */
 export function entferneVertrag(db: GemeinschaftDb, id: string, art: Dokumentart): void {
   db.transaction((tx) => {
     const r = tx.delete(vertragsdatei).where(and(eq(vertragsdatei.anfrageId, id), eq(vertragsdatei.art, art))).run();
     if (r.changes === 0) throw new NichtGefunden();
-    tx.delete(vertragsunterschrift).where(and(eq(vertragsunterschrift.anfrageId, id), eq(vertragsunterschrift.art, art), eq(vertragsunterschrift.rolle, "mieter"))).run();
+    tx.delete(vertragsunterschrift).where(and(eq(vertragsunterschrift.anfrageId, id), eq(vertragsunterschrift.art, art))).run();
     if (art === "mietvertrag") {
       const d = tx.select({ f: vertragsdokument.freigegebenAm }).from(vertragsdokument).where(and(eq(vertragsdokument.anfrageId, id), eq(vertragsdokument.art, art))).get();
       tx.update(anfrage).set({ vertrag: d?.f != null ? "verschickt" : "offen" }).where(eq(anfrage.id, id)).run();
@@ -351,7 +354,7 @@ function hatDatei(tx: GemeinschaftSchreiber, id: string, art: Dokumentart): bool
  * Erstellt das Dokument einer Zusage aus der aktuellen Vorlage (Kopie von PDF und Feldern). Die Version beginnt beim
  * Erstellzeitpunkt, nicht bei 1: ein verworfenes und neu erstelltes Dokument nimmt keine Version des alten an.
  */
-export function erstelleDokument(db: GemeinschaftDb, id: string, art: Dokumentart, jetzt: number): void {
+export function erstelleDokument(db: GemeinschaftDb, id: string, art: Dokumentart, jetzt: number, von: string | null = null): void {
   db.transaction((tx) => {
     const a = holeAnfrage(tx, id);
     if (a.status !== "zugesagt") throw new Abgelehnt("Ein Dokument gibt es nur zu einer Zusage.");
@@ -359,11 +362,11 @@ export function erstelleDokument(db: GemeinschaftDb, id: string, art: Dokumentar
     if (!v) throw new Abgelehnt("Dazu liegt keine Vorlage. Lade sie zuerst unter Vermietung, Verträge hoch.");
     const da = tx.select({ a: vertragsdokument.anfrageId }).from(vertragsdokument).where(dokWo(id, art)).get();
     if (da) throw new Abgelehnt("Dieses Dokument gibt es schon.");
-    tx.insert(vertragsdokument).values({ anfrageId: id, art, name: v.name, inhalt: v.inhalt, felder: v.felder, werte: "{}", version: jetzt, erstelltAm: jetzt }).run();
+    tx.insert(vertragsdokument).values({ anfrageId: id, art, name: v.name, inhalt: v.inhalt, felder: v.felder, werte: "{}", version: jetzt, erstelltAm: jetzt, erstelltVon: von?.trim() || null }).run();
   });
 }
 
-/** Verwirft einen Entwurf samt Unterschriften der Leitung; ein freigegebenes Dokument nicht. */
+/** Verwirft einen Entwurf; ein freigegebenes Dokument nicht. */
 export function verwirfDokument(db: GemeinschaftDb, id: string, art: Dokumentart): void {
   db.transaction((tx) => {
     const d = holeDokument(tx, id, art);
@@ -372,7 +375,7 @@ export function verwirfDokument(db: GemeinschaftDb, id: string, art: Dokumentart
   });
 }
 
-/** Speichert die Werte der Leitung. Ändern sie sich, gelten Unterschriften der Leitung nicht mehr (sie bezeugten den alten Inhalt). */
+/** Speichert die Werte der Leitung, nur vor der Freigabe; Unterschriften gibt es erst danach (IDA-364), gelöscht wird zur Sicherheit trotzdem. */
 export function speichereWerte(db: GemeinschaftDb, id: string, art: Dokumentart, werte: Werte, version: number): number {
   return db.transaction((tx) => {
     const d = holeDokument(tx, id, art);
@@ -389,32 +392,55 @@ export function speichereWerte(db: GemeinschaftDb, id: string, art: Dokumentart,
 export type NeueUnterschrift = { name: string; bild: Buffer; am: number };
 
 /**
- * Die Leitung unterschreibt alle ihre Felder (vor der Freigabe; eine erneute Unterschrift ersetzt die alte).
- * Gibt die neue Version zurück.
+ * Wartet das Dokument auf die Leitung? Erst wenn die mietende Person unterschrieben hat (IDA-364), nur mit Feld für die
+ * Leitung, und nicht, wenn die Leitung die Fassung selbst abgelegt hat (Papier, von ihr unterschrieben).
  */
-export function unterschreibeAlsLeitung(db: GemeinschaftDb, id: string, art: Dokumentart, version: number, u: NeueUnterschrift): number {
+function wartetAufLeitung(felder: readonly Vertragsfeld[], herkunft: Herkunft, leitungDa: boolean): boolean {
+  return herkunft !== "leitung" && !leitungDa && unterschriftfelder(felder, "leitung").length > 0;
+}
+
+const NACH_MIETER = "Die Leitung unterschreibt, nachdem die mietende Person unterschrieben hat.";
+
+/**
+ * Darf die Leitung jetzt unterschreiben? Nur nach der mietenden Person, nur einmal. Gibt die abgelegte Fassung zurück,
+ * an die die Unterschrift kommt.
+ */
+export function pruefeLeitungUnterschreibbar(tx: GemeinschaftSchreiber, id: string, art: Dokumentart, version: number) {
+  const d = holeDokument(tx, id, art);
+  pruefeVersion(d, version);
+  const felder = unterschriftfelder(d.felder, "leitung");
+  if (!felder.length) throw new Abgelehnt("Dieses Dokument hat kein Unterschriftenfeld für die Leitung.");
+  const f = tx.select({ herkunft: vertragsdatei.herkunft, inhalt: vertragsdatei.inhalt, abgelegtAm: vertragsdatei.abgelegtAm })
+    .from(vertragsdatei).where(and(eq(vertragsdatei.anfrageId, id), eq(vertragsdatei.art, art))).get();
+  if (d.freigegebenAm === null || !f) throw new Abgelehnt(NACH_MIETER);
+  const da = tx.select({ f: vertragsunterschrift.feldId }).from(vertragsunterschrift)
+    .where(and(eq(vertragsunterschrift.anfrageId, id), eq(vertragsunterschrift.art, art), eq(vertragsunterschrift.rolle, "leitung"))).get();
+  if (!wartetAufLeitung(d.felder, f.herkunft, da !== undefined)) throw new Abgelehnt(SCHON_UNTERSCHRIEBEN);
+  return { herkunft: f.herkunft as Exclude<Herkunft, "leitung">, inhalt: f.inhalt, abgelegtAm: f.abgelegtAm, feldIds: felder.map((x) => x.id) };
+}
+
+
+/**
+ * Die Leitung unterschreibt alle ihre Felder, nach der mietenden Person (IDA-364): ihre Unterschrift wird
+ * gespeichert und die abgelegte Fassung durch `inhalt` ersetzt (mit beiden Unterschriften). `abgelegtAm` ist die
+ * Fassung, aus der `inhalt` entstand — wurde sie inzwischen ersetzt, wird nichts gespeichert. Gibt die neue Version
+ * zurück.
+ */
+export function unterschreibeAlsLeitung(db: GemeinschaftDb, id: string, art: Dokumentart, version: number, u: NeueUnterschrift, fassung: { inhalt: Buffer; abgelegtAm: number }): number {
   return db.transaction((tx) => {
-    const d = holeDokument(tx, id, art);
-    pruefeVersion(d, version);
-    if (d.freigegebenAm !== null) throw new Abgelehnt(FREIGEGEBEN);
-    const felder = unterschriftfelder(d.felder, "leitung");
-    if (!felder.length) throw new Abgelehnt("Dieses Dokument hat kein Unterschriftenfeld für die Leitung.");
-    for (const f of felder) {
-      const zeile = { rolle: "leitung" as const, name: u.name, am: u.am, bild: u.bild };
-      tx.insert(vertragsunterschrift).values({ anfrageId: id, art, feldId: f.id, ...zeile })
-        .onConflictDoUpdate({ target: [vertragsunterschrift.anfrageId, vertragsunterschrift.art, vertragsunterschrift.feldId], set: zeile }).run();
+    const p = pruefeLeitungUnterschreibbar(tx, id, art, version);
+    if (p.abgelegtAm !== fassung.abgelegtAm) throw new Abgelehnt(GEAENDERT);
+    for (const feldId of p.feldIds) {
+      tx.insert(vertragsunterschrift).values({ anfrageId: id, art, feldId, rolle: "leitung", name: u.name, am: u.am, bild: u.bild }).run();
     }
-    naechsteVersion(tx, d);
-    return d.version + 1;
+    tx.update(vertragsdatei).set({ inhalt: fassung.inhalt, groesse: fassung.inhalt.length })
+      .where(and(eq(vertragsdatei.anfrageId, id), eq(vertragsdatei.art, art))).run();
+    naechsteVersion(tx, holeDokument(tx, id, art));
+    return version + 1;
   });
 }
 
-function leitungFehlt(tx: GemeinschaftSchreiber, d: DokZeile): boolean {
-  const da = new Set(tx.select({ f: vertragsunterschrift.feldId }).from(vertragsunterschrift).where(and(eq(vertragsunterschrift.anfrageId, d.anfrageId), eq(vertragsunterschrift.art, d.art))).all().map((x) => x.f));
-  return unterschriftfelder(d.felder, "leitung").some((f) => !da.has(f.id));
-}
-
-/** Gibt das Dokument frei: es steht auf der Statusseite, die Werte sind gesperrt. Die Leitung muss vorher unterschrieben haben. */
+/** Gibt das Dokument frei: es steht auf der Statusseite, die Werte sind gesperrt. Die Leitung unterschreibt danach (IDA-364). */
 export function gebeDokumentFrei(db: GemeinschaftDb, id: string, art: Dokumentart, version: number, jetzt: number): void {
   db.transaction((tx) => {
     const a = holeAnfrage(tx, id);
@@ -422,7 +448,6 @@ export function gebeDokumentFrei(db: GemeinschaftDb, id: string, art: Dokumentar
     const d = holeDokument(tx, id, art);
     pruefeVersion(d, version);
     if (d.freigegebenAm !== null) throw new Abgelehnt("Das Dokument ist schon freigegeben.");
-    if (leitungFehlt(tx, d)) throw new Abgelehnt("Bitte zuerst als Leitung unterschreiben.");
     naechsteVersion(tx, d, { freigegebenAm: jetzt });
     if (art === "mietvertrag") tx.update(anfrage).set({ vertrag: "verschickt" }).where(and(eq(anfrage.id, id), eq(anfrage.vertrag, "offen"))).run();
   });
@@ -448,7 +473,7 @@ export function dokumentGrundlage(db: GemeinschaftSchreiber, id: string, art: Do
   if (!a) return null;
   const unterschriften = db.select({ feldId: vertragsunterschrift.feldId, rolle: vertragsunterschrift.rolle, name: vertragsunterschrift.name, am: vertragsunterschrift.am, bild: vertragsunterschrift.bild })
     .from(vertragsunterschrift).where(and(eq(vertragsunterschrift.anfrageId, id), eq(vertragsunterschrift.art, art))).all();
-  return { anfrage: a, inhalt: d.inhalt, felder: felderAusJson(d.felder), werte: werteAusJson(d.werte), version: d.version, freigegebenAm: d.freigegebenAm, unterschriften };
+  return { anfrage: a, inhalt: d.inhalt, felder: felderAusJson(d.felder), werte: werteAusJson(d.werte), version: d.version, freigegebenAm: d.freigegebenAm, erstelltVon: d.erstelltVon, unterschriften };
 }
 
 /** Die Ausfüllseite der Leitung. */
@@ -460,6 +485,7 @@ export function ladeDokument(db: GemeinschaftSchreiber, id: string, art: Dokumen
   return {
     anfrageId: id, art, felder: g.felder, werte: g.werte, version: g.version, freigegebenAm: g.freigegebenAm,
     unterschriften: g.unterschriften.map(({ bild: _, ...u }) => u), datei: f ? abgelegt(art, g.anfrage.von, f) : null, zeichnen: zeichnenErlaubt(db, art),
+    erstelltVon: g.erstelltVon,
     anfrage: { person: g.anfrage.person, anlass: g.anfrage.anlass, von: g.anfrage.von, bis: g.anfrage.bis },
   };
 }

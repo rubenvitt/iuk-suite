@@ -25,8 +25,11 @@ export const DOKUMENT_TITEL: Record<Dokumentart, string> = { mietvertrag: "Mietv
 export const istDokumentart = (x: unknown): x is Dokumentart => typeof x === "string" && (DOKUMENTARTEN as readonly string[]).includes(x);
 
 export type Abgelegt = { name: string; groesse: number; abgelegtAm: number; herkunft: Herkunft; unterschriebenVon: string | null };
-/** `stand`: `null` = kein Dokument erstellt, sonst Entwurf oder freigegeben; `vorlage` = es lässt sich eins erstellen. */
-export type DokumentKurz = { art: Dokumentart; vorlage: boolean; stand: "entwurf" | "freigegeben" | null; datei: Abgelegt | null };
+/**
+ * `stand`: `null` = kein Dokument erstellt, sonst Entwurf oder freigegeben; `vorlage` = es lässt sich eins erstellen;
+ * `leitungOffen` = die mietende Person hat unterschrieben, die Leitung noch nicht (IDA-364).
+ */
+export type DokumentKurz = { art: Dokumentart; vorlage: boolean; stand: "entwurf" | "freigegeben" | null; datei: Abgelegt | null; leitungOffen: boolean };
 
 /** Woher der abgelegte Vertrag kommt (IDA-343). */
 export type Herkunft = "leitung" | "gezeichnet" | "hochgeladen";
@@ -41,6 +44,8 @@ export type UnterschriftKurz = { feldId: string; rolle: Rolle; name: string; am:
 export type DokumentDTO = {
   anfrageId: string; art: Dokumentart; felder: Vertragsfeld[]; werte: Werte; version: number; freigegebenAm: number | null;
   unterschriften: UnterschriftKurz[]; datei: Abgelegt | null; zeichnen: boolean;
+  /** Wer es erstellt hat: Vorgabe für den Namen unter der Unterschrift der Leitung (IDA-364). */
+  erstelltVon: string | null;
   anfrage: { person: string; anlass: string; von: number; bis: number };
 };
 
