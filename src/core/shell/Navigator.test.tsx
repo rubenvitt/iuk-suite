@@ -19,6 +19,8 @@ vi.mock("@/core/theme/ThemeToggle", () => ({ ThemeToggle: ({ testId = "theme-tog
 vi.mock("@/core/rueckmeldung/senden", () => ({ sendeRueckmeldung: vi.fn() }));
 
 const { Navigator, SuiteLeiste } = await import("@/core/shell/Navigator");
+const { sperreVerlassen } = await import("@/core/shell/verlassen");
+const { App } = await import("antd");
 type Daten = Parameters<typeof Navigator>[0]["daten"];
 
 const NAV: SuiteNavItem[] = [
@@ -199,6 +201,67 @@ describe("Navigator — anonym", () => {
     expect(exists('[data-testid="app-panel"]')).toBe(false);
     expect(exists('[data-testid="befehlspalette-eingabe"]')).toBe(false);
     expect(query('[data-testid="module-title"]').closest("a")?.getAttribute("href")).toBe("https://l");
+  });
+});
+
+describe("Navigator — Verlassen-Sperre (IDA-357)", () => {
+  let aufheben: (() => void) | null = null;
+  afterEach(() => {
+    aufheben?.();
+    aufheben = null;
+  });
+  const sperre = () => {
+    aufheben = sperreVerlassen({ titel: "Speicherkonflikt offen", text: "" });
+  };
+  const dialog = () => document.querySelector(".ant-modal-confirm-title")?.textContent ?? null;
+  const dialogKnopf = (text: string) =>
+    [...document.querySelectorAll<HTMLButtonElement>(".ant-modal-confirm button")].find((b) => b.textContent === text)!;
+  async function klicke(el: Element): Promise<boolean> {
+    let durch = true;
+    await act(async () => {
+      durch = el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+    });
+    return durch;
+  }
+
+  it("fragt vor einem Seiten-Link und bleibt bei „Bleiben“", async () => {
+    sperre();
+    await mount(<App><Navigator daten={daten()} /></App>);
+    const artikel = queryAll('[data-testid="nav-link"]').find((l) => l.textContent === "Artikel")!;
+    expect(await klicke(artikel)).toBe(false);
+    expect(dialog()).toBe("Speicherkonflikt offen");
+    await clickElement(dialogKnopf("Bleiben"));
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("fragt vor einer anderen App und vor dem Portal, nicht vor der eigenen App", async () => {
+    sperre();
+    const zu = vi.fn();
+    await mount(<App><Navigator daten={daten({ eintraege: EINTRAEGE.slice(0, 3) })} aufNavigation={zu} /></App>);
+    await click('[data-testid="app-umschalter"]');
+    const eintrag = (t: string) => queryAll('[data-testid="app-eintrag"]').find((a) => a.textContent === t)!;
+    expect(await klicke(eintrag("Lagerbuch"))).toBe(false);
+    expect(dialog()).toBeNull();
+    expect(query('[data-testid="app-panel"]').hasAttribute("inert")).toBe(true);
+    await click('[data-testid="app-umschalter"]');
+    expect(await klicke(eintrag("Gerätewartung"))).toBe(false);
+    expect(dialog()).toBe("Speicherkonflikt offen");
+    await clickElement(dialogKnopf("Bleiben"));
+    expect(await klicke(query('[data-testid="app-portal"]'))).toBe(false);
+  });
+
+  it("„Trotzdem verlassen“ führt den Sprung per Enter aus", async () => {
+    sperre();
+    await mount(<App><Navigator daten={daten()} /></App>);
+    await fill('[data-testid="befehlspalette-eingabe"]', "art");
+    const feld = query<HTMLInputElement>('[data-testid="befehlspalette-eingabe"]');
+    await act(async () => {
+      feld.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(dialog()).toBe("Speicherkonflikt offen");
+    await clickElement(dialogKnopf("Trotzdem verlassen"));
+    expect(pushMock).toHaveBeenCalledWith("/verwaltung/artikel");
   });
 });
 

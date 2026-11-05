@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
-import Link from "next/link";
 
+import { WachLink } from "@/core/shell/WachLink";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 
@@ -143,7 +143,7 @@ export function Seitenkopf({
     <div style={{ marginBlockEnd: SPACE.lg }}>
       {zurueck ? (
         <nav aria-label="Zurück">
-          <Link
+          <WachLink
             data-testid="seitenkopf-zurueck"
             href={zurueck.href}
             style={{
@@ -158,7 +158,7 @@ export function Seitenkopf({
           >
             <span aria-hidden="true">‹</span>
             {zurueck.titel}
-          </Link>
+          </WachLink>
         </nav>
       ) : null}
       <div

@@ -2,6 +2,8 @@
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Alert, Button, type InputRef } from "antd";
+import { verlassenBestaetigt } from "@/core/shell/verlassen";
+import { useVerlassenSperre } from "@/core/shell/verlassenWache";
 import { flyinBreite } from "@/core/theme/flyin";
 import { ladeFreigabenAction } from "../../_actions/freigabe";
 import { ladeStandAction, speichereAngabenAction, speichereInhaltAction } from "../../_actions/plan";
@@ -40,6 +42,7 @@ import { Speicherer, type SpeicherZustand } from "./speicherer";
 import { STELLE_FLYIN_GRUND, StelleFlyin } from "./StelleFlyin";
 import { flaechenBefehl, globalerBefehl, istTextfeld } from "./tasten";
 import { kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, verwirf, wiederholen, type Verlauf } from "./verlauf";
+import { konfliktSperre } from "./verlassenSperre";
 import { leseZuletzt } from "./zuletzt";
 import { useEingeklappt } from "../betrachter/einklappen";
 import { PlanVerweisLink } from "../betrachter/PlanVerweisLink";
@@ -354,12 +357,15 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   // Ungespeichertes (auch ein Angaben-Feld, das noch nicht verlassen wurde) hält das Schließen auf (Entscheidung 11);
   // wieder online → sofort erneut senden.
   useEffect(() => {
-    const warne = (e: BeforeUnloadEvent) => { if (speicherer.hatUngespeichertes() || angabenEntwurf.current) e.preventDefault(); };
+    const warne = (e: BeforeUnloadEvent) => { if (!verlassenBestaetigt() && (speicherer.hatUngespeichertes() || angabenEntwurf.current)) e.preventDefault(); };
     const online = () => { if (speicherer.zustand.status === "fehler") void speicherer.erneut(); };
     window.addEventListener("beforeunload", warne);
     window.addEventListener("online", online);
     return () => { window.removeEventListener("beforeunload", warne); window.removeEventListener("online", online); };
   }, [speicherer]);
+
+  // Offener Konflikt: Menü und „Alle Pläne" fragen vor dem Verlassen nach (IDA-357); bestätigt, fragt `beforeunload` nicht noch einmal.
+  useVerlassenSperre(konfliktSperre(speicherZustand));
 
   // Abbau (Client-Navigation weg vom Editor, z. B. „Alle Pläne"): Wartendes sofort senden, statt einen
   // Autosave-Timer zurückzulassen, der erst nach dem Verlassen feuert.

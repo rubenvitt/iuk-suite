@@ -18,6 +18,7 @@ import { Nutzermenue } from "@/core/shell/Nutzermenue";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { SEITENWECHSEL } from "@/core/shell/seitenwechselKlassen";
 import type { LauncherEintrag, SuiteNavItem } from "@/core/shell/types";
+import { useVerlassenWache } from "@/core/shell/verlassenWache";
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
 import m from "./menue.module.css";
 
@@ -71,6 +72,10 @@ const NIE_AENDERND = () => () => {};
  * Fokus geht mit — auf „zurück" beim Hineinschieben, auf den App-Knopf beim Zurück. Ohne das
  * stünde er nach dem Klick auf einem Knoten, der gerade unbedienbar geworden ist.
  *
+ * VERLASSEN-SPERRE (IDA-357): jeder Link im Menü und der Sprung per Enter laufen durch
+ * `useVerlassenWache` — sperrt ein Modul das Verlassen (offener Speicherkonflikt im Kommplan-Editor),
+ * fragt das Menü vorher nach. Der eigene App-Eintrag führt nirgends hin und trägt `data-verlassen-frei`.
+ *
  * `testIdZusatz`: Seitenleiste und Blatt können gleichzeitig im Baum stehen; einmalige testIds
  * tragen im Blatt deshalb `-drawer` (dieselbe Regel wie `theme-toggle-drawer`).
  */
@@ -89,6 +94,7 @@ export function Navigator({
   const { modulKey, modulTitel, modulIcon, modulBereich, modulHref, nav, eintraege, auswahl, bereiche } = daten;
   const pfad = usePathname();
   const router = useRouter();
+  const wache = useVerlassenWache();
   const [ebene, setEbene] = useState<Ebene>("seiten");
   const [suche, setSuche] = useState("");
   const appKnopf = useRef<HTMLButtonElement>(null);
@@ -139,6 +145,12 @@ export function Navigator({
   }
 
   function folge(b: Befehl) {
+    // Ein externes Ziel öffnet einen neuen Tab, die Seite bleibt stehen.
+    if (b.extern) geheZu(b);
+    else wache.pruefe(() => geheZu(b));
+  }
+
+  function geheZu(b: Befehl) {
     fertig();
     if (b.extern) window.open(b.href, "_blank", "noopener,noreferrer");
     else if (b.gruppe === "Seiten") router.push(b.href);
@@ -186,7 +198,7 @@ export function Navigator({
   );
 
   return (
-    <nav aria-label="Navigation" className={m.navi}>
+    <nav aria-label="Navigation" className={m.navi} onClickCapture={wache.beiKlick}>
       {daten.angemeldet ? (
         <div className={m.suche}>
           <Input
@@ -342,6 +354,7 @@ function AppEintrag({ e, aktuell, zurueck }: { e: GeordneterEintrag; aktuell: bo
       target={e.extern ? "_blank" : undefined}
       rel={e.extern ? "noopener noreferrer" : undefined}
       aria-current={aktuell ? "true" : undefined}
+      data-verlassen-frei={aktuell ? "" : undefined}
       onClick={(ev) => {
         // Die eigene App ist kein Ziel, sondern der Weg zurück zu ihren Seiten. Mittelklick und
         // „in neuem Tab" bleiben ein echter Link.
