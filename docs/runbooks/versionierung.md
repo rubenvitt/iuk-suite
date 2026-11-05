@@ -44,9 +44,12 @@ Drei Folgen, die man kennen sollte:
 * **Ausnahme: ein Merge, der nur die Desktop-App ändert, ist keine Version.** Ändert ein
   Schritt ausschließlich Dateien unter `NUR_APP` (`scripts/version.mjs`: `apps/einsatzbuch/`,
   `.github/workflows/einsatzbuch.yml`, `docs/runbooks/einsatzbuch-release.md`), zählt er
-  nicht mit. Steht seit dem letzten Tag nichts anderes an, gibt der Job `version`
-  `ausliefern=false` aus, und auf `main` entfallen `build`, `merge`, `release` und
-  `deploy` (übersprungen, nicht rot). Die App hat ihren eigenen Release-Weg
+  nicht mit. Ist er der **letzte** Schritt, gibt der Job `version` `ausliefern=false`
+  aus, und auf `main` entfallen `build`, `merge`, `release` und `deploy` (übersprungen,
+  nicht rot) — auch wenn davor noch ein Suite-Schritt ohne Tag liegt: dessen eigener
+  Lauf liefert die gemeinsame Nummer aus (F2, Erklärung 0). Brachte ein direkter Push
+  mehrere Schritte, zählen alle Schritte dieses Pushs (`github.event.before`): „Suite,
+  dann App" in einem Push liefert also aus, weil der Suite-Commit keinen eigenen Lauf hat. Die App hat ihren eigenen Release-Weg
   (`einsatzbuch-release.md`). Eine Release-Notiz im Portal ist Suite-Code: ein App-PR mit
   Notiz ergibt deshalb auch ein Suite-Release.
 * **Ein PR mit drei `feat`-Commits ist EIN Minor-Sprung**, nicht drei: der Schritt ist der
@@ -89,7 +92,9 @@ und nicht aus dem Tag — `scripts/version.test.ts`, Fall „mit oder ohne Zwisc
 
 **Zwei Läufe kurz nacheinander kollidieren nicht.** Der spätere hat einen Schritt mehr in
 seiner Historie und rechnet zwangsläufig eine andere Nummer, unabhängig davon, ob der
-frühere seinen Tag schon gesetzt hat. `deploy` hängt nicht an `release`: scheitert der Tag
+frühere seinen Tag schon gesetzt hat. Einzige Ausnahme ist ein App-Schritt (Teil A): er
+zählt nicht und rechnet deshalb dieselbe Nummer wie sein Vorgänger — darum liefert er nie
+aus. `deploy` hängt nicht an `release`: scheitert der Tag
 doch einmal (F2), läuft der Rollout trotzdem, und das Image trägt die Nummer.
 
 **Zwei Läufe desselben Commits laufen nacheinander.** `merge` und `release` tragen eine
@@ -188,7 +193,21 @@ Vorweg: ein Tag, der schon auf **denselben** Commit zeigt, ist kein Fehler — d
 wiederholter Lauf (`workflow_dispatch` auf `main`, „Re-run all jobs") oder ein gleichzeitiger
 Lauf desselben Commits, der schneller war. `release` prüft das vor **und** nach dem Anlegen
 und endet in beiden Fällen grün mit „nichts zu tun". Rot wird es nur, wenn der Tag
-**woanders** hinzeigt. Dafür zwei Erklärungen, in dieser Reihenfolge prüfen:
+**woanders** hinzeigt. Dafür diese Erklärungen, in dieser Reihenfolge prüfen:
+
+0. **Ein App-Merge kurz nach einem Suite-Merge** (so geschehen 2026-11-05 mit `v1.160.0`:
+   #509, 19 s später der reine Einsatzbuch-Merge #508). Bis zur Korrektur in
+   `scripts/version.mjs` lieferte der App-Lauf aus, solange der Vorgänger noch keinen Tag
+   hatte, und rechnete dieselbe Nummer. Der Tag steht dann auf dem Vorgänger, und das ist
+   richtig; `deploy` lief trotzdem. Vorher prüfen, dass auch das Image-Tag `:X.Y.Z` auf
+   den Vorgänger zeigt (`merge` behält den ersten Digest, und das kann der App-Lauf
+   gewesen sein): `docker buildx imagetools inspect ghcr.io/rubenvitt/iuk-suite:X.Y.Z
+   --format '{{json .Image}}'` → `SUITE_REVISION` muss `git rev-parse vX.Y.Z^{commit}`
+   sein (bei `v1.160.0` geprüft: `b9248b7`). Stimmt es, nichts zu tun und den roten Lauf
+   nicht wiederholen; stimmt es nicht, gehört `:X.Y.Z` zum App-Stand — gleicher Suite-Code,
+   aber ein Rollback per Nummer scheitert an der Revisionsprüfung von `deploy.sh`; dann
+   per `SUITE_IMAGE_TAG=sha-<erste 7 Zeichen des Tag-Commits>` zurückrollen. Seit der Korrektur liefert ein App-Schritt
+   an der Spitze nie aus.
 
 1. **Die Historie wurde umgeschrieben** (Force-Push auf `main`, ein Tag von Hand gesetzt).
    Dann rechnet das Skript von einem Tag aus, der nicht mehr auf der Kette liegt, oder eine
