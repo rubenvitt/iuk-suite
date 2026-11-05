@@ -29,6 +29,7 @@ fn entwurf() -> Entwurf {
         notizen: "A".into(),
         leitstellen_nummer: String::new(),
         patienten: Vec::new(),
+        umsysteme: Vec::new(),
     }
 }
 

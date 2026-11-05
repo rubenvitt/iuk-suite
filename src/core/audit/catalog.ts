@@ -411,6 +411,18 @@ export const AUDIT_TABLES = {
         "schluessel"
       ]
     },
+    "umsystem": {
+      "mode": "audited",
+      "primaryKey": [
+        "system"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "sperre_abgelehnt_am"
+        ],
+        "reason": "Antwort von Suchlage beim Weiterreichen einer Verknüpfung, keine Eingabe der Verwaltung."
+      }
+    },
     "schluesselpaar": {
       "mode": "audited",
       "primaryKey": [
@@ -437,6 +449,10 @@ export const AUDIT_TABLES = {
     "anker": {
       "mode": "excluded",
       "reason": "Hash-Meldungen des Rechners, keine Inhalte; Abweichungen stehen auditiert in anker_abweichung."
+    },
+    "umsystem_verknuepfung": {
+      "mode": "excluded",
+      "reason": "Meldungen des Rechners, welche Umsystem-Einsätze ein versiegelter Block nennt; keine Eingaben der Verwaltung."
     },
     "anker_abweichung": {
       "mode": "audited",

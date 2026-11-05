@@ -31,6 +31,7 @@ const befehle = vi.hoisted(() => ({
   schluesselFreigeben: vi.fn(),
   ankerAbgleichen: vi.fn(),
   stammdatenAbgleichen: vi.fn(),
+  umsysteme: vi.fn(),
   exportSpeichern: vi.fn(),
   drucken: vi.fn(),
   readerOeffnen: vi.fn(),
@@ -109,6 +110,7 @@ function entwurf(teil: Partial<Entwurf> = {}): Entwurf {
     notizen: "",
     leitstellenNummer: "",
     patienten: [],
+    umsysteme: [],
     ...teil,
   };
 }
@@ -219,6 +221,7 @@ beforeEach(() => {
   befehle.autostartSetzen.mockResolvedValue(undefined);
   befehle.beiUpdateStand.mockResolvedValue(() => {});
   befehle.startbildschirmMelden.mockResolvedValue(undefined);
+  befehle.umsysteme.mockResolvedValue([]);
   befehle.ankerAbgleichen.mockResolvedValue({
     bestaetigtBis: 3, hash: BLOECKE[2].hash, gemeldetAm: "2026-09-25T10:00:00+02:00", abweichung: null, offline: false, widerrufen: false,
   });
@@ -888,6 +891,53 @@ describe("Versiegelt", () => {
 });
 
 describe("Formular", () => {
+  it("zeigt die Karte „Suchlage-Einsatz“ nur mit Einsätzen zur Auswahl und verknüpft per Klick", async () => {
+    await starte(status());
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warte();
+    expect(text()).not.toContain("Suchlage-Einsatz");
+    await clickElement(knopf("Zurück")!);
+    befehle.umsysteme.mockResolvedValue([
+      { system: "suchlage", id: "42", name: "Vermisste Person Stadtwald", ort: "Uelzen", beginn: "2026-10-31T19:12:00+01:00", ende: null },
+    ]);
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warteBis(() => knopf("Mit Suchlage-Einsatz verknüpfen") !== undefined, "Knopf „Mit Suchlage-Einsatz verknüpfen“");
+    await clickElement(knopf("Mit Suchlage-Einsatz verknüpfen")!);
+    expect(text()).toContain("Uelzen · läuft seit 31.10.2026 19:12");
+    const vorher = befehle.entwurfSpeichern.mock.calls.length;
+    await clickElement(queryAll<HTMLButtonElement>("button.treffer-umsystem")[0]!);
+    expect(knopf("Verknüpfung mit Vermisste Person Stadtwald lösen")).toBeDefined();
+    expect(feld("Beginn · Uhrzeit")?.value).toBe("19:12");
+    await warteBis(() => befehle.entwurfSpeichern.mock.calls.length > vorher, "Entwurf gespeichert");
+    const gespeichert = befehle.entwurfSpeichern.mock.calls.at(-1)![0] as Entwurf;
+    expect(gespeichert.umsysteme).toEqual([{ system: "suchlage", id: "42", name: "Vermisste Person Stadtwald" }]);
+  });
+
+  it("zeigt einen gescheiterten Abruf der Suchlage-Einsätze und vergisst die Liste beim Verlassen", async () => {
+    befehle.umsysteme.mockRejectedValue("Suchlage antwortet gerade nicht.");
+    await starte(status());
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warteBis(() => text().includes("Suchlage antwortet gerade nicht."), "Fehler an der Suchlage-Karte");
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain("Suchlage antwortet gerade nicht.");
+    expect(knopf("Mit Suchlage-Einsatz verknüpfen")).toBeUndefined();
+    await clickElement(knopf("Zurück")!);
+
+    befehle.umsysteme.mockResolvedValue([
+      { system: "suchlage", id: "42", name: "Vermisste Person Stadtwald", ort: "Uelzen", beginn: "2026-10-31T19:12:00+01:00", ende: null },
+    ]);
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warteBis(() => knopf("Mit Suchlage-Einsatz verknüpfen") !== undefined, "Knopf „Mit Suchlage-Einsatz verknüpfen“");
+    expect(text()).not.toContain("Suchlage antwortet gerade nicht.");
+    await clickElement(knopf("Zurück")!);
+
+    let antworte: (liste: never[]) => void = () => {};
+    befehle.umsysteme.mockReturnValue(new Promise((r) => (antworte = r)));
+    await clickElement(knopf("Einsatz öffnen")!);
+    await warte();
+    expect(knopf("Mit Suchlage-Einsatz verknüpfen")).toBeUndefined();
+    antworte([]);
+  });
+
   it("begrenzt die Textfelder wie der Reader", async () => {
     await starte(status());
     await clickElement(knopf("Einsatz öffnen")!);

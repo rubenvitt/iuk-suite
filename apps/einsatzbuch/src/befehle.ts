@@ -17,6 +17,7 @@ import type {
   SitzungInfo,
   Stammdatenpaket,
   Status,
+  UmsystemEinsatzAuswahl,
   Versiegelung,
   Wiederhergestellt,
 } from "./typen";
@@ -49,6 +50,8 @@ export const befehle = {
   schluesselFreigeben: (bloecke?: number[]) => invoke<Schluesselposten[]>("schluessel_freigeben", { bloecke: bloecke ?? null }),
   ankerAbgleichen: () => invoke<Ankerstand>("anker_abgleichen"),
   stammdatenAbgleichen: () => invoke<void>("stammdaten_abgleichen"),
+  /** Einsätze der Umsysteme, mit denen die Suite verbunden ist (heute Suchlage); ohne Verbindung leer. */
+  umsysteme: () => invoke<UmsystemEinsatzAuswahl[]>("umsysteme"),
   /** Ob die App beim Anmelden am Betriebssystem startet (`autostart_status`); synchron in Rust. */
   autostartStatus: () => invoke<boolean>("autostart_status"),
   /** Schaltet den Autostart (`autostart_setzen`); die Verwaltung bietet das nur im Echtbetrieb an. */

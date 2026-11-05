@@ -117,7 +117,7 @@ fn lies_probe(ordner: &Path, buch_uebernehmen: bool) {
     // Wiederherstellen auf einem frischen Rechner, dann weiter versiegeln.
     let frisch = tempfile::tempdir().unwrap();
     let mut buch = eingerichtetes_buch(frisch.path());
-    buch.uebernehme_sicherung(&datei.bloecke, &nummern).unwrap();
+    buch.uebernehme_sicherung(&datei.bloecke, &nummern, &[]).unwrap();
     setze_fort(&mut buch, &datei.bloecke, "nach der Wiederherstellung");
 
     if buch_uebernehmen {

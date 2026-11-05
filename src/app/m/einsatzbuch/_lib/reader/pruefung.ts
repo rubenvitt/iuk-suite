@@ -35,7 +35,7 @@ export const einsatzSchema = z.object({
   personal: z.array(z.object({ id: kurzText(80), name: kurzText(120), quali: kurzText(40), ov: kurzText(80), fahrzeugId: kurzText(80).nullable() }).strict()).max(1000),
   vorOrt: zahl, transport: zahl, notizen: kurzText(20_000), leitstellenNummer: kurzText(40).optional(),
   patienten: z.array(z.object({ art: z.enum(["vorOrt", "transport"]), einsatznummer: kurzText(40), durch: kurzText(120) }).strict()).min(1).max(1998).optional(),
-  umsysteme: z.array(z.object({ system: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/), id: z.string().min(1).max(80), name: kurzText(200) }).strict()).min(1).max(10).optional(),
+  umsysteme: z.array(z.object({ system: z.string().max(40).regex(/^[a-z][a-z0-9-]*$/), id: z.string().min(1).max(80), name: kurzText(200) }).strict()).min(1).max(10).optional(),
 }).strict().refine((e) => (e.endeDatum === null) === (e.endeZeit === null), "Ende nur vollständig")
   .refine((e) => e.patienten === undefined || (
     e.patienten.filter((p) => p.art === "vorOrt").length === e.vorOrt

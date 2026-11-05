@@ -16,7 +16,7 @@ export const OBJECT_LABELS: Record<string,string> = {
  share_file:"Datei aus Freigabe",share_archive:"Archiv aus Freigabe",inbox_file:"Datei aus Abgabe",inbox_archive:"Archiv der Abgaben",group_export:"Gruppenauswertung",evening_export:"Dienstabendauswertung",checklist_collection:"Fahrzeug-Checklisten",device_collection:"Funkgeräteübersicht",participant_export:"Teilnehmerauswertung",participant_collection:"Teilnehmerübersicht",proof_file:"Nachweisdatei",
  qr_png:"QR-Code als PNG",
  fahrzeug:"Fahrzeug (Einsatztagebuch)",person:"Person (Einsatztagebuch)",stichwort:"Alarmstichwort",qualifikation:"Qualifikation (Einsatztagebuch)",einstellung:"Einstellung",schluesselpaar:"Schlüsselpaar des Einsatztagebuchs",
- rechner:"Einsatztagebuch-Rechner",anker_abweichung:"Anker-Abweichung (Einsatztagebuch)",freigabe:"Schlüsselfreigabe (Einsatztagebuch)",
+ rechner:"Einsatztagebuch-Rechner",anker_abweichung:"Anker-Abweichung (Einsatztagebuch)",umsystem:"Umsystem-Verbindung (Einsatztagebuch)",freigabe:"Schlüsselfreigabe (Einsatztagebuch)",
  einsatzbuch_reader_oeffnen:"Einsatzdatei im Reader geöffnet",einsatzbuch_reader_druck:"Einsatzbericht aus dem Reader gedruckt",
  plan:"Kommunikationsplan",plan_bearbeitung:"Bearbeitung eines Kommunikationsplans",plan_mitglied:"Eingeladene Person eines Kommunikationsplans",bib_stelle:"Stelle (Planbibliothek)",bib_einheit:"Einheit (Planbibliothek)",bib_verbindung:"Verbindung (Planbibliothek)",plan_freigabe:"Freigabelink eines Plans",briefkopf:"Briefkopf (Kommunikationspläne)",eigenes_zeichen:"Eigenes Zeichen (Kommunikationspläne)",
  helfer:"Helfer (aus HiOrg)",hiorg_verbindung:"Verbindung zu HiOrg-Server",importlauf:"Abgleich der Helfer",

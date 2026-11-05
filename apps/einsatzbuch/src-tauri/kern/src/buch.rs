@@ -20,12 +20,14 @@ use crate::format::{Block, Umgebung};
 use crate::grenzen;
 use crate::krypto::{self, KryptoFehler};
 use crate::sicherung::Sicherungsangaben;
+use crate::vertrag::UmsystemVerweis;
 use crate::wiederherstellung::Wiederherstellungsfehler;
 
 const SCHEMA: &str = include_str!("schema.sql");
 const SCHEMA_V2: &str = include_str!("schema_v2.sql");
 const SCHEMA_V3: &str = include_str!("schema_v3.sql");
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_V4: &str = include_str!("schema_v4.sql");
+const SCHEMA_VERSION: i64 = 4;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuchFehler {
@@ -255,16 +257,18 @@ pub struct Anbindung {
 }
 
 /// Hebt die Datenbank in **einer** Transaktion auf `SCHEMA_VERSION`: Eine frische Datei
-/// (`user_version = 0`) bekommt v1, v2 und v3, eine v1-Datei (aus der Zeit vor der Anbindung an
-/// die Suite) v2 und v3, eine v2-Datei (Stufe 5) nur noch v3. `user_version` wird im selben Zug
+/// (`user_version = 0`) bekommt v1 bis v4, eine v1-Datei (aus der Zeit vor der Anbindung an
+/// die Suite) v2 bis v4, eine v2-Datei (Stufe 5) v3 und v4, eine v3-Datei nur v4 (IDA-359).
+/// `user_version` wird im selben Zug
 /// gesetzt. Eine schon aktuelle Version wird übersprungen, eine unbekannte höhere verweigert —
 /// dieser Rechner kennt kein Rückwärtsschema.
 fn richte_schema_ein(conn: &mut Connection) -> Result<(), BuchFehler> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
     let schritte: &[&str] = match version {
-        0 => &[SCHEMA, SCHEMA_V2, SCHEMA_V3],
-        1 => &[SCHEMA_V2, SCHEMA_V3],
-        2 => &[SCHEMA_V3],
+        0 => &[SCHEMA, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4],
+        1 => &[SCHEMA_V2, SCHEMA_V3, SCHEMA_V4],
+        2 => &[SCHEMA_V3, SCHEMA_V4],
+        3 => &[SCHEMA_V4],
         v if v == SCHEMA_VERSION => return Ok(()),
         gefunden => return Err(BuchFehler::UnbekannteSchemaversion { gefunden, bekannt: SCHEMA_VERSION }),
     };
@@ -547,6 +551,18 @@ impl Buch {
         Ok(ergebnis)
     }
 
+    /// Die Einsätze der Umsysteme, die der Block `block` nennt (IDA-359), nach System sortiert;
+    /// leer für einen Block ohne Verknüpfung und für einen, der aus einer Sicherung kam.
+    pub fn umsysteme_von(&self, block: u64) -> Result<Vec<UmsystemVerweis>, BuchFehler> {
+        let mut anweisung = self.conn.prepare("SELECT system, id FROM umsystem_meldung WHERE block = ?1 ORDER BY system")?;
+        let zeilen = anweisung.query_map(params![block as i64], |r| Ok(UmsystemVerweis { system: r.get(0)?, id: r.get(1)? }))?;
+        let mut ergebnis = Vec::new();
+        for zeile in zeilen {
+            ergebnis.push(zeile?);
+        }
+        Ok(ergebnis)
+    }
+
     /// Merkt einen von der Suite bestätigten Anker vor. Setzt `anker_gemeldet_bis` nur herauf
     /// (`MAX`), nie herunter — eine verspätet ankommende, schon überholte Bestätigung darf einen
     /// inzwischen weiter fortgeschrittenen Stand nicht wieder zurückdrehen. `gemeldet_am` wird
@@ -694,7 +710,12 @@ impl Buch {
     ///
     /// `anker_gemeldet_bis` bleibt 0: Der Rechner meldet danach die ganze Kette als seine Anker.
     /// Scheitert ein Schritt, rollt die `Transaction` beim Verlassen über `?` alles zurück.
-    pub fn uebernehme_sicherung(&mut self, bloecke: &[Block], nummern: &BTreeMap<i64, i64>) -> Result<(), BuchFehler> {
+    pub fn uebernehme_sicherung(
+        &mut self,
+        bloecke: &[Block],
+        nummern: &BTreeMap<i64, i64>,
+        umsysteme: &[(u64, UmsystemVerweis)],
+    ) -> Result<(), BuchFehler> {
         let betrieb = self.betrieb;
         let tx = self.conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
@@ -724,6 +745,14 @@ impl Buch {
         }
         for (jahr, letzte) in nummern {
             tx.execute("INSERT INTO nummern (jahr, letzte) VALUES (?1, ?2)", params![jahr, letzte])?;
+        }
+        // Die Umsysteme der Blöcke wie beim Versiegeln (IDA-359): Ein Block nach dem letzten
+        // Anker trägt sie sonst nicht in seiner Meldung, und Suchlage sperrt den Einsatz nie.
+        for (block, u) in umsysteme {
+            tx.execute(
+                "INSERT OR IGNORE INTO umsystem_meldung (system, id, block) VALUES (?1, ?2, ?3)",
+                params![u.system, u.id, *block as i64],
+            )?;
         }
         tx.commit()?;
         Ok(())

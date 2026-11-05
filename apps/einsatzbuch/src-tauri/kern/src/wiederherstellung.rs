@@ -13,6 +13,7 @@ use std::collections::BTreeMap;
 use crate::format::{Block, Einsatz, Umgebung};
 use crate::kette::{self, Kettengrund};
 use crate::sicherung::Sicherungsdatei;
+use crate::vertrag::UmsystemVerweis;
 
 /// Warum eine Sicherung nicht wiederhergestellt wird. Die Texte zeigt die Oberfläche wörtlich.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -113,6 +114,16 @@ pub fn nummern(einsaetze: &[Einsatz]) -> Result<BTreeMap<i64, i64>, Wiederherste
         *bisher = (*bisher).max(laufend);
     }
     Ok(letzte)
+}
+
+/// Die Umsysteme der geöffneten Blöcke (IDA-359) als `(block, verweis)`, der Inhalt der Tabelle
+/// `umsystem_meldung`. `einsaetze` steht in derselben Reihenfolge wie `bloecke`.
+pub fn umsysteme(bloecke: &[Block], einsaetze: &[Einsatz]) -> Vec<(u64, UmsystemVerweis)> {
+    bloecke
+        .iter()
+        .zip(einsaetze)
+        .flat_map(|(b, e)| e.umsysteme.iter().map(move |u| (b.kopf.block, UmsystemVerweis { system: u.system.clone(), id: u.id.clone() })))
+        .collect()
 }
 
 /// `JJJJ-NNN` → `(jahr, laufend)`, nur in der kanonischen Schreibweise (siehe `nummern`).

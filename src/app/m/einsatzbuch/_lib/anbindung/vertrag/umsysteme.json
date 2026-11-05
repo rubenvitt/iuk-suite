@@ -1,0 +1,20 @@
+{
+  "einsaetze": [
+    {
+      "system": "suchlage",
+      "id": "17",
+      "name": "Personensuche Ebstorf",
+      "ort": "Ebstorf, Waldweg",
+      "beginn": "2026-10-31T19:12:00+01:00",
+      "ende": "2026-10-31T23:40:00+01:00"
+    },
+    {
+      "system": "suchlage",
+      "id": "18",
+      "name": "Brandwache Hösseringen",
+      "ort": null,
+      "beginn": null,
+      "ende": null
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Entwurf, Fahrzeug, Person, Stammdatenpaket } from "../typen";
+import type { Entwurf, Fahrzeug, Person, Stammdatenpaket, UmsystemEinsatzAuswahl } from "../typen";
 import {
   bereitText,
   dauerHinweis,
@@ -24,6 +24,10 @@ import {
   setzePatient,
   setzePatientenzahl,
   transportVorschlaege,
+  loeseVerknuepfung,
+  umsystemZeitraum,
+  verknuepfe,
+  verknuepfterEinsatz,
   zusammenfassung,
 } from "./formular";
 
@@ -79,6 +83,7 @@ function mit(teil: Partial<Entwurf> = {}): Entwurf {
     notizen: "",
     leitstellenNummer: "",
     patienten: [],
+    umsysteme: [],
     ...teil,
   };
 }
@@ -301,5 +306,46 @@ describe("Grenzen des Readers", () => {
 
   it("Höchstlängen wie im Reader", () => {
     expect(HOECHSTLAENGE).toEqual({ stichwort: 80, leitstellenNummer: 40, strasse: 200, ort: 200, objekt: 500, notizen: 20_000 });
+  });
+});
+
+describe("Verknüpfung mit einem Umsystem (IDA-359)", () => {
+  const einsatz: UmsystemEinsatzAuswahl = {
+    system: "suchlage",
+    id: "42",
+    name: "Vermisste Person Stadtwald",
+    ort: "Uelzen",
+    beginn: "2026-10-31T19:12:00+01:00",
+    ende: "2026-10-31T22:05:00+01:00",
+  };
+
+  it("übernimmt Beginn und Ende nur, wo sie fehlen", () => {
+    const leer = verknuepfe(leererEntwurf(), einsatz);
+    expect(leer.umsysteme).toEqual([{ system: "suchlage", id: "42", name: "Vermisste Person Stadtwald" }]);
+    expect([leer.beginnDatum, leer.beginnZeit, leer.endeDatum, leer.endeZeit]).toEqual(["2026-10-31", "19:12", "2026-10-31", "22:05"]);
+    const mitBeginn = verknuepfe({ ...leererEntwurf(), beginnZeit: "19:30" }, einsatz);
+    expect([mitBeginn.beginnDatum, mitBeginn.beginnZeit, mitBeginn.endeZeit]).toEqual(["", "19:30", "22:05"]);
+  });
+
+  it("ersetzt einen früheren Einsatz desselben Umsystems; Lösen lässt die Zeiten stehen", () => {
+    const erst = verknuepfe(leererEntwurf(), einsatz);
+    const dann = verknuepfe(erst, { ...einsatz, id: "43", name: "Zweiter", beginn: null, ende: null });
+    expect(dann.umsysteme).toEqual([{ system: "suchlage", id: "43", name: "Zweiter" }]);
+    expect(verknuepfterEinsatz(dann, "suchlage")?.id).toBe("43");
+    const geloest = loeseVerknuepfung(dann, "suchlage");
+    expect(geloest.umsysteme).toEqual([]);
+    expect(verknuepfterEinsatz(geloest, "suchlage")).toBeNull();
+    expect(geloest.beginnZeit).toBe("19:12");
+  });
+
+  it("schreibt den Zeitraum für die Auswahl", () => {
+    expect(umsystemZeitraum(einsatz)).toBe("31.10.2026 19:12 – 22:05");
+    expect(umsystemZeitraum({ ...einsatz, ende: "2026-11-01T01:00:00+01:00" })).toBe("31.10.2026 19:12 – 1.11.2026 01:00");
+    expect(umsystemZeitraum({ ...einsatz, ende: null })).toBe("läuft seit 31.10.2026 19:12");
+    expect(umsystemZeitraum({ ...einsatz, beginn: null })).toBe("");
+  });
+
+  it("steht in der Zusammenfassung", () => {
+    expect(zusammenfassung(verknuepfe(leererEntwurf(), einsatz), PAKET).at(-1)).toEqual({ k: "Suchlage-Einsatz", v: "Vermisste Person Stadtwald" });
   });
 });

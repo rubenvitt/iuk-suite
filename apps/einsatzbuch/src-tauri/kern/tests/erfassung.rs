@@ -4,7 +4,7 @@ mod hilfe;
 use chrono::{TimeZone, Utc};
 use einsatzbuch_kern::buch::{Betrieb, Buch};
 use einsatzbuch_kern::erfassung::{Entwurf, ErfassungFehler, PersonAuswahl};
-use einsatzbuch_kern::format::{PatientStand, Patientenart, Umgebung};
+use einsatzbuch_kern::format::{PatientStand, Patientenart, Umgebung, UmsystemEinsatz};
 
 fn leerer_entwurf() -> Entwurf {
     Entwurf {
@@ -23,6 +23,7 @@ fn leerer_entwurf() -> Entwurf {
         notizen: String::new(),
         leitstellen_nummer: String::new(),
         patienten: Vec::new(),
+        umsysteme: Vec::new(),
     }
 }
 
@@ -43,6 +44,7 @@ fn gueltiger_entwurf() -> Entwurf {
         notizen: "erste Fassung".into(),
         leitstellen_nummer: String::new(),
         patienten: Vec::new(),
+        umsysteme: Vec::new(),
     }
 }
 
@@ -406,4 +408,42 @@ fn entwurf_ohne_patienten_bleibt_lesbar() {
     wert.as_object_mut().unwrap().remove("patienten");
     let e: Entwurf = serde_json::from_value(wert).unwrap();
     assert!(e.patienten.is_empty());
+}
+
+fn suchlage(id: &str, name: &str) -> UmsystemEinsatz {
+    UmsystemEinsatz { system: "suchlage".into(), id: id.into(), name: name.into() }
+}
+
+/// IDA-359: Ein verknüpfter Suchlage-Einsatz geht getrimmt durch; Kennung, Einsatz-ID, Längen und
+/// Doppelte prüft der Kern wie der Reader.
+#[test]
+fn umsysteme_haben_die_grenzen_des_readers() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+    let mut e = gueltiger_entwurf();
+    e.umsysteme = vec![suchlage("17", "  Personensuche Ebstorf ")];
+    let ausstehend = buch.sende_ab(&e, Utc::now(), false).unwrap();
+    assert_eq!(ausstehend.entwurf.umsysteme, vec![suchlage("17", "Personensuche Ebstorf")]);
+
+    let mit = |liste: Vec<UmsystemEinsatz>| sende(move |e| e.umsysteme = liste.clone());
+    assert_eq!(mit(vec![suchlage("1", &"ä".repeat(200)), UmsystemEinsatz { system: "anderes-2".into(), id: "x".repeat(80), name: String::new() }]), Ok(()));
+    assert_eq!(mit(vec![suchlage("1", &"a".repeat(201))]).unwrap_err(), "Name des Umsystem-Einsatzes darf höchstens 200 Zeichen lang sein, hat 201");
+    assert_eq!(mit(vec![suchlage(&"1".repeat(81), "")]).unwrap_err(), "Einsatz-ID des Umsystems darf höchstens 80 Zeichen lang sein, hat 81");
+    assert_eq!(mit(vec![suchlage("", "x")]).unwrap_err(), "Einsatz-ID für suchlage fehlt");
+    assert_eq!(mit(vec![suchlage("1", "a"), suchlage("2", "b")]).unwrap_err(), "Umsystem suchlage ist mehrfach verknüpft");
+    for kennung in ["Suchlage", "1suchlage", "such lage", ""] {
+        let u = UmsystemEinsatz { system: kennung.into(), id: "1".into(), name: String::new() };
+        assert!(mit(vec![u]).unwrap_err().starts_with("unbekannte Umsystem-Kennung"), "{kennung}");
+    }
+    assert!(mit((0..11).map(|i| UmsystemEinsatz { system: format!("s{i}"), id: "1".into(), name: String::new() }).collect()).is_err());
+}
+
+/// Ein Entwurf aus einer Version vor dem Feld (gespeichert ohne `umsysteme`) bleibt lesbar.
+#[test]
+fn entwurf_ohne_umsysteme_bleibt_lesbar() {
+    let mut wert = serde_json::to_value(gueltiger_entwurf()).unwrap();
+    wert.as_object_mut().unwrap().remove("umsysteme");
+    let e: Entwurf = serde_json::from_value(wert).unwrap();
+    assert!(e.umsysteme.is_empty());
 }

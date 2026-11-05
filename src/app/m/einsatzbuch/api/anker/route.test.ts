@@ -3,10 +3,19 @@ import { rmSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { migrateAllModules } from "@/core/bootstrap";
 
+/** `after()` gibt es nur in einer Anfrage von Next; hier läuft der Rückruf sofort und wird gemerkt. */
+const nachher: Promise<unknown>[] = [];
+vi.mock("next/server", async (original) => ({
+  ...(await original<typeof import("next/server")>()),
+  after: (f: () => Promise<unknown>) => { nachher.push(f()); },
+}));
+
 const DIR = "./.data/einsatzbuch-api-anker-test";
 const HOST = "einsatzbuch.localtest.me";
 
 beforeEach(() => {
+  nachher.length = 0;
+  vi.unstubAllGlobals();
   vi.resetModules();
   vi.restoreAllMocks();
   rmSync(DIR, { recursive: true, force: true });
@@ -98,6 +107,84 @@ describe("POST /api/anker", () => {
     }
     expect(db.select().from(ankerAbweichung).all()).toHaveLength(1);
     expect(db.all(sql`SELECT id FROM audit_outbox WHERE object_type = 'anker_abweichung'`)).toHaveLength(1);
+  });
+});
+
+describe("POST /api/anker mit umsysteme (IDA-359)", () => {
+  const SUCHLAGE_TOKEN = "c".repeat(64);
+  const LINK = `https://suchlage.example.org/kiosk#${SUCHLAGE_TOKEN}`;
+  const MIT = (block: number, hash = "a".repeat(64)) => ({ block, hash, umsysteme: [{ system: "suchlage", id: "17" }] });
+
+  it("ein echter Rechner merkt den Einsatz vor, und die Suite meldet ihn nach der Antwort Suchlage", async () => {
+    const { db } = await einRechner();
+    const token = await echterRechner(db, { id: "r-echt" });
+    const { verbindeSuchlage } = await import("../../_lib/umsysteme");
+    const { umsystemVerknuepfung } = await import("../../_db/schema");
+    verbindeSuchlage(db, LINK, "Verwaltung", new Date());
+    const abruf = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", abruf);
+    const { POST } = await import("./route");
+
+    expect((await POST(req({ bearer: token, body: MIT(1) }))).status).toBe(204);
+    await Promise.all(nachher);
+    const [url, init] = abruf.mock.calls[0] as unknown as [string, RequestInit];
+    expect([url, init.method]).toEqual(["https://suchlage.example.org/api/einsatztagebuch/v1/einsaetze/17/verknuepfung", "POST"]);
+    expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${SUCHLAGE_TOKEN}`);
+    const zeilen = db.select().from(umsystemVerknuepfung).all();
+    expect(zeilen.map((z) => [z.system, z.einsatzId, z.rechnerId, z.block, z.weitergegebenAm !== null])).toEqual([["suchlage", "17", "r-echt", 1, true]]);
+
+    // Die erneute Meldung des letzten Blocks und ein späterer Block mit demselben Einsatz ändern nichts.
+    expect((await POST(req({ bearer: token, body: MIT(1) }))).status).toBe(204);
+    expect((await POST(req({ bearer: token, body: MIT(2, "b".repeat(64)) }))).status).toBe(204);
+    await Promise.all(nachher);
+    expect(abruf).toHaveBeenCalledTimes(1);
+    expect(db.select().from(umsystemVerknuepfung).all().map((z) => z.block)).toEqual([1]);
+  });
+
+  it("nicht erreichbar: die Meldung bleibt offen, und der nächste Anker holt sie nach, auch ohne umsysteme", async () => {
+    const { db } = await einRechner();
+    const token = await echterRechner(db, { id: "r-echt" });
+    const { verbindeSuchlage } = await import("../../_lib/umsysteme");
+    const { umsystemVerknuepfung } = await import("../../_db/schema");
+    verbindeSuchlage(db, LINK, "Verwaltung", new Date());
+    const abruf = vi.fn((): Promise<Response> => Promise.reject(new Error("weg")));
+    vi.stubGlobal("fetch", abruf);
+    const { POST } = await import("./route");
+
+    expect((await POST(req({ bearer: token, body: MIT(1) }))).status).toBe(204);
+    await Promise.all(nachher);
+    expect(db.select().from(umsystemVerknuepfung).get()?.weitergegebenAm).toBeNull();
+
+    abruf.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+    expect((await POST(req({ bearer: token, body: { block: 2, hash: "b".repeat(64) } }))).status).toBe(204);
+    await Promise.all(nachher);
+    expect(db.select().from(umsystemVerknuepfung).get()?.weitergegebenAm).not.toBeNull();
+
+    // Ist nichts mehr offen, fragt ein Anker ohne umsysteme Suchlage gar nicht.
+    const bisher = nachher.length;
+    expect((await POST(req({ bearer: token, body: { block: 3, hash: "c".repeat(64) } }))).status).toBe(204);
+    expect(nachher).toHaveLength(bisher);
+  });
+
+  it("ein Test-Rechner und ein abweichender Block sperren nichts", async () => {
+    const { db, geraeteToken } = await einRechner();
+    const token = await echterRechner(db, { id: "r-echt" });
+    const { umsystemVerknuepfung } = await import("../../_db/schema");
+    const { POST } = await import("./route");
+    expect((await POST(req({ bearer: geraeteToken, body: MIT(1) }))).status).toBe(204);
+    expect((await POST(req({ bearer: token, body: { block: 1, hash: "a".repeat(64) } }))).status).toBe(204);
+    expect((await POST(req({ bearer: token, body: MIT(1, "b".repeat(64)) }))).status).toBe(409);
+    expect(db.select().from(umsystemVerknuepfung).all()).toEqual([]);
+    expect(nachher).toHaveLength(0);
+  });
+
+  it("leeres oder falsch geformtes umsysteme → 400", async () => {
+    const { geraeteToken } = await einRechner();
+    const { POST } = await import("./route");
+    for (const umsysteme of [[], [{ system: "Suchlage", id: "1" }], [{ system: "suchlage", id: "" }], [{ system: "suchlage", id: "1", name: "x" }], [{ system: "suchlage", id: "abc" }], [{ system: "suchlage", id: "07" }]]) {
+      const res = await POST(req({ bearer: geraeteToken, body: { block: 1, hash: "a".repeat(64), umsysteme } }));
+      expect(res.status, JSON.stringify(umsysteme)).toBe(400);
+    }
   });
 });
 

@@ -169,8 +169,8 @@ impl Buch {
             leitstellen_nummer: (!entwurf.leitstellen_nummer.is_empty()).then(|| entwurf.leitstellen_nummer.clone()),
             // Von `pruefe_entwurf` an den Zählern ausgerichtet, ohne Angaben leer.
             patienten: entwurf.patienten.clone(),
-            // Erst lesen, dann schreiben (IDA-359): Dieser Stand versiegelt noch ohne Umsysteme.
-            umsysteme: Vec::new(),
+            // Von `pruefe_entwurf` geprüft; ohne Verknüpfung leer, und der Schlüssel fehlt (IDA-359).
+            umsysteme: entwurf.umsysteme.clone(),
         };
 
         let suite_spki = krypto::aus_b64(&einrichtung.oeffentlich_spki)?;
@@ -182,6 +182,15 @@ impl Buch {
             "INSERT INTO bloecke (block, json, hash, versiegelt) VALUES (?1, ?2, ?3, ?4)",
             params![block_nr as i64, serde_json::to_string(&block)?, block.hash, versiegelt_text],
         )?;
+        // In `tx`, nach dem Block (IDA-359): Die Meldung an die Suite liest die Verknüpfung von
+        // hier, den Block selbst kann der Rechner nicht wieder öffnen. Nennt schon ein früherer
+        // Block denselben Einsatz, bleibt er der erste; das Versiegeln scheitert daran nicht.
+        for u in &einsatz.umsysteme {
+            tx.execute(
+                "INSERT OR IGNORE INTO umsystem_meldung (system, id, block) VALUES (?1, ?2, ?3)",
+                params![u.system, u.id, block_nr as i64],
+            )?;
+        }
         let versiegelung = Versiegelung { block: block_nr, hash: block.hash, prev, versiegelt: versiegelt_text, nummer, verfallen };
         // In `tx`, nach dem Block: Ohne Hinweis kein Block und umgekehrt. So übersteht „Deine
         // letzten Änderungen wurden nicht übernommen …“ auch einen Absturz direkt danach.

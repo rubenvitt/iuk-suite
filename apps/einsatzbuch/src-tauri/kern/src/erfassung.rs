@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::buch::{Buch, BuchFehler};
 use crate::einrichtung::Stammdatenpaket;
-use crate::format::{FahrzeugStand, PatientStand, Patientenart, PersonStand};
+use crate::format::{FahrzeugStand, PatientStand, Patientenart, PersonStand, UmsystemEinsatz};
 use crate::grenzen;
 use crate::krypto::KryptoFehler;
 
@@ -48,6 +48,10 @@ pub struct Entwurf {
     /// `transport` aus. `default`, weil Entwürfe älterer Versionen das Feld nicht kennen.
     #[serde(default)]
     pub patienten: Vec<PatientStand>,
+    /// Verknüpfte Umsysteme (IDA-359), heute höchstens ein Suchlage-Einsatz; leer heißt „keine“
+    /// und wird nicht versiegelt. `default`, weil Entwürfe älterer Versionen das Feld nicht kennen.
+    #[serde(default)]
+    pub umsysteme: Vec<UmsystemEinsatz>,
 }
 
 /// Der zuletzt abgesendete Einsatz, solange die Frist läuft.
@@ -207,6 +211,36 @@ fn richte_patienten_aus(e: &Entwurf) -> Result<Vec<PatientStand>, ErfassungFehle
     Ok(zeilen)
 }
 
+/// Prüft die verknüpften Umsysteme gegen die Grenzen des Readers (`einsatzSchema`, `umsysteme`):
+/// Kennung aus Kleinbuchstaben, Ziffern und `-`, eine Einsatz-ID, je Umsystem höchstens ein
+/// Eintrag. Der Name wird getrimmt, denn er wird versiegelt.
+fn pruefe_umsysteme(e: &Entwurf) -> Result<Vec<UmsystemEinsatz>, ErfassungFehler> {
+    if e.umsysteme.len() > grenzen::UMSYSTEME {
+        return Err(ErfassungFehler::Ungueltig(format!("höchstens {} verknüpfte Umsysteme", grenzen::UMSYSTEME)));
+    }
+    let mut gesehen = std::collections::HashSet::new();
+    let mut aus = Vec::with_capacity(e.umsysteme.len());
+    for u in &e.umsysteme {
+        let kennung_gueltig = u.system.len() <= grenzen::UMSYSTEM_SYSTEM
+            && u.system.starts_with(|c: char| c.is_ascii_lowercase())
+            && u.system.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        if !kennung_gueltig {
+            return Err(ErfassungFehler::Ungueltig(format!("unbekannte Umsystem-Kennung: {}", u.system)));
+        }
+        if !gesehen.insert(u.system.as_str()) {
+            return Err(ErfassungFehler::Ungueltig(format!("Umsystem {} ist mehrfach verknüpft", u.system)));
+        }
+        if u.id.is_empty() {
+            return Err(ErfassungFehler::Ungueltig(format!("Einsatz-ID für {} fehlt", u.system)));
+        }
+        pruefe_laenge("Einsatz-ID des Umsystems", &u.id, grenzen::UMSYSTEM_ID)?;
+        let name = u.name.trim().to_string();
+        pruefe_laenge("Name des Umsystem-Einsatzes", &name, grenzen::UMSYSTEM_NAME)?;
+        aus.push(UmsystemEinsatz { system: u.system.clone(), id: u.id.clone(), name });
+    }
+    Ok(aus)
+}
+
 /// Prüft `HH:MM` auf Form und den Bereich 00:00–23:59 (z. B. lehnt sie `24:00` ab).
 fn pruefe_zeit(s: &str) -> Result<(), ErfassungFehler> {
     if !ist_zeitform(s) {
@@ -283,6 +317,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
     pruefe_laenge("Notizen", &e.notizen, grenzen::NOTIZEN)?;
     pruefe_laenge("Einsatznummer der Leitstelle", &leitstellen_nummer, grenzen::LEITSTELLEN_NUMMER)?;
     let patienten = richte_patienten_aus(e)?;
+    let umsysteme = pruefe_umsysteme(e)?;
     if e.fahrzeuge.len() > grenzen::FAHRZEUGE {
         return Err(ErfassungFehler::Ungueltig(format!(
             "höchstens {} Fahrzeuge je Einsatz, gewählt sind {}",
@@ -350,6 +385,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
         notizen: e.notizen.clone(),
         leitstellen_nummer,
         patienten,
+        umsysteme,
     };
 
     let schnappschuss = Schnappschuss {

@@ -17,6 +17,20 @@ export interface PatientStand {
   durch: string;
 }
 
+/** Spiegel von `UmsystemEinsatz` (`kern/src/format.rs`): der verknüpfte Einsatz, als Schnappschuss versiegelt. */
+export interface UmsystemEinsatz {
+  system: string;
+  id: string;
+  name: string;
+}
+
+/** Spiegel von `UmsystemEinsatzAuswahl` (`kern/src/vertrag.rs`): ein Einsatz zur Auswahl; Zeitpunkte mit Offset. */
+export interface UmsystemEinsatzAuswahl extends UmsystemEinsatz {
+  ort: string | null;
+  beginn: string | null;
+  ende: string | null;
+}
+
 export interface Entwurf {
   stichwort: string;
   beginnDatum: string;
@@ -35,6 +49,8 @@ export interface Entwurf {
   leitstellenNummer: string;
   /** Angaben je Patient, beliebig lang; Rust richtet sie beim Absenden an den Zählern aus. */
   patienten: PatientStand[];
+  /** Verknüpfte Umsysteme (IDA-359), heute höchstens ein Suchlage-Einsatz; leer heißt „keine“. */
+  umsysteme: UmsystemEinsatz[];
 }
 
 export interface Fahrzeug {

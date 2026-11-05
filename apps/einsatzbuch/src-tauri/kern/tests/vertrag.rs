@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use einsatzbuch_kern::format::Umgebung;
 use einsatzbuch_kern::vertrag::{
     EinrichtenAntwort, Fehlerkoerper, Freigabeposten, KettenankerAntwort, Schluesselposten, TauschAntwort,
+    UmsystemeAntwort,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -88,6 +89,7 @@ fn jede_fixture_liest_sich_mit_ihrem_typ_und_lehnt_fremde_felder_ab() {
             "freigeben.json",
             "stammdaten.json",
             "tausch.json",
+            "umsysteme.json",
         ]
     );
     for datei in &dateien {
@@ -99,6 +101,7 @@ fn jede_fixture_liest_sich_mit_ihrem_typ_und_lehnt_fremde_felder_ab() {
             "freigeben.json" => pruefe::<Vec<Schluesselposten>>(datei),
             "stammdaten.json" => pruefe::<einsatzbuch_kern::einrichtung::Stammdatenpaket>(datei),
             "tausch.json" => pruefe::<TauschAntwort>(datei),
+            "umsysteme.json" => pruefe::<UmsystemeAntwort>(datei),
             sonst => panic!("keine Zuordnung für {sonst}"),
         }
     }

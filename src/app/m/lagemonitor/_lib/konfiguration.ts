@@ -12,6 +12,7 @@ import { alsPublicLinks, type PublicLink } from "./links";
 import type { Vehicle } from "./fahrzeuge";
 import type { MapObject } from "./lagekarte";
 import { alsNotices, type Notice } from "./meldungen";
+import { suchlageLinkAus } from "@/core/suchlage/link";
 
 export const VERTRAG_VERSION = 1;
 const ZEILE = "anzeige";
@@ -108,24 +109,8 @@ export const VORGABE: KonfigurationDTO = {
   aktualisiertVon: null,
 };
 
-/**
- * Der Großbild-Link aus Suchlage (Verwaltung → Großbild): `https://suchlage.example/kiosk#<64 hex>`.
- * Daraus werden Adresse (alles vor `/kiosk`) und Token. `null`, wenn der Text kein solcher Link ist.
- */
-export function suchlageLinkAus(text: string): { adresse: string; token: string } | null {
-  let url: URL;
-  try {
-    url = new URL(text.trim());
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-  const token = url.hash.slice(1);
-  if (!/^[0-9a-f]{64}$/.test(token)) return null;
-  const pfad = url.pathname.replace(/\/+$/, "");
-  if (!pfad.endsWith("/kiosk")) return null;
-  return { adresse: url.origin + pfad.slice(0, -"/kiosk".length), token };
-}
+/** Seit IDA-359 in `core/suchlage`, denn das Einsatztagebuch liest denselben Link. */
+export { suchlageLinkAus };
 
 const schalter = z.boolean();
 

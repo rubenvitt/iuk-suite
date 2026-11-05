@@ -11,7 +11,8 @@ use aes_gcm::{Aes256Gcm, KeyInit};
 use base64::Engine as _;
 use chrono::{DateTime, TimeDelta, TimeZone, Utc};
 use einsatzbuch_kern::buch::{Betrieb, Buch, BuchFehler};
-use einsatzbuch_kern::format::{Block, Blockkopf, Einsatz, GENESIS, Umgebung, Umschlag};
+use einsatzbuch_kern::format::{Block, Blockkopf, Einsatz, GENESIS, Umgebung, Umschlag, UmsystemEinsatz};
+use einsatzbuch_kern::vertrag::UmsystemVerweis;
 use einsatzbuch_kern::kette::{self, Kettengrund};
 use einsatzbuch_kern::krypto::{self, KryptoFehler};
 use einsatzbuch_kern::sicherung::Sicherungsdatei;
@@ -371,7 +372,7 @@ fn uebernehmen_verweigert_eine_kette_mit_bloecken_und_aendert_nichts() {
     hilfe::versiegele_einen_einsatz(&mut buch, beginn(), 9);
     let vorher = (buch.bloecke().unwrap(), nummern_im_buch(&buch));
 
-    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 2)])).unwrap_err();
+    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 2)]), &[]).unwrap_err();
     assert!(matches!(fehler, BuchFehler::KetteNichtLeer), "{fehler:?}");
     assert_eq!((buch.bloecke().unwrap(), nummern_im_buch(&buch)), vorher);
 }
@@ -383,7 +384,7 @@ fn uebernehmen_verweigert_bei_ausstehendem_einsatz() {
     // Ein abgesendeter, noch nicht versiegelter Einsatz: kein Block, keine Nummer.
     leer.sende_ab(&hilfe::gueltiger_entwurf(), beginn(), false).unwrap();
 
-    let fehler = leer.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 2)])).unwrap_err();
+    let fehler = leer.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 2)]), &[]).unwrap_err();
     assert!(matches!(fehler, BuchFehler::KetteNichtLeer), "{fehler:?}");
     assert!(leer.bloecke().unwrap().is_empty());
     assert!(nummern_im_buch(&leer).is_empty());
@@ -395,7 +396,7 @@ fn uebernehmen_verweigert_bei_vergebenen_nummern() {
     let (_ordner, mut buch) = eingerichtetes_buch(Betrieb::Echt);
     buch.verbindung().execute("INSERT INTO nummern (jahr, letzte) VALUES (2025, 4)", []).unwrap();
 
-    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 2)])).unwrap_err();
+    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 2)]), &[]).unwrap_err();
     assert!(matches!(fehler, BuchFehler::KetteNichtLeer), "{fehler:?}");
     assert!(buch.bloecke().unwrap().is_empty());
     assert_eq!(nummern_im_buch(&buch), vec![(2025, 4)]);
@@ -405,7 +406,7 @@ fn uebernehmen_verweigert_bei_vergebenen_nummern() {
 fn uebernehmen_verweigert_im_testbetrieb() {
     let fremd = kette_aus(Betrieb::Test, 1);
     let (_ordner, mut buch) = eingerichtetes_buch(Betrieb::Test);
-    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 1)])).unwrap_err();
+    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 1)]), &[]).unwrap_err();
     assert!(matches!(fehler, BuchFehler::NurImEchtbetrieb), "{fehler:?}");
     assert!(buch.bloecke().unwrap().is_empty());
 }
@@ -415,7 +416,7 @@ fn uebernehmen_verlangt_eine_einrichtung() {
     let fremd = kette_aus(Betrieb::Echt, 1);
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 1)])).unwrap_err();
+    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 1)]), &[]).unwrap_err();
     assert!(matches!(fehler, BuchFehler::NichtEingerichtet), "{fehler:?}");
     assert!(buch.bloecke().unwrap().is_empty());
 }
@@ -426,7 +427,7 @@ fn uebernehmen_verlangt_eine_einrichtung() {
 fn ein_fehler_beim_uebernehmen_hinterlaesst_nichts() {
     let fremd = kette_aus(Betrieb::Echt, 2);
     let (_ordner, mut buch) = eingerichtetes_buch(Betrieb::Echt);
-    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 0)])).unwrap_err();
+    let fehler = buch.uebernehme_sicherung(&fremd, &BTreeMap::from([(2026, 0)]), &[]).unwrap_err();
     assert!(matches!(fehler, BuchFehler::Datenbank(_)), "{fehler:?}");
     assert!(buch.bloecke().unwrap().is_empty());
     assert!(nummern_im_buch(&buch).is_empty());
@@ -445,7 +446,7 @@ fn nach_der_uebernahme_setzt_das_versiegeln_nummer_und_kette_fort() {
     assert_eq!(nummern, BTreeMap::from([(2026, 3)]));
 
     let (_ordner, mut buch) = eingerichtetes_buch(Betrieb::Echt);
-    buch.uebernehme_sicherung(&sicherung.bloecke, &nummern).unwrap();
+    buch.uebernehme_sicherung(&sicherung.bloecke, &nummern, &[]).unwrap();
     assert_eq!(buch.bloecke().unwrap(), quelle, "Blöcke byte-gleich übernommen");
     assert_eq!(nummern_im_buch(&buch), vec![(2026, 3)]);
     assert_eq!(buch.kettenkopf().unwrap(), Some((3, anker.clone())));
@@ -487,7 +488,7 @@ fn uebernehmen_prueft_die_bloecke_selbst_und_schreibt_bei_fehlern_nichts() {
     ];
     for (fall, bloecke, erwartet) in faelle {
         let (_ordner, mut buch) = eingerichtetes_buch(Betrieb::Echt);
-        let fehler = buch.uebernehme_sicherung(&bloecke, &BTreeMap::from([(2026, 3)])).unwrap_err();
+        let fehler = buch.uebernehme_sicherung(&bloecke, &BTreeMap::from([(2026, 3)]), &[]).unwrap_err();
         assert!(matches!(&fehler, BuchFehler::Sicherung(f) if *f == erwartet), "{fall}: {fehler:?}");
         assert!(buch.bloecke().unwrap().is_empty(), "{fall}");
         assert!(nummern_im_buch(&buch).is_empty(), "{fall}");
@@ -496,10 +497,28 @@ fn uebernehmen_prueft_die_bloecke_selbst_und_schreibt_bei_fehlern_nichts() {
     // Anderer gepinnter Schlüssel in der Einrichtung: dieselbe, sonst gültige Kette gilt nicht.
     let (_ordner, mut buch) = eingerichtetes_buch(Betrieb::Echt);
     buch.verbindung().execute("UPDATE einrichtung SET schluessel_id = 'ffffffffffffffff' WHERE id = 1", []).unwrap();
-    let fehler = buch.uebernehme_sicherung(&echt, &BTreeMap::from([(2026, 3)])).unwrap_err();
+    let fehler = buch.uebernehme_sicherung(&echt, &BTreeMap::from([(2026, 3)]), &[]).unwrap_err();
     let erwartet =
         Wiederherstellungsfehler::AndererSchluessel { block: 1, gefunden: gepinnt(), gepinnt: "ffffffffffffffff".into() };
     assert!(matches!(&fehler, BuchFehler::Sicherung(f) if *f == erwartet), "{fehler:?}");
     assert!(buch.bloecke().unwrap().is_empty());
     assert!(nummern_im_buch(&buch).is_empty());
+}
+
+/// Die Umsysteme der Sicherung kommen mit (IDA-359): Ein Block nach dem letzten Anker meldet sie
+/// sonst ohne Verknüpfung, und Suchlage sperrt den Einsatz nie.
+#[test]
+fn die_uebernahme_bringt_die_umsysteme_der_bloecke_mit() {
+    let sicherung = datei(kette_aus(Betrieb::Echt, 2));
+    let mut einsaetze: Vec<Einsatz> = sicherung.bloecke.iter().map(oeffne).collect();
+    einsaetze[1].umsysteme = vec![UmsystemEinsatz { system: "suchlage".into(), id: "17".into(), name: "Personensuche".into() }];
+    let verweis = UmsystemVerweis { system: "suchlage".into(), id: "17".into() };
+    let umsysteme = wiederherstellung::umsysteme(&sicherung.bloecke, &einsaetze);
+    assert_eq!(umsysteme, vec![(2, verweis.clone())]);
+
+    let nummern = wiederherstellung::nummern(&einsaetze).unwrap();
+    let (_ordner, mut buch) = eingerichtetes_buch(Betrieb::Echt);
+    buch.uebernehme_sicherung(&sicherung.bloecke, &nummern, &umsysteme).unwrap();
+    assert!(buch.umsysteme_von(1).unwrap().is_empty());
+    assert_eq!(buch.umsysteme_von(2).unwrap(), vec![verweis]);
 }
