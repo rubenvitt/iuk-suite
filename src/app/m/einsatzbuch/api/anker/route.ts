@@ -18,7 +18,7 @@ import { rechnerAusToken } from "../../_lib/anbindung/geraet";
 import { begrenztesJson } from "../../_lib/anbindung/koerper";
 import { bearerAus } from "../../_lib/anbindung/token";
 import { ankerAnfrage, fehler, kettenankerAbfrage } from "../../_lib/anbindung/vertrag";
-import { gibVerknuepfungenWeiter } from "../../_lib/umsysteme";
+import { gibVerknuepfungenWeiter, hatOffeneWeitergabe } from "../../_lib/umsysteme";
 
 export const dynamic = "force-dynamic";
 
@@ -43,8 +43,9 @@ export async function POST(req: Request) {
   return withAuditContext({ actor: { kind: "access", id: `einsatzbuch:rechner:${r.id}`, name: r.name } }, () => {
     const ergebnis = meldeAnker(db, r.id, parsed.data.block, parsed.data.hash, new Date(), umsysteme);
     if (!ergebnis.ok) return fehler(409, "anker_abweichung", "Der gemeldete Hash weicht vom bekannten Anker ab.", { erwartet: ergebnis.erwartet });
-    // Nach der Antwort: Der Rechner wartet nicht auf Suchlage, und was scheitert, holt der nächste Lauf nach.
-    if (umsysteme.length > 0) after(() => gibVerknuepfungenWeiter(db));
+    // Nach der Antwort: Der Rechner wartet nicht auf Suchlage. Was scheitert, holt der nächste
+    // Anker nach, auch einer ohne umsysteme; ohne offene Weitergabe fragt die Suite Suchlage nicht.
+    if (umsysteme.length > 0 || hatOffeneWeitergabe(db)) after(() => gibVerknuepfungenWeiter(db));
     return new Response(null, { status: 204 });
   });
 }

@@ -134,6 +134,13 @@ export async function suchlageEinsaetze(db: Db, abruf: Abruf = standardAbruf): P
 /** Höchstens so viele Meldungen je Lauf; der nächste Lauf nimmt den Rest. */
 const WEITERGABE_JE_LAUF = 50;
 
+/** Wartet noch eine Verknüpfung auf die Weitergabe an Suchlage? Eine Zeile, billig je Anker. */
+export function hatOffeneWeitergabe(db: Db): boolean {
+  return db.select({ id: umsystemVerknuepfung.einsatzId }).from(umsystemVerknuepfung)
+    .where(and(eq(umsystemVerknuepfung.system, SUCHLAGE), isNull(umsystemVerknuepfung.weitergegebenAm)))
+    .limit(1).get() !== undefined;
+}
+
 /**
  * Meldet Suchlage die Einsätze, die ein versiegelter Block nennt und die Suchlage noch nicht
  * bestätigt hat (`POST /api/einsatztagebuch/v1/einsaetze/{id}/verknuepfung`). Suchlage lässt sie

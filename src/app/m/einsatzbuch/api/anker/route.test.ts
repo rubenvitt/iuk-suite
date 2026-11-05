@@ -141,7 +141,7 @@ describe("POST /api/anker mit umsysteme (IDA-359)", () => {
     expect(db.select().from(umsystemVerknuepfung).all().map((z) => z.block)).toEqual([1]);
   });
 
-  it("nicht erreichbar: die Meldung bleibt offen; ohne umsysteme fragt die Suite Suchlage gar nicht", async () => {
+  it("nicht erreichbar: die Meldung bleibt offen, und der nächste Anker holt sie nach, auch ohne umsysteme", async () => {
     const { db } = await einRechner();
     const token = await echterRechner(db, { id: "r-echt" });
     const { verbindeSuchlage } = await import("../../_lib/umsysteme");
@@ -154,8 +154,16 @@ describe("POST /api/anker mit umsysteme (IDA-359)", () => {
     expect((await POST(req({ bearer: token, body: MIT(1) }))).status).toBe(204);
     await Promise.all(nachher);
     expect(db.select().from(umsystemVerknuepfung).get()?.weitergegebenAm).toBeNull();
+
+    abruf.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
     expect((await POST(req({ bearer: token, body: { block: 2, hash: "b".repeat(64) } }))).status).toBe(204);
-    expect(nachher).toHaveLength(1);
+    await Promise.all(nachher);
+    expect(db.select().from(umsystemVerknuepfung).get()?.weitergegebenAm).not.toBeNull();
+
+    // Ist nichts mehr offen, fragt ein Anker ohne umsysteme Suchlage gar nicht.
+    const bisher = nachher.length;
+    expect((await POST(req({ bearer: token, body: { block: 3, hash: "c".repeat(64) } }))).status).toBe(204);
+    expect(nachher).toHaveLength(bisher);
   });
 
   it("ein Test-Rechner und ein abweichender Block sperren nichts", async () => {
