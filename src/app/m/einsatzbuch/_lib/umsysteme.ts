@@ -84,6 +84,16 @@ const ZEITLIMIT_MS = 10_000;
 const NAME_HOECHSTENS = 200;
 
 /**
+ * Kürzt auf höchstens `max` UTF-16-Einheiten, ohne ein Surrogatpaar zu teilen: Ein einzelnes
+ * High-Surrogate geht als `\ud83d` über den Draht, und `serde_json` im Rechner lehnt dann die
+ * ganze Liste ab.
+ */
+export function kuerze(text: string, max: number): string {
+  const kurz = text.slice(0, max);
+  return text.length > max && /[\ud800-\udbff]$/.test(kurz) ? kurz.slice(0, -1) : kurz;
+}
+
+/**
  * Fragt die laufenden und kürzlich abgeschlossenen Suchlage-Einsätze ab (Zeitraum: Vorgabe von
  * Suchlage, 7 Tage). Ein Fehler wird zum Grund, nie zur Ausnahme: Der Rechner zeigt dann nur, dass
  * Suchlage gerade nicht antwortet.
@@ -123,8 +133,8 @@ export async function suchlageEinsaetze(db: Db, abruf: Abruf = standardAbruf): P
     einsaetze: geprueft.data.missions.filter((m) => !vergeben.has(String(m.id))).slice(0, 200).map((m) => ({
       system: SUCHLAGE,
       id: String(m.id),
-      name: m.name.slice(0, NAME_HOECHSTENS),
-      ort: m.location ? m.location.slice(0, 200) : null,
+      name: kuerze(m.name, NAME_HOECHSTENS),
+      ort: m.location ? kuerze(m.location, 200) : null,
       beginn: m.started_at_ms === null ? null : zeitpunktInZone(new Date(m.started_at_ms)),
       ende: m.closed_at_ms === null ? null : zeitpunktInZone(new Date(m.closed_at_ms)),
     })),

@@ -155,3 +155,13 @@ describe("GET /api/umsysteme", () => {
     expect(db.select().from(umsystemVerknuepfung).get()?.weitergegebenAm).not.toBeNull();
   });
 });
+
+describe("kuerze (IDA-359)", () => {
+  it("teilt kein Surrogatpaar, sonst lehnt der Rechner die ganze Liste ab", async () => {
+    const { kuerze } = await import("../../_lib/umsysteme");
+    const name = `${"a".repeat(199)}🔥b`;
+    expect(kuerze(name, 200)).toBe("a".repeat(199));
+    expect(kuerze(name, 201)).toBe(`${"a".repeat(199)}🔥`);
+    expect(kuerze("kurz", 200)).toBe("kurz");
+  });
+});
