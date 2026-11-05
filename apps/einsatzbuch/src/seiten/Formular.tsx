@@ -88,7 +88,6 @@ export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbei
   const [fzFilter, setFzFilter] = useState("Alle");
   const [peSuche, setPeSuche] = useState("");
   const [peFilter, setPeFilter] = useState("Alle");
-  const [suchlageOffen, setSuchlageOffen] = useState(false);
 
   const setze = (feld: Textfeld) => (wert: string) => beiAenderung({ ...e, [feld]: wert });
   const unvollstaendig = !kannAbsenden(e);
@@ -125,6 +124,11 @@ export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbei
   const anzPe = peAuswahl.length;
   const suchlage = verknuepfterEinsatz(e, "suchlage");
   const suchlageEinsaetze = umsysteme.filter((u) => u.system === "suchlage");
+  // Ein schon gewählter Einsatz, den die Liste nicht mehr nennt, bleibt als Zeile stehen.
+  const suchlageZeilen: UmsystemEinsatzAuswahl[] =
+    suchlage && !suchlageEinsaetze.some((u) => u.id === suchlage.id)
+      ? [{ system: "suchlage", id: suchlage.id, name: suchlage.name, ort: null, beginn: null, ende: null }, ...suchlageEinsaetze]
+      : suchlageEinsaetze;
 
   return (
     <>
@@ -203,50 +207,38 @@ export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbei
         {suchlage || suchlageEinsaetze.length > 0 || umsystemFehler ? (
           <Karte titel="Suchlage-Einsatz">
             <div className="stapel stapel-12">
-              {suchlage ? (
-                <div className="reihe-umbruch">
-                  <button
-                    type="button"
-                    className="auswahl-chip"
-                    aria-label={`Verknüpfung mit ${suchlage.name || `Einsatz ${suchlage.id}`} lösen`}
-                    onClick={() => {
-                      beiAenderung(loeseVerknuepfung(e, "suchlage"));
-                      setSuchlageOffen(false);
-                    }}
-                  >
-                    <span className="auswahl-chip-person">{suchlage.name || `Einsatz ${suchlage.id}`}</span>
-                    <Zeichen name="kreuz" groesse={14} />
-                  </button>
-                </div>
-              ) : umsystemFehler ? (
+              {umsystemFehler ? (
                 <span className="feld-fehler" role="alert">
                   {umsystemFehler}
                 </span>
-              ) : suchlageOffen ? (
-                <div className="trefferliste trefferliste-fz">
-                  {suchlageEinsaetze.map((u) => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      className="treffer treffer-umsystem"
-                      aria-pressed={false}
-                      onClick={() => {
-                        beiAenderung(verknuepfe(e, u));
-                        setSuchlageOffen(false);
-                      }}
-                    >
-                      <span className="treffer-umsystem-name">{u.name}</span>
-                      <span className="treffer-neben">{[u.ort, umsystemZeitraum(u)].filter(Boolean).join(" · ")}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div>
-                  <Knopf zeichen="verketten" onClick={() => setSuchlageOffen(true)}>
-                    Mit Suchlage-Einsatz verknüpfen
-                  </Knopf>
-                </div>
-              )}
+              ) : null}
+              <div className="trefferliste trefferliste-fz" role="radiogroup" aria-label="Suchlage-Einsatz">
+                <button
+                  type="button"
+                  role="radio"
+                  className="treffer treffer-umsystem"
+                  aria-checked={!suchlage}
+                  onClick={() => beiAenderung(loeseVerknuepfung(e, "suchlage"))}
+                >
+                  <span className="punkt" />
+                  <span className="treffer-umsystem-name">Ohne Suchlage-Einsatz</span>
+                  <span />
+                </button>
+                {suchlageZeilen.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    role="radio"
+                    className="treffer treffer-umsystem"
+                    aria-checked={suchlage?.id === u.id}
+                    onClick={() => beiAenderung(verknuepfe(e, u))}
+                  >
+                    <span className="punkt" />
+                    <span className="treffer-umsystem-name">{u.name || `Einsatz ${u.id}`}</span>
+                    <span className="treffer-neben">{[u.ort, umsystemZeitraum(u)].filter(Boolean).join(" · ")}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </Karte>
         ) : null}

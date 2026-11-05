@@ -191,6 +191,11 @@ function knopf(name: string): HTMLButtonElement | undefined {
   return queryAll<HTMLButtonElement>("button").find((b) => (b.getAttribute("aria-label") ?? b.textContent ?? "").trim() === name);
 }
 
+/** Wahl in einer Auswahlliste (`role="radio"`) nach ihrem Namen, ohne die Nebenangaben. */
+function radio(name: string): HTMLButtonElement | undefined {
+  return queryAll<HTMLButtonElement>('[role="radio"]').find((b) => b.querySelector(".treffer-umsystem-name")?.textContent === name);
+}
+
 /** Eingabefeld über das umschließende `<label>` — so, wie `getByLabel` es findet. */
 function feld(label: string): HTMLInputElement | undefined {
   const l = queryAll<HTMLLabelElement>("label").find((x) => (x.textContent ?? "").trim() === label);
@@ -901,16 +906,19 @@ describe("Formular", () => {
       { system: "suchlage", id: "42", name: "Vermisste Person Stadtwald", ort: "Uelzen", beginn: "2026-10-31T19:12:00+01:00", ende: null },
     ]);
     await clickElement(knopf("Einsatz öffnen")!);
-    await warteBis(() => knopf("Mit Suchlage-Einsatz verknüpfen") !== undefined, "Knopf „Mit Suchlage-Einsatz verknüpfen“");
-    await clickElement(knopf("Mit Suchlage-Einsatz verknüpfen")!);
+    await warteBis(() => radio("Vermisste Person Stadtwald") !== undefined, "Auswahl „Vermisste Person Stadtwald“");
     expect(text()).toContain("Uelzen · läuft seit 31.10.2026 19:12");
+    expect(radio("Ohne Suchlage-Einsatz")?.getAttribute("aria-checked")).toBe("true");
     const vorher = befehle.entwurfSpeichern.mock.calls.length;
-    await clickElement(queryAll<HTMLButtonElement>("button.treffer-umsystem")[0]!);
-    expect(knopf("Verknüpfung mit Vermisste Person Stadtwald lösen")).toBeDefined();
+    await clickElement(radio("Vermisste Person Stadtwald")!);
+    expect(radio("Vermisste Person Stadtwald")?.getAttribute("aria-checked")).toBe("true");
+    expect(radio("Ohne Suchlage-Einsatz")?.getAttribute("aria-checked")).toBe("false");
     expect(feld("Beginn · Uhrzeit")?.value).toBe("19:12");
     await warteBis(() => befehle.entwurfSpeichern.mock.calls.length > vorher, "Entwurf gespeichert");
     const gespeichert = befehle.entwurfSpeichern.mock.calls.at(-1)![0] as Entwurf;
     expect(gespeichert.umsysteme).toEqual([{ system: "suchlage", id: "42", name: "Vermisste Person Stadtwald" }]);
+    await clickElement(radio("Ohne Suchlage-Einsatz")!);
+    expect(radio("Vermisste Person Stadtwald")?.getAttribute("aria-checked")).toBe("false");
   });
 
   it("zeigt einen gescheiterten Abruf der Suchlage-Einsätze und vergisst die Liste beim Verlassen", async () => {
@@ -919,14 +927,14 @@ describe("Formular", () => {
     await clickElement(knopf("Einsatz öffnen")!);
     await warteBis(() => text().includes("Suchlage antwortet gerade nicht."), "Fehler an der Suchlage-Karte");
     expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain("Suchlage antwortet gerade nicht.");
-    expect(knopf("Mit Suchlage-Einsatz verknüpfen")).toBeUndefined();
+    expect(radio("Vermisste Person Stadtwald")).toBeUndefined();
     await clickElement(knopf("Zurück")!);
 
     befehle.umsysteme.mockResolvedValue([
       { system: "suchlage", id: "42", name: "Vermisste Person Stadtwald", ort: "Uelzen", beginn: "2026-10-31T19:12:00+01:00", ende: null },
     ]);
     await clickElement(knopf("Einsatz öffnen")!);
-    await warteBis(() => knopf("Mit Suchlage-Einsatz verknüpfen") !== undefined, "Knopf „Mit Suchlage-Einsatz verknüpfen“");
+    await warteBis(() => radio("Vermisste Person Stadtwald") !== undefined, "Auswahl „Vermisste Person Stadtwald“");
     expect(text()).not.toContain("Suchlage antwortet gerade nicht.");
     await clickElement(knopf("Zurück")!);
 
@@ -934,7 +942,7 @@ describe("Formular", () => {
     befehle.umsysteme.mockReturnValue(new Promise((r) => (antworte = r)));
     await clickElement(knopf("Einsatz öffnen")!);
     await warte();
-    expect(knopf("Mit Suchlage-Einsatz verknüpfen")).toBeUndefined();
+    expect(radio("Ohne Suchlage-Einsatz")).toBeUndefined();
     antworte([]);
   });
 
