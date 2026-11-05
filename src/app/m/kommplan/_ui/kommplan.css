@@ -143,7 +143,7 @@
  */
 .kp-auswahlleiste {
   position: absolute; top: 8px; left: 8px; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px;
-  padding: 5px 6px; overflow-x: auto; overscroll-behavior-x: contain; pointer-events: auto;
+  padding: 5px 6px; overflow-x: auto; overscroll-behavior-x: contain; scroll-padding-inline: 6px; pointer-events: auto; /* scroll-padding: ein hereingescrollter Knopf liegt nie bündig am Rand, sonst schneidet die ganzzahlige Scrollposition Subpixel ab */
   border: 1px solid var(--kp-leiste-rand); border-radius: 8px; box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
   /* Schattenkante, solange waagerecht etwas verborgen ist: zwei Deckflächen wandern mit dem Inhalt (local),
      zwei Schatten bleiben am Rand (scroll) — reines CSS, kein Skript. */
