@@ -100,3 +100,27 @@
 .vorlageSeite canvas { display: block; max-width: 100%; }
 .feldKasten { position: absolute; border: 2px solid var(--gv-ok-text); background: color-mix(in srgb, var(--gv-ok-flaeche) 55%, transparent); pointer-events: none; }
 .feldEntwurf { border-style: dashed; border-color: var(--gv-gelb-text); background: color-mix(in srgb, var(--gv-gelb-flaeche) 55%, transparent); }
+
+/* Dokumente einer Zusage (IDA-354): eine Zeile je Art im Flyin. */
+.dokument { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--iuk-linie); }
+
+/* Feldeditor der Vorlagen (IDA-354): Seite links, Auswahl und Liste rechts; schmal untereinander. */
+.editor { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (min-width: 1100px) { .editor { grid-template-columns: minmax(0, 720px) minmax(260px, 1fr); } }
+.feldSpalte { display: grid; gap: 12px; min-width: 0; }
+.feldWahl { pointer-events: auto; cursor: pointer; padding: 0; font: inherit; }
+.feld_text { border-color: var(--gv-grau-text); background: color-mix(in srgb, var(--gv-grau-flaeche) 45%, transparent); }
+.feld_ankreuz { border-color: var(--gv-grau-text); background: color-mix(in srgb, var(--gv-grau-flaeche) 45%, transparent); }
+.feldliste { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.feldzeile {
+  display: flex; gap: 8px; align-items: center; width: 100%; min-height: 44px; padding: 6px 10px; text-align: start; font: inherit; color: inherit;
+  border: 1px solid var(--iuk-linie); border-radius: 6px; background: var(--gv-karte); cursor: pointer;
+}
+.feldzeileAn { box-shadow: inset 0 0 0 2px var(--gv-gelb-text); }
+.feldzeileName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Ausfüllseite (IDA-354): Angaben in Spalten ab Tabletbreite, Unterschrift darunter. */
+.angaben { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px 16px; }
+.angabe { display: grid; gap: 4px; min-width: 0; }
+.zeichnen { display: grid; gap: 12px; max-width: 560px; margin-top: 12px; }
+.wahl { max-width: 100%; overflow-x: auto; }

@@ -196,7 +196,7 @@
     "via": "GET",
     "delivery": {
       "objectType": "vertragsdatei",
-      "reference": "id"
+      "reference": "JSON.stringify([id, art])"
     }
   },
   "src/app/m/gemeinschaft/(leitung)/vermietung/vertrag/[id]/route.ts#POST": { "kind": "context", "via": "POST" },
@@ -205,7 +205,7 @@
     "via": "GET",
     "delivery": {
       "objectType": "vertragsvorlage",
-      "reference": "RAUM"
+      "reference": "JSON.stringify([RAUM, art])"
     }
   },
   "src/app/m/gemeinschaft/(leitung)/vermietung/vorlage/datei/route.ts#POST": { "kind": "context", "via": "POST" },
@@ -214,11 +214,26 @@
     "via": "GET",
     "delivery": {
       "objectType": "vertragsdatei",
-      "reference": "v.id"
+      "reference": "JSON.stringify([v.id, art])"
     }
   },
   "src/app/m/gemeinschaft/(offen)/status/[code]/vertrag/route.ts#POST": { "kind": "context", "via": "POST" },
-  "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageFeldAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageFelderAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#dokumentErstellenAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#dokumentVerwerfenAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#dokumentWerteAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#dokumentLeitungUnterschriftAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#dokumentFreigebenAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#dokumentFreigabeZurueckAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#dokumentVorOrtAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/(leitung)/vermietung/dokument/[id]/[art]/ansicht/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "vertragsdokument",
+      "reference": "JSON.stringify([id, art])"
+    }
+  },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageZeichnenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageEntfernenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/(leitung)/vermietung/plakat/route.ts#GET": {

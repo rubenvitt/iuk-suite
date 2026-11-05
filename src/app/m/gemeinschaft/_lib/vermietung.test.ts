@@ -32,7 +32,7 @@ describe("Anfrage stellen", () => {
     const code = legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), true, JETZT);
     expect(code).toMatch(/^[A-Za-z0-9_-]{22}$/);
     const [a] = ladeAnfragen(db);
-    expect(a).toMatchObject({ status: "angefragt", mitglied: true, anlass: "Geburtstag", vertrag: "offen", datei: null, eingegangenAm: JETZT });
+    expect(a).toMatchObject({ status: "angefragt", mitglied: true, anlass: "Geburtstag", vertrag: "offen", eingegangenAm: JETZT });
   });
 
   it("IDA-358: dieselbe Sendung zweimal legt eine Anfrage an und gibt denselben Link-Code zurück", () => {
@@ -172,24 +172,35 @@ describe("Sperrzeiten", () => {
 
 describe("Vertrag", () => {
   const PDF = Buffer.from("%PDF-1.7\n…");
+  const datei = (db: ReturnType<typeof testDb>, art = "mietvertrag") => ladeAnfragen(db)[0].dokumente.find((d) => d.art === art)?.datei ?? null;
 
-  it("nur zu einer Zusage; Ablegen setzt „offen“ auf „unterschrieben“, Entfernen löscht nur die Datei", () => {
+  it("nur zu einer Zusage; Ablegen setzt „offen“ auf „unterschrieben“, Entfernen fällt zurück", () => {
     const db = testDb();
     const c = legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), false, JETZT);
     const id = idVon(db, c);
     expect(() => setzeVertrag(db, id, "verschickt")).toThrow(Abgelehnt);
-    expect(() => legeVertragAb(db, id, "v.pdf", PDF, JETZT)).toThrow(Abgelehnt);
+    expect(() => legeVertragAb(db, id, "mietvertrag", "v.pdf", PDF, JETZT)).toThrow(Abgelehnt);
     sageZu(db, id, JETZT);
-    legeVertragAb(db, id, "Mietvertrag.pdf", PDF, JETZT);
-    expect(ladeAnfragen(db)[0]).toMatchObject({ vertrag: "unterschrieben", datei: { name: "Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf", groesse: PDF.length } });
-    expect(ladeVertragsdatei(db, id)?.inhalt.equals(PDF)).toBe(true);
-    legeVertragAb(db, id, "Neu.pdf", PDF, JETZT);
-    expect(ladeAnfragen(db)[0].datei?.name).toBe("Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf");
-    expect(ladeVertragsdatei(db, id)?.name).toBe("Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf");
-    entferneVertrag(db, id);
-    expect(ladeVertragsdatei(db, id)).toBeNull();
+    legeVertragAb(db, id, "mietvertrag", "Mietvertrag.pdf", PDF, JETZT);
     expect(ladeAnfragen(db)[0].vertrag).toBe("unterschrieben");
-    expect(() => entferneVertrag(db, id)).toThrow(NichtGefunden);
+    expect(datei(db)).toMatchObject({ name: "Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf", groesse: PDF.length, herkunft: "leitung" });
+    expect(ladeVertragsdatei(db, id, "mietvertrag")?.inhalt.equals(PDF)).toBe(true);
+    legeVertragAb(db, id, "mietvertrag", "Neu.pdf", PDF, JETZT);
+    expect(ladeVertragsdatei(db, id, "mietvertrag")?.name).toBe("Mietvertrag Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf");
+    entferneVertrag(db, id, "mietvertrag");
+    expect(ladeVertragsdatei(db, id, "mietvertrag")).toBeNull();
+    expect(ladeAnfragen(db)[0].vertrag).toBe("offen");
+    expect(() => entferneVertrag(db, id, "mietvertrag")).toThrow(NichtGefunden);
+  });
+
+  it("Übergabe und Rückgabe ändern den Stand des Mietvertrags nicht", () => {
+    const db = testDb();
+    const id = idVon(db, legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), false, JETZT));
+    sageZu(db, id, JETZT);
+    legeVertragAb(db, id, "uebergabe", "u.pdf", PDF, JETZT);
+    expect(ladeAnfragen(db)[0].vertrag).toBe("offen");
+    expect(datei(db, "uebergabe")?.name).toBe("Übergabeprotokoll Bar 2026-11-07 18.00 Uhr – unterschrieben.pdf");
+    expect(datei(db)).toBeNull();
   });
 
   it("Ablegen bei „verschickt“ setzt „unterschrieben“ (IDA-343)", () => {
@@ -197,7 +208,7 @@ describe("Vertrag", () => {
     const id = idVon(db, legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), false, JETZT));
     sageZu(db, id, JETZT);
     setzeVertrag(db, id, "verschickt");
-    legeVertragAb(db, id, "v.pdf", PDF, JETZT);
+    legeVertragAb(db, id, "mietvertrag", "v.pdf", PDF, JETZT);
     expect(ladeAnfragen(db)[0].vertrag).toBe("unterschrieben");
   });
 });

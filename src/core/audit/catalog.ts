@@ -670,13 +670,30 @@ export const AUDIT_TABLES = {
     "vertragsdatei": {
       "mode": "audited",
       "primaryKey": [
-        "anfrage_id"
+        "anfrage_id",
+        "art"
       ]
     },
     "vertragsvorlage": {
       "mode": "audited",
       "primaryKey": [
-        "raum"
+        "raum",
+        "art"
+      ]
+    },
+    "vertragsdokument": {
+      "mode": "audited",
+      "primaryKey": [
+        "anfrage_id",
+        "art"
+      ]
+    },
+    "vertragsunterschrift": {
+      "mode": "audited",
+      "primaryKey": [
+        "anfrage_id",
+        "art",
+        "feld_id"
       ]
     }
   },

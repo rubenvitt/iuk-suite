@@ -122,12 +122,12 @@ test("Vertrag als PDF ablegen und herunterladen; nur Leitung, nur PDF", async ({
   expect((await page.request.get(url("/vermietung/vertrag/00000000-0000-0000-0000-000000000000"))).status()).toBe(404);
   const pdf = Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
   const hochladen = page.waitForResponse((r) => r.url().includes("/vermietung/vertrag/") && r.request().method() === "POST");
-  await page.getByTestId("vertrag-datei").setInputFiles({ name: "Mietvertrag Sommer.pdf", mimeType: "application/pdf", buffer: pdf });
+  await page.getByTestId("dokument-mietvertrag-datei").setInputFiles({ name: "Mietvertrag Sommer.pdf", mimeType: "application/pdf", buffer: pdf });
   expect((await hochladen).status()).toBe(200);
-  await expect(page.getByText("Vertrag abgelegt.")).toBeVisible();
+  await expect(page.getByText("Dokument abgelegt.")).toBeVisible();
   // Der Name kommt aus dem Vorgang, nicht aus der hochgeladenen Datei.
   const name = `Mietvertrag Bar ${tag} 18.00 Uhr – unterschrieben.pdf`;
-  const download = kasten.getByRole("link", { name });
+  const download = kasten.getByTestId("dokument-mietvertrag").locator('a[href*="/vermietung/vertrag/"]');
   await expect(download).toBeVisible();
   const pfad = (await download.getAttribute("href"))!;
 

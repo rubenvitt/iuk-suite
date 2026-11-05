@@ -12,7 +12,7 @@ import { Sperrzeitenliste } from "./Sperrzeitenliste";
 const aktion = vi.hoisted(() => ({ zusagen: vi.fn(), ablehnen: vi.fn(), zuruecknehmen: vi.fn(), refresh: vi.fn(), sperreAnlegen: vi.fn() }));
 vi.mock("../../_actions/vermietung", () => ({
   anfrageZusagenAction: aktion.zusagen, anfrageAblehnenAction: aktion.ablehnen, zusageZuruecknehmenAction: aktion.zuruecknehmen,
-  vertragStandAction: vi.fn(), vertragEntfernenAction: vi.fn(), sperrzeitAnlegenAction: aktion.sperreAnlegen, sperrzeitLoeschenAction: vi.fn(),
+  vertragStandAction: vi.fn(), vertragEntfernenAction: vi.fn(), dokumentErstellenAction: vi.fn(), sperrzeitAnlegenAction: aktion.sperreAnlegen, sperrzeitLoeschenAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: aktion.refresh }) }));
 
@@ -25,7 +25,8 @@ afterEach(async () => { await unmount(); Object.values(aktion).forEach((f) => f.
 const um = zeitpunkt;
 function anfrage(id: string, status: AnfrageDTO["status"], vonTag: string, von: string, bisTag: string, bis: string, anlass: string): AnfrageDTO {
   return { id, status, code: `${id}`.padEnd(22, "x"), von: um(vonTag, von), bis: um(bisTag, bis), anlass, personen: 20, person: "Lena Kraus", kontakt: "lena@example.org",
-    hinweis: "", mitglied: false, begruendung: "", vertrag: "offen", eingegangenAm: um("2026-11-01", "10:00"), entschiedenAm: null, datei: null };
+    hinweis: "", mitglied: false, begruendung: "", vertrag: "offen", eingegangenAm: um("2026-11-01", "10:00"), entschiedenAm: null,
+    dokumente: [{ art: "mietvertrag", vorlage: true, stand: null, datei: null }, { art: "uebergabe", vorlage: false, stand: "entwurf", datei: null }, { art: "rueckgabe", vorlage: false, stand: null, datei: null }] };
 }
 const ANFRAGEN = [
   anfrage("a1", "zugesagt", "2026-11-07", "18:00", "2026-11-08", "01:00", "40. Geburtstag"),
@@ -58,6 +59,10 @@ describe("Anfragenliste", () => {
     expect(details.textContent).toContain("Lena Kraus");
     expect(details.textContent).toContain("Überschneidet sich mit:");
     expect(details.querySelector('[data-testid="vertrag"]')).toBeTruthy();
+    // Mit Vorlage erstellen, ein Entwurf öffnet die Ausfüllseite, ohne beides nur das Ablegen.
+    expect(knopfIn(details.querySelector('[data-testid="dokument-mietvertrag"]')!, "Erstellen")).toBeTruthy();
+    expect(knopfIn(details.querySelector('[data-testid="dokument-uebergabe"]')!, "Ausfüllen")?.getAttribute("href")).toBe("/vermietung/dokument/a1/uebergabe");
+    expect(knopfIn(details.querySelector('[data-testid="dokument-rueckgabe"]')!, "Erstellen")).toBeUndefined();
   });
 
   it("Zusagen bei harter Überschneidung: der Satz des Servers kommt als Hinweis", async () => {

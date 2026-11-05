@@ -10,7 +10,7 @@
  */
 export { auditOutbox } from "@/core/audit/_db/schema";
 import { sql } from "drizzle-orm";
-import { blob, check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, check, foreignKey, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const mitglied = sqliteTable("mitglied", {
   id: text("id").primaryKey(),
@@ -119,34 +119,81 @@ export const anfrage = sqliteTable("anfrage", {
   check("anfrage_personen", sql`personen > 0`),
 ]);
 
+/** Die drei Dokumente einer Vermietung (IDA-354); `mietvertrag` ist der aus IDA-343. */
+export const DOKUMENTARTEN = ["mietvertrag", "uebergabe", "rueckgabe"] as const;
+const artCheck = sql`art IN ('mietvertrag','uebergabe','rueckgabe')`;
+
 /**
- * Der unterschriebene Mietvertrag als PDF, höchstens einer je Anfrage. `herkunft`: von der Leitung abgelegt, auf der
- * Statusseite gezeichnet (dann `unterschriebenVon` = getippter Name) oder dort als Datei/Foto hochgeladen (IDA-343).
+ * Die unterschriebene Fassung eines Dokuments als PDF, höchstens eine je Anfrage und Art. `herkunft`: von der Leitung
+ * abgelegt, digital gezeichnet (dann `unterschriebenVon` = Name der mietenden Person) oder auf der Statusseite als
+ * Datei/Foto hochgeladen (IDA-343, IDA-354).
  */
 export const vertragsdatei = sqliteTable("vertragsdatei", {
-  anfrageId: text("anfrage_id").primaryKey().references(() => anfrage.id, { onDelete: "cascade" }),
+  anfrageId: text("anfrage_id").notNull().references(() => anfrage.id, { onDelete: "cascade" }),
+  art: text("art", { enum: DOKUMENTARTEN }).notNull().default("mietvertrag"),
   name: text("name").notNull(),
   groesse: integer("groesse").notNull(),
   inhalt: blob("inhalt", { mode: "buffer" }).notNull(),
   abgelegtAm: integer("abgelegt_am").notNull(),
   herkunft: text("herkunft", { enum: ["leitung", "gezeichnet", "hochgeladen"] }).notNull().default("leitung"),
   unterschriebenVon: text("unterschrieben_von"),
-});
+}, (t) => [
+  primaryKey({ columns: [t.anfrageId, t.art] }),
+  check("vertragsdatei_art", artCheck),
+]);
 
 /**
- * Die Vertragsvorlage je Raum (IDA-343), höchstens eine. `sha256` ist der Stand, den die Statusseite beim
- * Unterschreiben mitschickt — wurde die Vorlage dazwischen ersetzt, wird nicht unterschrieben. `feld` ist das
- * Unterschriftenfeld als JSON (`_lib/vertragFeld.ts`), in PDF-Punkten; ohne Feld kommt die Unterschrift auf eine
- * eigene letzte Seite.
+ * Die Vorlage je Raum und Art (IDA-343, IDA-354). `felder` ist die Feldliste als JSON (`_lib/vertragFeld.ts`), in
+ * PDF-Punkten: beim Hochladen erkannte Formularfelder der PDF und selbst aufgezogene. `zeichnen` aus = auf der
+ * Statusseite nur der Upload des unterschriebenen Ausdrucks.
  */
 export const vertragsvorlage = sqliteTable("vertragsvorlage", {
-  raum: text("raum").primaryKey(),
+  raum: text("raum").notNull(),
+  art: text("art", { enum: DOKUMENTARTEN }).notNull().default("mietvertrag"),
   name: text("name").notNull(),
   groesse: integer("groesse").notNull(),
   inhalt: blob("inhalt", { mode: "buffer" }).notNull(),
   sha256: text("sha256").notNull(),
-  feld: text("feld"),
-  /** Darf auf der Statusseite gezeichnet werden? Aus = nur der Upload des unterschriebenen Ausdrucks. */
+  felder: text("felder").notNull().default("[]"),
   zeichnen: integer("zeichnen", { mode: "boolean" }).notNull().default(true),
   abgelegtAm: integer("abgelegt_am").notNull(),
-});
+}, (t) => [
+  primaryKey({ columns: [t.raum, t.art] }),
+  check("vertragsvorlage_art", artCheck),
+]);
+
+/**
+ * Ein Dokument einer Anfrage, aus der Vorlage erstellt (IDA-354): Vorlage und Felder als Kopie, damit ein späteres
+ * Ersetzen der Vorlage es nicht ändert. `werte` sind die Einträge der Leitung (JSON, Feld-ID → Text oder Haken).
+ * `freigegebenAm` gesetzt = steht auf der Statusseite, Werte gesperrt. `version` zählt jede Änderung; wer
+ * unterschreibt, schickt die gesehene Version mit.
+ */
+export const vertragsdokument = sqliteTable("vertragsdokument", {
+  anfrageId: text("anfrage_id").notNull().references(() => anfrage.id, { onDelete: "cascade" }),
+  art: text("art", { enum: DOKUMENTARTEN }).notNull(),
+  name: text("name").notNull(),
+  inhalt: blob("inhalt", { mode: "buffer" }).notNull(),
+  felder: text("felder").notNull().default("[]"),
+  werte: text("werte").notNull().default("{}"),
+  version: integer("version").notNull().default(1),
+  erstelltAm: integer("erstellt_am").notNull(),
+  freigegebenAm: integer("freigegeben_am"),
+}, (t) => [
+  primaryKey({ columns: [t.anfrageId, t.art] }),
+  check("vertragsdokument_art", artCheck),
+]);
+
+/** Eine Unterschrift in einem Feld eines Dokuments (IDA-354); `bild` ist das gezeichnete PNG. */
+export const vertragsunterschrift = sqliteTable("vertragsunterschrift", {
+  anfrageId: text("anfrage_id").notNull(),
+  art: text("art", { enum: DOKUMENTARTEN }).notNull(),
+  feldId: text("feld_id").notNull(),
+  rolle: text("rolle", { enum: ["leitung", "mieter"] }).notNull(),
+  name: text("name").notNull(),
+  am: integer("am").notNull(),
+  bild: blob("bild", { mode: "buffer" }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.anfrageId, t.art, t.feldId] }),
+  foreignKey({ columns: [t.anfrageId, t.art], foreignColumns: [vertragsdokument.anfrageId, vertragsdokument.art] }).onDelete("cascade"),
+  check("vertragsunterschrift_rolle", sql`rolle IN ('leitung','mieter')`),
+]);

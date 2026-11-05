@@ -43,6 +43,7 @@ import schichtenImVorausPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/sch
 import gemeinschaftUndBar from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-01-gemeinschaft-und-bar";
 import gemeinschaftBarQrPlakat from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-03-bar-qr-plakat";
 import gemeinschaftMietvertragDigital from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-04-mietvertrag-digital";
+import gemeinschaftDokumenteAusfuellen from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-05-dokumente-ausfuellen";
 import feedbackEhrlichGesagt from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-03-ehrlich-gesagt";
 import feedbackEhrlichGesagtAdresse from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-04-ehrlich-gesagt-adresse";
 import wartungGeraetewartung from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-03-geraetewartung";
@@ -191,6 +192,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   gemeinschaftUndBar,
   gemeinschaftBarQrPlakat,
   gemeinschaftMietvertragDigital,
+  gemeinschaftDokumenteAusfuellen,
   feedbackEhrlichGesagt,
   feedbackEhrlichGesagtAdresse,
   wartungGeraetewartung,

@@ -97,7 +97,7 @@ it("declares a fixed object type and resolved reference for every delivery bound
     expect(source, key).toContain(`target(${target!.reference});`);
   }
   expect(actual.sort()).toEqual(Object.keys(entries).filter(key => entries[key].delivery).sort());
-  expect(actual).toHaveLength(14);
+  expect(actual).toHaveLength(15);
 });
 
 import pageManifest from "./page-coverage-manifest.json";

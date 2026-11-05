@@ -4,13 +4,14 @@ import { getDb } from "../../../../_db/client";
 import { hostAbweisung } from "../../../../_lib/host";
 import { Abgelehnt, ladeVertragsdatei, legeVertragAb, NichtGefunden } from "../../../../_lib/vermietung";
 import { idSchema } from "../../../../_lib/vermietungEingabe";
+import { istDokumentart, type Dokumentart } from "../../../../_lib/vermietungTypen";
 import { anhangKopf, pruefePdf, VERTRAG_MAX_BYTES } from "../../../../_lib/vermietungPdf";
 import { leitungImHandler } from "../../../../_lib/vermietungZugang";
 import { scanneVertrag, scanSatz } from "../../../../_lib/vertragScan";
 
 /**
- * `GET /vermietung/vertrag/<id>` lädt die Vertrags-PDF einer Zusage herunter, `POST` legt sie ab (Formularfeld
- * `datei`; clamd prüft vor dem Speichern, IDA-343). Ein Route Handler statt einer Server Action, weil `serverActions.bodySizeLimit` (1 MB) suiteweit gilt
+ * `GET /vermietung/vertrag/<id>?art=<art>` lädt die unterschriebene Fassung eines Dokuments einer Zusage herunter,
+ * `POST` legt sie ab (Formularfeld `datei`; clamd prüft vor dem Speichern, IDA-343). Ohne `art` der Mietvertrag. Ein Route Handler statt einer Server Action, weil `serverActions.bodySizeLimit` (1 MB) suiteweit gilt
  * und für eine einzelne PDF nicht angehoben wird (Vorbild `aufgaben/a/[id]/nachweis/hochladen/route.ts`).
  *
  * Riegel in dieser Datei, weil ein Handler kein Layout über sich hat: Host → Leitung → Kennung → Zeile. Alles,
@@ -25,6 +26,11 @@ function json(status: number, rumpf: { ok: true } | { ok: false; fehler: string 
 
 type Ctx = { params: Promise<{ id: string }> };
 
+function artAus(req: Request): Dokumentart | null {
+  const roh = new URL(req.url).searchParams.get("art") ?? "mietvertrag";
+  return istDokumentart(roh) ? roh : null;
+}
+
 export async function GET(req: Request, ctx: Ctx): Promise<Response> {
   const ab = hostAbweisung(req);
   if (ab) return ab;
@@ -32,10 +38,11 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
   if (!viewer) return NICHT_DA();
   return auditDelivery("gemeinschaft", "download", "vertragsdatei", auditActor(viewer), async (target) => {
     const { id } = await ctx.params;
-    if (!idSchema.safeParse(id).success) return NICHT_DA();
-    const datei = ladeVertragsdatei(getDb(), id);
+    const art = artAus(req);
+    if (!idSchema.safeParse(id).success || !art) return NICHT_DA();
+    const datei = ladeVertragsdatei(getDb(), id, art);
     if (!datei) return NICHT_DA();
-    target(id);
+    target(JSON.stringify([id, art]));
     return new Response(new Uint8Array(datei.inhalt), {
       status: 200,
       headers: {
@@ -60,7 +67,8 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const viewer = await leitungImHandler();
   if (!viewer) return NICHT_DA();
   const { id } = await ctx.params;
-  if (!idSchema.safeParse(id).success) return NICHT_DA();
+  const art = artAus(req);
+  if (!idSchema.safeParse(id).success || !art) return NICHT_DA();
 
   const laenge = Number(req.headers.get("content-length") ?? "0");
   if (Number.isFinite(laenge) && laenge > VERTRAG_MAX_BYTES + MULTIPART_UEBERHANG) return json(413, { ok: false, fehler: "Die Datei ist größer als 10 MB." });
@@ -81,7 +89,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     try {
-      legeVertragAb(getDb(), id, pruefung.name, bytes, Date.now());
+      legeVertragAb(getDb(), id, art, pruefung.name, bytes, Date.now());
     } catch (e) {
       if (e instanceof NichtGefunden) return NICHT_DA();
       if (e instanceof Abgelehnt) return json(409, { ok: false, fehler: e.message });
