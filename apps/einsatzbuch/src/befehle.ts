@@ -56,6 +56,9 @@ export const befehle = {
   /** „Nach Updates suchen“: prüft sofort; das Ergebnis, auch ein Fehler, steht danach im Status.
    * Scheitert nur, wenn die Suche gar nicht laufen konnte (etwa im Entwicklerbuild). */
   updateSuchen: () => invoke<void>("update_suchen"),
+  /** Meldet, ob gerade der Startbildschirm ohne Dialog steht (`startbildschirm_melden`): Nur dann
+   * installiert der Updater und startet neu (`darf_installieren` in `src-tauri/src/updater.rs`). */
+  startbildschirmMelden: (angezeigt: boolean) => invoke<void>("startbildschirm_melden", { angezeigt }),
   /** Der Updater-Thread meldet, dass sich der Update-Teil des Status geändert hat
    * (`STAND_EREIGNIS` in `src-tauri/src/updater.rs`). Das Abmelden ist in Tauri asynchron; ein
    * Fehler dabei (etwa nach dem Schließen des Fensters) bleibt still. */

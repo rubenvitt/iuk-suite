@@ -592,6 +592,9 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         // (`befehle.beiUpdateStand`) kommt nie; An- und Abmelden gelingen nur.
         case "update_suchen":
           return undefined;
+        // Was die Oberfläche dem Updater über den Startbildschirm meldet, steht in `__aufrufe`.
+        case "startbildschirm_melden":
+          return undefined;
         case "plugin:event|listen":
           return 1;
         case "plugin:event|unlisten":

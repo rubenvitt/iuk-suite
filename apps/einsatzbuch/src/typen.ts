@@ -204,9 +204,10 @@ export interface Status {
    *  keine gelang, und immer im Debug-Build. */
   updateGeprueft: string | null;
   /** Was der Updater gerade tut (`Updatelauf` in `src-tauri/src/updater.rs`): `laedt` während
-   *  Herunterladen und Installieren, `neustart`, wenn das Update installiert ist und der Neustart
-   *  auf einen ruhigen Moment wartet; sonst `null`, und immer im Debug-Build. */
-  updateLauf: "laedt" | "neustart" | null;
+   *  des Herunterladens, `bereit`, wenn das Paket geladen ist und auf den Startbildschirm wartet,
+   *  `neustart`, wenn es installiert ist und der Neustart wartet; sonst `null`, und immer im
+   *  Debug-Build. */
+  updateLauf: "laedt" | "bereit" | "neustart" | null;
   /** Die installierte Version der App. */
   version: string | null;
 }

@@ -1059,6 +1059,15 @@ pub async fn update_suchen(app: AppHandle) -> Result<(), String> {
     }
 }
 
+/// Die Oberfläche meldet, ob sie gerade den Startbildschirm ohne offenen Dialog zeigt
+/// (`Zustand::startbildschirm`). Nur dann installiert der Updater und startet neu; überall sonst
+/// könnte ein Neustart Eingaben abreißen. Synchron und ohne Lock, damit die Meldung beim Verlassen
+/// des Startbildschirms vor der nächsten Runde des Updaters ankommt.
+#[tauri::command]
+pub fn startbildschirm_melden(app: AppHandle, angezeigt: bool) {
+    app.state::<Zustand>().startbildschirm.store(angezeigt, std::sync::atomic::Ordering::SeqCst);
+}
+
 #[tauri::command]
 pub async fn stammdaten(app: AppHandle) -> Result<Stammdatenpaket, String> {
     blockierend(app, lies_stammdaten).await
