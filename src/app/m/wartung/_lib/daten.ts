@@ -116,9 +116,9 @@ function letzteErledigungen(db: Leser, geraetIds: readonly string[]): Map<string
   for (const z of zeilen) {
     const schluessel = `${z.g}|${z.f}`;
     const bisher = ergebnis.get(schluessel);
-    // Stand ist die jüngste nach Datum; gegen einen Anlass zählt, wann zuletzt etwas eingetragen wurde.
+    // Stand ist die jüngste nach Datum, am selben Tag die zuletzt erfasste; `zeit` gehört zu genau diesem Eintrag,
+    // denn gegen einen Anlass müssen Tag und Erfassung derselben Erledigung danach liegen.
     if (!bisher) ergebnis.set(schluessel, { am: z.am, stunden: z.stunden, zeit: z.zeit });
-    else if (z.zeit > bisher.zeit) bisher.zeit = z.zeit;
   }
   return ergebnis;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { checkpunkt, eintrag } from "../_db/schema";
 import { ladeArten, ladeGeraet } from "./daten";
-import { anlassVermerken, artSpeichern, geraetAnlegen, pruefartSpeichern, pruefplanSpeichern, pruefungAbschliessen } from "./schreiben";
+import { anlassVermerken, artSpeichern, erledigtEintragen, geraetAnlegen, pruefartSpeichern, pruefplanSpeichern, pruefungAbschliessen } from "./schreiben";
 import { START } from "./startbestand";
 import { ladeAmGeraet } from "./telefon";
 import { testDb } from "./testDb";
@@ -66,6 +66,17 @@ describe("Prüfungen vor und nach dem Einsatz (IDA-369)", () => {
     expect(stand(db, id, nachher)).toMatchObject({ stufe: "ueberfaellig", text: "zurück am 06.11.2026" });
     expect(stand(db, id, vorher).stufe).toBe("ok");
     expect(ladeAmGeraet(db, id, HEUTE)!.checkliste.map((p) => p.text)).toEqual(["Einschalten", "Akku laden"]);
+  });
+
+  it("eine Prüfung vom Einsatztag, aber vor dem Einsatz, hebt ihn nicht auf, auch nicht mit einer älteren nachgetragen", () => {
+    const { db, id, vorher, punkt } = mitLaptop();
+    pruefungAbschliessen(db, id, {
+      sendung: crypto.randomUUID(), pruefartId: vorher, stunden: null, antworten: [{ punktId: punkt("Einschalten"), ok: true, text: "" }], ergebnis: "ok", notiz: "",
+    }, new Map(), k());
+    anlassVermerken(db, id, "einsatz", k());
+    expect(stand(db, id, vorher).stufe).toBe("ueberfaellig");
+    erledigtEintragen(db, id, { pruefartId: vorher, am: "2026-11-01", stunden: null, wer: "Helfer A", notiz: "" }, k());
+    expect(stand(db, id, vorher).stufe).toBe("ueberfaellig");
   });
 
   it("doppelt getippt und „Zurück“ ohne Einsatz schreiben nichts", () => {
