@@ -9,7 +9,7 @@ const notiz: Releasenotiz = {
   inhalt: [
     absatz(
       "Du kannst die Gerätewartung jetzt auch aus Claude oder einem anderen KI-Assistenten heraus nutzen, mit der Adresse mcp.iuk-ue.de/mcp und deiner gewohnten Anmeldung. " +
-        "Der Assistent darf dabei genau das, was du in der App darfst: Geräte ansehen, prüfen und Mängel melden, als Verwalter auch Geräte pflegen.",
+        "Der Assistent darf dabei genau das, was du in der App darfst: Geräte prüfen und Mängel melden, als Verwalter auch Geräte pflegen und Anleitungen anhängen.",
     ),
   ],
 };

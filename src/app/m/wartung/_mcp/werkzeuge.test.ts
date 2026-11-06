@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -18,7 +21,7 @@ vi.mock("@/core/audit/server", async (orig) => ({
 import { bauServer } from "@/app/m/mcp/_lib/server";
 import type { McpPerson } from "@/app/m/mcp/_lib/token";
 import { eq } from "drizzle-orm";
-import { eintrag, geraet, mangel, verwalter } from "../_db/schema";
+import { eintrag, geraet, mangel, unterlage, verwalter } from "../_db/schema";
 import { geraetAnlegen, inhaltSpeichern } from "../_lib/schreiben";
 import { merkePerson, verwalterHinzufuegen } from "../_lib/personen";
 import { START } from "../_lib/startbestand";
@@ -174,5 +177,43 @@ describe("dieselben Grenzen wie in der App", () => {
     expect((await eintragen(START.pruefart.heizsaison)).isError).toBeFalsy();
     expect(t.db.select({ p: eintrag.pruefartId }).from(eintrag).all()).toEqual([{ p: START.pruefart.heizsaison }]);
     expect(json<{ id: string }[]>(await rufe("wartung_pruefarten")).map((p) => p.id)).toContain(START.pruefart.dguv);
+  });
+});
+
+describe("Unterlagen über den MCP-Server", () => {
+  let dir: string;
+  const vorher = process.env.DATA_DIR;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "wartung-mcp-unterlagen-"));
+    process.env.DATA_DIR = dir;
+  });
+  afterEach(async () => {
+    process.env.DATA_DIR = vorher;
+    await rm(dir, { recursive: true, force: true });
+  });
+  const PDF = Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF").toString("base64");
+
+  it("ein Verwalter hängt ein PDF an ein Gerät seiner Gruppe, im eigenen Namen", async () => {
+    const { rufe } = await verbinde(VERWALTER);
+    const r = await rufe("wartung_unterlage_hochladen", { geraet_id: stromerzeuger, titel: "Bedienungsanleitung", inhalt_base64: PDF });
+    expect(r.isError).toBeFalsy();
+    const zeilen = t.db.select().from(unterlage).all();
+    expect(zeilen.map((u) => [u.geraetId, u.titel, u.typ, u.angelegtVon])).toEqual([[stromerzeuger, "Bedienungsanleitung", "pdf", "Verwalter Technik"]]);
+    expect((await readdir(join(dir, "wartung", "unterlagen"))).length).toBe(1);
+  });
+
+  it("nur für die eigene Gruppe, nur PDF oder Bild, genau eine Quelle, keine Adresse im eigenen Netz", async () => {
+    const { rufe } = await verbinde(VERWALTER);
+    expect(text(await rufe("wartung_unterlage_hochladen", { geraet_id: akkuIuk, titel: "x", inhalt_base64: PDF })))
+      .toContain("Gruppe, die du nicht verwaltest");
+    expect(text(await rufe("wartung_unterlage_hochladen", {
+      geraet_id: stromerzeuger, titel: "x", inhalt_base64: Buffer.from("kein pdf").toString("base64"),
+    }))).toContain("Bitte ein PDF oder ein Bild wählen.");
+    expect(text(await rufe("wartung_unterlage_hochladen", { geraet_id: stromerzeuger, titel: "x" }))).toContain("genau eins");
+    expect(text(await rufe("wartung_unterlage_hochladen", { geraet_id: stromerzeuger, titel: "x", adresse: "http://127.0.0.1/handbuch.pdf" })))
+      .toBe("Diese Adresse ist nicht öffentlich erreichbar.");
+    expect(t.db.select().from(unterlage).all()).toEqual([]);
+    // Nutzer ohne Verwaltung sehen das Werkzeug gar nicht.
+    expect((await verbinde(NUTZER)).namen).not.toContain("wartung_unterlage_hochladen");
   });
 });

@@ -4,7 +4,8 @@
  * dieselben Vorgänge wie die Server Actions (`_lib/vorgaenge.ts`), gelesen über dieselben Lesepfade wie die Seiten
  * mit demselben Gruppenfilter. So kann der MCP-Server nichts, was die Person in der App nicht auch kann.
  *
- * Nicht dabei: Fotos und Unterlagen (Dateien), Etiketten drucken.
+ * Unterlagen gehen nur dazu (`wartung_unterlage_hochladen`, von einer Adresse oder als Base64); löschen und
+ * sortieren bleibt in der App. Nicht dabei: Fotos, Etiketten drucken.
  */
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -21,13 +22,15 @@ import { ART_IKONEN, artEingabe, idSchema, pruefartEingabe, NAME_MAX, NOTIZ_MAX,
 import { heute } from "../_lib/heute";
 import { merkePerson, SUCHE_MAX_TREFFER, SUCHE_MIN_ZEICHEN, vorschlaege } from "../_lib/personen";
 import { inhaltStand } from "../_lib/schreiben";
+import { ladeVonAdresse } from "../_lib/abruf";
 import { ladeAmGeraet } from "../_lib/telefon";
+import { UNTERLAGE_MAX_BYTES } from "../_lib/unterlagen";
 import type { Ergebnis, GeraetZeile } from "../_lib/typen";
 import {
   artLoeschenVorgang, artSpeichernVorgang, erledigtEintragenVorgang, geraetAendernVorgang, geraetAktivVorgang,
   geraetAnlegenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang,
   mangelMeldenVorgang, pruefartLoeschenVorgang, pruefartSpeichernVorgang, pruefplanSpeichernVorgang, pruefungOhneFotosVorgang,
-  stundenEintragenVorgang, verwalterEntfernenVorgang,
+  stundenEintragenVorgang, unterlageHochladenVorgang, verwalterEntfernenVorgang,
   verwalterHinzufuegenVorgang,
 } from "../_lib/vorgaenge";
 import {
@@ -301,6 +304,35 @@ export const wartungMcp: McpModul = {
       inputSchema: { mangel_id: idSchema },
       annotations: SCHREIBEN,
     }, ({ mangel_id }) => mit("verwalter", async (z) => ergebnis(await mangelBehebenVorgang(z, mangel_id))));
+
+    server.registerTool("wartung_unterlage_hochladen", {
+      title: "Unterlage an ein Gerät hängen",
+      description: `Hängt eine Anleitung, ein Datenblatt oder ein anderes Dokument (PDF oder Bild, höchstens ${UNTERLAGE_MAX_BYTES / 1024 / 1024} MB) an ein Gerät deiner Gruppe. Entweder adresse (öffentliche http(s)-Adresse, etwa das Handbuch beim Hersteller; die Suite lädt es selbst) oder inhalt_base64 angeben. Löschen und Sortieren gehen in der App.`,
+      inputSchema: {
+        geraet_id: geraetId,
+        titel: z.string().max(KURZ_MAX).describe("Name, unter dem die Unterlage am Gerät steht, z. B. „Bedienungsanleitung“"),
+        adresse: z.string().url().max(2000).optional().describe("Öffentliche Adresse der Datei"),
+        inhalt_base64: z.string().max(Math.ceil(UNTERLAGE_MAX_BYTES / 3) * 4 + 4).optional().describe("Die Datei als Base64"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    }, ({ geraet_id, titel, adresse, inhalt_base64 }) => mit("verwalter", async (z) => {
+      if ((adresse === undefined) === (inhalt_base64 === undefined)) return antwortFehler("Bitte genau eins angeben: adresse oder inhalt_base64.");
+      // Erst das Recht, dann der Abruf: für eine fremde Gruppe lädt die Suite nichts.
+      const gruppe = ladeGeraet(getDb(), geraet_id, heute())?.gruppeId;
+      if (!gruppe) return antwortFehler("Dieses Gerät gibt es nicht mehr.");
+      if (!verwaltetGruppe(z.rechte, gruppe)) return antwortFehler("Dieses Gerät gehört zu einer Gruppe, die du nicht verwaltest.");
+      let bytes: Uint8Array;
+      if (adresse !== undefined) {
+        const r = await ladeVonAdresse(adresse, { maxBytes: UNTERLAGE_MAX_BYTES });
+        if (!r.ok) return antwortFehler(r.fehler);
+        bytes = r.bytes;
+      } else {
+        const text = inhalt_base64!.replace(/^data:[^,]*,/, "").replace(/\s+/g, "");
+        if (!/^[A-Za-z0-9+/_-]*={0,2}$/.test(text)) return antwortFehler("inhalt_base64 ist kein gültiges Base64.");
+        bytes = new Uint8Array(Buffer.from(text, "base64"));
+      }
+      return ergebnis(await unterlageHochladenVorgang(z, geraet_id, titel, bytes));
+    }));
 
     server.registerTool("wartung_inhalt_speichern", {
       title: "Inhaltsliste einer Materialkiste speichern",

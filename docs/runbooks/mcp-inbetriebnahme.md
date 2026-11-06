@@ -75,5 +75,7 @@ curl -si -X POST https://mcp.iuk-ue.de/mcp | head -5                       # 401
 
 ## 6. Was bewusst fehlt
 
-- Fotos, Unterlagen und Etiketten der Gerätewartung (Dateien gehen nicht sinnvoll über ein Werkzeug).
+- Fotos und Etiketten der Gerätewartung. Unterlagen gehen nur **dazu** (`wartung_unterlage_hochladen`): von einer
+  öffentlichen Adresse, die die Suite selbst lädt (`wartung/_lib/abruf.ts`, keine Adressen im eigenen Netz), oder
+  als Base64. Löschen und Sortieren bleibt in der App.
 - Ein Ereignisstrom (`GET /mcp`): der Server ist zustandslos und antwortet mit JSON.
