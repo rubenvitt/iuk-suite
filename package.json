@@ -29,6 +29,7 @@
     "@einsatzzeichen/core": "6.11.0",
     "@einsatzzeichen/schema": "6.11.0",
     "@lucasmarkes/hairline": "^0.5.1",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
     "antd": "^6.6.4",

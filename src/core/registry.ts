@@ -269,6 +269,13 @@ export const MODULES: ModuleDef[] = [
   { key: "lagemonitor", title: "Lagemonitor", icon: "monitor", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["lagemonitor-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
+  // mcp (IDA-367): der MCP-Server der Suite, ein Endpunkt für alle Module (`m/mcp`, Werkzeuge je Modul unter
+  // `<modul>/_mcp`). Keine Seiten, kein Login-Umweg: angemeldet wird per Bearer-Token von Pocket ID, und jedes
+  // Werkzeug prüft die Rechte seines Moduls selbst. Deshalb `requiresAuth: false` und nicht im Umschalter.
+  // Der Host steht nur in `SUITE_HOST_MCP` (Vorschlag `mcp.iuk-ue.de`).
+  { key: "mcp", title: "MCP-Server", icon: "link", shell: "minimal",
+    requiresAuth: false, requiredGroups: [], adminGroups: [],
+    prodHosts: [], showInSwitcher: false, switcherGroupSources: [] },
   { key: "alpha", title: "Alpha", icon: "square", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },

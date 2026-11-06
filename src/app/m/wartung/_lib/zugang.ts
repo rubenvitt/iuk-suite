@@ -123,17 +123,30 @@ export async function requireAdmin(): Promise<{ viewer: Viewer; rechte: Rechte }
 
 export type Stufe = "zugang" | "verwalter" | "admin";
 
+/** Ob `rechte` für eine Stufe reichen — dieselbe Regel für Server Actions, Route Handler und den MCP-Server. */
+export function reichtFuer(rechte: Rechte, stufe: Stufe): boolean {
+  return stufe === "zugang" || (stufe === "admin" ? rechte.admin : istVerwalter(rechte));
+}
+
+/**
+ * Der Kern von `requireAktion` ohne Host und Sitzung: Modulzugang und Stufe einer schon bekannten Person. Der
+ * MCP-Server (`m/mcp`) ruft ihn mit der Person aus dem Pocket-ID-Token, damit dort dieselben Prüfungen gelten
+ * wie in der App. Wurf statt Umleitung; jede Ablehnung schreibt eine Audit-Zeile.
+ */
+export function aktionFuer(viewer: Viewer | null | undefined, stufe: Stufe): { viewer: Viewer; rechte: Rechte } {
+  if (!viewer) { throw new Error("Forbidden"); }
+  if (!hatWartungZugang(viewer.groups)) { auditDenied("wartung", auditActor(viewer)); throw new Error("Forbidden"); }
+  const rechte = rechteAus(getDb(), viewer.groups, nutzerAus(viewer));
+  if (!reichtFuer(rechte, stufe)) { auditDenied("wartung", auditActor(viewer)); throw new Error("Forbidden"); }
+  return { viewer, rechte };
+}
+
 /** Riegel für Server Actions und Route Handler: Host, Sitzung, Modulzugang, Stufe. Wurf statt Umleitung. */
 export async function requireAktion(stufe: Stufe): Promise<{ viewer: Viewer; rechte: Rechte }> {
   const kopf = await headers();
   const viewer = (await auth())?.user;
   if (!istWartungHost(kopf)) { auditDenied("wartung", auditActor(viewer)); throw new Error("Forbidden"); }
-  if (!viewer) { throw new Error("Forbidden"); }
-  if (!hatWartungZugang(viewer.groups)) { auditDenied("wartung", auditActor(viewer)); throw new Error("Forbidden"); }
-  const rechte = rechteAus(getDb(), viewer.groups, nutzerAus(viewer));
-  const darf = stufe === "zugang" || (stufe === "admin" ? rechte.admin : istVerwalter(rechte));
-  if (!darf) { auditDenied("wartung", auditActor(viewer)); throw new Error("Forbidden"); }
-  return { viewer, rechte };
+  return aktionFuer(viewer, stufe);
 }
 
 /** Der Name, der im Verlauf steht: Anzeigename aus Pocket ID, sonst die Mailadresse. */
