@@ -195,6 +195,12 @@ export const wartungMcp: McpModul = {
         return antwortFehler("Die Inhaltsliste hat sich geändert. Bitte mit wartung_geraet neu lesen und neu durchzählen.");
       }
       const punkte = new Map((am?.checkliste ?? []).map((p) => [p.id, p]));
+      // Ohne pruefart_id gilt die Prüfung, die jetzt dran ist. Hat sich das seit dem Lesen geändert (ein Anlass kam
+      // dazu), passen die Antworten nicht mehr: ablehnen statt sie einer anderen Checkliste zuzuschlagen.
+      if (am && !am.g.kiste && a.antworten.some((x) => !punkte.has(x.punkt_id))) {
+        return antwortFehler(`Die Antworten passen nicht zur Prüfung „${am.pruefung?.vorlage.name ?? "am Gerät"}“. Bitte mit wartung_geraet neu lesen und pruefart_id angeben.`);
+      }
+      const pruefartId = a.pruefart_id ?? am?.pruefung?.vorlage.id;
       const antworten = a.antworten.map((x) => {
         const p = punkte.get(x.punkt_id);
         return {
@@ -203,7 +209,7 @@ export const wartungMcp: McpModul = {
         };
       });
       return ergebnis(await pruefungOhneFotosVorgang(z, a.geraet_id, {
-        sendung: randomUUID(), ...(a.pruefart_id ? { pruefartId: a.pruefart_id } : {}),
+        sendung: randomUUID(), ...(pruefartId ? { pruefartId } : {}),
         stunden: a.stunden ?? null, antworten, ergebnis: a.ergebnis, notiz: a.notiz ?? "",
       }));
     }));

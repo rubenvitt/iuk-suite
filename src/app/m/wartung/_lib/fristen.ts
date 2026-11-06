@@ -88,7 +88,8 @@ export function fristStand(
   ereignis: Ereignis | null = null,
 ): FristStand {
   if (vorlage.anlass) {
-    const faellig = !!ereignis && (!letzte || letzte.zeit < ereignis.zeit);
+    // Nachgetragen mit einem Tag vor dem Ereignis zählt nicht, auch wenn es danach erfasst wurde.
+    const faellig = !!ereignis && (!letzte || letzte.am < ereignis.am || letzte.zeit < ereignis.zeit);
     return {
       vorlage, letzte, faelligAm: faellig ? ereignis.am : null, faelligBeiStunden: null, reststunden: null,
       stufe: faellig ? "ueberfaellig" : "ok",

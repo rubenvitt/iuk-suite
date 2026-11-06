@@ -71,6 +71,8 @@ describe("Fristrechnung der Gerätewartung", () => {
     expect(fristStand(vorher, null, null, HEUTE, einsatz)).toMatchObject({ stufe: "ueberfaellig", text: "eingesetzt am 30.10.2026", faelligAm: "2026-10-30" });
     expect(fristStand(vorher, { am: "2026-10-29", stunden: null, zeit: 1000 }, null, HEUTE, einsatz).stufe).toBe("ueberfaellig");
     expect(fristStand(vorher, { am: "2026-10-30", stunden: null, zeit: 3000 }, null, HEUTE, einsatz).stufe).toBe("ok");
+    // Nach dem Einsatz erfasst, aber mit einem Tag davor nachgetragen: bleibt fällig.
+    expect(fristStand(vorher, { am: "2026-10-29", stunden: null, zeit: 3000 }, null, HEUTE, einsatz).stufe).toBe("ueberfaellig");
     const nachher: FristVorlage = { ...vorher, anlass: "rueckkehr" };
     expect(fristStand(nachher, null, null, HEUTE, { am: "2026-11-01", zeit: 1 }).text).toBe("zurück am 01.11.2026");
     expect(intervallText(nachher)).toBe("nach jeder Benutzung");

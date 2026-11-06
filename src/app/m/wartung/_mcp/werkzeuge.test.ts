@@ -201,6 +201,12 @@ describe("dieselben Grenzen wie in der App", () => {
     const kurz = g.pruefungen.find((p) => p.pruefartId === neu.id)!;
     expect(kurz).toMatchObject({ faellig: true, punkte: [erster.id] });
     expect(g.pruefungen.find((p) => p.pruefartId === START.pruefart.quartal)!.punkte).toHaveLength(a.checkliste.length);
+    // Antworten auf die ganze Liste passen nicht zur fälligen Prüfung vor der Verwendung: abgelehnt, nichts gespeichert.
+    const falsch = await nutzer("wartung_pruefung_abschliessen", {
+      geraet_id: stromerzeuger, ergebnis: "ok", stunden: 110, antworten: a.checkliste.map((p) => ({ punkt_id: p.id, ok: true })),
+    });
+    expect(falsch.isError).toBe(true);
+    expect(JSON.stringify(falsch.content)).toMatch(/pruefart_id angeben/);
     expect((await nutzer("wartung_pruefung_abschliessen", {
       geraet_id: stromerzeuger, ergebnis: "ok", stunden: 110, antworten: [{ punkt_id: erster.id, ok: true }],
     })).isError).toBeFalsy();
