@@ -23,14 +23,18 @@ type Daten = {
 };
 
 /**
- * Die Prüfung am Gerät mit der Checkliste der Art. Bei einer Materialkiste (`kiste`, IDA-335) sind die Punkte ihre
- * Inhaltsliste: je Position „Vollständig“ oder „Fehlt“, ohne Pflichttext, und ohne Betriebsstunden.
+ * Die Prüfung am Gerät mit den Punkten der Checkliste, die zu dieser Prüfart gehören (IDA-369). Bei einer
+ * Materialkiste (`kiste`, IDA-335) sind die Punkte ihre Inhaltsliste: je Position „Vollständig“ oder „Fehlt“, ohne
+ * Pflichttext, und ohne Betriebsstunden.
  */
 export function PruefungAmGeraet({
-  geraetId, geraetName, titel, checkliste, kiste = false, stundenPflicht, stundenZuletzt,
+  geraetId, geraetName, pruefartId, anlass = false, titel, checkliste, kiste = false, stundenPflicht, stundenZuletzt,
 }: {
   geraetId: string;
   geraetName: string;
+  pruefartId: string;
+  /** Eine Prüfung vor oder nach dem Einsatz: ihr Entwurf liegt getrennt von dem der Prüfung nach Frist. */
+  anlass?: boolean;
   titel: string;
   checkliste: CheckpunktDTO[];
   kiste?: boolean;
@@ -56,9 +60,11 @@ export function PruefungAmGeraet({
    *
    * ⚠️ FOTOS LIEGEN NICHT IM ENTWURF (eine Datei passt nicht in `localStorage`). Ein Versuch auf derselben Seite
    * nimmt sie mit; nach dem Neuladen geht die Prüfung ohne die Fotos, die nicht mehr da sind.
+   *
+   * Der Schlüssel der Prüfung nach Frist ist der von vor IDA-369, damit ein Entwurf über den Rollout erhalten bleibt.
    */
   const entwurf = useEntwurf<Stand, Daten, { ergebnis: Zustand; a: SendeAntwort }>({
-    schluessel: `wartung:pruefung:${geraetId}`,
+    schluessel: anlass ? `wartung:pruefung:${geraetId}:${pruefartId}` : `wartung:pruefung:${geraetId}`,
     stand: {
       stunden, ergebnis, notiz,
       antworten: Object.fromEntries(Object.entries(antworten).map(([k, a]) => [k, { ok: a.ok, text: a.text }])),
@@ -71,7 +77,7 @@ export function PruefungAmGeraet({
     },
     senden: async (d, sendung) => {
       const daten = new FormData();
-      daten.set("daten", JSON.stringify({ ...d, sendung }));
+      daten.set("daten", JSON.stringify({ ...d, sendung, pruefartId }));
       for (const a of d.antworten) {
         const f = a.ok ? null : antwortenRef.current[a.punktId]?.foto;
         if (f) daten.set(`foto:${a.punktId}`, await verkleinere(f), "foto.jpg");

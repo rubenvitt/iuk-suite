@@ -2,7 +2,7 @@
 
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import type { Ergebnis } from "../_lib/typen";
-import { stundenEintragenVorgang } from "../_lib/vorgaenge";
+import { anlassVermerkenVorgang, stundenEintragenVorgang } from "../_lib/vorgaenge";
 import { requireAktion } from "../_lib/zugang";
 
 /**
@@ -12,4 +12,10 @@ import { requireAktion } from "../_lib/zugang";
 export async function stundenEintragenAction(geraetId: string, eingabe: unknown): Promise<Ergebnis> {
   const z = await requireAktion("zugang");
   return withAuditContext({ actor: auditActor(z.viewer) }, () => stundenEintragenVorgang(z, geraetId, eingabe));
+}
+
+/** „Wird eingesetzt“ bzw. „Zurück“ (IDA-369) — wie das Prüfen jeder Angemeldete, am Gerät und in der Akte. */
+export async function anlassVermerkenAction(geraetId: string, anlass: unknown): Promise<Ergebnis> {
+  const z = await requireAktion("zugang");
+  return withAuditContext({ actor: auditActor(z.viewer) }, () => anlassVermerkenVorgang(z, geraetId, anlass));
 }

@@ -3,7 +3,9 @@
  * Kalendertag `JJJJ-MM-TT` in der Suite-Zone herein (`_lib/heute.ts`).
  *
  * Eine Frist ist fällig nach Zeit (`monate` ab der letzten Erledigung), nach Betriebsstunden (`stunden` ab dem
- * Stand bei der letzten Erledigung) oder nach beidem — was zuerst kommt. Nie erledigt heißt überfällig.
+ * Stand bei der letzten Erledigung) oder nach beidem — was zuerst kommt. Nie erledigt heißt überfällig. Eine
+ * Prüfart auf Anlass (IDA-369) ist fällig, sobald das Gerät nach ihrer letzten Erledigung eingesetzt wurde bzw.
+ * zurückkam, und bleibt es, bis jemand sie abhakt.
  *
  * Verwaltung, Telefon, „Was steht an“ und der Push lesen ALLE diese Rechnung; eine zweite liefe auseinander.
  * Kein `"use client"` (Falle 6).
@@ -12,6 +14,8 @@
 export type Wer = "intern" | "fachfirma" | "elektrofachkraft";
 export type Zustand = "ok" | "mangel" | "defekt";
 export type Stufe = "ueberfaellig" | "bald" | "ok";
+/** Wann eine Prüfart auf Anlass fällig wird (IDA-369): wenn das Gerät eingesetzt wird bzw. zurückkommt. */
+export type Anlass = "einsatz" | "rueckkehr";
 
 export interface FristVorlage {
   id: string;
@@ -19,11 +23,21 @@ export interface FristVorlage {
   wer: Wer;
   monate: number | null;
   stunden: number | null;
+  /** Statt nach Frist fällig bei diesem Anlass; dann ohne `monate` und `stunden`. */
+  anlass: Anlass | null;
 }
 
 export interface LetzteErledigung {
   am: string;
   stunden: number | null;
+  /** Wann zuletzt eine Erledigung eingetragen wurde (ms) — verglichen mit dem Anlass. */
+  zeit: number;
+}
+
+/** Wann das Gerät zuletzt eingesetzt wurde bzw. zurückkam (ein `eintrag` vom Typ des Anlasses). */
+export interface Ereignis {
+  am: string;
+  zeit: number;
 }
 
 export interface FristStand {
@@ -71,7 +85,16 @@ export function fristStand(
   letzte: LetzteErledigung | null,
   stundenJetzt: number | null,
   heute: string,
+  ereignis: Ereignis | null = null,
 ): FristStand {
+  if (vorlage.anlass) {
+    const faellig = !!ereignis && (!letzte || letzte.zeit < ereignis.zeit);
+    return {
+      vorlage, letzte, faelligAm: faellig ? ereignis.am : null, faelligBeiStunden: null, reststunden: null,
+      stufe: faellig ? "ueberfaellig" : "ok",
+      text: faellig ? `${vorlage.anlass === "einsatz" ? "eingesetzt" : "zurück"} am ${datum(ereignis.am)}` : ANLASS_TEXT[vorlage.anlass],
+    };
+  }
   const faelligAm = letzte && vorlage.monate ? plusMonate(letzte.am, vorlage.monate) : null;
   const faelligBeiStunden = vorlage.stunden && letzte && letzte.stunden != null ? letzte.stunden + vorlage.stunden : null;
   const restTage = faelligAm ? tageBis(faelligAm, heute) : null;
@@ -110,7 +133,12 @@ export function zustandAus(offene: readonly { einsatzbereit: boolean }[]): Zusta
   return offene.length > 0 ? "mangel" : "ok";
 }
 
-export function intervallText(v: Pick<FristVorlage, "monate" | "stunden">): string {
+export const ANLASS_TEXT: Record<Anlass, string> = { einsatz: "vor jeder Verwendung", rueckkehr: "nach jeder Benutzung" };
+/** Wie der Anlass in der Verwaltung heißt. */
+export const ANLASS_NAME: Record<Anlass, string> = { einsatz: "Vor Verwendung", rueckkehr: "Nach Benutzung" };
+
+export function intervallText(v: Pick<FristVorlage, "monate" | "stunden"> & { anlass?: Anlass | null }): string {
+  if (v.anlass) return ANLASS_TEXT[v.anlass];
   const teile: string[] = [];
   if (v.monate) teile.push(v.monate === 12 ? "jährlich" : v.monate === 1 ? "monatlich" : `alle ${v.monate} Monate`);
   if (v.stunden) teile.push(`alle ${v.stunden} Betriebsstunden`);

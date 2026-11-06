@@ -50,7 +50,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const schon = schonGesendet(db, "pruefung", p.data.sendung, id);
     if (schon === "fremd") return antwort(400, { ok: false, fehler: "Die Prüfung kam nicht vollständig an. Bitte noch einmal senden." });
     if (schon) return antwort(200, { ok: true, maengel: schon.maengel });
-    const amGeraet = ladeAmGeraet(db, id, heute());
+    const amGeraet = ladeAmGeraet(db, id, heute(), p.data.pruefartId);
     if (!amGeraet) return antwort(400, { ok: false, fehler: "Dieses Gerät gibt es nicht mehr." });
     const punkte = new Set(amGeraet.checkliste.map((pk) => pk.id));
     const mitMangel = new Set(p.data.antworten.filter((a) => !a.ok && punkte.has(a.punktId)).map((a) => a.punktId));

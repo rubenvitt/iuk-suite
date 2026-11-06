@@ -4,6 +4,7 @@ import { Button } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { loginZiel, verwaltetGruppe } from "../../../_lib/zugang";
 import { ArtZeichen, FristChip, groesseText, Kicker, OrtText, stundenText, ZustandChip } from "../../../_ui/teile";
+import { AnlassKnopf } from "../../../_ui/telefon/AnlassKnopf";
 import s from "../../../_ui/wartung.module.css";
 import { geraetOeffentlich } from "./laden";
 
@@ -15,8 +16,11 @@ export const dynamic = "force-dynamic";
  * Prüfung erst mit Zugang (IDA-337).
  */
 export default async function Steckbrief({ params }: { params: Promise<{ id: string }> }) {
-  const { g, checkliste, offen, unterlagen, rechte, viewer, zugang } = await geraetOeffentlich(params);
-  const pruefung = g.staende.find((f) => f.vorlage.wer === "intern");
+  const { g, pruefung, checkliste, punkteJe, offen, unterlagen, rechte, viewer, zugang } = await geraetOeffentlich(params);
+  // Die fällige Prüfung zuerst und hervorgehoben, die anderen darunter (IDA-369); ohne Punkte geht keine.
+  const pruefungen = g.staende.filter((f) => f.vorlage.wer === "intern" && (punkteJe[f.vorlage.id] ?? 0) > 0)
+    .sort((a, b) => Number(b.vorlage.id === pruefung?.vorlage.id) - Number(a.vorlage.id === pruefung?.vorlage.id));
+  const mitAnlass = g.staende.some((f) => f.vorlage.anlass);
   const verwaltet = zugang && verwaltetGruppe(rechte, g.gruppeId);
   // Die Inhaltsliste steht auch auf dem Etikett der Kiste, also auch ohne Anmeldung (IDA-335).
   const inhalt = g.kiste && (
@@ -106,16 +110,26 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
 
       {anleitung}
 
-      {pruefung && checkliste.length > 0 && (
+      {mitAnlass && (
         <section className={s.karte}>
-          <Kicker className={s.karteTitel}>{pruefung.vorlage.name}</Kicker>
-          <div className={s.quer}><span>{pruefung.text}</span><FristChip f={pruefung} /></div>
-          <div className={s.neben} style={{ margin: "4px 0 12px" }}>{checkliste.length} {g.kiste ? (checkliste.length === 1 ? "Position" : "Positionen") : "Punkte"}</div>
-          <Button type="primary" block href={`/g/${g.id}/pruefung`} icon={<Icons8Ikone name="checklist" groesse={20} />}>
-            {g.kiste ? "Durchzählen" : "Prüfung starten"}
-          </Button>
+          <AnlassKnopf geraetId={g.id} imEinsatz={g.imEinsatz} />
         </section>
       )}
+
+      {pruefungen.map((f, i) => {
+        const n = punkteJe[f.vorlage.id] ?? 0;
+        return (
+          <section key={f.vorlage.id} className={s.karte} aria-label={f.vorlage.name}>
+            <Kicker className={s.karteTitel}>{f.vorlage.name}</Kicker>
+            <div className={s.quer}><span>{f.text}</span><FristChip f={f} /></div>
+            <div className={s.neben} style={{ margin: "4px 0 12px" }}>{n} {g.kiste ? (n === 1 ? "Position" : "Positionen") : n === 1 ? "Punkt" : "Punkte"}</div>
+            <Button type={i === 0 ? "primary" : "default"} block href={pruefungen.length > 1 ? `/g/${g.id}/pruefung?art=${f.vorlage.id}` : `/g/${g.id}/pruefung`}
+              icon={<Icons8Ikone name="checklist" groesse={20} />}>
+              {g.kiste ? "Durchzählen" : "Prüfung starten"}
+            </Button>
+          </section>
+        );
+      })}
 
       {inhalt}
 

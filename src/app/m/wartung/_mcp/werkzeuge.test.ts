@@ -65,9 +65,9 @@ describe("Gerätewartung im MCP-Server: Werkzeuge je Stufe", () => {
     expect((await verbinde(person("sub-x", ["helfer-nutzer"]))).namen).toEqual([]);
   });
 
-  it("Nutzer sehen nur Lesen, Prüfen, Stunden und Mangel melden", async () => {
+  it("Nutzer sehen nur Lesen, Prüfen, Einsatz, Stunden und Mangel melden", async () => {
     expect((await verbinde(NUTZER)).namen.sort()).toEqual([
-      "wartung_faellig", "wartung_geraet", "wartung_geraete", "wartung_mangel_melden", "wartung_pruefung_abschliessen",
+      "wartung_einsatz_vermerken", "wartung_faellig", "wartung_geraet", "wartung_geraete", "wartung_mangel_melden", "wartung_pruefung_abschliessen",
       "wartung_stunden_eintragen",
     ]);
   });
@@ -174,5 +174,34 @@ describe("dieselben Grenzen wie in der App", () => {
     expect((await eintragen(START.pruefart.heizsaison)).isError).toBeFalsy();
     expect(t.db.select({ p: eintrag.pruefartId }).from(eintrag).all()).toEqual([{ p: START.pruefart.heizsaison }]);
     expect(json<{ id: string }[]>(await rufe("wartung_pruefarten")).map((p) => p.id)).toContain(START.pruefart.dguv);
+  });
+
+  it("vor dem Einsatz (IDA-369): eingesetzt vermerken, dann ist der Kurzcheck dran, mit seinen Punkten", async () => {
+    const { rufe } = await verbinde(VERWALTER);
+    const neu = json<{ id: string }>(await rufe("wartung_pruefart_speichern", {
+      pruefart: { name: "Kurzcheck", wer: "intern", monate: null, stunden: null, anlass: "einsatz" },
+    }));
+    const arten = json<{ id: string; name: string; einzahl: string; ikone: string; stundenPflicht: boolean; kiste: boolean; pruefarten: string[]; checkliste: { id: string; text: string; hinweis: string; pruefarten: string[] }[] }[]>(await rufe("wartung_arten"));
+    const a = arten.find((x) => x.id === START.art.stromerzeuger)!;
+    const [erster, ...rest] = a.checkliste;
+    const art = {
+      name: a.name, einzahl: a.einzahl, ikone: a.ikone, stundenPflicht: a.stundenPflicht, kiste: a.kiste,
+      pruefarten: [...a.pruefarten, neu.id],
+      checkliste: [erster, ...rest.map((p) => ({ ...p, pruefarten: [START.pruefart.quartal] }))],
+    };
+    expect((await rufe("wartung_art_speichern", { art_id: a.id, art })).isError).toBeFalsy();
+
+    const { rufe: nutzer } = await verbinde(NUTZER);
+    expect((await nutzer("wartung_einsatz_vermerken", { geraet_id: stromerzeuger, anlass: "einsatz" })).isError).toBeFalsy();
+    const g = json<{ pruefungen: { pruefartId: string; faellig: boolean; punkte: string[] }[] }>(await nutzer("wartung_geraet", { geraet_id: stromerzeuger }));
+    const kurz = g.pruefungen.find((p) => p.pruefartId === neu.id)!;
+    expect(kurz).toMatchObject({ faellig: true, punkte: [erster.id] });
+    expect(g.pruefungen.find((p) => p.pruefartId === START.pruefart.quartal)!.punkte).toHaveLength(a.checkliste.length);
+    expect((await nutzer("wartung_pruefung_abschliessen", {
+      geraet_id: stromerzeuger, ergebnis: "ok", stunden: 110, antworten: [{ punkt_id: erster.id, ok: true }],
+    })).isError).toBeFalsy();
+    expect(t.db.select({ p: eintrag.pruefartId }).from(eintrag).where(eq(eintrag.typ, "pruefung")).all()).toEqual([{ p: neu.id }]);
+    const danach = json<{ pruefungen: { pruefartId: string; faellig: boolean }[] }>(await nutzer("wartung_geraet", { geraet_id: stromerzeuger }));
+    expect(danach.pruefungen.find((p) => p.pruefartId === neu.id)!.faellig).toBe(false);
   });
 });

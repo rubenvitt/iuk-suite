@@ -7,7 +7,7 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle } from "@/core/tabelle";
 import { pruefartLoeschenAction, pruefartSpeichernAction, pruefartVerschiebenAction } from "../_actions/verwaltung";
 import { KURZ_MAX, type PruefartEingabe } from "../_lib/eingabe";
-import { intervallText, WER_TEXT, type Wer } from "../_lib/fristen";
+import { ANLASS_NAME, intervallText, WER_TEXT, type Anlass, type Wer } from "../_lib/fristen";
 import type { PruefartDTO } from "../_lib/typen";
 import { useAktion } from "./useAktion";
 import s from "./wartung.module.css";
@@ -15,6 +15,10 @@ import s from "./wartung.module.css";
 type Entwurf = PruefartEingabe & { id: string | null };
 
 const WER_WAHL = (Object.keys(WER_TEXT) as Wer[]).map((w) => ({ value: w, label: WER_TEXT[w] }));
+const WANN_WAHL: { value: Anlass | "frist"; label: string }[] = [
+  { value: "frist", label: "Nach Frist" },
+  ...(Object.keys(ANLASS_NAME) as Anlass[]).map((a) => ({ value: a, label: ANLASS_NAME[a] })),
+];
 
 /**
  * Der Katalog der Prüfarten (IDA-368): jede steht einmal da, mit Wer und Intervall. Die Gerätearten schalten sie
@@ -33,7 +37,7 @@ export function PruefartenVerwaltung({ pruefarten, artNamen }: { pruefarten: Pru
         titel="Prüfarten"
         aktionen={
           <Button type="primary" icon={<Icons8Ikone name="plus" groesse={16} />}
-            onClick={() => oeffne({ id: null, name: "", wer: "fachfirma", monate: 12, stunden: null })}>
+            onClick={() => oeffne({ id: null, name: "", wer: "fachfirma", monate: 12, stunden: null, anlass: null })}>
             Prüfart anlegen
           </Button>
         }
@@ -49,7 +53,7 @@ export function PruefartenVerwaltung({ pruefarten, artNamen }: { pruefarten: Pru
             title: "Prüfart", key: "name",
             render: (_: unknown, p: PruefartDTO) => <><strong>{p.name}</strong><div className={s.neben}>{WER_TEXT[p.wer]}</div></>,
           },
-          { title: "Intervall", key: "intervall", width: 200, render: (_: unknown, p: PruefartDTO) => intervallText(p) },
+          { title: "Fällig", key: "intervall", width: 200, render: (_: unknown, p: PruefartDTO) => intervallText(p) },
           {
             title: "Gerätearten", key: "arten", width: 260,
             render: (_: unknown, p: PruefartDTO) => p.arten.length === 0 ? "–" : (
@@ -64,7 +68,7 @@ export function PruefartenVerwaltung({ pruefarten, artNamen }: { pruefarten: Pru
               return (
                 <div className={s.pfeile}>
                   <Button aria-label={`${p.name} bearbeiten`} icon={<Icons8Ikone name="pencil" groesse={16} />}
-                    onClick={() => oeffne({ id: p.id, name: p.name, wer: p.wer, monate: p.monate, stunden: p.stunden })} />
+                    onClick={() => oeffne({ id: p.id, name: p.name, wer: p.wer, monate: p.monate, stunden: p.stunden, anlass: p.anlass })} />
                   <Button type="text" aria-label={`${p.name} nach oben`} disabled={laeuft || i === 0}
                     onClick={() => fuehreAus(() => pruefartVerschiebenAction(p.id, -1), "Verschoben.")} icon={<Icons8Ikone name="arrow-up" groesse={16} />} />
                   <Button type="text" aria-label={`${p.name} nach unten`} disabled={laeuft || i === pruefarten.length - 1}
@@ -112,17 +116,25 @@ export function PruefartenVerwaltung({ pruefarten, artNamen }: { pruefarten: Pru
             <Form.Item label="Name" htmlFor="gw-pa-name" {...fehler("name")}>
               <Input id="gw-pa-name" autoFocus value={e.name} maxLength={KURZ_MAX} onChange={(x) => setze({ name: x.target.value })} />
             </Form.Item>
+            <Form.Item label="Fällig" htmlFor="gw-pa-wann" {...fehler("anlass")}>
+              <Select id="gw-pa-wann" value={e.anlass ?? "frist"} options={WANN_WAHL}
+                onChange={(v: Anlass | "frist") => setze(v === "frist" ? { anlass: null, monate: e.monate ?? 12 } : { anlass: v, wer: "intern" })} />
+            </Form.Item>
             <Form.Item label="Wer" htmlFor="gw-pa-wer" {...fehler("wer")}>
-              <Select id="gw-pa-wer" value={e.wer} options={WER_WAHL} onChange={(v) => setze({ wer: v })} />
+              <Select id="gw-pa-wer" value={e.wer} options={WER_WAHL} disabled={!!e.anlass} onChange={(v) => setze({ wer: v })} />
             </Form.Item>
-            <Form.Item label="Alle … Monate" htmlFor="gw-pa-monate" {...fehler("monate")}>
-              <InputNumber id="gw-pa-monate" value={e.monate ?? undefined} min={1} max={120} precision={0} suffix="Monate"
-                onChange={(v) => setze({ monate: v ?? null })} style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item label="Oder alle … Betriebsstunden" htmlFor="gw-pa-stunden" {...fehler("stunden")}>
-              <InputNumber id="gw-pa-stunden" value={e.stunden ?? undefined} min={1} precision={0} suffix="h"
-                onChange={(v) => setze({ stunden: v ?? null })} style={{ width: "100%" }} />
-            </Form.Item>
+            {!e.anlass && (
+              <>
+                <Form.Item label="Alle … Monate" htmlFor="gw-pa-monate" {...fehler("monate")}>
+                  <InputNumber id="gw-pa-monate" value={e.monate ?? undefined} min={1} max={120} precision={0} suffix="Monate"
+                    onChange={(v) => setze({ monate: v ?? null })} style={{ width: "100%" }} />
+                </Form.Item>
+                <Form.Item label="Oder alle … Betriebsstunden" htmlFor="gw-pa-stunden" {...fehler("stunden")}>
+                  <InputNumber id="gw-pa-stunden" value={e.stunden ?? undefined} min={1} precision={0} suffix="h"
+                    onChange={(v) => setze({ stunden: v ?? null })} style={{ width: "100%" }} />
+                </Form.Item>
+              </>
+            )}
           </Form>
         )}
       </Modal>

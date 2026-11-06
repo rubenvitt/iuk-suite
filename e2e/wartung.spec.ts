@@ -266,3 +266,81 @@ test("Fahrzeug aus der Fahrzeugverwaltung per Funkrufname wählen", async ({ pag
   await warteAufGestreamteInhalte(page);
   await expect(page.getByText(`GW-Technik ${kenner}`).first()).toBeVisible();
 });
+
+/**
+ * IDA-369: eine Prüfart „Vor Verwendung“ anlegen, an einem Gerät zuschalten, in der Akte „Wird eingesetzt“
+ * tippen: am Telefon steht der Kurzcheck vorn, wird abgehakt, und die Akte zeigt danach „Zurück“.
+ */
+test("Prüfung vor dem Einsatz: eingesetzt vermerken, am Gerät abhaken", async ({ page, browser }) => {
+  test.setTimeout(150_000);
+  const nr = Date.now() % 100_000;
+  const kurz = `Kurzcheck E2E ${nr}`;
+  await devLogin(page, { host: HOST, email: "admin@localtest.me", groups: "wartung-admin", callbackPath: "/pruefarten" });
+  await page.goto(url("/pruefarten"));
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Prüfart anlegen" }));
+  const pa = page.getByRole("dialog", { name: "Prüfart anlegen" });
+  await pa.getByLabel("Name").fill(kurz);
+  await pa.getByLabel("Fällig").click();
+  await page.locator(".ant-select-item-option").filter({ hasText: "Vor Verwendung" }).click();
+  await expect(pa.getByLabel("Alle … Monate")).toHaveCount(0);
+  await klickeWennRuhig(pa.getByRole("button", { name: "Speichern" }));
+  await expect(page.getByRole("row", { name: new RegExp(kurz) })).toContainText("vor jeder Verwendung");
+
+  await page.goto(url("/geraete"));
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Gerät anlegen" }));
+  const dialog = page.getByRole("dialog", { name: "Gerät anlegen" });
+  await dialog.getByText("Technik", { exact: true }).click();
+  await dialog.getByLabel("Bezeichnung").fill(`Stromerzeuger Einsatz ${nr}`);
+  await dialog.getByLabel("Standort").fill("Lager Technik");
+  await dialog.getByLabel("Betriebsstunden").fill("10");
+  await klickeWennRuhig(dialog.getByRole("button", { name: "Speichern" }));
+  await page.waitForURL(/\/geraete\/[0-9a-f-]{36}$/);
+  const id = page.url().split("/").pop()!;
+  await warteAufGestreamteInhalte(page);
+  await expect(page.getByRole("button", { name: "Wird eingesetzt" })).toHaveCount(0);
+
+  await klickeWennRuhig(page.getByRole("button", { name: "Anpassen" }));
+  const plan = page.getByRole("dialog", { name: "Prüfungen anpassen" });
+  await plan.getByLabel("Prüfart hinzufügen").click();
+  await page.locator(".ant-select-item-option").filter({ hasText: kurz }).click();
+  const gespeichert = page.waitForResponse((r) => r.request().method() === "POST" && r.status() === 200);
+  await klickeWennRuhig(plan.getByRole("button", { name: "Speichern" }));
+  await gespeichert;
+  const pruefungen = page.getByRole("list", { name: "Prüfungen" });
+  await expect(pruefungen).toContainText(kurz);
+
+  const eingesetzt = page.waitForResponse((r) => r.request().method() === "POST" && r.status() === 200);
+  await klickeWennRuhig(page.getByRole("button", { name: "Wird eingesetzt" }));
+  await eingesetzt;
+  await expect(page.getByRole("button", { name: "Zurück", exact: true })).toBeVisible();
+  await expect(pruefungen).toContainText("eingesetzt am");
+
+  // Am Gerät steht der Kurzcheck vorn; abgehakt ist er wieder im Plan.
+  const handyKontext = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: await page.context().storageState() });
+  const handy = await handyKontext.newPage();
+  await handy.goto(url(`/g/${id}`));
+  await warteAufGestreamteInhalte(handy);
+  await expect(handy.getByRole("link", { name: "Prüfung starten" })).toHaveCount(2);
+  await expect(handy.getByRole("region", { name: kurz })).toBeVisible();
+  await klickeWennRuhig(handy.getByRole("region", { name: kurz }).getByRole("link", { name: "Prüfung starten" }));
+  await handy.waitForURL(/\/pruefung\?art=/);
+  await warteAufGestreamteInhalte(handy);
+  await expect(handy.getByRole("heading", { name: kurz })).toBeVisible();
+  await handy.getByLabel("Betriebsstunden am Zähler").fill("12");
+  const anzahl = await handy.locator('[data-rolle="pruefpunkt"]').count();
+  for (let i = 0; i < anzahl; i++) {
+    await handy.locator('[data-rolle="pruefpunkt"]').nth(i).getByText("In Ordnung").click();
+  }
+  const senden = handy.waitForResponse((r) => r.url().endsWith(`/g/${id}/pruefung/senden`));
+  await klickeWennRuhig(handy.getByRole("button", { name: "Prüfung abschließen" }));
+  expect((await senden).status()).toBe(200);
+  await expect(handy.locator('[data-rolle="pruefung-fertig"]')).toContainText("Prüfung gespeichert");
+  await handyKontext.close();
+
+  await page.reload();
+  await warteAufGestreamteInhalte(page);
+  await expect(pruefungen).toContainText("vor jeder Verwendung");
+  await expect(page.getByRole("list", { name: "Verlauf" })).toContainText(kurz);
+});
