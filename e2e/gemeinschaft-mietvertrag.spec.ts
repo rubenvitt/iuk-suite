@@ -66,6 +66,10 @@ async function erstelleDokument(leitung: Page, anlass: string, art: string) {
 async function zeichne(page: Page, testId: string) {
   const f = page.getByTestId(testId);
   await f.scrollIntoViewIfNeeded();
+  // Gesperrt: ein Strich vor dem Entsperren bleibt folgenlos.
+  await expect(f).toHaveAttribute("data-aktiv", "false");
+  await klickeWennRuhig(page.getByTestId(`${testId}-start`));
+  await expect(f).toHaveAttribute("data-aktiv", "true");
   const b = (await f.boundingBox())!;
   await ziehe(page, b.x + 20, b.y + b.height * 0.7, b.x + b.width - 20, b.y + b.height * 0.3);
 }

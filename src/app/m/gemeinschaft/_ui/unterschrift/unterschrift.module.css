@@ -1,2 +1,8 @@
 /* Zeichenfläche für Unterschriften: heller Grund auch im Dunkelmodus, damit die schwarze Tinte so aussieht wie im PDF. */
-.flaeche { display: block; width: 100%; height: 160px; border: 1px solid var(--go-linie-stark, var(--iuk-linie)); border-radius: 8px; background: #ffffff; touch-action: none; cursor: crosshair; }
+.rahmen { position: relative; }
+/* Gesperrt scrollt das Telefon über die Fläche hinweg; erst entsperrt gehört jede Berührung dem Stift. */
+.flaeche { display: block; width: 100%; height: 160px; border: 1px solid var(--go-linie-stark, var(--iuk-linie)); border-radius: 8px; background: #ffffff; touch-action: pan-x pan-y; }
+.flaeche[data-aktiv="true"] { touch-action: none; cursor: crosshair; }
+/* Feste Farben wie die Fläche selbst: der Grund bleibt auch im Dunkelmodus weiß. */
+.start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 0 16px; border: 0; border-radius: 8px; background: transparent; color: #3d3d3d; font: inherit; font-size: 16px; cursor: pointer; touch-action: pan-x pan-y; }
+.start:focus-visible { outline: 2px solid #111111; outline-offset: 2px; }
