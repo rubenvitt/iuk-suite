@@ -105,7 +105,8 @@ describe("appIconFuerKachel", () => {
    * neues Modul braucht ein Zeichen in `zeichen.ts`; nur die Wegwerf-Module nicht.
    */
   it("gibt jedem echten Modul ein eigenes Zeichen", () => {
-    const wegwerf = new Set(["alpha", "beta", "gamma", "kioskdemo"]);
+    // `mcp` hat keine Oberfläche und keine Kachel, nur einen Endpunkt für KI-Assistenten (IDA-367).
+    const wegwerf = new Set(["alpha", "beta", "gamma", "kioskdemo", "mcp"]);
     const ohne = MODULES.filter((m) => !wegwerf.has(m.key) && !appIconFuerKachel(m.key)).map((m) => m.key);
     expect(ohne).toEqual([]);
   });

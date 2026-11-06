@@ -1,4 +1,20 @@
 {
+  "src/app/.well-known/oauth-protected-resource/[[...pfad]]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/mcp/mcp/route.ts#POST": {
+    "kind": "context",
+    "reason": "Jedes schreibende MCP-Werkzeug läuft über die Vorgänge seines Moduls, die den Audit-Kontext der Person setzen (wartung/_lib/vorgaenge.ts, ausfuehren)."
+  },
+  "src/app/m/mcp/mcp/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Zustandsloser MCP-Endpunkt: GET antwortet nur 401 oder 405, kein Ereignisstrom."
+  },
+  "src/app/m/mcp/mcp/route.ts#DELETE": {
+    "kind": "excluded",
+    "reason": "Zustandsloser MCP-Endpunkt: keine Sitzung zum Beenden, immer 405."
+  },
   "src/app/.well-known/webfinger/route.ts#GET": {
     "kind": "excluded",
     "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
