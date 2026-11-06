@@ -20,23 +20,24 @@ type Entwurf = ArtEingabe & { id: string | null };
 
 function entwurfAus(a: ArtDTO | null, katalog: readonly PruefartDTO[]): Entwurf {
   if (!a) {
-    const selbst = katalog.find((p) => p.wer === "intern");
+    const selbst = katalog.find((p) => p.wer === "intern" && !p.anlass);
     return {
       id: null, name: "", einzahl: "", ikone: "wrench", stundenPflicht: false, kiste: false,
       pruefarten: selbst ? [selbst.id] : [],
-      checkliste: [{ id: null, text: "Sichtprüfung", hinweis: "" }],
+      checkliste: [{ id: null, text: "Sichtprüfung", hinweis: "", pruefarten: [] }],
     };
   }
   return {
     id: a.id, name: a.name, einzahl: a.einzahl, ikone: a.ikone, stundenPflicht: a.stundenPflicht, kiste: a.kiste,
     pruefarten: [...a.pruefarten],
-    checkliste: a.checkliste.map((p) => ({ id: p.id, text: p.text, hinweis: p.hinweis })),
+    checkliste: a.checkliste.map((p) => ({ id: p.id, text: p.text, hinweis: p.hinweis, pruefarten: p.pruefarten ?? [] })),
   };
 }
 
 /**
  * Gerätearten mit ihren Prüfarten aus dem Katalog (IDA-368) und der Checkliste; sie gelten für alle Gruppen.
- * Bearbeitet wird im Dialog.
+ * Bearbeitet wird im Dialog. Hat die Art mehrere Prüfungen am Gerät, sagt jeder Punkt, zu welchen er gehört
+ * (IDA-369); ohne Auswahl gehört er zu allen.
  */
 export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: PruefartDTO[] }) {
   const nachId = new Map(katalog.map((p) => [p.id, p]));
@@ -101,7 +102,14 @@ export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: 
             <>
               <Kicker>Checkliste der Prüfung am Gerät</Kicker>
               <ol style={{ margin: "8px 0 0", paddingInlineStart: 20 }}>
-                {a.checkliste.map((p) => <li key={p.id}>{p.text}</li>)}
+                {a.checkliste.map((p) => (
+                  <li key={p.id}>
+                    {p.text}
+                    {(p.pruefarten ?? []).length > 0 && (
+                      <span className={s.neben}> · {(p.pruefarten ?? []).map((id) => nachId.get(id)?.name ?? "?").join(", ")}</span>
+                    )}
+                  </li>
+                ))}
               </ol>
             </>
           )}
@@ -167,6 +175,8 @@ export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: 
                 {feldFehler.checkliste && <div className={s.textRot}>{feldFehler.checkliste}</div>}
                 <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
                   {e.checkliste.map((p, i) => {
+                    // Zur Wahl stehen die Prüfungen am Gerät dieser Art und was der Punkt schon hat.
+                    const wahl = katalog.filter((x) => x.wer === "intern" && (e.pruefarten.includes(x.id) || (p.pruefarten ?? []).includes(x.id)));
                     const setzePunkt = (teil: Partial<typeof p>) => setze({ checkliste: e.checkliste.map((x, j) => (j === i ? { ...x, ...teil } : x)) });
                     return (
                       <li key={p.id ?? `neu-${i}`} className={s.punkt}>
@@ -174,6 +184,16 @@ export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: 
                         <div className={s.felder}>
                           <Input value={p.text} maxLength={PUNKT_MAX} onChange={(x) => setzePunkt({ text: x.target.value })} aria-label={`Punkt ${i + 1}`} status={feldFehler[`checkliste.${i}.text`] ? "error" : undefined} />
                           <Input.TextArea value={p.hinweis} maxLength={NOTIZ_MAX} autoSize={{ minRows: 1, maxRows: 4 }} placeholder="So geht’s" onChange={(x) => setzePunkt({ hinweis: x.target.value })} aria-label={`So geht Punkt ${i + 1}`} />
+                          {(wahl.length > 1 || (p.pruefarten ?? []).length > 0) && (
+                            <Select
+                              mode="multiple"
+                              value={p.pruefarten ?? []}
+                              placeholder="Bei jeder Prüfung"
+                              aria-label={`Punkt ${i + 1} gilt für`}
+                              options={wahl.map((x) => ({ value: x.id, label: x.name }))}
+                              onChange={(v: string[]) => setzePunkt({ pruefarten: katalog.map((x) => x.id).filter((id) => v.includes(id)) })}
+                            />
+                          )}
                         </div>
                         <div className={s.knoepfe}>
                           <Button type="text" aria-label={`Punkt ${i + 1} nach oben`} disabled={i === 0} onClick={() => verschiebe(i, -1)} icon={<Icons8Ikone name="arrow-up" groesse={16} />} />
@@ -188,7 +208,7 @@ export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: 
                   type="dashed"
                   icon={<Icons8Ikone name="plus" groesse={16} />}
                   style={{ marginTop: 8 }}
-                  onClick={() => setze({ checkliste: [...e.checkliste, { id: null, text: "", hinweis: "" }] })}
+                  onClick={() => setze({ checkliste: [...e.checkliste, { id: null, text: "", hinweis: "", pruefarten: [] }] })}
                 >
                   Punkt hinzufügen
                 </Button>

@@ -71,14 +71,21 @@ export const stundenEingabe = z.object({ stunden: z.number().int().min(0).max(ST
 const monate = z.number().int("Bitte ganze Monate.").min(1, "Mindestens 1.").max(120, "Höchstens 120.").nullable();
 const intervallStunden = z.number().int("Bitte ganze Stunden.").min(1, "Mindestens 1.").max(100_000).nullable();
 
-/** Eine Prüfart des Katalogs (IDA-368). */
+/**
+ * Eine Prüfart des Katalogs (IDA-368). Mit `anlass` (IDA-369) ist sie fällig, wenn das Gerät eingesetzt wird bzw.
+ * zurückkommt: dann ohne Intervall, und erledigt wird sie selbst am Gerät.
+ */
 export const pruefartEingabe = z.object({
   name: pflicht(KURZ_MAX, "Bitte die Prüfart benennen."),
   wer: z.enum(["intern", "fachfirma", "elektrofachkraft"]),
   monate,
   stunden: intervallStunden,
-}).refine((f) => f.monate !== null || f.stunden !== null, { message: "Monate oder Stunden angeben.", path: ["monate"] });
-export type PruefartEingabe = z.infer<typeof pruefartEingabe>;
+  anlass: z.enum(["einsatz", "rueckkehr"]).nullable().default(null),
+}).refine((f) => f.anlass !== null || f.monate !== null || f.stunden !== null, { message: "Monate oder Stunden angeben.", path: ["monate"] })
+  .refine((f) => f.anlass === null || f.wer === "intern", { message: "Vor oder nach dem Einsatz prüft man selbst am Gerät.", path: ["wer"] })
+  .transform((f) => (f.anlass ? { ...f, monate: null, stunden: null } : f));
+/** Wie sie hereinkommt (`anlass` darf fehlen); geprüft wird mit `pruefartEingabe`. */
+export type PruefartEingabe = z.input<typeof pruefartEingabe>;
 
 /**
  * Der Prüfplan eines Geräts, ganz (IDA-368): je Prüfart, ob sie gilt, und ein eigenes Intervall. Prüfarten der Art,
@@ -98,6 +105,8 @@ export const punktEingabe = z.object({
   id: idSchema.nullable(),
   text: pflicht(PUNKT_MAX, "Bitte den Punkt benennen."),
   hinweis: frei(NOTIZ_MAX),
+  /** Zu welchen Prüfarten der Punkt gehört (IDA-369); leer heißt zu allen. */
+  pruefarten: z.array(idSchema).max(20).default([]).refine((l) => new Set(l).size === l.length, "Jede Prüfart nur einmal."),
 });
 
 export const artEingabe = z.object({
@@ -112,7 +121,8 @@ export const artEingabe = z.object({
 }).refine((a) => !(a.kiste && a.stundenPflicht), {
   message: "Eine Materialkiste hat keine Betriebsstunden.", path: ["stundenPflicht"],
 });
-export type ArtEingabe = z.infer<typeof artEingabe>;
+/** Wie sie hereinkommt (die Prüfarten eines Punkts dürfen fehlen); geprüft wird mit `artEingabe`. */
+export type ArtEingabe = z.input<typeof artEingabe>;
 
 /** Die Inhaltsliste einer Materialkiste, ganz (IDA-335): Reihenfolge wie übergeben. */
 export const inhaltEingabe = z.array(z.object({
@@ -135,6 +145,8 @@ export type GruppeEingabe = z.infer<typeof gruppeEingabe>;
 export const pruefungEingabe = z.object({
   /** Vom Telefon je Prüfung einmal gezogen: kommt sie zweimal an, steht sie trotzdem nur einmal da. */
   sendung: idSchema,
+  /** Welche Prüfung (IDA-369); fehlt sie (alte offene Seite), die fällige wie beim Öffnen ohne Auswahl. */
+  pruefartId: idSchema.optional(),
   stunden,
   antworten: z.array(z.object({
     punktId: idSchema, ok: z.boolean(), text: frei(NOTIZ_MAX),
@@ -148,6 +160,9 @@ export const pruefungEingabe = z.object({
   notiz: frei(NOTIZ_MAX),
 });
 export type PruefungEingabe = z.infer<typeof pruefungEingabe>;
+
+/** „Wird eingesetzt“ bzw. „Zurück“ (IDA-369). */
+export const anlassEingabe = z.enum(["einsatz", "rueckkehr"]);
 
 export const mangelEingabe = z.object({
   text: pflicht(NOTIZ_MAX, "Bitte kurz beschreiben, was los ist."),

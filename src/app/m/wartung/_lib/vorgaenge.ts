@@ -19,13 +19,13 @@ import { getDb } from "../_db/client";
 import { geraet } from "../_db/schema";
 import { ladeMangel } from "./daten";
 import {
-  artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, mangelEingabe,
+  anlassEingabe, artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, mangelEingabe,
   pruefartEingabe, pruefplanEingabe, pruefungEingabe, stundenEingabe, unterlageTitel, verwalterEingabe,
 } from "./eingabe";
 import { verwalterEntfernen, verwalterHinzufuegen } from "./personen";
 import { heute } from "./heute";
 import {
-  Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
+  Abgelehnt, anlassVermerken, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
   gruppeSpeichern, inhaltSpeichern, mangelBeheben, mangelMelden, neueId, pruefartLoeschen, pruefartSpeichern, pruefartVerschieben,
   pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen, unterlageAnlegen,
 } from "./schreiben";
@@ -93,6 +93,14 @@ export const stundenEintragenVorgang = (z: Akteur, geraetId: unknown, eingabe: u
     return { ok: false, fehler: "Bitte ganze Stunden eingeben.", feldFehler: { stunden: "Bitte ganze Stunden eingeben." } };
   }
   stundenEintragen(getDb(), geraetId as string, e.data.stunden, kontext(viewer), e.data.sendung);
+});
+
+/** „Wird eingesetzt“ bzw. „Zurück“ (IDA-369): macht die Prüfart mit diesem Anlass fällig. */
+export const anlassVermerkenVorgang = (z: Akteur, geraetId: unknown, anlass: unknown) => ausfuehren(z, ({ viewer }) => {
+  pruefeId(geraetId);
+  const a = anlassEingabe.safeParse(anlass);
+  if (!a.success) throw new Abgelehnt(UNGUELTIG);
+  anlassVermerken(getDb(), geraetId, a.data, kontext(viewer));
 });
 
 /**

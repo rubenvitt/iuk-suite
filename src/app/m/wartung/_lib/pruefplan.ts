@@ -5,7 +5,7 @@
  *
  * Kein `"use client"` (Falle 6): auch das Formular im Browser rechnet hiermit.
  */
-import type { FristVorlage, Wer } from "./fristen";
+import type { Anlass, FristStand, FristVorlage, Wer } from "./fristen";
 
 export interface PruefartZeile {
   id: string;
@@ -14,6 +14,8 @@ export interface PruefartZeile {
   monate: number | null;
   stunden: number | null;
   position: number;
+  /** Fällig bei diesem Anlass statt nach Frist (IDA-369). */
+  anlass: Anlass | null;
 }
 
 /** Eine Abweichung des Geräts (`geraet_pruefart`). */
@@ -55,9 +57,10 @@ export function pruefplan(
     .map((p) => {
       const a = ab.get(p.id);
       const an = a ? a.an : std.has(p.id);
-      const eigenes = an && hatEigenes(a) ? { monate: a.monate, stunden: a.stunden } : null;
+      // Auf Anlass gibt es kein Intervall, also auch kein eigenes.
+      const eigenes = an && !p.anlass && hatEigenes(a) ? { monate: a.monate, stunden: a.stunden } : null;
       const vorlage: FristVorlage | null = an
-        ? { id: p.id, name: p.name, wer: p.wer, monate: eigenes ? eigenes.monate : p.monate, stunden: eigenes ? eigenes.stunden : p.stunden }
+        ? { id: p.id, name: p.name, wer: p.wer, monate: eigenes ? eigenes.monate : p.monate, stunden: eigenes ? eigenes.stunden : p.stunden, anlass: p.anlass }
         : null;
       return { pruefart: p, standard: std.has(p.id), an, eigenes, vorlage };
     });
@@ -68,7 +71,21 @@ export function geltende(plan: readonly PlanPunkt[]): FristVorlage[] {
   return plan.flatMap((p) => (p.vorlage ? [p.vorlage] : []));
 }
 
-/** Die Prüfung am Gerät per QR: die erste geltende, die man selbst erledigt. */
-export function selbstPruefung(plan: readonly PlanPunkt[]): FristVorlage | null {
-  return geltende(plan).find((v) => v.wer === "intern") ?? null;
+/**
+ * Welche Prüfung am Gerät per QR läuft (IDA-369): die gewünschte, wenn sie dort selbst erledigt wird; sonst die
+ * fällige auf Anlass, sonst die nach Frist, sonst die erste. Am Gerät gibt es je Anlass und für die Frist höchstens
+ * eine (`_lib/schreiben.ts`, `pruefeRegeln`).
+ */
+export function pruefungAmGeraet(staende: readonly FristStand[], gewuenscht?: string | null): FristStand | null {
+  const selbst = staende.filter((f) => f.vorlage.wer === "intern");
+  if (gewuenscht) return selbst.find((f) => f.vorlage.id === gewuenscht) ?? null;
+  return selbst.find((f) => f.vorlage.anlass && f.stufe !== "ok")
+    ?? selbst.find((f) => !f.vorlage.anlass)
+    ?? selbst[0]
+    ?? null;
+}
+
+/** Gehört ein Checklistenpunkt zu dieser Prüfart? Ohne Zuordnung gehört er zu allen (IDA-369). */
+export function punktGilt(punkt: { pruefarten?: readonly string[] }, pruefartId: string): boolean {
+  return !punkt.pruefarten || punkt.pruefarten.length === 0 || punkt.pruefarten.includes(pruefartId);
 }

@@ -37,6 +37,8 @@ export interface CheckpunktDTO {
   hinweis: string;
   /** Nur beim Durchzählen einer Materialkiste: die Soll-Menge der Position. */
   soll?: number;
+  /** Zu welchen Prüfarten der Punkt gehört (IDA-369); leer heißt zu allen. */
+  pruefarten?: string[];
 }
 
 /** Eine Position der Inhaltsliste einer Materialkiste (IDA-335). */
@@ -89,13 +91,15 @@ export interface GeraetZeile {
   offeneMaengel: number;
   /** Davon beim Durchzählen als fehlend gemeldet. */
   fehlend: number;
+  /** Zuletzt als eingesetzt vermerkt, noch nicht zurück (IDA-369). */
+  imEinsatz: boolean;
 }
 
 export interface EintragDTO {
   id: string;
   geraetId: string;
   geraetName: string;
-  typ: "pruefung" | "erledigt" | "stunden" | "mangel" | "behoben";
+  typ: "pruefung" | "erledigt" | "stunden" | "mangel" | "behoben" | "einsatz" | "rueckkehr";
   titel: string;
   am: string;
   stunden: number | null;

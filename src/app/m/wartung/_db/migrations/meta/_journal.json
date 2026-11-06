@@ -50,6 +50,13 @@
       "when": 1793962302187,
       "tag": "0006_pruefarten",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793971768957,
+      "tag": "0007_anlass",
+      "breakpoints": true
     }
   ]
 }

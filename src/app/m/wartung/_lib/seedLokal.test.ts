@@ -36,5 +36,11 @@ describe("lokale Demodaten der Gerätewartung", () => {
     expect(new Set(g.map((x) => x.zustand))).toEqual(new Set(["ok", "mangel", "defekt"]));
     expect(g.some((x) => x.naechste?.stufe === "ueberfaellig")).toBe(true);
     expect(g.some((x) => x.naechste?.stufe === "bald")).toBe(true);
+    // IDA-369: der Laptop ist zurück, die Prüfung nach dem Einsatz steht aus, der Kurzcheck davor ist erledigt.
+    const laptop = g.find((x) => x.name === "Einsatz-Laptop 1")!;
+    expect(laptop.imEinsatz).toBe(false);
+    expect(laptop.staende.filter((f) => f.vorlage.anlass).map((f) => [f.vorlage.name, f.stufe])).toEqual([
+      ["Kurzcheck vor dem Einsatz", "ok"], ["Nach dem Einsatz", "ueberfaellig"],
+    ]);
   });
 });
