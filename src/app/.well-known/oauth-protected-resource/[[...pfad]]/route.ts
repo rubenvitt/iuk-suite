@@ -10,5 +10,5 @@ export async function GET(): Promise<Response> {
   const kopf = await headers();
   const issuer = process.env.POCKET_ID_ISSUER;
   if (!istMcpHost(kopf) || !issuer) return new Response("Not found", { status: 404 });
-  return Response.json(geschuetzteRessource(kopf, issuer), { headers: { "cache-control": "public, max-age=300" } });
+  return Response.json(geschuetzteRessource(kopf), { headers: { "cache-control": "public, max-age=300" } });
 }

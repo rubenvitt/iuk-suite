@@ -1,7 +1,8 @@
 /**
  * Der MCP-Server als OAuth-Ressource (RFC 9728, MCP-Autorisierung): wo er steht, wer seine Tokens ausstellt und
  * wie ein Client das erfährt. Ein Client ohne Token bekommt 401 mit `WWW-Authenticate` und dem Verweis auf die
- * Metadaten; dort steht Pocket ID als Autorisierungsserver.
+ * Metadaten; dort steht der MCP-Host selbst als Autorisierungsserver, der für Anmeldung und Token an Pocket ID
+ * verweist und nur die Registrierung selbst beantwortet (`vermittlung.ts`).
  */
 import { moduleForHost } from "@/core/registry";
 import { resolveHost } from "@/core/routing";
@@ -30,10 +31,10 @@ export function metadatenUrl(kopf: Headers): string {
   return `${herkunft(kopf)}/.well-known/oauth-protected-resource${MCP_PFAD}`;
 }
 
-export function geschuetzteRessource(kopf: Headers, issuer: string) {
+export function geschuetzteRessource(kopf: Headers) {
   return {
     resource: ressourceUrl(kopf),
-    authorization_servers: [issuer.replace(/\/$/, "")],
+    authorization_servers: [herkunft(kopf)],
     scopes_supported: [...MCP_SCOPES],
     bearer_methods_supported: ["header"],
     resource_name: "IUK-Suite",
