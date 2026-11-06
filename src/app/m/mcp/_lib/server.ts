@@ -5,6 +5,7 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import { MCP_MODULE } from "./module";
 import type { McpModul } from "./modul";
 import type { McpPerson } from "./token";
@@ -23,12 +24,25 @@ export function bauServer(person: McpPerson, module: readonly McpModul[] = MCP_M
   return server;
 }
 
+/**
+ * Ein Client mit einer neueren Protokollversion, als das SDK kennt (Claude nach einem Spec-Release), bekäme vom
+ * Transport 400 auf jede Anfrage. Zustandslos handelt `initialize` die Version ohnehin aus, und die Werkzeuge hängen
+ * an keiner Version: also eine unbekannte Version im Kopf durch die neueste bekannte ersetzen.
+ */
+export function mitBekannterVersion(req: Request): Request {
+  const version = req.headers.get("mcp-protocol-version");
+  if (version === null || SUPPORTED_PROTOCOL_VERSIONS.includes(version)) return req;
+  const kopf = new Headers(req.headers);
+  kopf.set("mcp-protocol-version", LATEST_PROTOCOL_VERSION);
+  return new Request(req, { headers: kopf });
+}
+
 export async function beantworte(req: Request, person: McpPerson, module?: readonly McpModul[]): Promise<Response> {
   const server = bauServer(person, module);
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   await server.connect(transport);
   try {
-    return await transport.handleRequest(req);
+    return await transport.handleRequest(mitBekannterVersion(req));
   } finally {
     await server.close().catch(() => undefined);
   }

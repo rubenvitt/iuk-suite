@@ -39,6 +39,18 @@ describe("Endpunkt /mcp", () => {
     expect(((await liste.json()) as { result: { tools: unknown[] } }).result.tools).toEqual([]);
   });
 
+  it("nimmt einen Client mit neuerer Protokollversion an, statt 400 zu antworten", async () => {
+    const neu = (koerper: unknown) => {
+      const r = anfrage(koerper, "gut");
+      r.headers.set("mcp-protocol-version", "2099-01-01");
+      return r;
+    };
+    const init = await POST(neu({ ...INIT, params: { ...INIT.params, protocolVersion: "2099-01-01" } }));
+    expect(init.status).toBe(200);
+    const liste = await POST(neu({ jsonrpc: "2.0", id: 2, method: "tools/list" }));
+    expect(liste.status).toBe(200);
+  });
+
   it("auf einem anderen Host gibt es den Endpunkt nicht", async () => {
     t.host = "wartung.localtest.me";
     expect((await POST(anfrage(INIT, "gut"))).status).toBe(404);
