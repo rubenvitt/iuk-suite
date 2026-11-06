@@ -98,6 +98,9 @@
 .vorlageRahmen { width: 100%; max-width: 720px; min-width: 0; }
 .vorlageSeite { position: relative; display: inline-block; max-width: 100%; user-select: none; box-shadow: 0 0 0 1px var(--iuk-linie); line-height: 0; }
 .vorlageSeite[data-ziehen="true"] { touch-action: none; cursor: crosshair; }
+/* Bleibt beim Scrollen über eine lange Seite unter dem Suite-Kopf stehen, damit „Feld aufziehen“ an jeder Stelle erreichbar ist.
+   69px ist die Kopfhöhe; `--iuk-kopf` (core/shell/shell.module.css) hängt nur an `.sider` und erreicht den Inhalt nicht. */
+.werkzeug { position: sticky; inset-block-start: 69px; z-index: 2; margin-bottom: 4px; padding-block: 8px; background: var(--gv-karte); }
 .vorlageSeite canvas { display: block; max-width: 100%; }
 .feldKasten { position: absolute; border: 2px solid var(--gv-ok-text); background: color-mix(in srgb, var(--gv-ok-flaeche) 55%, transparent); pointer-events: none; }
 .feldEntwurf { border-style: dashed; border-color: var(--gv-gelb-text); background: color-mix(in srgb, var(--gv-gelb-flaeche) 55%, transparent); }

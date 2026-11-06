@@ -153,6 +153,11 @@ test("Formularvorlage: Leitung füllt aus und gibt frei; Unterschrift am Telefon
   await klickeWennRuhig(page.getByTestId("felder-speichern"));
   await expect(page.getByText("Felder gespeichert.")).toBeVisible();
   await expect(page.getByRole("list", { name: "Felder der Vorlage" }).getByRole("button")).toHaveCount(4);
+  // Unten auf einer langen Seite bleibt „Feld aufziehen“ erreichbar.
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await page.mouse.move(box.x + 10, box.y + 10);
+  await page.mouse.wheel(0, 2000);
+  await expect(page.getByTestId("feld-aufziehen")).toBeInViewport();
 
   const gast = await (await browser.newContext({ viewport: { width: 390, height: 800 }, hasTouch: true })).newPage();
   const anlass = `Vertrag e2e ${Date.now() % 100_000}`;

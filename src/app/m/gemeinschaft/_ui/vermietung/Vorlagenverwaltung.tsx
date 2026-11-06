@@ -247,7 +247,7 @@ function Feldeditor({ art, felder: gespeichert }: { art: Dokumentart; felder: Ve
       {fehler ? <p className={s.neben} role="alert">{fehler}</p> : null}
       <div className={s.editor}>
         <div>
-          <div className={s.zeile} style={{ marginBottom: 12 }}>
+          <div className={`${s.zeile} ${s.werkzeug}`}>
             <Button aria-label="Vorige Seite" disabled={seite <= 0} onClick={() => setSeite((x) => x - 1)} icon={<Icons8Ikone name="chevron-left" groesse={16} />} />
             <span className={s.neben} data-testid="vorlage-seite">{seiten ? `Seite ${seite + 1} von ${seiten}` : "…"}</span>
             <Button aria-label="Nächste Seite" disabled={seite >= seiten - 1} onClick={() => setSeite((x) => x + 1)} icon={<Icons8Ikone name="chevron-right" groesse={16} />} />
