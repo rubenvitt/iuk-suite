@@ -73,6 +73,7 @@ export async function pruefeToken(kopf: string | null, p: TokenPruefer): Promise
   if (gemerkt && gemerkt.bis > jetzt) return { ok: true, person: gemerkt.person };
 
   let sub: string;
+  let ablauf = Number.POSITIVE_INFINITY;
   try {
     const { payload } = await jwtVerify(token, p.schluessel, {
       issuer: p.issuer,
@@ -82,6 +83,7 @@ export async function pruefeToken(kopf: string | null, p: TokenPruefer): Promise
     });
     if (typeof payload.sub !== "string" || payload.sub === "") return { ok: false, grund: "ungueltig" };
     sub = payload.sub;
+    if (typeof payload.exp === "number") ablauf = payload.exp * 1000;
   } catch {
     return { ok: false, grund: "ungueltig" };
   }
@@ -106,7 +108,8 @@ export async function pruefeToken(kopf: string | null, p: TokenPruefer): Promise
     for (const [k, v] of cache) if (v.bis <= jetzt) cache.delete(k);
     if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
   }
-  cache.set(schluessel, { person, bis: jetzt + PERSON_TTL_MS });
+  // Nie über den Ablauf des Tokens hinaus: ein Treffer im Merkzettel prüft die Signatur nicht noch einmal.
+  cache.set(schluessel, { person, bis: Math.min(jetzt + PERSON_TTL_MS, ablauf) });
   return { ok: true, person };
 }
 

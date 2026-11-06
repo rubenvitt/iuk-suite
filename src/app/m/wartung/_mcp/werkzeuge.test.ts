@@ -19,7 +19,7 @@ import { bauServer } from "@/app/m/mcp/_lib/server";
 import type { McpPerson } from "@/app/m/mcp/_lib/token";
 import { eq } from "drizzle-orm";
 import { geraet, mangel, verwalter } from "../_db/schema";
-import { geraetAnlegen } from "../_lib/schreiben";
+import { geraetAnlegen, inhaltSpeichern } from "../_lib/schreiben";
 import { merkePerson, verwalterHinzufuegen } from "../_lib/personen";
 import { START } from "../_lib/startbestand";
 import { testDb } from "../_lib/testDb";
@@ -131,5 +131,29 @@ describe("dieselben Grenzen wie in der App", () => {
     expect(text(await rufe("wartung_stunden_eintragen", { geraet_id: stromerzeuger, stunden: 90 }))).not.toContain('"ok": true');
     await rufe("wartung_mangel_melden", { geraet_id: stromerzeuger, text: "Seilzug hakt", einsatzbereit: true });
     expect(t.db.select().from(mangel).all().map((m) => [m.text, m.gemeldetVon])).toEqual([["Seilzug hakt", "Helfer A"]]);
+  });
+
+  it("eine Materialkiste: ein veralteter Stand der Inhaltsliste wird abgelehnt, beim Pflegen wie beim Durchzählen", async () => {
+    const kiste = geraetAnlegen(t.db, {
+      hersteller: "", typ: "", seriennr: "", hinweise: "", ortArt: "lager", ort: "Halle", fahrzeugId: null, stunden: null,
+      gruppeId: START.gruppe.technik, artId: START.art.kiste, name: "Kiste Beleuchtung",
+    }, 1);
+    inhaltSpeichern(t.db, kiste, [{ id: null, text: "Kabeltrommel", soll: 2, bemerkung: "" }]);
+    const { rufe } = await verbinde(VERWALTER);
+    const gelesen = json<{ inhaltStand: string; checkliste: { id: string }[] }>(await rufe("wartung_geraet", { geraet_id: kiste }));
+    // Inzwischen ändert jemand die Liste in der App.
+    inhaltSpeichern(t.db, kiste, [{ id: gelesen.checkliste[0].id, text: "Kabeltrommel", soll: 3, bemerkung: "" }]);
+    const pflege = await rufe("wartung_inhalt_speichern", {
+      geraet_id: kiste, stand: gelesen.inhaltStand, positionen: [{ text: "Strahler", soll: 1 }],
+    });
+    expect(pflege.isError).toBe(true);
+    const zaehlung = await rufe("wartung_pruefung_abschliessen", {
+      geraet_id: kiste, ergebnis: "ok", inhalt_stand: gelesen.inhaltStand, antworten: [{ punkt_id: gelesen.checkliste[0].id, ok: true }],
+    });
+    expect(text(zaehlung)).toContain("Die Inhaltsliste hat sich geändert.");
+    const neu = json<{ inhaltStand: string; checkliste: { id: string }[] }>(await rufe("wartung_geraet", { geraet_id: kiste }));
+    expect((await rufe("wartung_pruefung_abschliessen", {
+      geraet_id: kiste, ergebnis: "ok", inhalt_stand: neu.inhaltStand, antworten: [{ punkt_id: neu.checkliste[0].id, ok: true }],
+    })).isError).toBeFalsy();
   });
 });

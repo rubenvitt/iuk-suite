@@ -122,6 +122,7 @@ export const wartungMcp: McpModul = {
           geraet: eigen,
           checkliste: ladeAmGeraet(getDb(), geraet_id, tag)?.checkliste ?? [],
           inhalt: eigen.kiste ? ladeInhalt(getDb(), geraet_id) : undefined,
+          inhaltStand: eigen.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
           offeneMaengel: ladeMaengel(getDb(), { gruppen: null, geraetId: geraet_id, offen: true }),
           verlauf: ladeVerlauf(getDb(), { gruppen: null, geraetId: geraet_id, grenze: 50 }),
           unterlagen: ladeUnterlagen(getDb(), geraet_id).map((u) => u.titel),
@@ -130,7 +131,10 @@ export const wartungMcp: McpModul = {
       // Wie am QR-Code: aktive Geräte, ohne Verlauf.
       const am = ladeAmGeraet(getDb(), geraet_id, tag);
       if (!am) return antwortFehler("Dieses Gerät gibt es nicht (mehr).");
-      return antwortJson({ geraet: am.g, checkliste: am.checkliste, offeneMaengel: am.offen, unterlagen: am.unterlagen.map((u) => u.titel) });
+      return antwortJson({
+        geraet: am.g, checkliste: am.checkliste, offeneMaengel: am.offen, unterlagen: am.unterlagen.map((u) => u.titel),
+        inhaltStand: am.g.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
+      });
     }));
 
     server.registerTool("wartung_stunden_eintragen", {
@@ -154,12 +158,17 @@ export const wartungMcp: McpModul = {
         ergebnis: z.enum(["ok", "mangel", "defekt"]),
         stunden: stunden.nullable().optional().describe("Abgelesener Stand; Pflicht bei Geräten mit Betriebsstunden"),
         notiz: z.string().max(NOTIZ_MAX).optional(),
+        inhalt_stand: z.string().optional().describe("Nur Materialkiste, Pflicht: inhaltStand aus wartung_geraet"),
       },
       annotations: SCHREIBEN,
     }, (a) => mit("zugang", async (z) => {
-      // Bei einer Materialkiste prüft der Server, dass gegen die aktuelle Liste gezählt wurde; Menge, Wortlaut und
-      // Bemerkung kommen deshalb aus dem Stand, den `wartung_geraet` gerade gezeigt hat.
-      const punkte = new Map((ladeAmGeraet(getDb(), a.geraet_id, heute())?.checkliste ?? []).map((p) => [p.id, p]));
+      // Bei einer Materialkiste zählt nur, was gegen die gelesene Liste gezählt wurde: Hat sie sich seitdem geändert,
+      // gilt die Zählung nicht (wie am Telefon). Menge, Wortlaut und Bemerkung kommen dann aus genau diesem Stand.
+      const am = ladeAmGeraet(getDb(), a.geraet_id, heute());
+      if (am?.g.kiste && a.inhalt_stand !== inhaltStand(ladeInhalt(getDb(), a.geraet_id))) {
+        return antwortFehler("Die Inhaltsliste hat sich geändert. Bitte mit wartung_geraet neu lesen und neu durchzählen.");
+      }
+      const punkte = new Map((am?.checkliste ?? []).map((p) => [p.id, p]));
       const antworten = a.antworten.map((x) => {
         const p = punkte.get(x.punkt_id);
         return {
@@ -288,6 +297,7 @@ export const wartungMcp: McpModul = {
       description: "Ersetzt die ganze Inhaltsliste einer Materialkiste deiner Gruppe, in dieser Reihenfolge. Bestehende Positionen mit ihrer id übergeben, neue ohne.",
       inputSchema: {
         geraet_id: geraetId,
+        stand: z.string().describe("inhaltStand aus wartung_geraet; hat sich die Liste seitdem geändert, wird abgelehnt"),
         positionen: z.array(z.object({
           id: idSchema.nullable().optional(),
           text: z.string().max(PUNKT_MAX),
@@ -296,10 +306,10 @@ export const wartungMcp: McpModul = {
         })).max(40),
       },
       annotations: SCHREIBEN,
-    }, ({ geraet_id, positionen }) => mit("verwalter", async (z) => ergebnis(await inhaltSpeichernVorgang(
+    }, ({ geraet_id, stand, positionen }) => mit("verwalter", async (z) => ergebnis(await inhaltSpeichernVorgang(
       z, geraet_id,
       positionen.map((p) => ({ id: p.id ?? null, text: p.text, soll: p.soll, bemerkung: p.bemerkung ?? "" })),
-      inhaltStand(ladeInhalt(getDb(), geraet_id)),
+      stand,
     ))));
 
     server.registerTool("wartung_art_speichern", {

@@ -75,4 +75,11 @@ describe("Token des MCP-Servers", () => {
     await pruefeToken(kopf, { ...p, jetzt: () => JETZT + 61_000 });
     expect(p.userinfo).toHaveBeenCalledTimes(2);
   });
+
+  it("ein gemerktes Token gilt nicht über seinen Ablauf hinaus", async () => {
+    const p = pruefer();
+    const kopf = `Bearer ${await token({ exp: Math.floor(JETZT / 1000) + 10 })}`;
+    expect((await pruefeToken(kopf, p)).ok).toBe(true);
+    expect(await pruefeToken(kopf, { ...p, jetzt: () => JETZT + 20_000 })).toEqual({ ok: false, grund: "ungueltig" });
+  });
 });
