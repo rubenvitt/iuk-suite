@@ -5,7 +5,8 @@ import { ladeArten, ladeGeraet, ladeInhalt } from "./daten";
 import { artEingabe, inhaltEingabe } from "./eingabe";
 import { wartungFaelligkeiten } from "./faelligkeiten";
 import {
-  Abgelehnt, artSpeichern, geraetAnlegen, inhaltSpeichern, inhaltStand, neueId, pruefplanSpeichern, pruefungAbschliessen, ungepushteAusfaelle,
+  Abgelehnt, artSpeichern, geraetAktiv, geraetAnlegen, inhaltSpeichern, inhaltStand, neueId, pruefartLoeschen, pruefartSpeichern,
+  pruefplanSpeichern, pruefungAbschliessen, ungepushteAusfaelle,
 } from "./schreiben";
 import { START } from "./startbestand";
 import { ladeAmGeraet } from "./telefon";
@@ -217,6 +218,30 @@ describe("Materialkisten (IDA-335)", () => {
     const { db, id } = mitKiste();
     expect(() => pruefplanSpeichern(db, id, [{ pruefartId: START.pruefart.quartal, an: false, eigenes: null }])).toThrow(/selbst durchgezählt/);
     pruefplanSpeichern(db, id, [{ pruefartId: START.pruefart.quartal, an: true, eigenes: { monate: 6, stunden: null } }]);
+  });
+
+  it("eine Materialkiste hat auch über den Katalog oder am Gerät kein Intervall nach Betriebsstunden", () => {
+    const { db, id } = mitKiste();
+    expect(() => pruefplanSpeichern(db, id, [{ pruefartId: START.pruefart.quartal, an: true, eigenes: { monate: null, stunden: 100 } }]))
+      .toThrow(/keine Betriebsstunden/);
+    expect(() => pruefartSpeichern(db, START.pruefart.quartal, { name: "Quartalsprüfung", wer: "intern", monate: 3, stunden: 50 }))
+      .toThrow(/keine Betriebsstunden/);
+  });
+
+  it("Zurückholen prüft den Prüfplan; ausgemustert lässt er sich vorher richten", () => {
+    const { db, id } = mitKiste();
+    const zaehlen = pruefartSpeichern(db, null, { name: "Monatlich zählen", wer: "intern", monate: 1, stunden: null });
+    pruefplanSpeichern(db, id, [
+      { pruefartId: START.pruefart.quartal, an: false, eigenes: null },
+      { pruefartId: zaehlen, an: true, eigenes: null },
+    ]);
+    geraetAktiv(db, id, false, K.jetzt);
+    pruefartLoeschen(db, zaehlen);
+    expect(() => geraetAktiv(db, id, true, K.jetzt)).toThrow(/selbst durchgezählt/);
+    expect(ladeGeraet(db, id, HEUTE)?.aktiv).toBe(false);
+    pruefplanSpeichern(db, id, []);
+    geraetAktiv(db, id, true, K.jetzt);
+    expect(ladeGeraet(db, id, HEUTE)?.aktiv).toBe(true);
   });
 
   it("eine inzwischen von jemand anderem geänderte Inhaltsliste wird nicht überschrieben", () => {

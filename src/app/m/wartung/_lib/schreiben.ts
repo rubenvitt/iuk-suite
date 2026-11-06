@@ -69,17 +69,20 @@ export function gruppeLoeschen(db: WartungDb, id: string): void {
 /**
  * Was nach jeder Änderung an Katalog, Art oder Prüfplan stimmen muss — geprüft in derselben Transaktion, ein
  * Verstoß rollt alles zurück. Eine Art hat höchstens eine Prüfart, die man selbst erledigt; eine Materialkiste
- * braucht eine (sie wird durchgezählt); sonst braucht eine selbst erledigte Prüfung eine Checkliste. Am Gerät gilt
- * dasselbe für das, was nach Abwahl und Zusatz übrig bleibt.
+ * braucht eine (sie wird durchgezählt) und hat keine Betriebsstunden, also auch kein Intervall danach; sonst braucht
+ * eine selbst erledigte Prüfung eine Checkliste. Am Gerät gilt dasselbe für das, was nach Abwahl und Zusatz übrig
+ * bleibt — an jedem aktiven Gerät, darum prüft auch das Zurückholen eines ausgemusterten.
  */
 function pruefeRegeln(tx: WartungSchreiber): void {
   const katalog = ladeKatalog(tx);
   const wer = new Map(katalog.map((p) => [p.id, p.wer]));
+  const stundenVon = new Map(katalog.map((p) => [p.id, p.stunden]));
   const arten = ladeArten(tx);
   for (const a of arten) {
     const selbst = a.pruefarten.filter((id) => wer.get(id) === "intern").length;
     if (selbst > 1) throw new Abgelehnt(`${a.name}: nur eine Prüfart wird selbst am Gerät erledigt.`, "pruefarten");
     if (a.kiste && selbst === 0) throw new Abgelehnt(`${a.name}: eine Materialkiste braucht eine Prüfart, die selbst durchgezählt wird.`, "pruefarten");
+    if (a.kiste && a.pruefarten.some((id) => stundenVon.get(id) !== null)) throw new Abgelehnt(`${a.name}: eine Materialkiste hat keine Betriebsstunden.`, "pruefarten");
     if (!a.kiste && selbst === 1 && a.checkliste.length === 0) throw new Abgelehnt(`${a.name}: die Prüfung am Gerät braucht mindestens einen Punkt.`, "checkliste");
   }
   const artVon = new Map(arten.map((a) => [a.id, a]));
@@ -88,9 +91,11 @@ function pruefeRegeln(tx: WartungSchreiber): void {
   const ab = abweichende.length ? tx.select().from(geraetPruefart).where(inArray(geraetPruefart.geraetId, abweichende.map((g) => g.id))).all() : [];
   for (const g of abweichende) {
     const a = artVon.get(g.artId)!;
-    const selbst = geltende(pruefplan(katalog, a.pruefarten, ab.filter((x) => x.geraetId === g.id))).filter((v) => v.wer === "intern").length;
+    const gilt = geltende(pruefplan(katalog, a.pruefarten, ab.filter((x) => x.geraetId === g.id)));
+    const selbst = gilt.filter((v) => v.wer === "intern").length;
     if (selbst > 1) throw new Abgelehnt(`${g.name}: nur eine Prüfart wird selbst am Gerät erledigt.`);
     if (a.kiste && selbst === 0) throw new Abgelehnt(`${g.name}: eine Materialkiste braucht eine Prüfart, die selbst durchgezählt wird.`);
+    if (a.kiste && gilt.some((v) => v.stunden !== null)) throw new Abgelehnt(`${g.name}: eine Materialkiste hat keine Betriebsstunden.`);
     if (!a.kiste && selbst === 1 && a.checkliste.length === 0) {
       throw new Abgelehnt(`${g.name}: für die Prüfung am Gerät hat die Geräteart ${a.name} keine Checkliste.`);
     }
@@ -141,7 +146,9 @@ export function pruefartVerschieben(db: WartungDb, id: string, richtung: -1 | 1)
  */
 export function pruefplanSpeichern(db: WartungDb, geraetId: string, liste: PruefplanEingabe): void {
   db.transaction((tx) => {
-    const g = aktivesGeraet(tx, geraetId);
+    // Auch ausgemustert: ein Plan, der nicht mehr passt, lässt sich vor dem Zurückholen richten.
+    const g = tx.select().from(geraet).where(eq(geraet.id, geraetId)).get();
+    if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
     const bekannt = new Set(ladeKatalog(tx).map((p) => p.id));
     const standard = new Set(tx.select({ id: artPruefart.pruefartId }).from(artPruefart).where(eq(artPruefart.artId, g.artId)).all().map((z) => z.id));
     tx.delete(geraetPruefart).where(eq(geraetPruefart.geraetId, geraetId)).run();
@@ -218,7 +225,11 @@ export function geraetAendern(db: WartungDb, id: string, e: GeraetEingabe, jetzt
 }
 
 export function geraetAktiv(db: WartungDb, id: string, aktiv: boolean, jetzt: number): void {
-  db.update(geraet).set({ aktiv, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
+  db.transaction((tx) => {
+    tx.update(geraet).set({ aktiv, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
+    // Während es ausgemustert war, können sich Katalog und Art geändert haben: sein Prüfplan muss wieder passen.
+    if (aktiv) pruefeRegeln(tx);
+  });
 }
 
 /** Fingerabdruck einer Inhaltsliste, wie sie angezeigt wurde: wer speichert, schickt ihn mit (IDA-335). */

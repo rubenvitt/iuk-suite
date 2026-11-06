@@ -101,7 +101,7 @@ export function GeraetAkte({
         <div className={s.spalte}>
           <Card
             title="Prüfungen"
-            extra={g.aktiv && <Button icon={<Icons8Ikone name="sliders" groesse={16} />} onClick={() => setPlanOffen(true)}>Anpassen</Button>}
+            extra={<Button icon={<Icons8Ikone name="sliders" groesse={16} />} onClick={() => setPlanOffen(true)}>Anpassen</Button>}
           >
             {g.staende.length === 0 && <p className={s.neben} style={{ margin: 0 }}>Keine Prüfungen.</p>}
             <ul className={s.zeilen} aria-label="Prüfungen">
