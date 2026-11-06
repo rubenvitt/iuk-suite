@@ -31,6 +31,10 @@
     "kind": "excluded",
     "reason": "OAuth-Registrierung: antwortet immer mit dem festen Client und speichert nichts."
   },
+  "src/app/m/mcp/register/route.ts#OPTIONS": {
+    "kind": "excluded",
+    "reason": "CORS-Preflight der Registrierung, keine Daten."
+  },
   "src/app/m/mcp/token/route.ts#POST": {
     "kind": "excluded",
     "reason": "OAuth-Vermittlung: reicht den Token-Tausch an Pocket ID durch, keine Fachdaten."

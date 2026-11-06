@@ -18,3 +18,16 @@ export async function POST(req: Request): Promise<Response> {
   if (!r.ok) return Response.json({ error: r.fehler, error_description: r.beschreibung }, { status: 400, headers: KOPF });
   return Response.json(r.antwort, { status: 201, headers: KOPF });
 }
+
+/** Preflight für Clients im Browser: ein POST mit JSON fragt vorher an. */
+export function OPTIONS(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "content-type",
+      "access-control-max-age": "86400",
+    },
+  });
+}
