@@ -193,7 +193,11 @@ describe("dieselben Grenzen wie in der App", () => {
 
     const { rufe: nutzer } = await verbinde(NUTZER);
     expect((await nutzer("wartung_einsatz_vermerken", { geraet_id: stromerzeuger, anlass: "einsatz" })).isError).toBeFalsy();
-    const g = json<{ pruefungen: { pruefartId: string; faellig: boolean; punkte: string[] }[] }>(await nutzer("wartung_geraet", { geraet_id: stromerzeuger }));
+    const g = json<{ checkliste: { id: string }[]; alle_punkte: { id: string }[]; pruefungen: { pruefartId: string; faellig: boolean; punkte: string[] }[] }>(
+      await nutzer("wartung_geraet", { geraet_id: stromerzeuger }));
+    // Ohne pruefart_id gilt die fällige Prüfung: checkliste sind genau ihre Punkte.
+    expect(g.checkliste.map((p) => p.id)).toEqual([erster.id]);
+    expect(g.alle_punkte).toHaveLength(a.checkliste.length);
     const kurz = g.pruefungen.find((p) => p.pruefartId === neu.id)!;
     expect(kurz).toMatchObject({ faellig: true, punkte: [erster.id] });
     expect(g.pruefungen.find((p) => p.pruefartId === START.pruefart.quartal)!.punkte).toHaveLength(a.checkliste.length);
@@ -203,5 +207,10 @@ describe("dieselben Grenzen wie in der App", () => {
     expect(t.db.select({ p: eintrag.pruefartId }).from(eintrag).where(eq(eintrag.typ, "pruefung")).all()).toEqual([{ p: neu.id }]);
     const danach = json<{ pruefungen: { pruefartId: string; faellig: boolean }[] }>(await nutzer("wartung_geraet", { geraet_id: stromerzeuger }));
     expect(danach.pruefungen.find((p) => p.pruefartId === neu.id)!.faellig).toBe(false);
+
+    // Punkte nur des Quartals gälten nach dessen Löschen still für alle: abgelehnt.
+    const weg = await rufe("wartung_pruefart_loeschen", { pruefart_id: START.pruefart.quartal });
+    expect(weg.isError).toBe(true);
+    expect(JSON.stringify(weg.content)).toMatch(/Erst die Punkte dieser Prüfart/);
   });
 });

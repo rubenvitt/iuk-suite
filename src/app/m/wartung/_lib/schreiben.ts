@@ -146,6 +146,16 @@ export function pruefartSpeichern(db: WartungDb, id: string | null, e: PruefartE
 /** Entfernt die Prüfart aus Katalog, Arten und Geräten; der Verlauf behält ihren Namen. */
 export function pruefartLoeschen(db: WartungDb, id: string): void {
   db.transaction((tx) => {
+    // Ein Punkt, der nur zu dieser Prüfart gehört, gälte nach dem Löschen still für alle (IDA-369).
+    const nurHier = tx.select({ art: art.name }).from(checkpunktPruefart)
+      .innerJoin(checkpunkt, eq(checkpunkt.id, checkpunktPruefart.checkpunktId))
+      .innerJoin(art, eq(art.id, checkpunkt.artId))
+      .where(and(eq(checkpunktPruefart.pruefartId, id), sql`NOT EXISTS (SELECT 1 FROM checkpunkt_pruefart AS w
+        WHERE w.checkpunkt_id = ${checkpunktPruefart.checkpunktId} AND w.pruefart_id <> ${id})`)).all();
+    if (nurHier.length) {
+      const arten = [...new Set(nurHier.map((z) => z.art))].sort().map((n) => `„${n}“`).join(", ");
+      throw new Abgelehnt(`Erst die Punkte dieser Prüfart in der Checkliste von ${arten} entfernen oder anderen Prüfarten zuordnen.`);
+    }
     tx.delete(pruefart).where(eq(pruefart.id, id)).run();
     pruefeRegeln(tx);
   });

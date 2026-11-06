@@ -134,7 +134,7 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_geraet", {
       title: "Gerät ansehen",
-      description: "Ein Gerät mit Checkliste (bei einer Materialkiste die Inhaltsliste), offenen Mängeln und Unterlagen. Hat es mehrere Prüfungen am Gerät (nach Frist, vor der Verwendung, nach der Benutzung), steht unter pruefungen je Prüfart, welche Punkte dazugehören; checkliste sind alle Punkte. Verwalter seiner Gruppe bekommen zusätzlich den Verlauf.",
+      description: "Ein Gerät mit Checkliste (bei einer Materialkiste die Inhaltsliste), offenen Mängeln und Unterlagen. Hat es mehrere Prüfungen am Gerät (nach Frist, vor der Verwendung, nach der Benutzung), steht unter pruefungen je Prüfart, welche Punkte dazugehören; checkliste sind die Punkte der Prüfung, die wartung_pruefung_abschliessen ohne pruefart_id abschließt, alle_punkte die ganze Checkliste. Verwalter seiner Gruppe bekommen zusätzlich den Verlauf.",
       inputSchema: { geraet_id: geraetId },
       annotations: LESEN,
     }, ({ geraet_id }) => mit("zugang", ({ rechte }) => {
@@ -144,7 +144,7 @@ export const wartungMcp: McpModul = {
         const am = ladeAmGeraet(getDb(), geraet_id, tag);
         return antwortJson({
           geraet: eigen,
-          checkliste: allePunkte(am),
+          checkliste: am?.checkliste ?? [], alle_punkte: allePunkte(am),
           pruefungen: pruefungenAmGeraet(am),
           inhalt: eigen.kiste ? ladeInhalt(getDb(), geraet_id) : undefined,
           inhaltStand: eigen.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
@@ -157,7 +157,7 @@ export const wartungMcp: McpModul = {
       const am = ladeAmGeraet(getDb(), geraet_id, tag);
       if (!am) return antwortFehler("Dieses Gerät gibt es nicht (mehr).");
       return antwortJson({
-        geraet: am.g, checkliste: allePunkte(am), pruefungen: pruefungenAmGeraet(am), offeneMaengel: am.offen, unterlagen: am.unterlagen.map((u) => u.titel),
+        geraet: am.g, checkliste: am.checkliste, alle_punkte: allePunkte(am), pruefungen: pruefungenAmGeraet(am), offeneMaengel: am.offen, unterlagen: am.unterlagen.map((u) => u.titel),
         inhaltStand: am.g.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
       });
     }));

@@ -120,7 +120,7 @@ export function PruefartenVerwaltung({ pruefarten, artNamen }: { pruefarten: Pru
             <Form.Item label="Fällig" htmlFor="gw-pa-wann" {...fehler("anlass")}>
               <Select id="gw-pa-wann" value={e.anlass ?? "frist"} options={WANN_WAHL}
                 onChange={(v: Anlass | "frist") => {
-          if (v === "frist") setze({ anlass: null, monate: e.monate ?? 12, wer: werVorher });
+          if (v === "frist") setze({ anlass: null, monate: e.monate ?? (e.stunden ? null : 12), wer: werVorher });
           else { if (!e.anlass) setWerVorher(e.wer); setze({ anlass: v, wer: "intern" }); }
         }} />
             </Form.Item>
