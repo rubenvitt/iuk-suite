@@ -36,7 +36,11 @@ describe("Migration 0007: Prüfarten auf Anlass", () => {
     roh.prepare(`INSERT INTO geraet_pruefart (geraet_id, pruefart_id, an, monate, stunden) VALUES ('g-it', ?, 1, 24, NULL)`).run(START.pruefart.dguv);
     roh.prepare(`INSERT INTO eintrag (id, geraet_id, typ, pruefart_id, titel, am, angelegt_am) VALUES ('e1', 'g-it', 'erledigt', ?, 'DGUV', '2026-01-02', ?)`)
       .run(START.pruefart.dguv, jetzt);
+    const antworten = JSON.stringify([{ text: "Sichtprüfung", ok: true }]);
+    roh.prepare(`INSERT INTO eintrag (id, geraet_id, typ, pruefart_id, titel, am, stunden, wer, notiz, ergebnis, antworten, maengel, angelegt_am)
+      VALUES ('e0', 'g-it', 'pruefung', ?, 'Quartal', '2026-02-03', 12, 'Gerätewart', 'alles gut', 'mangel', ?, 1, ?)`).run(START.pruefart.quartal, antworten, jetzt);
     const vorher = {
+      eintraege: roh.prepare("SELECT * FROM eintrag ORDER BY id").all(),
       arten: roh.prepare("SELECT * FROM art_pruefart ORDER BY art_id, pruefart_id").all(),
       katalog: roh.prepare("SELECT id, name, wer, monate, stunden, position FROM pruefart ORDER BY id").all(),
     };
@@ -50,7 +54,7 @@ describe("Migration 0007: Prüfarten auf Anlass", () => {
     expect(roh.prepare("SELECT geraet_id, pruefart_id, monate FROM geraet_pruefart").all()).toEqual([
       { geraet_id: "g-it", pruefart_id: START.pruefart.dguv, monate: 24 },
     ]);
-    expect(roh.prepare("SELECT id, pruefart_id FROM eintrag").all()).toEqual([{ id: "e1", pruefart_id: START.pruefart.dguv }]);
+    expect(roh.prepare("SELECT * FROM eintrag ORDER BY id").all()).toEqual(vorher.eintraege);
     expect(roh.prepare("SELECT name FROM sqlite_master WHERE name LIKE '\\_\\_%' ESCAPE '\\' AND name <> '__drizzle_migrations'").all()).toEqual([]);
     expect(roh.pragma("foreign_key_check")).toEqual([]);
     expect(roh.prepare("SELECT count(*) AS n FROM audit_outbox").get()).toEqual({ n: 0 });
@@ -58,7 +62,7 @@ describe("Migration 0007: Prüfarten auf Anlass", () => {
     // Die Fremdschlüssel zeigen weiter auf die neue Tabelle: Löschen räumt die Kinder ab.
     roh.prepare("DELETE FROM pruefart WHERE id = ?").run(START.pruefart.dguv);
     expect(roh.prepare("SELECT count(*) AS n FROM geraet_pruefart").get()).toEqual({ n: 0 });
-    expect(roh.prepare("SELECT pruefart_id FROM eintrag").get()).toEqual({ pruefart_id: null });
+    expect(roh.prepare("SELECT pruefart_id FROM eintrag WHERE id = 'e1'").get()).toEqual({ pruefart_id: null });
     expect(roh.prepare("SELECT count(*) AS n FROM audit_outbox WHERE object_type = 'pruefart'").get()).toEqual({ n: 1 });
 
     // Ein Anlass hat kein Intervall und wird selbst erledigt.
