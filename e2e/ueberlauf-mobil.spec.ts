@@ -26,7 +26,8 @@ const VIELE_GRUPPEN = [
   "da-einsatz", "da-ausbildung", "da-verwaltung",
 ].join(",");
 
-const MIT_KOPFZEILE = MODULES.filter((m) => m.shell === "full" || m.shell === "minimal").map((m) => m.key);
+// `mcp` hat keine Seiten, nur den Endpunkt für KI-Assistenten (IDA-367).
+const MIT_KOPFZEILE = MODULES.filter((m) => (m.shell === "full" || m.shell === "minimal") && m.key !== "mcp").map((m) => m.key);
 
 async function ueberlauf(page: Page) {
   return page.evaluate(() => {
