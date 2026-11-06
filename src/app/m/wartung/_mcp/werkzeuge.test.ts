@@ -80,8 +80,41 @@ describe("Gerätewartung im MCP-Server: Werkzeuge je Stufe", () => {
     expect(v).toContain("wartung_geraet_anlegen");
     expect(v.filter((n) => /gruppe_|verwalter_|personen_/.test(n))).toEqual([]);
     const a = (await verbinde(ADMIN)).namen;
-    expect(a).toEqual(expect.arrayContaining(["wartung_gruppe_loeschen", "wartung_verwalter_zuordnen", ...v]));
+    expect(a).toEqual(expect.arrayContaining(["wartung_gruppe_loeschen", ...v]));
     expect(a.every((n) => n.startsWith("wartung_"))).toBe(true);
+  });
+
+  it("keine Personen und keine Rechtevergabe (Grundregel des MCP-Servers)", async () => {
+    expect((await verbinde(ADMIN)).namen.filter((n) => /verwalter|person/.test(n))).toEqual([]);
+  });
+});
+
+describe("keine personenbezogenen Daten in den Antworten", () => {
+  it("weder Melder, Prüfer, Beheber noch Verwalter tauchen auf", async () => {
+    const helfer = await verbinde(NUTZER);
+    const am = json<{ checkliste: { id: string }[] }>(await helfer.rufe("wartung_geraet", { geraet_id: stromerzeuger }));
+    await helfer.rufe("wartung_pruefung_abschliessen", {
+      geraet_id: stromerzeuger, ergebnis: "ok", stunden: 120, antworten: am.checkliste.map((p) => ({ punkt_id: p.id, ok: true })),
+    });
+    await helfer.rufe("wartung_mangel_melden", { geraet_id: stromerzeuger, text: "Kabel brüchig", einsatzbereit: true });
+    const { rufe } = await verbinde(VERWALTER);
+    const mangelId = json<{ id: string }[]>(await rufe("wartung_maengel"))[0].id;
+    await rufe("wartung_mangel_beheben", { mangel_id: mangelId });
+    const antworten = [
+      await rufe("wartung_geraet", { geraet_id: stromerzeuger }),
+      await rufe("wartung_maengel"),
+      await rufe("wartung_maengel", { behobene: true }),
+      await rufe("wartung_pruefungen"),
+      await rufe("wartung_gruppen"),
+      await helfer.rufe("wartung_geraet", { geraet_id: stromerzeuger }),
+      await helfer.rufe("wartung_geraete"),
+    ].map(text).join("\n");
+    expect(antworten).toContain("Kabel brüchig");
+    for (const verboten of ["Helfer A", "Verwalter Technik", "sub-helfer", "sub-technik", "gemeldetVon", "behobenVon", "verwalter"]) {
+      expect(antworten, verboten).not.toContain(verboten);
+    }
+    // In der App bleibt sichtbar, wer gemeldet hat.
+    expect(t.db.select().from(mangel).all().map((m) => m.gemeldetVon)).toEqual(["Helfer A"]);
   });
 });
 

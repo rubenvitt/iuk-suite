@@ -10,8 +10,8 @@ import type { McpModul } from "./modul";
 import type { McpPerson } from "./token";
 
 export const MCP_ANWEISUNGEN =
-  "Werkzeuge der IUK-Suite (DRK). Du handelst im Namen der angemeldeten Person und kannst genau das, was sie in der " +
-  "App darf. Werkzeuge heißen nach ihrem Modul, z. B. wartung_… für die Gerätewartung. Vor einem schreibenden " +
+  "Werkzeuge der IUK-Suite (DRK). Du handelst im Namen der angemeldeten Person und kannst nie mehr, als sie in der " +
+  "App darf. Personenbezogene Daten und die Vergabe von Rechten gibt es hier nicht. Werkzeuge heißen nach ihrem Modul, z. B. wartung_… für die Gerätewartung. Vor einem schreibenden " +
   "Werkzeug die nötigen Kennungen mit den lesenden holen.";
 
 export function bauServer(person: McpPerson, module: readonly McpModul[] = MCP_MODULE): McpServer {

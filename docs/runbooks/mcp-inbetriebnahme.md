@@ -70,11 +70,17 @@ curl -si -X POST https://mcp.iuk-ue.de/mcp | head -5                       # 401
 2. Jedes Werkzeug prüft beim Aufruf mit dem Riegel des Moduls, mit der Person aus `alsViewer(person)`. Braucht
    der Riegel `headers()`/`auth()`, wird sein Kern herausgelöst (Vorbild `aktionFuer` neben `requireAktion`).
 3. Geschrieben wird über dieselben Funktionen wie die Server Actions — keine zweite Fassung der Prüfungen.
-4. Eine Zeile in `MCP_MODULE` (`m/mcp/_lib/module.ts`), ein Test nach dem Vorbild
-   `wartung/_mcp/werkzeuge.test.ts` (Werkzeuge je Stufe, fremde Gruppe abgelehnt, entzogenes Recht).
+4. **Keine personenbezogenen Daten, keine Rechtevergabe** (Grundregel, Ruben 2026-11-06): keine Werkzeuge für
+   Personensuche oder das Zuordnen von Rechten, und Ausgaben nennen nur erlaubte Felder (Vorbild
+   `eintragOhnePerson`/`mangelOhnePerson` in `wartung/_mcp/werkzeuge.ts`) — also nicht, wer geprüft, gemeldet oder
+   behoben hat. Wer schreibt, steht weiter im Audit-Log und in der App.
+5. Eine Zeile in `MCP_MODULE` (`m/mcp/_lib/module.ts`), ein Test nach dem Vorbild
+   `wartung/_mcp/werkzeuge.test.ts` (Werkzeuge je Stufe, fremde Gruppe abgelehnt, entzogenes Recht, keine Namen in
+   den Antworten).
 
 ## 6. Was bewusst fehlt
 
+- Personen und Rechte: Verwalter zuordnen, Personen suchen, Namen von Prüfern, Meldern und Verwaltern.
 - Fotos und Etiketten der Gerätewartung. Unterlagen gehen nur **dazu** (`wartung_unterlage_hochladen`): von einer
   öffentlichen Adresse, die die Suite selbst lädt (`wartung/_lib/abruf.ts`, keine Adressen im eigenen Netz), oder
   als Base64. Löschen und Sortieren bleibt in der App.
