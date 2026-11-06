@@ -7,19 +7,25 @@ das, was er in der App darf: jedes Werkzeug läuft durch dieselben Riegel und Sc
 
 ## 1. Wie die Anmeldung läuft
 
-Die Suite ist **nur Resource Server** (MCP-Autorisierung, RFC 9728). Autorisierungsserver ist Pocket ID:
+Die Suite ist Resource Server (MCP-Autorisierung, RFC 9728) und **vermittelt** die Anmeldung an Pocket ID
+(`m/mcp/_lib/vermittlung.ts`). Tokens stellt weiter nur Pocket ID aus:
 
 1. Der Client ruft `/mcp` ohne Token und bekommt `401` mit
    `WWW-Authenticate: Bearer resource_metadata="https://<host>/.well-known/oauth-protected-resource/mcp"`.
-2. Dort steht `authorization_servers: [POCKET_ID_ISSUER]`. Der Client meldet die Person bei Pocket ID an
-   (Authorization Code mit PKCE, Scopes `openid profile email groups`).
-3. Mit dem Zugriffstoken prüft der Server Signatur (JWKS von Pocket ID), Aussteller, Ablauf und Empfänger
-   (`aud` muss ein Client aus `MCP_CLIENT_ID` sein). Gruppen und Name holt er vom Userinfo-Endpunkt und merkt
+2. Dort steht der MCP-Host selbst als Autorisierungsserver (`/.well-known/oauth-authorization-server`). Pocket ID
+   kann keine dynamische Client-Registrierung, und Client-ID-Metadaten (CIMD) nur ohne Schlüssel — ChatGPT
+   kommt mit Schlüssel und wird abgewiesen (Pocket ID 2.19.2, Stand 2026-11-06). Deshalb registriert sich jeder
+   Client an `/register` und bekommt dort den festen öffentlichen Client „Suite MCP“ (erster Eintrag in
+   `MCP_CLIENT_ID`). So verbinden sich Claude, ChatGPT und andere ohne eingetragene Client-ID.
+3. `/authorize` schickt die Person zu Pocket ID, mit dem eigenen Rückweg `/callback` und der PKCE-Challenge des
+   Clients; `/callback` gibt den Code an den Rückweg des Clients weiter, `/token` reicht an Pocket ID durch.
+   Angenommen werden nur die Rückwege aus `ERLAUBTE_RUECKWEGE` (Claude, ChatGPT, `localhost`).
+4. Mit dem Zugriffstoken prüft der Server Signatur (JWKS von Pocket ID), Aussteller, Ablauf und Empfänger
+   (`aud` muss ein Eintrag aus `MCP_CLIENT_ID` sein). Gruppen und Name holt er vom Userinfo-Endpunkt und merkt
    sie sich eine Minute; ein Gruppenentzug wirkt also spätestens nach einer Minute.
 
-Pocket ID kann **keine dynamische Client-Registrierung** (kein `registration_endpoint`, keine
-Client-ID-Metadaten, Stand 2026-11-06). Deshalb gibt es einen festen Client, dessen Client-ID man im
-MCP-Client einmal einträgt.
+Offene Anmeldungen merkt sich der Prozess zehn Minuten. Wer genau während einer Deploy-Übergabe zwischen zwei
+Containern anmeldet, muss eventuell neu verbinden.
 
 ## 2. Pocket ID: Client „Suite MCP“
 
@@ -28,14 +34,13 @@ In Pocket ID unter **OIDC Clients** einen Client anlegen:
 - Name: `Suite MCP`
 - **Public Client** an (kein Secret; PKCE ist Pflicht)
 - Callback URLs:
-  - `https://claude.ai/api/mcp/auth_callback`
-  - `https://claude.com/api/mcp/auth_callback`
-  - `http://localhost:*/callback` (Claude Code und andere lokale Clients). Nimmt Pocket ID den Stern im Port
-    nicht an, einen festen Port eintragen und Claude Code mit `--callback-port <port>` verbinden.
+  - `https://<SUITE_HOST_MCP>/callback` (die Vermittlung)
+  - `http://localhost:*/callback` (Clients, die eine Client-ID fest eingetragen haben und direkt zu Pocket ID
+    gehen)
 - Erlaubte Gruppen: leer lassen oder dieselben wie am Client „IDA“. Was jemand im MCP-Server darf, entscheiden
   die Modulgruppen (z. B. `wartung-nutzer`, `wartung-admin`), nicht der Client.
 
-Die Client-ID kommt in die `.env` der Suite.
+Die Client-ID kommt als **erster** Eintrag in `MCP_CLIENT_ID`.
 
 ## 3. Umgebung
 
@@ -58,10 +63,9 @@ curl -si -X POST https://mcp.iuk-ue.de/mcp | head -5                       # 401
 
 ## 4. Verbinden
 
-- **Claude (Web, Desktop, App):** Einstellungen → Connectors → Benutzerdefinierten Connector hinzufügen,
-  URL `https://mcp.iuk-ue.de/mcp`, unter Erweiterte Einstellungen die OAuth-Client-ID von „Suite MCP“.
-- **Claude Code:** `claude mcp add --transport http --client-id <Client-ID> iuk-suite https://mcp.iuk-ue.de/mcp`,
-  danach `/mcp` → Anmelden.
+- **Claude (Web, Desktop, App)** und **ChatGPT**: Connector mit der URL `https://mcp.iuk-ue.de/mcp` anlegen,
+  ohne Client-ID. Die App registriert sich selbst.
+- **Claude Code:** `claude mcp add --transport http iuk-suite https://mcp.iuk-ue.de/mcp`, danach `/mcp` → Anmelden.
 
 ## 5. Ein Modul dazunehmen
 

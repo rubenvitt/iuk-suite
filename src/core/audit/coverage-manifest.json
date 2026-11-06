@@ -15,6 +15,30 @@
     "kind": "excluded",
     "reason": "Zustandsloser MCP-Endpunkt: keine Sitzung zum Beenden, immer 405."
   },
+  "src/app/.well-known/oauth-authorization-server/[[...pfad]]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/mcp/authorize/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "OAuth-Vermittlung: leitet nur zu Pocket ID weiter, keine Fachdaten; die Anmeldung protokolliert Pocket ID."
+  },
+  "src/app/m/mcp/callback/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "OAuth-Vermittlung: gibt den Code von Pocket ID an den Client weiter, keine Fachdaten."
+  },
+  "src/app/m/mcp/register/route.ts#POST": {
+    "kind": "excluded",
+    "reason": "OAuth-Registrierung: antwortet immer mit dem festen Client und speichert nichts."
+  },
+  "src/app/m/mcp/register/route.ts#OPTIONS": {
+    "kind": "excluded",
+    "reason": "CORS-Preflight der Registrierung, keine Daten."
+  },
+  "src/app/m/mcp/token/route.ts#POST": {
+    "kind": "excluded",
+    "reason": "OAuth-Vermittlung: reicht den Token-Tausch an Pocket ID durch, keine Fachdaten."
+  },
   "src/app/.well-known/webfinger/route.ts#GET": {
     "kind": "excluded",
     "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."

@@ -9,10 +9,10 @@ describe("Der MCP-Server als OAuth-Ressource", () => {
     expect(istMcpHost(kopf("wartung.localtest.me:3000"))).toBe(false);
   });
 
-  it("nennt Pocket ID als Autorisierungsserver und verlangt die Gruppen", () => {
-    expect(geschuetzteRessource(kopf("mcp.localtest.me"), "https://id.example.test/")).toEqual({
+  it("nennt sich selbst als Autorisierungsserver und verlangt die Gruppen", () => {
+    expect(geschuetzteRessource(kopf("mcp.localtest.me"))).toEqual({
       resource: "https://mcp.localtest.me/mcp",
-      authorization_servers: ["https://id.example.test"],
+      authorization_servers: ["https://mcp.localtest.me"],
       scopes_supported: ["openid", "profile", "email", "groups"],
       bearer_methods_supported: ["header"],
       resource_name: "IUK-Suite",
