@@ -96,7 +96,8 @@
 
 /* Vertragsvorlage (IDA-343): gerenderte Seite mit aufgezogenem Unterschriftenfeld. */
 .vorlageRahmen { width: 100%; max-width: 720px; min-width: 0; }
-.vorlageSeite { position: relative; display: inline-block; max-width: 100%; touch-action: none; cursor: crosshair; user-select: none; box-shadow: 0 0 0 1px var(--iuk-linie); line-height: 0; }
+.vorlageSeite { position: relative; display: inline-block; max-width: 100%; user-select: none; box-shadow: 0 0 0 1px var(--iuk-linie); line-height: 0; }
+.vorlageSeite[data-ziehen="true"] { touch-action: none; cursor: crosshair; }
 .vorlageSeite canvas { display: block; max-width: 100%; }
 .feldKasten { position: absolute; border: 2px solid var(--gv-ok-text); background: color-mix(in srgb, var(--gv-ok-flaeche) 55%, transparent); pointer-events: none; }
 .feldEntwurf { border-style: dashed; border-color: var(--gv-gelb-text); background: color-mix(in srgb, var(--gv-gelb-flaeche) 55%, transparent); }

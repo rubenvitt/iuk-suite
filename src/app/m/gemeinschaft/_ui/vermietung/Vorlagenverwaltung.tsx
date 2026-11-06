@@ -126,6 +126,8 @@ function Feldeditor({ art, felder: gespeichert }: { art: Dokumentart; felder: Ve
   const [felder, setFelder] = useState<Vertragsfeld[]>(gespeichert);
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
   const [neuArt, setNeuArt] = useState<FeldArt>("text");
+  // Aufziehen erst nach „Feld aufziehen“: sonst legt schon ein Wischen über die Seite ein Feld an.
+  const [ziehen, setZiehen] = useState(false);
   const [speichert, setSpeichert] = useState(false);
   // Der Zug steht zusätzlich in einer Ref: `pointermove` wird gebündelt gerendert, `pointerup` sähe sonst einen alten Stand.
   const zugRef = useRef<Zug | null>(null);
@@ -194,6 +196,7 @@ function Feldeditor({ art, felder: gespeichert }: { art: Dokumentart; felder: Ve
     if (!z || !anzeige) return;
     // Ein Tippen ohne Zug wählt ab, statt zu warnen.
     if (Math.abs(z.x2 - z.x1) < 4 && Math.abs(z.y2 - z.y1) < 4) { setGewaehlt(null); return; }
+    if (!ziehen) return;
     const r = feldAusPixeln(seite, z, anzeige.massstab, anzeige.mass);
     const min = FELD_MIN[neuArt];
     if (r.b < min.b || r.h < min.h) { message.warning("Das Feld ist zu klein."); return; }
@@ -201,6 +204,7 @@ function Feldeditor({ art, felder: gespeichert }: { art: Dokumentart; felder: Ve
     const neu: Vertragsfeld = { id: neueFeldId(), art: neuArt, name: `${ART_TEXT[neuArt]} ${nr}`, quelle: "gezogen", ...r, ...(neuArt === "unterschrift" ? { rolle: "mieter" as const } : {}) };
     setFelder((alt) => [...alt, neu]);
     setGewaehlt(neu.id);
+    setZiehen(false);
   }
 
   const aendere = (id: string, mehr: Partial<Vertragsfeld>) => setFelder((alt) => alt.map((f) => {
@@ -248,11 +252,13 @@ function Feldeditor({ art, felder: gespeichert }: { art: Dokumentart; felder: Ve
             <span className={s.neben} data-testid="vorlage-seite">{seiten ? `Seite ${seite + 1} von ${seiten}` : "…"}</span>
             <Button aria-label="Nächste Seite" disabled={seite >= seiten - 1} onClick={() => setSeite((x) => x + 1)} icon={<Icons8Ikone name="chevron-right" groesse={16} />} />
             <span style={{ flex: 1 }} />
+            <Button type={ziehen ? "primary" : "default"} aria-pressed={ziehen} onClick={() => setZiehen((z) => !z)} data-testid="feld-aufziehen"
+              icon={<Icons8Ikone name="pencil" groesse={16} />}>Feld aufziehen</Button>
             <div className={s.wahl}><Segmented<FeldArt> value={neuArt} onChange={setNeuArt} options={FELDARTEN} aria-label="Neues Feld" data-testid="feld-neu-art" /></div>
           </div>
           <div ref={rahmen} className={s.vorlageRahmen}>
             {!doc && !fehler ? <Spin /> : null}
-            <div className={s.vorlageSeite} data-testid="vorlage-flaeche"
+            <div className={s.vorlageSeite} data-testid="vorlage-flaeche" data-ziehen={ziehen}
               onPointerDown={runter} onPointerMove={bewege} onPointerUp={hoch} onPointerCancel={() => { zugRef.current = null; setZug(null); }}>
               <canvas ref={leinwand} aria-label={`Seite ${seite + 1} der Vorlage`} />
               {anzeige ? felder.filter((f) => f.seite === seite).map((f) => {
@@ -261,10 +267,10 @@ function Feldeditor({ art, felder: gespeichert }: { art: Dokumentart; felder: Ve
                   <button key={f.id} type="button" aria-label={f.name} aria-pressed={f.id === gewaehlt} data-testid="feld-kasten"
                     className={`${s.feldKasten} ${s.feldWahl} ${s[`feld_${f.art}`] ?? ""} ${f.id === gewaehlt ? s.feldEntwurf : ""}`}
                     style={{ left: k.links, top: k.oben, width: k.breite, height: k.hoehe }}
-                    onPointerDown={(e) => e.stopPropagation()} onClick={() => setGewaehlt(f.id)} />
+                    onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); setGewaehlt(f.id); }} />
                 );
               }) : null}
-              {zugKasten ? <div className={`${s.feldKasten} ${s.feldEntwurf}`} style={{ left: zugKasten.links, top: zugKasten.oben, width: zugKasten.breite, height: zugKasten.hoehe }} /> : null}
+              {zugKasten && ziehen ? <div className={`${s.feldKasten} ${s.feldEntwurf}`} style={{ left: zugKasten.links, top: zugKasten.oben, width: zugKasten.breite, height: zugKasten.hoehe }} /> : null}
             </div>
           </div>
         </div>
