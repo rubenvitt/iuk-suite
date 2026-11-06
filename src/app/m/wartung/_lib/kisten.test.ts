@@ -4,7 +4,9 @@ import { eintrag, inhalt, mangel } from "../_db/schema";
 import { ladeArten, ladeGeraet, ladeInhalt } from "./daten";
 import { artEingabe, inhaltEingabe } from "./eingabe";
 import { wartungFaelligkeiten } from "./faelligkeiten";
-import { Abgelehnt, artSpeichern, geraetAnlegen, inhaltSpeichern, inhaltStand, neueId, pruefungAbschliessen, ungepushteAusfaelle } from "./schreiben";
+import {
+  Abgelehnt, artSpeichern, geraetAnlegen, inhaltSpeichern, inhaltStand, neueId, pruefplanSpeichern, pruefungAbschliessen, ungepushteAusfaelle,
+} from "./schreiben";
 import { START } from "./startbestand";
 import { ladeAmGeraet } from "./telefon";
 import { testDb } from "./testDb";
@@ -209,6 +211,12 @@ describe("Materialkisten (IDA-335)", () => {
     const art = { name: "Kisten", einzahl: "Kiste", ikone: "package", kiste: true, checkliste: [], stundenPflicht: false };
     expect(() => artSpeichern(db, null, { ...art, pruefarten: [START.pruefart.heizsaison] }, K.jetzt)).toThrow(/selbst durchgezählt/);
     expect(artSpeichern(db, null, { ...art, pruefarten: [START.pruefart.quartal] }, K.jetzt)).toBeTruthy();
+  });
+
+  it("auch am Gerät lässt sich die Prüfart, die eine Kiste durchzählt, nicht abwählen", () => {
+    const { db, id } = mitKiste();
+    expect(() => pruefplanSpeichern(db, id, [{ pruefartId: START.pruefart.quartal, an: false, eigenes: null }])).toThrow(/selbst durchgezählt/);
+    pruefplanSpeichern(db, id, [{ pruefartId: START.pruefart.quartal, an: true, eigenes: { monate: 6, stunden: null } }]);
   });
 
   it("eine inzwischen von jemand anderem geänderte Inhaltsliste wird nicht überschrieben", () => {

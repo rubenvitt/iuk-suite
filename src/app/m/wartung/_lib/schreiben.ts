@@ -90,6 +90,7 @@ function pruefeRegeln(tx: WartungSchreiber): void {
     const a = artVon.get(g.artId)!;
     const selbst = geltende(pruefplan(katalog, a.pruefarten, ab.filter((x) => x.geraetId === g.id))).filter((v) => v.wer === "intern").length;
     if (selbst > 1) throw new Abgelehnt(`${g.name}: nur eine Prüfart wird selbst am Gerät erledigt.`);
+    if (a.kiste && selbst === 0) throw new Abgelehnt(`${g.name}: eine Materialkiste braucht eine Prüfart, die selbst durchgezählt wird.`);
     if (!a.kiste && selbst === 1 && a.checkliste.length === 0) {
       throw new Abgelehnt(`${g.name}: für die Prüfung am Gerät hat die Geräteart ${a.name} keine Checkliste.`);
     }
