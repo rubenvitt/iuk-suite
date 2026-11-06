@@ -180,10 +180,10 @@ test("Formularvorlage: Leitung füllt aus und gibt frei; Unterschrift am Telefon
   const ansicht = await gast.request.get(url(`${status}/vertrag?art=mietvertrag`));
   expect(ansicht.headers()["content-disposition"]).toMatch(/^inline;/);
 
-  await expect(bereich.getByRole("button", { name: "Unterschreiben" })).toBeDisabled();
+  await expect(bereich.getByRole("button", { name: "Unterschreiben", exact: true })).toBeDisabled();
   await zeichne(gast, "unterschrift-flaeche");
   await bereich.getByLabel("Ich habe das Dokument gelesen und bin einverstanden.").check();
-  await klickeWennRuhig(bereich.getByRole("button", { name: "Unterschreiben" }));
+  await klickeWennRuhig(bereich.getByRole("button", { name: "Unterschreiben", exact: true }));
   await expect(bereich).toHaveAttribute("data-stand", "unterschrieben");
   await keinUeberlauf(gast, 320);
 
