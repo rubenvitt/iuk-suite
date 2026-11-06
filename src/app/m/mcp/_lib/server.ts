@@ -27,11 +27,13 @@ export function bauServer(person: McpPerson, module: readonly McpModul[] = MCP_M
 /**
  * Ein Client mit einer neueren Protokollversion, als das SDK kennt (Claude nach einem Spec-Release), bekäme vom
  * Transport 400 auf jede Anfrage. Zustandslos handelt `initialize` die Version ohnehin aus, und die Werkzeuge hängen
- * an keiner Version: also eine unbekannte Version im Kopf durch die neueste bekannte ersetzen.
+ * an keiner Version: also eine neuere Version im Kopf durch die neueste bekannte ersetzen. Ungültige oder ältere
+ * unbekannte Versionen bleiben stehen und bekommen vom Transport weiter 400.
  */
 export function mitBekannterVersion(req: Request): Request {
   const version = req.headers.get("mcp-protocol-version");
   if (version === null || SUPPORTED_PROTOCOL_VERSIONS.includes(version)) return req;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(version) || version <= LATEST_PROTOCOL_VERSION) return req;
   const kopf = new Headers(req.headers);
   kopf.set("mcp-protocol-version", LATEST_PROTOCOL_VERSION);
   return new Request(req, { headers: kopf });

@@ -40,15 +40,20 @@ describe("Endpunkt /mcp", () => {
   });
 
   it("nimmt einen Client mit neuerer Protokollversion an, statt 400 zu antworten", async () => {
-    const neu = (koerper: unknown) => {
+    const mit = (version: string, koerper: unknown) => {
       const r = anfrage(koerper, "gut");
-      r.headers.set("mcp-protocol-version", "2099-01-01");
+      r.headers.set("mcp-protocol-version", version);
       return r;
     };
-    const init = await POST(neu({ ...INIT, params: { ...INIT.params, protocolVersion: "2099-01-01" } }));
+    const init = await POST(mit("2099-01-01", { ...INIT, params: { ...INIT.params, protocolVersion: "2099-01-01" } }));
     expect(init.status).toBe(200);
-    const liste = await POST(neu({ jsonrpc: "2.0", id: 2, method: "tools/list" }));
+    expect(((await init.json()) as { result: { serverInfo: { name: string } } }).result.serverInfo.name).toBe("iuk-suite");
+    const liste = await POST(mit("2099-01-01", { jsonrpc: "2.0", id: 2, method: "tools/list" }));
     expect(liste.status).toBe(200);
+    expect(((await liste.json()) as { result: { tools: unknown[] } }).result.tools).toEqual([]);
+    for (const v of ["2000-01-01", "kaputt"]) {
+      expect((await POST(mit(v, { jsonrpc: "2.0", id: 3, method: "tools/list" }))).status, v).toBe(400);
+    }
   });
 
   it("auf einem anderen Host gibt es den Endpunkt nicht", async () => {
