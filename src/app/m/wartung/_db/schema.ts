@@ -5,10 +5,12 @@
  * - Jedes Gerät gehört genau einer `gruppe`. Deren Verwalter ordnet der Admin im Modul zu (`verwalter`, je Person
  *   der OIDC-`sub`); Modul-Admins sehen alles (`_lib/zugang.ts`). Pocket ID kennt nur `wartung-nutzer` und
  *   `wartung-admin` (IDA-337).
- * - Gerätearten (`art`) mit ihren Fristen (`frist`) und der Checkliste (`checkpunkt`) gelten für alle Gruppen.
- * - Was an einem Gerät geschah, steht in `eintrag` (Prüfung, Erledigung einer Frist, abgelesene Stunden,
- *   gemeldeter oder behobener Mangel). Der Stand einer Frist ist der jüngste Eintrag mit ihrer `frist_id`;
- *   er wird gelesen, nicht gespeichert (`_lib/fristen.ts`).
+ * - Prüfarten (`pruefart`, IDA-368) mit Wer und Intervall stehen einmal im Katalog. Eine Geräteart (`art`) schaltet
+ *   ihre üblichen zu (`art_pruefart`); ein Gerät weicht davon ab (`geraet_pruefart`: abgewählt, zusätzlich oder mit
+ *   eigenem Intervall). Was am Gerät gilt, rechnet `_lib/pruefplan.ts`. Die Checkliste (`checkpunkt`) bleibt an der Art.
+ * - Was an einem Gerät geschah, steht in `eintrag` (Prüfung, Erledigung einer Prüfart, abgelesene Stunden,
+ *   gemeldeter oder behobener Mangel). Der Stand einer Prüfart am Gerät ist der jüngste Eintrag mit ihrer
+ *   `pruefart_id`; er wird gelesen, nicht gespeichert (`_lib/fristen.ts`).
  * - Der Zustand eines Geräts folgt aus den offenen Mängeln (`_lib/fristen.ts`, `zustandAus`), nie aus einer
  *   eigenen Spalte: ein „behoben“ ohne passenden Zustand kann es so nicht geben.
  *
@@ -71,21 +73,47 @@ export const art = sqliteTable("art", {
 });
 
 /**
- * Eine Frist einer Geräteart. `intern` erledigt man selbst am Gerät per QR mit der Checkliste (höchstens eine
- * je Art), die anderen trägt die Verwaltung ein. Nach Zeit, nach Betriebsstunden oder beidem — was zuerst kommt.
+ * Eine Prüfart des Katalogs (IDA-368), etwa „Elektroprüfung (DGUV V3)“: wer sie erledigt und in welchem Abstand —
+ * nach Zeit, nach Betriebsstunden oder beidem, was zuerst kommt. `intern` erledigt man selbst am Gerät per QR mit
+ * der Checkliste der Geräteart (höchstens eine je Gerät), die anderen trägt die Verwaltung ein.
  */
-export const frist = sqliteTable("frist", {
+export const pruefart = sqliteTable("pruefart", {
   id: text("id").primaryKey(),
-  artId: text("art_id").notNull().references(() => art.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   wer: text("wer", { enum: ["intern", "fachfirma", "elektrofachkraft"] }).notNull(),
   monate: integer("monate"),
   stunden: integer("stunden"),
   position: integer("position").notNull().default(0),
+}, () => [
+  check("pruefart_wer", sql`wer IN ('intern','fachfirma','elektrofachkraft')`),
+  check("pruefart_intervall", sql`(monate IS NOT NULL AND monate > 0) OR (stunden IS NOT NULL AND stunden > 0)`),
+]);
+
+/** Welche Prüfarten jedes Gerät einer Art von sich aus hat. */
+export const artPruefart = sqliteTable("art_pruefart", {
+  artId: text("art_id").notNull().references(() => art.id, { onDelete: "cascade" }),
+  pruefartId: text("pruefart_id").notNull().references(() => pruefart.id, { onDelete: "cascade" }),
 }, (t) => [
-  index("frist_art_idx").on(t.artId, t.position),
-  check("frist_wer", sql`wer IN ('intern','fachfirma','elektrofachkraft')`),
-  check("frist_intervall", sql`(monate IS NOT NULL AND monate > 0) OR (stunden IS NOT NULL AND stunden > 0)`),
+  primaryKey({ columns: [t.artId, t.pruefartId] }),
+  index("art_pruefart_pruefart_idx").on(t.pruefartId),
+]);
+
+/**
+ * Wo ein Gerät von seiner Art abweicht. `an = false`: eine Prüfart der Art gilt hier nicht. `an = true`: sie gilt
+ * (zusätzlich, wenn die Art sie nicht hat). Stehen `monate` oder `stunden`, ersetzen beide zusammen das Intervall
+ * des Katalogs — `null` neben einer Zahl heißt dann „nicht nach Monaten“ bzw. „nicht nach Stunden“.
+ */
+export const geraetPruefart = sqliteTable("geraet_pruefart", {
+  geraetId: text("geraet_id").notNull().references(() => geraet.id, { onDelete: "cascade" }),
+  pruefartId: text("pruefart_id").notNull().references(() => pruefart.id, { onDelete: "cascade" }),
+  an: integer("an", { mode: "boolean" }).notNull(),
+  monate: integer("monate"),
+  stunden: integer("stunden"),
+}, (t) => [
+  primaryKey({ columns: [t.geraetId, t.pruefartId] }),
+  index("geraet_pruefart_pruefart_idx").on(t.pruefartId),
+  check("geraet_pruefart_monate", sql`monate IS NULL OR monate > 0`),
+  check("geraet_pruefart_stunden", sql`stunden IS NULL OR stunden > 0`),
 ]);
 
 export const checkpunkt = sqliteTable("checkpunkt", {
@@ -146,15 +174,15 @@ export const inhalt = sqliteTable("inhalt", {
 ]);
 
 /**
- * Der Verlauf eines Geräts. `pruefung` und `erledigt` tragen eine `frist_id` und setzen deren Stand; `titel`
- * hält den Namen der Frist zum Zeitpunkt fest (die Frist kann später umbenannt oder entfernt werden).
+ * Der Verlauf eines Geräts. `pruefung` und `erledigt` tragen eine `pruefart_id` und setzen deren Stand; `titel`
+ * hält den Namen der Prüfart zum Zeitpunkt fest (sie kann später umbenannt oder entfernt werden).
  * `antworten` (JSON) ist der Nachweis der Checkliste: `[{ text, ok }]`.
  */
 export const eintrag = sqliteTable("eintrag", {
   id: text("id").primaryKey(),
   geraetId: text("geraet_id").notNull().references(() => geraet.id, { onDelete: "cascade" }),
   typ: text("typ", { enum: ["pruefung", "erledigt", "stunden", "mangel", "behoben"] }).notNull(),
-  fristId: text("frist_id").references(() => frist.id, { onDelete: "set null" }),
+  pruefartId: text("pruefart_id").references(() => pruefart.id, { onDelete: "set null" }),
   titel: text("titel").notNull(),
   /** Kalendertag `JJJJ-MM-TT` in der Suite-Zone. */
   am: text("am").notNull(),
@@ -168,7 +196,7 @@ export const eintrag = sqliteTable("eintrag", {
   angelegtAm: integer("angelegt_am").notNull(),
 }, (t) => [
   index("eintrag_geraet_idx").on(t.geraetId, t.am),
-  index("eintrag_frist_idx").on(t.geraetId, t.fristId, t.am),
+  index("eintrag_pruefart_idx").on(t.geraetId, t.pruefartId, t.am),
   check("eintrag_typ", sql`typ IN ('pruefung','erledigt','stunden','mangel','behoben')`),
   check("eintrag_am", sql`am GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
   check("eintrag_ergebnis", sql`ergebnis IS NULL OR ergebnis IN ('ok','mangel','defekt')`),

@@ -743,10 +743,24 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
-    "frist": {
+    "pruefart": {
       "mode": "audited",
       "primaryKey": [
         "id"
+      ]
+    },
+    "art_pruefart": {
+      "mode": "audited",
+      "primaryKey": [
+        "art_id",
+        "pruefart_id"
+      ]
+    },
+    "geraet_pruefart": {
+      "mode": "audited",
+      "primaryKey": [
+        "geraet_id",
+        "pruefart_id"
       ]
     },
     "checkpunkt": {

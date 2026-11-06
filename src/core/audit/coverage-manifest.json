@@ -1405,6 +1405,10 @@
   "src/app/m/wartung/_actions/verwaltung.ts#gruppeSpeichernAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/wartung/_actions/verwaltung.ts#mangelBehebenAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/wartung/_actions/verwaltung.ts#inhaltSpeichernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#pruefartLoeschenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#pruefartSpeichernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#pruefartVerschiebenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#pruefplanSpeichernAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/wartung/_actions/verwaltung.ts#verwalterHinzufuegenAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/wartung/_actions/verwaltung.ts#verwalterEntfernenAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/wartung/_actions/verwaltung.ts#suchePersonenAction": {

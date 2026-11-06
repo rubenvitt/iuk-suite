@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button, Card, DatePicker, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Progress } from "antd";
+import { Button, Card, DatePicker, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Progress, Tag } from "antd";
 import dayjs from "dayjs";
 import { loescheEntwurf } from "@/core/entwurf/ablage";
 import { fingerabdruck } from "@/core/entwurf/ablage";
@@ -15,9 +15,11 @@ import { erledigtEintragenAction, geraetAendernAction, geraetAktivAction, mangel
 import { NAME_MAX, NOTIZ_MAX } from "../_lib/eingabe";
 import { ERGEBNIS_TEXT, intervallText, WER_TEXT, type FristStand } from "../_lib/fristen";
 import type { FahrzeugWahl } from "../_lib/fahrzeugsuche";
+import type { PruefartZeile } from "../_lib/pruefplan";
 import type { BekannteOrte, EintragDTO, GeraetZeile, InhaltDTO, MangelDTO, UnterlageDTO } from "../_lib/typen";
 import { GeraetFormular } from "./GeraetFormular";
 import { MangelEintrag } from "./MangelEintrag";
+import { PruefplanDialog } from "./PruefplanDialog";
 import { UnterlagenKarte } from "./UnterlagenKarte";
 import { Chip, datum, FristChip, OrtText, stundenText, ZUSTAND_FARBE, ZustandChip } from "./teile";
 import { useAktion } from "./useAktion";
@@ -26,7 +28,7 @@ import s from "./wartung.module.css";
 type Erledigt = { am: string; stunden: number | null; wer: string; notiz: string };
 
 export function GeraetAkte({
-  g, inhalt, maengel, verlauf, unterlagen, qr, heute, arten, gruppen, orte, fahrzeuge,
+  g, inhalt, maengel, verlauf, unterlagen, qr, heute, arten, gruppen, orte, fahrzeuge, katalog,
 }: {
   g: GeraetZeile;
   /** Nur bei einer Materialkiste (IDA-335). */
@@ -40,15 +42,21 @@ export function GeraetAkte({
   gruppen: { id: string; name: string }[];
   orte: BekannteOrte;
   fahrzeuge: FahrzeugWahl[];
+  /** Der Katalog der Prüfarten (IDA-368), zum Anpassen des Prüfplans. */
+  katalog: PruefartZeile[];
 }) {
   const { laeuft, feldFehler, setFeldFehler, fuehreAus } = useAktion();
   const [eintragen, setEintragen] = useState<FristStand | null>(null);
   const [erledigt, setErledigt] = useState<Erledigt>({ am: heute, stunden: g.stunden, wer: "", notiz: "" });
   const [aendern, setAendern] = useState(false);
+  const [planOffen, setPlanOffen] = useState(false);
+  const eigen = new Set(g.plan.filter((p) => p.eigenes).map((p) => p.pruefart.id));
+  const zusaetzlich = new Set(g.plan.filter((p) => p.an && !p.standard).map((p) => p.pruefart.id));
+  const abgewaehlt = g.plan.filter((p) => p.standard && !p.an);
   // Der Fingerabdruck nur über die Felder des Formulars; derselbe Schlüssel fürs Formular und fürs Löschen.
   const aendernStart = { gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise };
   const aendernSchluessel = `wartung:geraet:${g.id}:${fingerabdruck(aendernStart)}`;
-  // IDA-358: die Angaben zu „… eintragen" liegen je Gerät und Frist auf dem Gerät, bis das Eintragen bestätigt ist.
+  // IDA-358: die Angaben zu „… eintragen" liegen je Gerät und Prüfart auf dem Gerät, bis das Eintragen bestätigt ist.
   const erledigtEntwurf = useEntwurf<Erledigt>({
     schluessel: eintragen ? `wartung:erledigt:${g.id}:${eintragen.vorlage.id}` : null,
     stand: erledigt,
@@ -91,15 +99,23 @@ export function GeraetAkte({
       />
       <div className={s.akte}>
         <div className={s.spalte}>
-          <Card title="Fristen">
-            <ul className={s.zeilen} aria-label="Fristen">
+          <Card
+            title="Prüfungen"
+            extra={<Button icon={<Icons8Ikone name="sliders" groesse={16} />} onClick={() => setPlanOffen(true)}>Anpassen</Button>}
+          >
+            {g.staende.length === 0 && <p className={s.neben} style={{ margin: 0 }}>Keine Prüfungen.</p>}
+            <ul className={s.zeilen} aria-label="Prüfungen">
               {g.staende.map((f) => {
                 const seit = f.letzte?.stunden != null && g.stunden !== null && f.vorlage.stunden ? g.stunden - f.letzte.stunden : null;
                 return (
                   <li key={f.vorlage.id} className={s.frist}>
                     <div className={s.quer}>
                       <div>
-                        <span className={s.reihe}><strong>{f.vorlage.name}</strong> <FristChip f={f} /></span>
+                        <span className={s.reihe}>
+                          <strong>{f.vorlage.name}</strong> <FristChip f={f} />
+                          {zusaetzlich.has(f.vorlage.id) && <Tag>zusätzlich</Tag>}
+                          {eigen.has(f.vorlage.id) && <Tag>eigenes Intervall</Tag>}
+                        </span>
                         <div className={s.neben}>{intervallText(f.vorlage)} · {WER_TEXT[f.vorlage.wer]}</div>
                       </div>
                       {f.vorlage.wer !== "intern" && g.aktiv && <Button onClick={() => oeffneErledigt(f)}>Erledigt eintragen</Button>}
@@ -119,7 +135,11 @@ export function GeraetAkte({
                 );
               })}
             </ul>
+            {abgewaehlt.length > 0 && (
+              <p className={s.neben} style={{ margin: "8px 0 0" }}>Abgewählt: {abgewaehlt.map((p) => p.pruefart.name).join(", ")}</p>
+            )}
           </Card>
+          {planOffen && <PruefplanDialog geraetId={g.id} plan={g.plan} katalog={katalog} offen schliessen={() => setPlanOffen(false)} />}
           {maengel.length > 0 && (
             <Card title={`Offene Mängel (${maengel.length})`}>
               {maengel.map((m) => (
@@ -203,7 +223,7 @@ export function GeraetAkte({
         onCancel={() => setEintragen(null)}
         onOk={() => {
           if (!eintragen) return;
-          fuehreAus(() => erledigtEintragenAction(g.id, { fristId: eintragen.vorlage.id, ...erledigt }), `${eintragen.vorlage.name} eingetragen.`, () => { erledigtEntwurf.verwerfen(); setEintragen(null); });
+          fuehreAus(() => erledigtEintragenAction(g.id, { pruefartId: eintragen.vorlage.id, ...erledigt }), `${eintragen.vorlage.name} eingetragen.`, () => { erledigtEntwurf.verwerfen(); setEintragen(null); });
         }}
         destroyOnHidden
       >

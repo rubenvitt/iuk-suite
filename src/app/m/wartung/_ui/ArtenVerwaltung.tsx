@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Switch } from "antd";
+import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Select, Switch } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { fingerabdruck } from "@/core/entwurf/ablage";
 import { serialisiere } from "@/core/entwurf/ablage";
@@ -10,37 +10,40 @@ import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { artLoeschenAction, artSpeichernAction } from "../_actions/verwaltung";
 import { ART_IKONEN, KURZ_MAX, NOTIZ_MAX, PUNKT_MAX, type ArtEingabe } from "../_lib/eingabe";
-import { intervallText, WER_TEXT, type Wer } from "../_lib/fristen";
-import type { ArtDTO } from "../_lib/typen";
+import { intervallText, WER_TEXT } from "../_lib/fristen";
+import type { ArtDTO, PruefartDTO } from "../_lib/typen";
 import { ArtZeichen, Kicker } from "./teile";
 import { useAktion } from "./useAktion";
 import s from "./wartung.module.css";
 
 type Entwurf = ArtEingabe & { id: string | null };
 
-const WER_WAHL = (Object.keys(WER_TEXT) as Wer[]).map((w) => ({ value: w, label: WER_TEXT[w] }));
-
-function entwurfAus(a: ArtDTO | null): Entwurf {
+function entwurfAus(a: ArtDTO | null, katalog: readonly PruefartDTO[]): Entwurf {
   if (!a) {
+    const selbst = katalog.find((p) => p.wer === "intern");
     return {
       id: null, name: "", einzahl: "", ikone: "wrench", stundenPflicht: false, kiste: false,
-      fristen: [{ id: null, name: "Quartalsprüfung", wer: "intern", monate: 3, stunden: null }],
+      pruefarten: selbst ? [selbst.id] : [],
       checkliste: [{ id: null, text: "Sichtprüfung", hinweis: "" }],
     };
   }
   return {
     id: a.id, name: a.name, einzahl: a.einzahl, ikone: a.ikone, stundenPflicht: a.stundenPflicht, kiste: a.kiste,
-    fristen: a.fristen.map((f) => ({ id: f.id, name: f.name, wer: f.wer, monate: f.monate, stunden: f.stunden })),
+    pruefarten: [...a.pruefarten],
     checkliste: a.checkliste.map((p) => ({ id: p.id, text: p.text, hinweis: p.hinweis })),
   };
 }
 
-/** Gerätearten mit Fristen und Checkliste; sie gelten für alle Gruppen. Bearbeitet wird im Dialog. */
-export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
+/**
+ * Gerätearten mit ihren Prüfarten aus dem Katalog (IDA-368) und der Checkliste; sie gelten für alle Gruppen.
+ * Bearbeitet wird im Dialog.
+ */
+export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: PruefartDTO[] }) {
+  const nachId = new Map(katalog.map((p) => [p.id, p]));
   const { laeuft, feldFehler, setFeldFehler, fuehreAus } = useAktion();
   const [e, setE] = useState<Entwurf | null>(null);
   const [ausgang, setAusgang] = useState<Entwurf | null>(null);
-  const oeffne = (a: ArtDTO | null) => { setFeldFehler({}); const x = entwurfAus(a); setAusgang(x); setE(x); };
+  const oeffne = (a: ArtDTO | null) => { setFeldFehler({}); const x = entwurfAus(a, katalog); setAusgang(x); setE(x); };
   /*
    * IDA-358: die Eingaben im Dialog liegen je Geräteart auf dem Gerät, bis das Speichern bestätigt ist; das
    * nächste Öffnen stellt sie wieder her. Abgelegt wird nur, was vom Stand beim Öffnen abweicht (`null` = nichts
@@ -84,9 +87,9 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
             </span>
           }
         >
-          <Kicker>Fristen</Kicker>
+          <Kicker>Prüfarten</Kicker>
           <ul className={s.zeilen} style={{ marginBottom: 16 }}>
-            {a.fristen.map((f) => (
+            {a.pruefarten.flatMap((id) => nachId.get(id) ?? []).map((f) => (
               <li key={f.id} className={s.zeile}>
                 <strong>{f.name}</strong> <span className={s.neben}>· {intervallText(f)} · {WER_TEXT[f.wer]}</span>
               </li>
@@ -141,31 +144,22 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
               <Switch checked={e.stundenPflicht} disabled={e.kiste} onChange={(v) => setze({ stundenPflicht: v })} aria-label="Betriebsstunden bei jeder Prüfung Pflicht" />
             </Form.Item>
             <Form.Item label="Materialkiste mit Inhaltsliste">
-              <Switch checked={e.kiste} onChange={(v) => setze(v ? { kiste: v, stundenPflicht: false, fristen: e.fristen.map((f) => ({ ...f, stunden: null })) } : { kiste: v })} aria-label="Materialkiste mit Inhaltsliste" />
+              <Switch checked={e.kiste} onChange={(v) => setze(v ? { kiste: v, stundenPflicht: false } : { kiste: v })} aria-label="Materialkiste mit Inhaltsliste" />
             </Form.Item>
 
-            <Kicker>Fristen</Kicker>
-            {feldFehler.fristen && <div className={s.textRot}>{feldFehler.fristen}</div>}
-            {e.fristen.map((f, i) => {
-              const setzeFrist = (teil: Partial<typeof f>) => setze({ fristen: e.fristen.map((x, j) => (j === i ? { ...x, ...teil } : x)) });
-              return (
-                <div key={f.id ?? `neu-${i}`} className={s.fristreihe}>
-                  <Input value={f.name} maxLength={KURZ_MAX} onChange={(x) => setzeFrist({ name: x.target.value })} aria-label={`Frist ${i + 1}: Name`} status={feldFehler[`fristen.${i}.name`] ? "error" : undefined} />
-                  <InputNumber value={f.monate ?? undefined} min={1} max={120} precision={0} suffix="Monate" onChange={(v) => setzeFrist({ monate: v ?? null })} aria-label={`Frist ${i + 1}: alle … Monate`} style={{ width: "100%" }} status={feldFehler[`fristen.${i}.monate`] ? "error" : undefined} />
-                  <InputNumber value={f.stunden ?? undefined} min={1} precision={0} suffix="h" disabled={e.kiste} onChange={(v) => setzeFrist({ stunden: v ?? null })} aria-label={`Frist ${i + 1}: oder alle … Betriebsstunden`} style={{ width: "100%" }} />
-                  <Select value={f.wer} options={WER_WAHL} onChange={(v) => setzeFrist({ wer: v })} aria-label={`Frist ${i + 1}: wer erledigt`} />
-                  <Button type="text" aria-label={`Frist ${i + 1} entfernen`} disabled={e.fristen.length === 1} onClick={() => setze({ fristen: e.fristen.filter((_, j) => j !== i) })} icon={<Icons8Ikone name="trash" groesse={16} />} />
-                </div>
-              );
-            })}
-            <Button
-              type="dashed"
-              icon={<Icons8Ikone name="plus" groesse={16} />}
-              style={{ margin: "8px 0 24px" }}
-              onClick={() => setze({ fristen: [...e.fristen, { id: null, name: "", wer: "fachfirma", monate: 12, stunden: null }] })}
-            >
-              Frist hinzufügen
-            </Button>
+            <Kicker>Prüfarten</Kicker>
+            {feldFehler.pruefarten && <div className={s.textRot}>{feldFehler.pruefarten}</div>}
+            <Checkbox.Group
+              className={s.haken}
+              value={e.pruefarten}
+              onChange={(v) => setze({ pruefarten: katalog.map((p) => p.id).filter((id) => (v as string[]).includes(id)) })}
+              options={katalog.map((p) => ({
+                value: p.id,
+                label: <span>{p.name} <span className={s.neben}>· {intervallText(p)} · {WER_TEXT[p.wer]}</span></span>,
+              }))}
+            />
+            {katalog.length === 0 && <p className={s.neben}>Noch keine Prüfarten.</p>}
+            <div style={{ height: 24 }} />
 
             {!e.kiste && (
               <>
