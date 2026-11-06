@@ -9,6 +9,13 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     if (req.url === "/weiter") return void res.writeHead(302, { location: "/datei.pdf" }).end();
     if (req.url === "/ins-netz") return void res.writeHead(302, { location: "http://10.0.0.1/geheim" }).end();
+    if (req.url === "/kaputt") return void res.writeHead(302, { location: "http://[" }).end();
+    if (req.url === "/tropf") {
+      res.writeHead(200);
+      const takt = setInterval(() => res.write("x"), 20);
+      req.on("close", () => clearInterval(takt));
+      return;
+    }
     if (req.url === "/gross") return void res.writeHead(200).end(Buffer.alloc(2048));
     if (req.url === "/datei.pdf") return void res.writeHead(200, { "content-type": "application/pdf" }).end("%PDF-1.4 inhalt");
     res.writeHead(404).end();
@@ -23,7 +30,7 @@ const test = () => ({ maxBytes: 1024, erlaubt: (ip: string) => ip === "127.0.0.1
 
 describe("Unterlage von einer Adresse holen", () => {
   it("kennt die nicht öffentlichen Netze", () => {
-    for (const ip of ["127.0.0.1", "10.1.2.3", "172.20.0.5", "192.168.178.1", "100.100.1.1", "169.254.169.254", "::1", "fd00::1", "fe80::1", "::ffff:10.0.0.1", "0.0.0.0"]) {
+    for (const ip of ["127.0.0.1", "10.1.2.3", "172.20.0.5", "192.168.178.1", "100.100.1.1", "169.254.169.254", "::1", "fd00::1", "fe80::1", "::ffff:10.0.0.1", "::ffff:a00:1", "0.0.0.0"]) {
       expect(istOeffentlich(ip), ip).toBe(false);
     }
     for (const ip of ["93.184.216.34", "2a00:1450:4001:80b::200e"]) expect(istOeffentlich(ip), ip).toBe(true);
@@ -39,6 +46,12 @@ describe("Unterlage von einer Adresse holen", () => {
     expect(await ladeVonAdresse(`http://127.0.0.1:${port}/ins-netz`, { ...test(), ports: [port, "80"] })).toEqual({ ok: false, fehler: gesperrt });
     expect(await ladeVonAdresse(`http://localhost:${port}/datei.pdf`, { ...test(), erlaubt: () => false })).toEqual({ ok: false, fehler: gesperrt });
     expect(await ladeVonAdresse("http://[::1]/x", { maxBytes: 10 })).toEqual({ ok: false, fehler: gesperrt });
+  });
+
+  it("eine kaputte Weiterleitung und ein Tröpfeln enden als Fehler, nicht als Absturz", async () => {
+    expect(await ladeVonAdresse(`http://127.0.0.1:${port}/kaputt`, test())).toEqual({ ok: false, fehler: "Die Weiterleitung führt zu keiner gültigen Adresse." });
+    expect(await ladeVonAdresse(`http://127.0.0.1:${port}/tropf`, { ...test(), maxBytes: 1_000_000, zeitMs: 300 }))
+      .toEqual({ ok: false, fehler: "Die Adresse antwortet nicht rechtzeitig." });
   });
 
   it("Grenzen: Größe, Schema, Port, Anmeldedaten", async () => {

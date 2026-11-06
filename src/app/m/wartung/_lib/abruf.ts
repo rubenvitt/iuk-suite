@@ -61,18 +61,26 @@ function sichererLookup(erlaubt: (ip: string) => boolean): LookupFunction {
   };
 }
 
-function einmal(url: URL, o: Required<AbrufOptionen>): Promise<{ weiter: string } | Abruf> {
+const ZU_LANGSAM = "Die Adresse antwortet nicht rechtzeitig.";
+
+function einmal(url: URL, o: Required<AbrufOptionen>, signal: AbortSignal): Promise<{ weiter: string } | Abruf> {
   return new Promise((fertig) => {
     const modul = url.protocol === "https:" ? https : http;
     const anfrage = modul.get(url, {
       lookup: sichererLookup(o.erlaubt),
-      timeout: o.zeitMs,
+      // Eine Frist für den ganzen Abruf mit allen Weiterleitungen, nicht nur für den Leerlauf des Sockets.
+      signal,
       headers: { "user-agent": "IUK-Suite Gerätewartung", accept: "application/pdf, image/*;q=0.9, */*;q=0.1" },
     }, (antwort) => {
       const status = antwort.statusCode ?? 0;
       if (status >= 300 && status < 400 && antwort.headers.location) {
         antwort.resume();
-        return fertig({ weiter: new URL(antwort.headers.location, url).toString() });
+        // Ein kaputter `Location` wirft hier im Antwort-Callback, also außerhalb des Promise: selbst abfangen.
+        try {
+          return fertig({ weiter: new URL(antwort.headers.location, url).toString() });
+        } catch {
+          return fertig({ ok: false, fehler: "Die Weiterleitung führt zu keiner gültigen Adresse." });
+        }
       }
       if (status !== 200) {
         antwort.resume();
@@ -80,28 +88,28 @@ function einmal(url: URL, o: Required<AbrufOptionen>): Promise<{ weiter: string 
       }
       const laenge = Number(antwort.headers["content-length"] ?? 0);
       if (laenge > o.maxBytes) {
-        antwort.destroy();
-        return fertig({ ok: false, fehler: "Die Datei ist zu groß." });
+        fertig({ ok: false, fehler: "Die Datei ist zu groß." });
+        return antwort.destroy();
       }
       const teile: Buffer[] = [];
       let summe = 0;
       antwort.on("data", (t: Buffer) => {
         summe += t.byteLength;
         if (summe > o.maxBytes) {
-          antwort.destroy();
           fertig({ ok: false, fehler: "Die Datei ist zu groß." });
+          antwort.destroy();
           return;
         }
         teile.push(t);
       });
       antwort.on("end", () => fertig({ ok: true, bytes: new Uint8Array(Buffer.concat(teile)) }));
-      antwort.on("error", () => fertig({ ok: false, fehler: "Die Datei kam nicht vollständig an." }));
+      antwort.on("error", () => fertig({ ok: false, fehler: signal.aborted ? ZU_LANGSAM : "Die Datei kam nicht vollständig an." }));
+      antwort.on("aborted", () => fertig({ ok: false, fehler: signal.aborted ? ZU_LANGSAM : "Die Datei kam nicht vollständig an." }));
     });
-    anfrage.on("timeout", () => anfrage.destroy(Object.assign(new Error("zeit"), { code: "EZEIT" })));
     anfrage.on("error", (e: NodeJS.ErrnoException) => fertig({
       ok: false,
       fehler: e.code === "EGESPERRT" ? "Diese Adresse ist nicht öffentlich erreichbar."
-        : e.code === "EZEIT" ? "Die Adresse antwortet nicht rechtzeitig." : "Die Adresse ist nicht erreichbar.",
+        : signal.aborted ? ZU_LANGSAM : "Die Adresse ist nicht erreichbar.",
     }));
   });
 }
@@ -109,6 +117,7 @@ function einmal(url: URL, o: Required<AbrufOptionen>): Promise<{ weiter: string 
 /** Lädt eine Datei von einer öffentlichen Adresse. */
 export async function ladeVonAdresse(adresse: string, optionen: AbrufOptionen): Promise<Abruf> {
   const o: Required<AbrufOptionen> = { zeitMs: 20_000, erlaubt: istOeffentlich, ports: ["80", "443"], ...optionen };
+  const signal = AbortSignal.timeout(o.zeitMs);
   let ziel = adresse;
   for (let i = 0; i <= WEITERLEITUNGEN; i++) {
     let url: URL;
@@ -123,7 +132,8 @@ export async function ladeVonAdresse(adresse: string, optionen: AbrufOptionen): 
     // Eine Adresse als Zahl läuft nicht durch `lookup`: hier prüfen.
     const roh = url.hostname.replace(/^\[|\]$/g, "");
     if (isIP(roh) && !o.erlaubt(roh)) return { ok: false, fehler: "Diese Adresse ist nicht öffentlich erreichbar." };
-    const r = await einmal(url, o);
+    if (signal.aborted) return { ok: false, fehler: ZU_LANGSAM };
+    const r = await einmal(url, o, signal);
     if ("weiter" in r) {
       ziel = r.weiter;
       continue;
