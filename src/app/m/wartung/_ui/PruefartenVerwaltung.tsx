@@ -27,7 +27,8 @@ const WANN_WAHL: { value: Anlass | "frist"; label: string }[] = [
 export function PruefartenVerwaltung({ pruefarten, artNamen }: { pruefarten: PruefartDTO[]; artNamen: Record<string, string> }) {
   const { laeuft, feldFehler, setFeldFehler, fuehreAus } = useAktion();
   const [e, setE] = useState<Entwurf | null>(null);
-  const oeffne = (x: Entwurf) => { setFeldFehler({}); setE(x); };
+  const [werVorher, setWerVorher] = useState<Wer>("fachfirma");
+  const oeffne = (x: Entwurf) => { setFeldFehler({}); setWerVorher(x.wer); setE(x); };
   const setze = (teil: Partial<Entwurf>) => setE((alt) => (alt ? { ...alt, ...teil } : alt));
   const fehler = (feld: string) => (feldFehler[feld] ? { validateStatus: "error" as const, help: feldFehler[feld] } : {});
 
@@ -118,7 +119,10 @@ export function PruefartenVerwaltung({ pruefarten, artNamen }: { pruefarten: Pru
             </Form.Item>
             <Form.Item label="Fällig" htmlFor="gw-pa-wann" {...fehler("anlass")}>
               <Select id="gw-pa-wann" value={e.anlass ?? "frist"} options={WANN_WAHL}
-                onChange={(v: Anlass | "frist") => setze(v === "frist" ? { anlass: null, monate: e.monate ?? 12 } : { anlass: v, wer: "intern" })} />
+                onChange={(v: Anlass | "frist") => {
+          if (v === "frist") setze({ anlass: null, monate: e.monate ?? 12, wer: werVorher });
+          else { if (!e.anlass) setWerVorher(e.wer); setze({ anlass: v, wer: "intern" }); }
+        }} />
             </Form.Item>
             <Form.Item label="Wer" htmlFor="gw-pa-wer" {...fehler("wer")}>
               <Select id="gw-pa-wer" value={e.wer} options={WER_WAHL} disabled={!!e.anlass} onChange={(v) => setze({ wer: v })} />

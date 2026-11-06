@@ -68,9 +68,11 @@ function allePunkte(am: AmGeraet | null) {
 
 function pruefungenAmGeraet(am: AmGeraet | null) {
   if (!am) return [];
+  const tag = heute();
   return am.g.staende.filter((f) => f.vorlage.wer === "intern").map((f) => ({
-    pruefartId: f.vorlage.id, name: f.vorlage.name, anlass: f.vorlage.anlass, stand: f.text, faellig: f.stufe !== "ok",
-    punkte: am.g.kiste ? am.checkliste.map((p) => p.id) : ladeAmGeraet(getDb(), am.g.id, heute(), f.vorlage.id)?.checkliste.map((p) => p.id) ?? [],
+    pruefartId: f.vorlage.id, name: f.vorlage.name, anlass: f.vorlage.anlass, stand: f.text, stufe: f.stufe,
+    faellig: f.stufe === "ueberfaellig" || (f.faelligAm !== null && f.faelligAm <= tag),
+    punkte: am.g.kiste ? am.checkliste.map((p) => p.id) : ladeAmGeraet(getDb(), am.g.id, tag, f.vorlage.id)?.checkliste.map((p) => p.id) ?? [],
   }));
 }
 
