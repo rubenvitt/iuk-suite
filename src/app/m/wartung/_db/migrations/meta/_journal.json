@@ -43,6 +43,13 @@
       "when": 1793785895809,
       "tag": "0005_materialkisten",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793962302187,
+      "tag": "0006_pruefarten",
+      "breakpoints": true
     }
   ]
 }

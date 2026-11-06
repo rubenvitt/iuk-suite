@@ -2,7 +2,8 @@
  * Was die Seiten der Gerätewartung herausgeben — serialisierbar, damit es über die RSC-Grenze in die
  * Client-Inseln geht (Falle 9). Kein `"use client"` (Falle 6).
  */
-import type { FristStand, FristVorlage, Wer, Zustand } from "./fristen";
+import type { FristStand, Wer, Zustand } from "./fristen";
+import type { PlanPunkt, PruefartZeile } from "./pruefplan";
 
 export interface GruppeDTO {
   id: string;
@@ -24,8 +25,10 @@ export interface PersonVorschlag {
   email: string | null;
 }
 
-export interface FristDTO extends FristVorlage {
-  position: number;
+/** Eine Prüfart des Katalogs (IDA-368) mit den Gerätearten, die sie von sich aus haben, und den Geräten, an denen sie gilt. */
+export interface PruefartDTO extends PruefartZeile {
+  arten: string[];
+  geraete: number;
 }
 
 export interface CheckpunktDTO {
@@ -51,7 +54,8 @@ export interface ArtDTO {
   ikone: string;
   stundenPflicht: boolean;
   kiste: boolean;
-  fristen: FristDTO[];
+  /** Die Prüfarten, die jedes Gerät dieser Art von sich aus hat, in der Reihenfolge des Katalogs. */
+  pruefarten: string[];
   checkliste: CheckpunktDTO[];
   geraete: number;
 }
@@ -78,6 +82,8 @@ export interface GeraetZeile {
   hinweise: string;
   aktiv: boolean;
   zustand: Zustand;
+  /** Die Prüfarten der Art und die zusätzlichen, mit dem, was am Gerät gilt (IDA-368). */
+  plan: PlanPunkt[];
   staende: FristStand[];
   naechste: FristStand | null;
   offeneMaengel: number;
@@ -128,7 +134,7 @@ export interface FristZeile {
   frist: FristStand;
 }
 
-export type { Wer, Zustand };
+export type { PlanPunkt, Wer, Zustand };
 
 /** Ergebnis einer Server Action, mit Fehlern am Feld. */
 export type Ergebnis = { ok: true; id?: string } | { ok: false; fehler: string; feldFehler?: Record<string, string> };

@@ -51,7 +51,7 @@ describe("GeraetFormular (Modus 2)", () => {
 });
 
 describe("ArtenVerwaltung (Modus 2)", () => {
-  const ansicht = () => mount(<App><ArtenVerwaltung arten={[]} /></App>);
+  const ansicht = () => mount(<App><ArtenVerwaltung arten={[]} katalog={[]} /></App>);
   const oeffnen = async () => {
     const knopf = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("Geräteart anlegen"))!;
     await clickElement(knopf);

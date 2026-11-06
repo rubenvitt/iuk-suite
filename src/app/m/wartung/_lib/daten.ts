@@ -7,10 +7,11 @@
  */
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { WartungDb } from "../_db/client";
-import { art, checkpunkt, eintrag, frist, geraet, gruppe, inhalt, mangel, unterlage } from "../_db/schema";
+import { art, artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage } from "../_db/schema";
 import { ladeVerwalter } from "./personen";
 import { fristStand, naechsteFrist, vergleicheStaende, zustandAus, type LetzteErledigung } from "./fristen";
-import type { ArtDTO, BekannteOrte, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, InhaltDTO, MangelDTO, UnterlageDTO } from "./typen";
+import { geltende, pruefplan, type Abweichung, type PlanPunkt, type PruefartZeile } from "./pruefplan";
+import type { ArtDTO, BekannteOrte, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, InhaltDTO, MangelDTO, PruefartDTO, UnterlageDTO } from "./typen";
 
 type Leser = Pick<WartungDb, "select">;
 
@@ -24,8 +25,57 @@ export function ladeGruppen(db: Leser): GruppeDTO[] {
     .map((g) => ({ id: g.id, name: g.name, verwalter: verwalter.get(g.id) ?? [], geraete: zahl.get(g.id) ?? 0 }));
 }
 
+/** Der Katalog der Prüfarten (IDA-368) in seiner Reihenfolge. */
+export function ladeKatalog(db: Leser): PruefartZeile[] {
+  return db.select({ id: pruefart.id, name: pruefart.name, wer: pruefart.wer, monate: pruefart.monate, stunden: pruefart.stunden, position: pruefart.position })
+    .from(pruefart).orderBy(asc(pruefart.position), asc(pruefart.name)).all();
+}
+
+/** Je Geräteart die Prüfarten, die ihre Geräte von sich aus haben. */
+function standardJeArt(db: Leser): Map<string, Set<string>> {
+  const ergebnis = new Map<string, Set<string>>();
+  for (const z of db.select().from(artPruefart).all()) {
+    if (!ergebnis.has(z.artId)) ergebnis.set(z.artId, new Set());
+    ergebnis.get(z.artId)!.add(z.pruefartId);
+  }
+  return ergebnis;
+}
+
+function abweichungenJeGeraet(db: Leser, geraetIds: readonly string[]): Map<string, Abweichung[]> {
+  const ergebnis = new Map<string, Abweichung[]>();
+  if (geraetIds.length === 0) return ergebnis;
+  for (const z of db.select().from(geraetPruefart).where(inArray(geraetPruefart.geraetId, [...geraetIds])).all()) {
+    if (!ergebnis.has(z.geraetId)) ergebnis.set(z.geraetId, []);
+    ergebnis.get(z.geraetId)!.push({ pruefartId: z.pruefartId, an: z.an, monate: z.monate, stunden: z.stunden });
+  }
+  return ergebnis;
+}
+
+/** Der Prüfplan eines Geräts: was die Art mitbringt und wo das Gerät abweicht (`_lib/pruefplan.ts`). */
+export function ladePruefplan(db: Leser, g: { id: string; artId: string }): PlanPunkt[] {
+  return pruefplan(ladeKatalog(db), standardJeArt(db).get(g.artId) ?? new Set(), abweichungenJeGeraet(db, [g.id]).get(g.id) ?? []);
+}
+
+/** Der Katalog mit der Zahl der Gerätearten und aktiven Geräte, an denen jede Prüfart gilt. */
+export function ladePruefarten(db: Leser): PruefartDTO[] {
+  const katalog = ladeKatalog(db);
+  const standard = standardJeArt(db);
+  const geraete = db.select({ id: geraet.id, artId: geraet.artId }).from(geraet).where(eq(geraet.aktiv, true)).all();
+  const ab = abweichungenJeGeraet(db, geraete.map((g) => g.id));
+  const zahl = new Map<string, number>();
+  for (const g of geraete) {
+    for (const v of geltende(pruefplan(katalog, standard.get(g.artId) ?? new Set(), ab.get(g.id) ?? []))) zahl.set(v.id, (zahl.get(v.id) ?? 0) + 1);
+  }
+  return katalog.map((p) => ({
+    ...p,
+    arten: [...standard].filter(([, ids]) => ids.has(p.id)).map(([artId]) => artId),
+    geraete: zahl.get(p.id) ?? 0,
+  }));
+}
+
 export function ladeArten(db: Leser): ArtDTO[] {
-  const fristen = db.select().from(frist).orderBy(asc(frist.position)).all();
+  const standard = standardJeArt(db);
+  const reihe = new Map(ladeKatalog(db).map((p, i) => [p.id, i]));
   const punkte = db.select().from(checkpunkt).orderBy(asc(checkpunkt.position)).all();
   const zahl = new Map(
     db.select({ id: geraet.artId, n: sql<number>`count(*)` }).from(geraet).where(eq(geraet.aktiv, true))
@@ -38,20 +88,19 @@ export function ladeArten(db: Leser): ArtDTO[] {
     ikone: a.ikone,
     stundenPflicht: a.stundenPflicht,
     kiste: a.kiste,
-    fristen: fristen.filter((f) => f.artId === a.id)
-      .map((f) => ({ id: f.id, name: f.name, wer: f.wer, monate: f.monate, stunden: f.stunden, position: f.position })),
+    pruefarten: [...(standard.get(a.id) ?? [])].sort((x, y) => (reihe.get(x) ?? 0) - (reihe.get(y) ?? 0)),
     checkliste: punkte.filter((p) => p.artId === a.id).map((p) => ({ id: p.id, text: p.text, hinweis: p.hinweis })),
     geraete: zahl.get(a.id) ?? 0,
   }));
 }
 
-/** Je Gerät und Frist die jüngste Erledigung (Prüfung oder eingetragen). */
+/** Je Gerät und Prüfart die jüngste Erledigung (Prüfung oder eingetragen). */
 function letzteErledigungen(db: Leser, geraetIds: readonly string[]): Map<string, LetzteErledigung> {
   const ergebnis = new Map<string, LetzteErledigung>();
   if (geraetIds.length === 0) return ergebnis;
-  const zeilen = db.select({ g: eintrag.geraetId, f: eintrag.fristId, am: eintrag.am, stunden: eintrag.stunden })
+  const zeilen = db.select({ g: eintrag.geraetId, f: eintrag.pruefartId, am: eintrag.am, stunden: eintrag.stunden })
     .from(eintrag)
-    .where(and(inArray(eintrag.geraetId, [...geraetIds]), isNotNull(eintrag.fristId), inArray(eintrag.typ, ["pruefung", "erledigt"])))
+    .where(and(inArray(eintrag.geraetId, [...geraetIds]), isNotNull(eintrag.pruefartId), inArray(eintrag.typ, ["pruefung", "erledigt"])))
     .orderBy(desc(eintrag.am), desc(eintrag.angelegtAm))
     .all();
   for (const z of zeilen) {
@@ -85,16 +134,19 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
     .all();
   if (zeilen.length === 0) return [];
   const ids = zeilen.map((z) => z.g.id);
-  const fristen = db.select().from(frist).orderBy(asc(frist.position)).all();
+  const katalog = ladeKatalog(db);
+  const standard = standardJeArt(db);
+  const abweichungen = abweichungenJeGeraet(db, ids);
   const letzte = letzteErledigungen(db, ids);
   const offen = db.select({ g: mangel.geraetId, einsatzbereit: mangel.einsatzbereit, fehlt: mangel.fehlt, inhaltId: mangel.inhaltId }).from(mangel)
     .where(and(inArray(mangel.geraetId, ids), isNull(mangel.behobenAm))).all();
 
   return zeilen.map(({ g, gruppeName, artEinzahl, ikone, stundenPflicht, kiste }) => {
-    const staende = fristen.filter((f) => f.artId === g.artId)
-      .map((f) => fristStand(
-        { id: f.id, name: f.name, wer: f.wer, monate: f.monate, stunden: f.stunden },
-        letzte.get(`${g.id}|${f.id}`) ?? null,
+    const plan = pruefplan(katalog, standard.get(g.artId) ?? new Set(), abweichungen.get(g.id) ?? []);
+    const staende = geltende(plan)
+      .map((v) => fristStand(
+        v,
+        letzte.get(`${g.id}|${v.id}`) ?? null,
         g.stunden,
         filter.heute,
       ));
@@ -103,7 +155,7 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
       id: g.id, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr,
       gruppeId: g.gruppeId, gruppeName, artId: g.artId, artEinzahl, ikone, stundenPflicht, kiste,
       ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise, aktiv: g.aktiv,
-      zustand: zustandAus(eigene), staende, naechste: naechsteFrist(staende), offeneMaengel: eigene.length,
+      zustand: zustandAus(eigene), plan, staende, naechste: naechsteFrist(staende), offeneMaengel: eigene.length,
       // Nur Positionen, die noch auf der Liste stehen: ein Mangel zu einer entfernten Position bleibt offen,
       // lässt sich aber durch Durchzählen nicht mehr beheben.
       fehlend: kiste ? eigene.filter((m) => m.fehlt && m.inhaltId !== null).length : 0,
@@ -121,7 +173,7 @@ export function ladeGeraet(db: Leser, id: string, heute: string): GeraetZeile | 
   return ladeGeraete(db, { gruppen: null, heute, ausgemustert: true, ids: [id] })[0] ?? null;
 }
 
-/** Fristen, die nicht im Plan sind — überfällig zuerst. */
+/** Fristen (je Gerät und Prüfart), die nicht im Plan sind — überfällig zuerst. */
 export function faelligeFristen(geraete: readonly GeraetZeile[]): FristZeile[] {
   return geraete
     .flatMap((g) => g.staende.filter((f) => f.stufe !== "ok")

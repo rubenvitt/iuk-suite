@@ -12,7 +12,8 @@ import { entferneUnterlage } from "../_lib/unterlagen";
 import type { Ergebnis, PersonVorschlag } from "../_lib/typen";
 import {
   artLoeschenVorgang, artSpeichernVorgang, ausfuehren, erledigtEintragenVorgang, geraetAendernVorgang, geraetAktivVorgang,
-  geraetAnlegenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang, UNGUELTIG,
+  geraetAnlegenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang,
+  pruefartLoeschenVorgang, pruefartSpeichernVorgang, pruefartVerschiebenVorgang, pruefplanSpeichernVorgang, UNGUELTIG,
   verwalterEntfernenVorgang, verwalterHinzufuegenVorgang,
 } from "../_lib/vorgaenge";
 import { requireAktion, verwaltetGruppe, type Rechte, type Stufe } from "../_lib/zugang";
@@ -49,6 +50,11 @@ export async function geraetAktivAction(id: string, aktiv: boolean): Promise<Erg
 
 export async function erledigtEintragenAction(geraetId: string, eingabe: unknown): Promise<Ergebnis> {
   return schreibe("verwalter", (z) => erledigtEintragenVorgang(z, geraetId, eingabe));
+}
+
+/** Der Prüfplan eines Geräts (IDA-368): Prüfarten der Art abwählen, weitere zuschalten, eigenes Intervall. */
+export async function pruefplanSpeichernAction(geraetId: string, eingabe: unknown): Promise<Ergebnis> {
+  return schreibe("verwalter", (z) => pruefplanSpeichernVorgang(z, geraetId, eingabe));
 }
 
 /** Die Inhaltsliste einer Materialkiste (IDA-335) — Verwalter ihrer Gruppe, auch am Telefon in der Halle. */
@@ -101,6 +107,20 @@ export async function artSpeichernAction(id: string | null, eingabe: unknown): P
 
 export async function artLoeschenAction(id: string): Promise<Ergebnis> {
   return schreibe("verwalter", (z) => artLoeschenVorgang(z, id));
+}
+
+// ---------------------------------------------------------------- Prüfarten (IDA-368), wie Gerätearten für alle Gruppen
+
+export async function pruefartSpeichernAction(id: string | null, eingabe: unknown): Promise<Ergebnis> {
+  return schreibe("verwalter", (z) => pruefartSpeichernVorgang(z, id, eingabe));
+}
+
+export async function pruefartLoeschenAction(id: string): Promise<Ergebnis> {
+  return schreibe("verwalter", (z) => pruefartLoeschenVorgang(z, id));
+}
+
+export async function pruefartVerschiebenAction(id: string, richtung: -1 | 1): Promise<Ergebnis> {
+  return schreibe("verwalter", (z) => pruefartVerschiebenVorgang(z, id, richtung));
 }
 
 // ---------------------------------------------------------------- Gruppen (nur Admins)

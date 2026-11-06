@@ -5,7 +5,7 @@ import { qrSvg } from "@/core/qr";
 import { bereitgestellteFahrzeuge } from "@/app/m/fahrzeuge/_lib/bereitstellung";
 import { getDb } from "../../../_db/client";
 import { linkBasisAus, qrZiel } from "../../../_lib/ansicht";
-import { bekannteOrte, ladeArten, ladeGeraet, ladeGruppen, ladeInhalt, ladeMaengel, ladeUnterlagen, ladeVerlauf } from "../../../_lib/daten";
+import { bekannteOrte, ladeArten, ladeGeraet, ladeKatalog, ladeGruppen, ladeInhalt, ladeMaengel, ladeUnterlagen, ladeVerlauf } from "../../../_lib/daten";
 import { idSchema } from "../../../_lib/eingabe";
 import { fahrzeugWahl } from "../../../_lib/fahrzeugbezug";
 import { heute } from "../../../_lib/heute";
@@ -41,6 +41,7 @@ export default async function AktenSeite({ params }: { params: Promise<{ id: str
       gruppen={ladeGruppen(db).filter((x) => verwaltetGruppe(rechte, x.id)).map((x) => ({ id: x.id, name: x.name }))}
       orte={bekannteOrte(db)}
       fahrzeuge={fahrzeugWahl(bereitgestellteFahrzeuge().fahrzeuge)}
+      katalog={ladeKatalog(db)}
     />
   );
 }

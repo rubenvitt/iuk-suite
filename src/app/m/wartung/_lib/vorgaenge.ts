@@ -20,13 +20,14 @@ import { geraet } from "../_db/schema";
 import { ladeMangel } from "./daten";
 import {
   artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, mangelEingabe,
-  pruefungEingabe, stundenEingabe, verwalterEingabe,
+  pruefartEingabe, pruefplanEingabe, pruefungEingabe, stundenEingabe, verwalterEingabe,
 } from "./eingabe";
 import { verwalterEntfernen, verwalterHinzufuegen } from "./personen";
 import { heute } from "./heute";
 import {
   Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
-  gruppeSpeichern, inhaltSpeichern, mangelBeheben, mangelMelden, neueId, pruefungAbschliessen, schonGesendet, stundenEintragen,
+  gruppeSpeichern, inhaltSpeichern, mangelBeheben, mangelMelden, neueId, pruefartLoeschen, pruefartSpeichern, pruefartVerschieben,
+  pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen,
 } from "./schreiben";
 import { mitFahrzeugbezug } from "./fahrzeugbezug";
 import type { Ergebnis } from "./typen";
@@ -159,6 +160,14 @@ export const erledigtEintragenVorgang = (z: Akteur, geraetId: unknown, eingabe: 
   erledigtEintragen(getDb(), geraetId, e, kontext(viewer));
 });
 
+/** Der Prüfplan eines Geräts (IDA-368): Prüfarten der Art abwählen, weitere zuschalten, eigenes Intervall. */
+export const pruefplanSpeichernVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ rechte }) => {
+  pruefeId(geraetId);
+  const e = geprueft(pruefplanEingabe, eingabe);
+  eigenesGeraet(rechte, geraetId);
+  pruefplanSpeichern(getDb(), geraetId, e);
+});
+
 /** Die Inhaltsliste einer Materialkiste (IDA-335) — Verwalter ihrer Gruppe, auch am Telefon in der Halle. */
 export const inhaltSpeichernVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown, stand: unknown) => ausfuehren(z, ({ rechte }) => {
   pruefeId(geraetId);
@@ -187,6 +196,25 @@ export const artSpeichernVorgang = (z: Akteur, id: unknown, eingabe: unknown) =>
 export const artLoeschenVorgang = (z: Akteur, id: unknown) => ausfuehren(z, () => {
   pruefeId(id);
   artLoeschen(getDb(), id);
+});
+
+// ---------------------------------------------------------------- Stufe „verwalter“: Prüfarten (gemeinsam, IDA-368)
+
+export const pruefartSpeichernVorgang = (z: Akteur, id: unknown, eingabe: unknown) => ausfuehren(z, () => {
+  if (id !== null) pruefeId(id);
+  const e = geprueft(pruefartEingabe, eingabe);
+  return { ok: true, id: pruefartSpeichern(getDb(), id as string | null, e) };
+});
+
+export const pruefartLoeschenVorgang = (z: Akteur, id: unknown) => ausfuehren(z, () => {
+  pruefeId(id);
+  pruefartLoeschen(getDb(), id);
+});
+
+export const pruefartVerschiebenVorgang = (z: Akteur, id: unknown, richtung: unknown) => ausfuehren(z, () => {
+  pruefeId(id);
+  if (richtung !== -1 && richtung !== 1) throw new Abgelehnt(UNGUELTIG);
+  pruefartVerschieben(getDb(), id, richtung);
 });
 
 // ---------------------------------------------------------------- Stufe „admin“: Gruppen und ihre Verwalter (IDA-337)

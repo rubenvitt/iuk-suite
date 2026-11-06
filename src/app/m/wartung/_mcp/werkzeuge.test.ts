@@ -18,7 +18,7 @@ vi.mock("@/core/audit/server", async (orig) => ({
 import { bauServer } from "@/app/m/mcp/_lib/server";
 import type { McpPerson } from "@/app/m/mcp/_lib/token";
 import { eq } from "drizzle-orm";
-import { geraet, mangel, verwalter } from "../_db/schema";
+import { eintrag, geraet, mangel, verwalter } from "../_db/schema";
 import { geraetAnlegen, inhaltSpeichern } from "../_lib/schreiben";
 import { merkePerson, verwalterHinzufuegen } from "../_lib/personen";
 import { START } from "../_lib/startbestand";
@@ -155,5 +155,24 @@ describe("dieselben Grenzen wie in der App", () => {
     expect((await rufe("wartung_pruefung_abschliessen", {
       geraet_id: kiste, ergebnis: "ok", inhalt_stand: neu.inhaltStand, antworten: [{ punkt_id: neu.checkliste[0].id, ok: true }],
     })).isError).toBeFalsy();
+  });
+
+  it("Prüfplan (IDA-368): eine abgewählte Prüfart lässt sich nicht mehr eintragen, eine zugeschaltete schon", async () => {
+    const { rufe } = await verbinde(VERWALTER);
+    const plan = [
+      { pruefart_id: START.pruefart.dguv, an: false },
+      { pruefart_id: START.pruefart.heizsaison, an: true, eigenes: { monate: 6, stunden: null } },
+    ];
+    expect((await rufe("wartung_pruefplan_speichern", { geraet_id: akkuIuk, plan })).isError).toBe(true);
+    expect((await rufe("wartung_pruefplan_speichern", { geraet_id: stromerzeuger, plan })).isError).toBeFalsy();
+    const g = json<{ geraet: { plan: { pruefart: { id: string }; an: boolean; eigenes: unknown }[] } }>(
+      await rufe("wartung_geraet", { geraet_id: stromerzeuger }));
+    expect(g.geraet.plan.find((p) => p.pruefart.id === START.pruefart.dguv)?.an).toBe(false);
+    expect(g.geraet.plan.find((p) => p.pruefart.id === START.pruefart.heizsaison)?.eigenes).toEqual({ monate: 6, stunden: null });
+    const eintragen = (pruefart_id: string) => rufe("wartung_erledigt_eintragen", { geraet_id: stromerzeuger, pruefart_id, am: "2026-11-01" });
+    expect(text(await eintragen(START.pruefart.dguv))).toContain("gilt für das Gerät nicht mehr");
+    expect((await eintragen(START.pruefart.heizsaison)).isError).toBeFalsy();
+    expect(t.db.select({ p: eintrag.pruefartId }).from(eintrag).all()).toEqual([{ p: START.pruefart.heizsaison }]);
+    expect(json<{ id: string }[]>(await rufe("wartung_pruefarten")).map((p) => p.id)).toContain(START.pruefart.dguv);
   });
 });

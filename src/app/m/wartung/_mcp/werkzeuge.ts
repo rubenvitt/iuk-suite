@@ -14,8 +14,10 @@ import { getDirectory, type DirectoryResult } from "@/core/directory";
 import { alsViewer, antwortFehler, antwortJson, mitRiegel, type McpModul } from "@/app/m/mcp/_lib/modul";
 import { getDb } from "../_db/client";
 import { gruppenAuswahl } from "../_lib/ansicht";
-import { faelligeFristen, ladeArten, ladeGeraet, ladeGeraete, ladeGruppen, ladeInhalt, ladeMaengel, ladeUnterlagen, ladeVerlauf } from "../_lib/daten";
-import { ART_IKONEN, artEingabe, idSchema, NAME_MAX, NOTIZ_MAX, KURZ_MAX, SOLL_MAX, STUNDEN_MAX, PUNKT_MAX } from "../_lib/eingabe";
+import {
+  faelligeFristen, ladeArten, ladeGeraet, ladeGeraete, ladeGruppen, ladeInhalt, ladeMaengel, ladePruefarten, ladeUnterlagen, ladeVerlauf,
+} from "../_lib/daten";
+import { ART_IKONEN, artEingabe, idSchema, pruefartEingabe, NAME_MAX, NOTIZ_MAX, KURZ_MAX, SOLL_MAX, STUNDEN_MAX, PUNKT_MAX } from "../_lib/eingabe";
 import { heute } from "../_lib/heute";
 import { merkePerson, SUCHE_MAX_TREFFER, SUCHE_MIN_ZEICHEN, vorschlaege } from "../_lib/personen";
 import { inhaltStand } from "../_lib/schreiben";
@@ -24,7 +26,8 @@ import type { Ergebnis, GeraetZeile } from "../_lib/typen";
 import {
   artLoeschenVorgang, artSpeichernVorgang, erledigtEintragenVorgang, geraetAendernVorgang, geraetAktivVorgang,
   geraetAnlegenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang,
-  mangelMeldenVorgang, pruefungOhneFotosVorgang, stundenEintragenVorgang, verwalterEntfernenVorgang,
+  mangelMeldenVorgang, pruefartLoeschenVorgang, pruefartSpeichernVorgang, pruefplanSpeichernVorgang, pruefungOhneFotosVorgang,
+  stundenEintragenVorgang, verwalterEntfernenVorgang,
   verwalterHinzufuegenVorgang,
 } from "../_lib/vorgaenge";
 import {
@@ -206,10 +209,17 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_arten", {
       title: "Gerätearten",
-      description: "Alle Gerätearten mit Fristen (Kennungen für wartung_erledigt_eintragen) und Checkliste.",
+      description: "Alle Gerätearten mit den Kennungen ihrer Prüfarten (siehe wartung_pruefarten) und Checkliste.",
       inputSchema: {},
       annotations: LESEN,
     }, () => mit("verwalter", () => antwortJson(ladeArten(getDb()))));
+
+    server.registerTool("wartung_pruefarten", {
+      title: "Prüfarten",
+      description: "Der Katalog der Prüfarten (wer prüft, alle wie viele Monate oder Betriebsstunden), mit den Gerätearten, die sie zuschalten, und der Zahl der Geräte, an denen sie gilt.",
+      inputSchema: {},
+      annotations: LESEN,
+    }, () => mit("verwalter", () => antwortJson(ladePruefarten(getDb()))));
 
     server.registerTool("wartung_maengel", {
       title: "Mängel",
@@ -271,10 +281,10 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_erledigt_eintragen", {
       title: "Wartung eintragen",
-      description: "Trägt eine erledigte Frist ein, etwa die Wartung durch die Fachfirma oder die Elektroprüfung. Die frist_id kommt aus wartung_arten.",
+      description: "Trägt eine erledigte Prüfung ein, etwa die Wartung durch die Fachfirma oder die Elektroprüfung. Die pruefart_id kommt aus dem Prüfplan in wartung_geraet und muss am Gerät gelten.",
       inputSchema: {
         geraet_id: geraetId,
-        frist_id: idSchema,
+        pruefart_id: idSchema,
         am: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Datum JJJJ-MM-TT"),
         stunden: stunden.nullable().optional(),
         wer: z.string().max(NAME_MAX).optional().describe("Wer es erledigt hat, z. B. die Fachfirma"),
@@ -282,7 +292,7 @@ export const wartungMcp: McpModul = {
       },
       annotations: SCHREIBEN,
     }, (a) => mit("verwalter", async (z) => ergebnis(await erledigtEintragenVorgang(z, a.geraet_id, {
-      fristId: a.frist_id, am: a.am, stunden: a.stunden ?? null, wer: a.wer ?? "", notiz: a.notiz ?? "",
+      pruefartId: a.pruefart_id, am: a.am, stunden: a.stunden ?? null, wer: a.wer ?? "", notiz: a.notiz ?? "",
     }))));
 
     server.registerTool("wartung_mangel_beheben", {
@@ -314,7 +324,7 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_art_speichern", {
       title: "Geräteart speichern",
-      description: `Legt eine Geräteart an (ohne art_id) oder ersetzt eine bestehende ganz, mit Fristen und Checkliste. Bestehende Fristen und Punkte mit ihrer id übergeben. Zeichen: ${ART_IKONEN.map((i) => i.name).join(", ")}.`,
+      description: `Legt eine Geräteart an (ohne art_id) oder ersetzt eine bestehende ganz, mit Prüfarten (Kennungen aus wartung_pruefarten) und Checkliste. Bestehende Punkte mit ihrer id übergeben. Zeichen: ${ART_IKONEN.map((i) => i.name).join(", ")}.`,
       inputSchema: { art_id: idSchema.optional(), art: artEingabe },
       annotations: SCHREIBEN,
     }, ({ art_id, art }) => mit("verwalter", async (z) => ergebnis(await artSpeichernVorgang(z, art_id ?? null, art))));
@@ -325,6 +335,37 @@ export const wartungMcp: McpModul = {
       inputSchema: { art_id: idSchema },
       annotations: ENTFERNEN,
     }, ({ art_id }) => mit("verwalter", async (z) => ergebnis(await artLoeschenVorgang(z, art_id))));
+
+    server.registerTool("wartung_pruefplan_speichern", {
+      title: "Prüfplan eines Geräts speichern",
+      description: "Ersetzt den Prüfplan eines Geräts deiner Gruppe: je Prüfart an oder aus und optional ein eigenes Intervall. Prüfarten der Geräteart, die fehlen, gelten wie bei der Art; weitere aus wartung_pruefarten lassen sich zuschalten.",
+      inputSchema: {
+        geraet_id: geraetId,
+        plan: z.array(z.object({
+          pruefart_id: idSchema,
+          an: z.boolean(),
+          eigenes: z.object({ monate: z.number().int().min(1).max(120).nullable(), stunden: stunden.nullable() }).nullable().optional()
+            .describe("Eigenes Intervall an diesem Gerät; ohne Angabe gilt das der Prüfart"),
+        })).max(40),
+      },
+      annotations: SCHREIBEN,
+    }, ({ geraet_id, plan }) => mit("verwalter", async (z) => ergebnis(await pruefplanSpeichernVorgang(
+      z, geraet_id, plan.map((p) => ({ pruefartId: p.pruefart_id, an: p.an, eigenes: p.eigenes ?? null })),
+    ))));
+
+    server.registerTool("wartung_pruefart_speichern", {
+      title: "Prüfart speichern",
+      description: "Legt eine Prüfart im Katalog an (ohne pruefart_id) oder ändert sie. Eine Änderung gilt an jedem Gerät ohne eigenes Intervall.",
+      inputSchema: { pruefart_id: idSchema.optional(), pruefart: pruefartEingabe },
+      annotations: SCHREIBEN,
+    }, ({ pruefart_id, pruefart }) => mit("verwalter", async (z) => ergebnis(await pruefartSpeichernVorgang(z, pruefart_id ?? null, pruefart))));
+
+    server.registerTool("wartung_pruefart_loeschen", {
+      title: "Prüfart löschen",
+      description: "Löscht eine Prüfart aus dem Katalog; der Verlauf bleibt.",
+      inputSchema: { pruefart_id: idSchema },
+      annotations: ENTFERNEN,
+    }, ({ pruefart_id }) => mit("verwalter", async (z) => ergebnis(await pruefartLoeschenVorgang(z, pruefart_id))));
 
     if (!darf("admin")) return;
 

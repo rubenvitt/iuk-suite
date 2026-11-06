@@ -57,7 +57,7 @@ export const geraetEingabe = z.object({
 export type GeraetEingabe = z.infer<typeof geraetEingabe>;
 
 export const erledigtEingabe = z.object({
-  fristId: idSchema,
+  pruefartId: idSchema,
   am: tag,
   stunden,
   wer: frei(NAME_MAX),
@@ -68,13 +68,31 @@ export type ErledigtEingabe = z.infer<typeof erledigtEingabe>;
 /** `sendung` (IDA-358): die Sendungs-ID des Telefons, wird die ID des Eintrags — optional für offene alte Seiten. */
 export const stundenEingabe = z.object({ stunden: z.number().int().min(0).max(STUNDEN_MAX), sendung: idSchema.optional() });
 
-export const fristEingabe = z.object({
-  id: idSchema.nullable(),
-  name: pflicht(KURZ_MAX, "Bitte die Frist benennen."),
+const monate = z.number().int("Bitte ganze Monate.").min(1, "Mindestens 1.").max(120, "Höchstens 120.").nullable();
+const intervallStunden = z.number().int("Bitte ganze Stunden.").min(1, "Mindestens 1.").max(100_000).nullable();
+
+/** Eine Prüfart des Katalogs (IDA-368). */
+export const pruefartEingabe = z.object({
+  name: pflicht(KURZ_MAX, "Bitte die Prüfart benennen."),
   wer: z.enum(["intern", "fachfirma", "elektrofachkraft"]),
-  monate: z.number().int().min(1).max(120).nullable(),
-  stunden: z.number().int().min(1).max(100_000).nullable(),
+  monate,
+  stunden: intervallStunden,
 }).refine((f) => f.monate !== null || f.stunden !== null, { message: "Monate oder Stunden angeben.", path: ["monate"] });
+export type PruefartEingabe = z.infer<typeof pruefartEingabe>;
+
+/**
+ * Der Prüfplan eines Geräts, ganz (IDA-368): je Prüfart, ob sie gilt, und ein eigenes Intervall. Prüfarten der Art,
+ * die hier fehlen, gelten wie bei der Art.
+ */
+export const pruefplanEingabe = z.array(z.object({
+  pruefartId: idSchema,
+  an: z.boolean(),
+  /** Eigenes Intervall statt dem des Katalogs; beide `null` heißt: wie im Katalog. */
+  eigenes: z.object({ monate, stunden: intervallStunden })
+    .refine((e) => e.monate !== null || e.stunden !== null, { message: "Monate oder Stunden angeben.", path: ["monate"] })
+    .nullable(),
+})).max(40).refine((l) => new Set(l.map((x) => x.pruefartId)).size === l.length, "Jede Prüfart nur einmal.");
+export type PruefplanEingabe = z.infer<typeof pruefplanEingabe>;
 
 export const punktEingabe = z.object({
   id: idSchema.nullable(),
@@ -88,18 +106,11 @@ export const artEingabe = z.object({
   ikone: z.string(),
   stundenPflicht: z.boolean(),
   kiste: z.boolean(),
-  fristen: z.array(fristEingabe).min(1, "Mindestens eine Frist.").max(10),
+  /** Die Prüfarten des Katalogs, die jedes Gerät dieser Art von sich aus hat (IDA-368). Was sie verlangen, prüft `artSpeichern`. */
+  pruefarten: z.array(idSchema).max(20).refine((l) => new Set(l).size === l.length, "Jede Prüfart nur einmal."),
   checkliste: z.array(punktEingabe).max(40),
-}).refine((a) => a.fristen.filter((f) => f.wer === "intern").length <= 1, {
-  message: "Nur eine Frist wird selbst am Gerät erledigt.", path: ["fristen"],
 }).refine((a) => !(a.kiste && a.stundenPflicht), {
   message: "Eine Materialkiste hat keine Betriebsstunden.", path: ["stundenPflicht"],
-}).refine((a) => !a.kiste || a.fristen.every((f) => f.stunden === null), {
-  message: "Eine Materialkiste hat keine Betriebsstunden.", path: ["fristen"],
-}).refine((a) => !a.kiste || a.fristen.some((f) => f.wer === "intern"), {
-  message: "Eine Materialkiste braucht eine Frist, die selbst durchgezählt wird.", path: ["fristen"],
-}).refine((a) => a.kiste || !a.fristen.some((f) => f.wer === "intern") || a.checkliste.length > 0, {
-  message: "Die Prüfung am Gerät braucht mindestens einen Punkt.", path: ["checkliste"],
 });
 export type ArtEingabe = z.infer<typeof artEingabe>;
 

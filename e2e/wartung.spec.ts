@@ -48,7 +48,18 @@ test("Verwalter zuordnen, Gerät anlegen, prüfen, Mangel ohne Anmeldung melden 
   const id = page.url().split("/").pop()!;
   await warteAufGestreamteInhalte(page);
   await expect(page.getByRole("heading", { name })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Fristen" })).toContainText("noch nie erledigt");
+  await expect(page.getByRole("list", { name: "Prüfungen" })).toContainText("noch nie erledigt");
+
+  // IDA-368: am Gerät eine Prüfart der Art abwählen.
+  await expect(page.getByRole("list", { name: "Prüfungen" })).toContainText("Elektroprüfung (DGUV V3)");
+  await klickeWennRuhig(page.getByRole("button", { name: "Anpassen" }));
+  const plan = page.getByRole("dialog", { name: "Prüfungen anpassen" });
+  await plan.getByRole("switch", { name: "Elektroprüfung (DGUV V3) an diesem Gerät" }).click();
+  const gespeichert = page.waitForResponse((r) => r.request().method() === "POST" && r.status() === 200);
+  await klickeWennRuhig(plan.getByRole("button", { name: "Speichern" }));
+  await gespeichert;
+  await expect(page.getByText("Abgewählt: Elektroprüfung (DGUV V3)")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Prüfungen" })).not.toContainText("Elektroprüfung (DGUV V3)");
 
   // Am Gerät: Prüfung mit allen Punkten in Ordnung.
   const handyKontext = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: await page.context().storageState() });

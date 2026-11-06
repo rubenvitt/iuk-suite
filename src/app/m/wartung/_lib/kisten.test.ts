@@ -4,7 +4,7 @@ import { eintrag, inhalt, mangel } from "../_db/schema";
 import { ladeArten, ladeGeraet, ladeInhalt } from "./daten";
 import { artEingabe, inhaltEingabe } from "./eingabe";
 import { wartungFaelligkeiten } from "./faelligkeiten";
-import { Abgelehnt, geraetAnlegen, inhaltSpeichern, inhaltStand, neueId, pruefungAbschliessen, ungepushteAusfaelle } from "./schreiben";
+import { Abgelehnt, artSpeichern, geraetAnlegen, inhaltSpeichern, inhaltStand, neueId, pruefungAbschliessen, ungepushteAusfaelle } from "./schreiben";
 import { START } from "./startbestand";
 import { ladeAmGeraet } from "./telefon";
 import { testDb } from "./testDb";
@@ -38,7 +38,7 @@ describe("Materialkisten (IDA-335)", () => {
   it("die Migration bringt die Art „Materialkisten“ mit Quartalsprüfung und ohne Checkliste", () => {
     const a = ladeArten(testDb()).find((x) => x.id === START.art.kiste)!;
     expect(a).toMatchObject({ name: "Materialkisten", einzahl: "Materialkiste", kiste: true, checkliste: [] });
-    expect(a.fristen.map((f) => [f.id, f.wer, f.monate])).toEqual([[START.frist.kiste.quartal, "intern", 3]]);
+    expect(a.pruefarten).toEqual([START.pruefart.quartal]);
   });
 
   it("Inhaltsliste: bestehende Positionen behalten ihre Kennung, Reihenfolge wie übergeben", () => {
@@ -82,7 +82,7 @@ describe("Materialkisten (IDA-335)", () => {
     expect(m).toHaveLength(1);
     expect(m[0]).toMatchObject({ text: "Fehlt: USB-C-Hub (Soll 2)", fehlt: true, inhaltId: liste[1].id, einsatzbereit: true });
     const e = db.select().from(eintrag).where(eq(eintrag.id, sendung)).get()!;
-    expect(e.fristId).toBe(START.frist.kiste.quartal);
+    expect(e.pruefartId).toBe(START.pruefart.quartal);
     expect(JSON.parse(e.antworten!)).toEqual([{ text: "3 × HDMI-Kabel 2 m", ok: true }, { text: "2 × USB-C-Hub", ok: false }]);
     const g = ladeGeraet(db, id, HEUTE)!;
     expect(g).toMatchObject({ zustand: "mangel", fehlend: 1 });
@@ -199,19 +199,16 @@ describe("Materialkisten (IDA-335)", () => {
   });
 
   it("eine Materialkiste hat keine Betriebsstunden-Pflicht", () => {
-    const art = { name: "Kisten", einzahl: "Kiste", ikone: "package", kiste: true, checkliste: [],
-      fristen: [{ id: null, name: "Quartalsprüfung", wer: "intern" as const, monate: 3, stunden: null }] };
+    const art = { name: "Kisten", einzahl: "Kiste", ikone: "package", kiste: true, checkliste: [], pruefarten: [START.pruefart.quartal] };
     expect(artEingabe.safeParse({ ...art, stundenPflicht: false }).success).toBe(true);
     expect(artEingabe.safeParse({ ...art, stundenPflicht: true }).success).toBe(false);
-    const nurStunden = [{ ...art.fristen[0], monate: null, stunden: 500 }];
-    expect(artEingabe.safeParse({ ...art, stundenPflicht: false, fristen: nurStunden }).success).toBe(false);
-    expect(artEingabe.safeParse({ ...art, stundenPflicht: false, kiste: false, checkliste: [{ id: null, text: "Sicht", hinweis: "" }], fristen: nurStunden }).success).toBe(true);
   });
 
-  it("eine Materialkiste braucht eine Frist, die selbst durchgezählt wird", () => {
-    const art = { name: "Kisten", einzahl: "Kiste", ikone: "package", kiste: true, checkliste: [], stundenPflicht: false,
-      fristen: [{ id: null, name: "Sichtprüfung", wer: "fachfirma" as const, monate: 12, stunden: null }] };
-    expect(artEingabe.safeParse(art).success).toBe(false);
+  it("eine Materialkiste braucht eine Prüfart, die selbst durchgezählt wird", () => {
+    const db = testDb();
+    const art = { name: "Kisten", einzahl: "Kiste", ikone: "package", kiste: true, checkliste: [], stundenPflicht: false };
+    expect(() => artSpeichern(db, null, { ...art, pruefarten: [START.pruefart.heizsaison] }, K.jetzt)).toThrow(/selbst durchgezählt/);
+    expect(artSpeichern(db, null, { ...art, pruefarten: [START.pruefart.quartal] }, K.jetzt)).toBeTruthy();
   });
 
   it("eine inzwischen von jemand anderem geänderte Inhaltsliste wird nicht überschrieben", () => {
