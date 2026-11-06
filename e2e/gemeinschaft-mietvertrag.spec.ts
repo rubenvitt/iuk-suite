@@ -137,14 +137,27 @@ test("Formularvorlage: Leitung füllt aus und gibt frei; Unterschrift am Telefon
   const flaeche = page.getByTestId("vorlage-flaeche");
   await expect(flaeche.locator("canvas")).toHaveAttribute("aria-label", "Seite 2 der Vorlage");
   const box = (await flaeche.boundingBox())!;
+  // Ohne „Feld aufziehen“ legt ein Zug kein Feld an.
+  await ziehe(page, box.x + box.width * 0.55, box.y + box.height * 0.8, box.x + box.width * 0.9, box.y + box.height * 0.9);
+  await expect(page.getByTestId("feld-auswahl")).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Felder der Vorlage" }).getByRole("button")).toHaveCount(2);
+  await klickeWennRuhig(page.getByTestId("feld-aufziehen"));
   await ziehe(page, box.x + box.width * 0.55, box.y + box.height * 0.8, box.x + box.width * 0.9, box.y + box.height * 0.9);
   await expect(page.getByTestId("feld-auswahl")).toBeVisible();
+  // Nach einem Feld ist das Aufziehen wieder aus.
+  await expect(page.getByTestId("feld-aufziehen")).toHaveAttribute("aria-pressed", "false");
+  await klickeWennRuhig(page.getByTestId("feld-aufziehen"));
   await ziehe(page, box.x + box.width * 0.1, box.y + box.height * 0.8, box.x + box.width * 0.45, box.y + box.height * 0.9);
   await klickeWennRuhig(page.getByTestId("feld-rolle").getByText("Leitung", { exact: true }));
   await page.getByTestId("feld-name").fill("Unterschrift Leitung");
   await klickeWennRuhig(page.getByTestId("felder-speichern"));
   await expect(page.getByText("Felder gespeichert.")).toBeVisible();
   await expect(page.getByRole("list", { name: "Felder der Vorlage" }).getByRole("button")).toHaveCount(4);
+  // Unten auf einer langen Seite bleibt „Feld aufziehen“ erreichbar.
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await page.mouse.move(box.x + 10, box.y + 10);
+  await page.mouse.wheel(0, 2000);
+  await expect(page.getByTestId("feld-aufziehen")).toBeInViewport();
 
   const gast = await (await browser.newContext({ viewport: { width: 390, height: 800 }, hasTouch: true })).newPage();
   const anlass = `Vertrag e2e ${Date.now() % 100_000}`;
