@@ -66,6 +66,10 @@ async function erstelleDokument(leitung: Page, anlass: string, art: string) {
 async function zeichne(page: Page, testId: string) {
   const f = page.getByTestId(testId);
   await f.scrollIntoViewIfNeeded();
+  // Gesperrt: ein Strich vor dem Entsperren bleibt folgenlos.
+  await expect(f).toHaveAttribute("data-aktiv", "false");
+  await klickeWennRuhig(page.getByTestId(`${testId}-start`));
+  await expect(f).toHaveAttribute("data-aktiv", "true");
   const b = (await f.boundingBox())!;
   await ziehe(page, b.x + 20, b.y + b.height * 0.7, b.x + b.width - 20, b.y + b.height * 0.3);
 }
@@ -176,10 +180,10 @@ test("Formularvorlage: Leitung füllt aus und gibt frei; Unterschrift am Telefon
   const ansicht = await gast.request.get(url(`${status}/vertrag?art=mietvertrag`));
   expect(ansicht.headers()["content-disposition"]).toMatch(/^inline;/);
 
-  await expect(bereich.getByRole("button", { name: "Unterschreiben" })).toBeDisabled();
+  await expect(bereich.getByRole("button", { name: "Unterschreiben", exact: true })).toBeDisabled();
   await zeichne(gast, "unterschrift-flaeche");
   await bereich.getByLabel("Ich habe das Dokument gelesen und bin einverstanden.").check();
-  await klickeWennRuhig(bereich.getByRole("button", { name: "Unterschreiben" }));
+  await klickeWennRuhig(bereich.getByRole("button", { name: "Unterschreiben", exact: true }));
   await expect(bereich).toHaveAttribute("data-stand", "unterschrieben");
   await keinUeberlauf(gast, 320);
 

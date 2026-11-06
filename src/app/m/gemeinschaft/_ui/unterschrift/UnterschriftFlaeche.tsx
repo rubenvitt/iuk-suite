@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import s from "./unterschrift.module.css";
 
 export type Unterschriftflaeche = { alsPng: () => string | null; leeren: () => void };
@@ -8,6 +9,9 @@ export type Unterschriftflaeche = { alsPng: () => string | null; leeren: () => v
 /**
  * Zeichenfläche für Finger, Stift oder Maus (IDA-343, IDA-354): auf der Statusseite, auf der Ausfüllseite der Leitung
  * und für die Unterschrift vor Ort. Schwarze Tinte auf hellem Grund, auch im Dunkelmodus.
+ *
+ * Gesperrt, bis jemand „Hier unterschreiben“ tippt: sonst zieht schon das Wischen beim Scrollen über die Fläche einen
+ * Strich, und das Telefon scrollt dort nicht (`touch-action: none` gilt nur im entsperrten Zustand).
  */
 export function UnterschriftFlaeche({ ref, beschriftetVon, onLeer, testId = "unterschrift-flaeche" }: {
   ref: React.Ref<Unterschriftflaeche>; beschriftetVon: string; onLeer: (leer: boolean) => void; testId?: string;
@@ -15,6 +19,7 @@ export function UnterschriftFlaeche({ ref, beschriftetVon, onLeer, testId = "unt
   const leinwand = useRef<HTMLCanvasElement>(null);
   const letzter = useRef<{ x: number; y: number } | null>(null);
   const striche = useRef(0);
+  const [aktiv, setAktiv] = useState(false);
 
   useEffect(() => {
     const c = leinwand.current;
@@ -53,22 +58,30 @@ export function UnterschriftFlaeche({ ref, beschriftetVon, onLeer, testId = "unt
   }), [onLeer]);
 
   return (
-    <canvas ref={leinwand} className={s.flaeche} role="img" aria-labelledby={beschriftetVon} data-testid={testId}
-      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); letzter.current = pos(e); }}
-      onPointerMove={(e) => {
-        const von = letzter.current;
-        const ctx = leinwand.current?.getContext("2d");
-        if (!von || !ctx) return;
-        const nach = pos(e);
-        ctx.beginPath(); ctx.moveTo(von.x, von.y); ctx.lineTo(nach.x, nach.y); ctx.stroke();
-        letzter.current = nach;
-        // Ausgeschrieben statt `striche.current++ === 0`: der React Compiler übersetzt das Postfix auf einer Ref als
-        // Vergleich NACH dem Hochzählen (gemessen im gebauten Stand), und die Fläche bliebe „leer“.
-        const vorher = striche.current;
-        striche.current = vorher + 1;
-        if (vorher === 0) onLeer(false);
-      }}
-      onPointerUp={() => { letzter.current = null; }}
-      onPointerCancel={() => { letzter.current = null; }} />
+    <div className={s.rahmen}>
+      <canvas ref={leinwand} className={s.flaeche} role="img" aria-labelledby={beschriftetVon} data-testid={testId} data-aktiv={aktiv}
+        onPointerDown={(e) => { if (!aktiv) return; e.currentTarget.setPointerCapture(e.pointerId); letzter.current = pos(e); }}
+        onPointerMove={(e) => {
+          const von = letzter.current;
+          const ctx = leinwand.current?.getContext("2d");
+          if (!aktiv || !von || !ctx) return;
+          const nach = pos(e);
+          ctx.beginPath(); ctx.moveTo(von.x, von.y); ctx.lineTo(nach.x, nach.y); ctx.stroke();
+          letzter.current = nach;
+          // Ausgeschrieben statt `striche.current++ === 0`: der React Compiler übersetzt das Postfix auf einer Ref als
+          // Vergleich NACH dem Hochzählen (gemessen im gebauten Stand), und die Fläche bliebe „leer“.
+          const vorher = striche.current;
+          striche.current = vorher + 1;
+          if (vorher === 0) onLeer(false);
+        }}
+        onPointerUp={() => { letzter.current = null; }}
+        onPointerCancel={() => { letzter.current = null; }} />
+      {aktiv ? null : (
+        <button type="button" className={s.start} data-testid={`${testId}-start`} onClick={() => setAktiv(true)}>
+          <Icons8Ikone name="pencil" groesse={20} />
+          Hier unterschreiben
+        </button>
+      )}
+    </div>
   );
 }
