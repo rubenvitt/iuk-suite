@@ -115,18 +115,21 @@ export async function pruefeToken(kopf: string | null, p: TokenPruefer): Promise
 
 // ---------------------------------------------------------------- Pocket ID als Gegenüber
 
-interface Discovery { jwks_uri: string; userinfo_endpoint: string }
+/** Was die Suite aus der Discovery von Pocket ID braucht. */
+export interface Discovery { jwks_uri: string; userinfo_endpoint: string; authorization_endpoint: string; token_endpoint: string }
+const DISCOVERY_FELDER = ["jwks_uri", "userinfo_endpoint", "authorization_endpoint", "token_endpoint"] as const;
 let discovery: { issuer: string; wert: Promise<Discovery> } | null = null;
 let jwks: { uri: string; set: JWTVerifyGetKey } | null = null;
 
-function entdecke(issuer: string): Promise<Discovery> {
+/** Die Discovery von Pocket ID, gemerkt bis zum ersten Fehlschlag. */
+export function entdecke(issuer: string): Promise<Discovery> {
   if (discovery?.issuer !== issuer) {
     const wert = fetch(`${issuer.replace(/\/$/, "")}/.well-known/openid-configuration`, { cache: "no-store" })
       .then(async (r) => {
         if (!r.ok) throw new Error(`discovery ${r.status}`);
         const d = (await r.json()) as Partial<Discovery>;
-        if (typeof d.jwks_uri !== "string" || typeof d.userinfo_endpoint !== "string") throw new Error("discovery unvollständig");
-        return { jwks_uri: d.jwks_uri, userinfo_endpoint: d.userinfo_endpoint };
+        if (DISCOVERY_FELDER.some((f) => typeof d[f] !== "string")) throw new Error("discovery unvollständig");
+        return d as Discovery;
       });
     // Ein Fehlschlag bleibt nicht hängen: der nächste Aufruf fragt neu.
     wert.catch(() => { if (discovery?.wert === wert) discovery = null; });

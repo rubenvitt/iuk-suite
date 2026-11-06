@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -18,7 +21,7 @@ vi.mock("@/core/audit/server", async (orig) => ({
 import { bauServer } from "@/app/m/mcp/_lib/server";
 import type { McpPerson } from "@/app/m/mcp/_lib/token";
 import { eq } from "drizzle-orm";
-import { eintrag, geraet, mangel, verwalter } from "../_db/schema";
+import { eintrag, geraet, mangel, unterlage, verwalter } from "../_db/schema";
 import { geraetAnlegen, inhaltSpeichern } from "../_lib/schreiben";
 import { merkePerson, verwalterHinzufuegen } from "../_lib/personen";
 import { START } from "../_lib/startbestand";
@@ -77,8 +80,41 @@ describe("Gerätewartung im MCP-Server: Werkzeuge je Stufe", () => {
     expect(v).toContain("wartung_geraet_anlegen");
     expect(v.filter((n) => /gruppe_|verwalter_|personen_/.test(n))).toEqual([]);
     const a = (await verbinde(ADMIN)).namen;
-    expect(a).toEqual(expect.arrayContaining(["wartung_gruppe_loeschen", "wartung_verwalter_zuordnen", ...v]));
+    expect(a).toEqual(expect.arrayContaining(["wartung_gruppe_loeschen", ...v]));
     expect(a.every((n) => n.startsWith("wartung_"))).toBe(true);
+  });
+
+  it("keine Personen und keine Rechtevergabe (Grundregel des MCP-Servers)", async () => {
+    expect((await verbinde(ADMIN)).namen.filter((n) => /verwalter|person/.test(n))).toEqual([]);
+  });
+});
+
+describe("keine personenbezogenen Daten in den Antworten", () => {
+  it("weder Melder, Prüfer, Beheber noch Verwalter tauchen auf", async () => {
+    const helfer = await verbinde(NUTZER);
+    const am = json<{ checkliste: { id: string }[] }>(await helfer.rufe("wartung_geraet", { geraet_id: stromerzeuger }));
+    await helfer.rufe("wartung_pruefung_abschliessen", {
+      geraet_id: stromerzeuger, ergebnis: "ok", stunden: 120, antworten: am.checkliste.map((p) => ({ punkt_id: p.id, ok: true })),
+    });
+    await helfer.rufe("wartung_mangel_melden", { geraet_id: stromerzeuger, text: "Kabel brüchig", einsatzbereit: true });
+    const { rufe } = await verbinde(VERWALTER);
+    const mangelId = json<{ id: string }[]>(await rufe("wartung_maengel"))[0].id;
+    await rufe("wartung_mangel_beheben", { mangel_id: mangelId });
+    const antworten = [
+      await rufe("wartung_geraet", { geraet_id: stromerzeuger }),
+      await rufe("wartung_maengel"),
+      await rufe("wartung_maengel", { behobene: true }),
+      await rufe("wartung_pruefungen"),
+      await rufe("wartung_gruppen"),
+      await helfer.rufe("wartung_geraet", { geraet_id: stromerzeuger }),
+      await helfer.rufe("wartung_geraete"),
+    ].map(text).join("\n");
+    expect(antworten).toContain("Kabel brüchig");
+    for (const verboten of ["Helfer A", "Verwalter Technik", "sub-helfer", "sub-technik", "gemeldetVon", "behobenVon", "verwalter"]) {
+      expect(antworten, verboten).not.toContain(verboten);
+    }
+    // In der App bleibt sichtbar, wer gemeldet hat.
+    expect(t.db.select().from(mangel).all().map((m) => m.gemeldetVon)).toEqual(["Helfer A"]);
   });
 });
 
@@ -218,5 +254,43 @@ describe("dieselben Grenzen wie in der App", () => {
     const weg = await rufe("wartung_pruefart_loeschen", { pruefart_id: START.pruefart.quartal });
     expect(weg.isError).toBe(true);
     expect(JSON.stringify(weg.content)).toMatch(/Erst die Punkte dieser Prüfart/);
+  });
+});
+
+describe("Unterlagen über den MCP-Server", () => {
+  let dir: string;
+  const vorher = process.env.DATA_DIR;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "wartung-mcp-unterlagen-"));
+    process.env.DATA_DIR = dir;
+  });
+  afterEach(async () => {
+    process.env.DATA_DIR = vorher;
+    await rm(dir, { recursive: true, force: true });
+  });
+  const PDF = Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF").toString("base64");
+
+  it("ein Verwalter hängt ein PDF an ein Gerät seiner Gruppe, im eigenen Namen", async () => {
+    const { rufe } = await verbinde(VERWALTER);
+    const r = await rufe("wartung_unterlage_hochladen", { geraet_id: stromerzeuger, titel: "Bedienungsanleitung", inhalt_base64: PDF });
+    expect(r.isError).toBeFalsy();
+    const zeilen = t.db.select().from(unterlage).all();
+    expect(zeilen.map((u) => [u.geraetId, u.titel, u.typ, u.angelegtVon])).toEqual([[stromerzeuger, "Bedienungsanleitung", "pdf", "Verwalter Technik"]]);
+    expect((await readdir(join(dir, "wartung", "unterlagen"))).length).toBe(1);
+  });
+
+  it("nur für die eigene Gruppe, nur PDF oder Bild, genau eine Quelle, keine Adresse im eigenen Netz", async () => {
+    const { rufe } = await verbinde(VERWALTER);
+    expect(text(await rufe("wartung_unterlage_hochladen", { geraet_id: akkuIuk, titel: "x", inhalt_base64: PDF })))
+      .toContain("Gruppe, die du nicht verwaltest");
+    expect(text(await rufe("wartung_unterlage_hochladen", {
+      geraet_id: stromerzeuger, titel: "x", inhalt_base64: Buffer.from("kein pdf").toString("base64"),
+    }))).toContain("Bitte ein PDF oder ein Bild wählen.");
+    expect(text(await rufe("wartung_unterlage_hochladen", { geraet_id: stromerzeuger, titel: "x" }))).toContain("genau eins");
+    expect(text(await rufe("wartung_unterlage_hochladen", { geraet_id: stromerzeuger, titel: "x", adresse: "http://127.0.0.1/handbuch.pdf" })))
+      .toBe("Diese Adresse ist nicht öffentlich erreichbar.");
+    expect(t.db.select().from(unterlage).all()).toEqual([]);
+    // Nutzer ohne Verwaltung sehen das Werkzeug gar nicht.
+    expect((await verbinde(NUTZER)).namen).not.toContain("wartung_unterlage_hochladen");
   });
 });

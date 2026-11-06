@@ -20,15 +20,16 @@ import { geraet } from "../_db/schema";
 import { ladeMangel } from "./daten";
 import {
   anlassEingabe, artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, mangelEingabe,
-  pruefartEingabe, pruefplanEingabe, pruefungEingabe, stundenEingabe, verwalterEingabe,
+  pruefartEingabe, pruefplanEingabe, pruefungEingabe, stundenEingabe, unterlageTitel, verwalterEingabe,
 } from "./eingabe";
 import { verwalterEntfernen, verwalterHinzufuegen } from "./personen";
 import { heute } from "./heute";
 import {
   Abgelehnt, anlassVermerken, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
   gruppeSpeichern, inhaltSpeichern, mangelBeheben, mangelMelden, neueId, pruefartLoeschen, pruefartSpeichern, pruefartVerschieben,
-  pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen,
+  pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen, unterlageAnlegen,
 } from "./schreiben";
+import { entferneUnterlage, legeUnterlageAb, pruefeUnterlage, UNTERLAGE_MAX_BYTES } from "./unterlagen";
 import { mitFahrzeugbezug } from "./fahrzeugbezug";
 import type { Ergebnis } from "./typen";
 import { anzeigename, verwaltetGruppe, type Rechte, type Viewer } from "./zugang";
@@ -192,6 +193,36 @@ export const mangelBehebenVorgang = (z: Akteur, id: unknown) => ausfuehren(z, ({
   if (!verwaltetGruppe(rechte, m.gruppeId)) throw new Abgelehnt(NICHT_DEINE);
   mangelBeheben(getDb(), id, kontext(viewer));
 });
+
+/**
+ * Eine Unterlage (PDF oder Bild) an ein Gerät der eigenen Gruppe hängen — für die Route der App und das
+ * MCP-Werkzeug. Die Datei liegt erst, dann der Eintrag; scheitert der Eintrag, verschwindet die Datei wieder.
+ */
+export const unterlageHochladenVorgang = (z: Akteur, geraetId: unknown, titel: unknown, bytes: Uint8Array) =>
+  ausfuehren(z, async ({ viewer, rechte }): Promise<Ergebnis> => {
+    pruefeId(geraetId);
+    eigenesGeraet(rechte, geraetId);
+    const t = unterlageTitel.safeParse(typeof titel === "string" ? titel : "");
+    if (!t.success) {
+      const text = t.error.issues[0]?.message ?? "Bitte die Unterlage benennen.";
+      return { ok: false, fehler: text, feldFehler: { titel: text } };
+    }
+    if (bytes.byteLength > UNTERLAGE_MAX_BYTES) {
+      const text = `Die Datei ist zu groß (höchstens ${UNTERLAGE_MAX_BYTES / 1024 / 1024} MB).`;
+      return { ok: false, fehler: text, feldFehler: { datei: text } };
+    }
+    const geprueft = await pruefeUnterlage(bytes);
+    if (!geprueft) return { ok: false, fehler: "Bitte ein PDF oder ein Bild wählen.", feldFehler: { datei: "Bitte ein PDF oder ein Bild wählen." } };
+    const id = neueId();
+    await legeUnterlageAb(id, geprueft.typ, geprueft.inhalt);
+    try {
+      unterlageAnlegen(getDb(), geraetId, { id, titel: t.data, typ: geprueft.typ, bytes: geprueft.inhalt.byteLength }, kontext(viewer));
+    } catch (e) {
+      await entferneUnterlage(id, geprueft.typ);
+      throw e;
+    }
+    return { ok: true, id };
+  });
 
 // ---------------------------------------------------------------- Stufe „verwalter“: Gerätearten (gemeinsam)
 

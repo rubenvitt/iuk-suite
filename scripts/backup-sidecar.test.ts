@@ -3477,9 +3477,12 @@ describe("scripts/backup.sh — die Maengelfotos von `lagerbuch` und `wartung` (
     expect(kernZeilen[kopie - 2]).toContain('[ -d "$DATA_DIR/wartung/unterlagen" ]');
     expect(befehl(".backup '")).toBeLessThan(kopie);
     expect(kopie).toBeLessThan(befehl("tar -czf"));
-    const route = lies("src/app/m/wartung/(verwaltung)/geraete/[id]/unterlagen/route.ts");
-    expect(route.indexOf("await legeUnterlageAb(")).toBeGreaterThanOrEqual(0);
-    expect(route.indexOf("await legeUnterlageAb(")).toBeLessThan(route.indexOf("unterlageAnlegen(getDb()"));
+    // Route und MCP-Werkzeug laden über denselben Vorgang hoch (IDA-370).
+    expect(lies("src/app/m/wartung/(verwaltung)/geraete/[id]/unterlagen/route.ts")).toContain("unterlageHochladenVorgang(");
+    const vorgang = lies("src/app/m/wartung/_lib/vorgaenge.ts");
+    const rumpf = vorgang.slice(vorgang.indexOf("export const unterlageHochladenVorgang"));
+    expect(rumpf.indexOf("await legeUnterlageAb(")).toBeGreaterThanOrEqual(0);
+    expect(rumpf.indexOf("await legeUnterlageAb(")).toBeLessThan(rumpf.indexOf("unterlageAnlegen(getDb()"));
   });
 
   it("bricht ab, wenn `unterlage` Zeilen hat, aber keine Unterlage kopiert wurde", () => {

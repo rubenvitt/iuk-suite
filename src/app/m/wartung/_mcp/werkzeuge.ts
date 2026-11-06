@@ -4,13 +4,13 @@
  * dieselben Vorgänge wie die Server Actions (`_lib/vorgaenge.ts`), gelesen über dieselben Lesepfade wie die Seiten
  * mit demselben Gruppenfilter. So kann der MCP-Server nichts, was die Person in der App nicht auch kann.
  *
- * Nicht dabei: Fotos und Unterlagen (Dateien), Etiketten drucken.
+ * Unterlagen gehen nur dazu (`wartung_unterlage_hochladen`, von einer Adresse oder als Base64); löschen und
+ * sortieren bleibt in der App. Nicht dabei: Fotos, Etiketten drucken.
  */
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { getDirectory, type DirectoryResult } from "@/core/directory";
 import { alsViewer, antwortFehler, antwortJson, mitRiegel, type McpModul } from "@/app/m/mcp/_lib/modul";
 import { getDb } from "../_db/client";
 import { gruppenAuswahl } from "../_lib/ansicht";
@@ -19,16 +19,16 @@ import {
 } from "../_lib/daten";
 import { ART_IKONEN, artEingabe, idSchema, pruefartEingabe, NAME_MAX, NOTIZ_MAX, KURZ_MAX, SOLL_MAX, STUNDEN_MAX, PUNKT_MAX } from "../_lib/eingabe";
 import { heute } from "../_lib/heute";
-import { merkePerson, SUCHE_MAX_TREFFER, SUCHE_MIN_ZEICHEN, vorschlaege } from "../_lib/personen";
 import { inhaltStand } from "../_lib/schreiben";
+import { ladeVonAdresse } from "../_lib/abruf";
 import { ladeAmGeraet, type AmGeraet } from "../_lib/telefon";
-import type { Ergebnis, GeraetZeile } from "../_lib/typen";
+import { UNTERLAGE_MAX_BYTES } from "../_lib/unterlagen";
+import type { EintragDTO, Ergebnis, GeraetZeile, GruppeDTO, MangelDTO } from "../_lib/typen";
 import {
   anlassVermerkenVorgang, artLoeschenVorgang, artSpeichernVorgang, erledigtEintragenVorgang, geraetAendernVorgang, geraetAktivVorgang,
   geraetAnlegenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang,
   mangelMeldenVorgang, pruefartLoeschenVorgang, pruefartSpeichernVorgang, pruefplanSpeichernVorgang, pruefungOhneFotosVorgang,
-  stundenEintragenVorgang, verwalterEntfernenVorgang,
-  verwalterHinzufuegenVorgang,
+  stundenEintragenVorgang, unterlageHochladenVorgang,
 } from "../_lib/vorgaenge";
 import {
   aktionFuer, hatWartungZugang, istVerwalter, reichtFuer, rechteAus, verwaltetGruppe, type Rechte, type Stufe,
@@ -76,6 +76,30 @@ function pruefungenAmGeraet(am: AmGeraet | null) {
   }));
 }
 
+// ---------------------------------------------------------------- ohne Personenbezug
+// Grundregel (Ruben, 2026-11-06): Der MCP-Server gibt keine personenbezogenen Daten heraus und überträgt keine
+// Rechte. Ausgaben nennen deshalb nur die Felder unten (Liste der erlaubten, nicht der verbotenen Felder), also weder
+// wer geprüft, gemeldet oder behoben hat noch wer eine Gruppe verwaltet. Die angemeldete Person steht weiter im
+// Audit-Log und an ihren Einträgen in der App — sie wird nur nicht an den Assistenten zurückgegeben.
+
+function eintragOhnePerson(e: EintragDTO) {
+  return {
+    id: e.id, geraetId: e.geraetId, geraetName: e.geraetName, typ: e.typ, titel: e.titel, am: e.am, stunden: e.stunden,
+    notiz: e.notiz, ergebnis: e.ergebnis, antworten: e.antworten, maengel: e.maengel,
+  };
+}
+
+function mangelOhnePerson(m: MangelDTO) {
+  return {
+    id: m.id, geraetId: m.geraetId, geraetName: m.geraetName, ort: m.ort, gruppeName: m.gruppeName, text: m.text,
+    foto: m.foto, einsatzbereit: m.einsatzbereit, gemeldetAm: m.gemeldetAm, behobenAm: m.behobenAm,
+  };
+}
+
+function gruppeOhnePersonen(g: GruppeDTO) {
+  return { id: g.id, name: g.name, geraete: g.geraete };
+}
+
 const LESEN = { readOnlyHint: true, openWorldHint: false } as const;
 const SCHREIBEN = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
 const ENTFERNEN = { readOnlyHint: false, destructiveHint: true, openWorldHint: false } as const;
@@ -104,7 +128,6 @@ export const wartungMcp: McpModul = {
     const viewer: Viewer = alsViewer(person);
     if (!hatWartungZugang(viewer.groups)) return;
     const db = getDb();
-    merkePerson(db, viewer.id, viewer.name);
     const rechte = rechteAus(db, viewer.groups, viewer.id);
     const darf = (stufe: Stufe) => reichtFuer(rechte, stufe);
     /** Riegel beim Aufruf: Rechte können sich seit dem Auflisten geändert haben. */
@@ -148,8 +171,8 @@ export const wartungMcp: McpModul = {
           pruefungen: pruefungenAmGeraet(am),
           inhalt: eigen.kiste ? ladeInhalt(getDb(), geraet_id) : undefined,
           inhaltStand: eigen.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
-          offeneMaengel: ladeMaengel(getDb(), { gruppen: null, geraetId: geraet_id, offen: true }),
-          verlauf: ladeVerlauf(getDb(), { gruppen: null, geraetId: geraet_id, grenze: 50 }),
+          offeneMaengel: ladeMaengel(getDb(), { gruppen: null, geraetId: geraet_id, offen: true }).map(mangelOhnePerson),
+          verlauf: ladeVerlauf(getDb(), { gruppen: null, geraetId: geraet_id, grenze: 50 }).map(eintragOhnePerson),
           unterlagen: ladeUnterlagen(getDb(), geraet_id).map((u) => u.titel),
         });
       }
@@ -223,7 +246,7 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_mangel_melden", {
       title: "Mangel melden",
-      description: "Meldet einen Mangel an einem Gerät, im Namen der angemeldeten Person. Ohne Foto.",
+      description: "Meldet einen Mangel an einem Gerät. Ohne Foto.",
       inputSchema: {
         geraet_id: geraetId,
         text: z.string().max(NOTIZ_MAX).describe("Was los ist"),
@@ -239,10 +262,10 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_gruppen", {
       title: "Gruppen",
-      description: "Die Gruppen, die du verwaltest (Admins: alle), mit Anzahl der Geräte und ihren Verwaltern.",
+      description: "Die Gruppen, die du verwaltest (Admins: alle), mit Anzahl der Geräte.",
       inputSchema: {},
       annotations: LESEN,
-    }, () => mit("verwalter", ({ rechte }) => antwortJson(ladeGruppen(getDb()).filter((g) => verwaltetGruppe(rechte, g.id)))));
+    }, () => mit("verwalter", ({ rechte }) => antwortJson(ladeGruppen(getDb()).filter((g) => verwaltetGruppe(rechte, g.id)).map(gruppeOhnePersonen))));
 
     server.registerTool("wartung_arten", {
       title: "Gerätearten",
@@ -265,7 +288,7 @@ export const wartungMcp: McpModul = {
       annotations: LESEN,
     }, ({ gruppe_id, behobene }) => mit("verwalter", ({ rechte }) => {
       const auswahl = gruppenAuswahl(rechte, ladeGruppen(getDb()), gruppe_id);
-      return antwortJson(ladeMaengel(getDb(), { gruppen: auswahl.gruppen, offen: !behobene, ...(behobene ? { grenze: 30 } : {}) }));
+      return antwortJson(ladeMaengel(getDb(), { gruppen: auswahl.gruppen, offen: !behobene, ...(behobene ? { grenze: 30 } : {}) }).map(mangelOhnePerson));
     }));
 
     server.registerTool("wartung_pruefungen", {
@@ -275,7 +298,7 @@ export const wartungMcp: McpModul = {
       annotations: LESEN,
     }, ({ gruppe_id, grenze }) => mit("verwalter", ({ rechte }) => {
       const auswahl = gruppenAuswahl(rechte, ladeGruppen(getDb()), gruppe_id);
-      return antwortJson(ladeVerlauf(getDb(), { gruppen: auswahl.gruppen, nurFristen: true, grenze: grenze ?? 100 }));
+      return antwortJson(ladeVerlauf(getDb(), { gruppen: auswahl.gruppen, nurFristen: true, grenze: grenze ?? 100 }).map(eintragOhnePerson));
     }));
 
     server.registerTool("wartung_geraet_anlegen", {
@@ -324,12 +347,11 @@ export const wartungMcp: McpModul = {
         pruefart_id: idSchema,
         am: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Datum JJJJ-MM-TT"),
         stunden: stunden.nullable().optional(),
-        wer: z.string().max(NAME_MAX).optional().describe("Wer es erledigt hat, z. B. die Fachfirma"),
         notiz: z.string().max(NOTIZ_MAX).optional(),
       },
       annotations: SCHREIBEN,
     }, (a) => mit("verwalter", async (z) => ergebnis(await erledigtEintragenVorgang(z, a.geraet_id, {
-      pruefartId: a.pruefart_id, am: a.am, stunden: a.stunden ?? null, wer: a.wer ?? "", notiz: a.notiz ?? "",
+      pruefartId: a.pruefart_id, am: a.am, stunden: a.stunden ?? null, wer: "", notiz: a.notiz ?? "",
     }))));
 
     server.registerTool("wartung_mangel_beheben", {
@@ -338,6 +360,35 @@ export const wartungMcp: McpModul = {
       inputSchema: { mangel_id: idSchema },
       annotations: SCHREIBEN,
     }, ({ mangel_id }) => mit("verwalter", async (z) => ergebnis(await mangelBehebenVorgang(z, mangel_id))));
+
+    server.registerTool("wartung_unterlage_hochladen", {
+      title: "Unterlage an ein Gerät hängen",
+      description: `Hängt eine Anleitung, ein Datenblatt oder ein anderes Dokument (PDF oder Bild, höchstens ${UNTERLAGE_MAX_BYTES / 1024 / 1024} MB) an ein Gerät deiner Gruppe. Entweder adresse (öffentliche http(s)-Adresse, etwa das Handbuch beim Hersteller; die Suite lädt es selbst) oder inhalt_base64 angeben. Löschen und Sortieren gehen in der App.`,
+      inputSchema: {
+        geraet_id: geraetId,
+        titel: z.string().max(KURZ_MAX).describe("Name, unter dem die Unterlage am Gerät steht, z. B. „Bedienungsanleitung“"),
+        adresse: z.string().url().max(2000).optional().describe("Öffentliche Adresse der Datei"),
+        inhalt_base64: z.string().max(Math.ceil(UNTERLAGE_MAX_BYTES / 3) * 4 + 4).optional().describe("Die Datei als Base64"),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    }, ({ geraet_id, titel, adresse, inhalt_base64 }) => mit("verwalter", async (z) => {
+      if ((adresse === undefined) === (inhalt_base64 === undefined)) return antwortFehler("Bitte genau eins angeben: adresse oder inhalt_base64.");
+      // Erst das Recht, dann der Abruf: für eine fremde Gruppe lädt die Suite nichts.
+      const gruppe = ladeGeraet(getDb(), geraet_id, heute())?.gruppeId;
+      if (!gruppe) return antwortFehler("Dieses Gerät gibt es nicht mehr.");
+      if (!verwaltetGruppe(z.rechte, gruppe)) return antwortFehler("Dieses Gerät gehört zu einer Gruppe, die du nicht verwaltest.");
+      let bytes: Uint8Array;
+      if (adresse !== undefined) {
+        const r = await ladeVonAdresse(adresse, { maxBytes: UNTERLAGE_MAX_BYTES });
+        if (!r.ok) return antwortFehler(r.fehler);
+        bytes = r.bytes;
+      } else {
+        const text = inhalt_base64!.replace(/^data:[^,]*,/, "").replace(/\s+/g, "");
+        if (!/^[A-Za-z0-9+/_-]*={0,2}$/.test(text)) return antwortFehler("inhalt_base64 ist kein gültiges Base64.");
+        bytes = new Uint8Array(Buffer.from(text, "base64"));
+      }
+      return ergebnis(await unterlageHochladenVorgang(z, geraet_id, titel, bytes));
+    }));
 
     server.registerTool("wartung_inhalt_speichern", {
       title: "Inhaltsliste einer Materialkiste speichern",
@@ -421,36 +472,5 @@ export const wartungMcp: McpModul = {
       inputSchema: { gruppe_id: idSchema },
       annotations: ENTFERNEN,
     }, ({ gruppe_id }) => mit("admin", async (z) => ergebnis(await gruppeLoeschenVorgang(z, gruppe_id))));
-
-    server.registerTool("wartung_personen_suchen", {
-      title: "Personen für eine Gruppe suchen",
-      description: `Sucht Personen im Verzeichnis, die einer Gruppe als Verwalter zugeordnet werden können (ab ${SUCHE_MIN_ZEICHEN} Zeichen, höchstens ${SUCHE_MAX_TREFFER} Treffer).`,
-      inputSchema: { gruppe_id: idSchema, begriff: z.string().min(SUCHE_MIN_ZEICHEN).max(100) },
-      annotations: { ...LESEN, openWorldHint: true },
-    }, ({ gruppe_id, begriff }) => mit("admin", async () => {
-      const v = await verzeichnis(() => getDirectory().search(begriff.trim(), SUCHE_MAX_TREFFER));
-      return antwortJson(vorschlaege(getDb(), gruppe_id, begriff, v));
-    }));
-
-    server.registerTool("wartung_verwalter_zuordnen", {
-      title: "Verwalter zuordnen",
-      description: "Ordnet eine Person (nutzer aus wartung_personen_suchen) einer Gruppe als Verwalter zu.",
-      inputSchema: { gruppe_id: idSchema, nutzer: z.string().min(1).max(200) },
-      annotations: SCHREIBEN,
-    }, (a) => mit("admin", async (z) => ergebnis(await verwalterHinzufuegenVorgang(
-      z, { gruppeId: a.gruppe_id, nutzer: a.nutzer }, () => verzeichnis(() => getDirectory().list()),
-    ))));
-
-    server.registerTool("wartung_verwalter_entfernen", {
-      title: "Verwalter entfernen",
-      description: "Nimmt einer Person die Verwaltung einer Gruppe.",
-      inputSchema: { gruppe_id: idSchema, nutzer: z.string().min(1).max(200) },
-      annotations: ENTFERNEN,
-    }, (a) => mit("admin", async (z) => ergebnis(await verwalterEntfernenVorgang(z, { gruppeId: a.gruppe_id, nutzer: a.nutzer }))));
   },
 };
-
-const KEIN_VERZEICHNIS: DirectoryResult = { status: "error", people: [] };
-async function verzeichnis(abruf: () => Promise<DirectoryResult>): Promise<DirectoryResult> {
-  try { return await abruf(); } catch { return KEIN_VERZEICHNIS; }
-}
