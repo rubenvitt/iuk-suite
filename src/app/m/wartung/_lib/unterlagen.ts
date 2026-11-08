@@ -77,6 +77,19 @@ export async function entferneUnterlage(id: string, typ: UnterlagenTyp): Promise
   await rm(unterlagePfad(id, typ), { force: true });
 }
 
+/**
+ * Räumt die Dateien einer schon gelöschten Akte weg. Ein Fehler hier darf das Löschen nicht als gescheitert melden
+ * (der Eintrag ist weg); er wird nur geloggt, die Datei bleibt dann verwaist liegen.
+ */
+export async function entferneUnterlagen(
+  liste: readonly { id: string; typ: UnterlagenTyp }[], entferne: typeof entferneUnterlage = entferneUnterlage,
+): Promise<void> {
+  const r = await Promise.allSettled(liste.map((u) => entferne(u.id, u.typ)));
+  r.forEach((x, i) => {
+    if (x.status === "rejected") console.error(`[wartung] Unterlage ${liste[i].id} liess sich nicht entfernen`, x.reason);
+  });
+}
+
 /** Der Name, unter dem der Browser die Datei speichert — aus dem Titel, ohne Zeichen, die ein Dateisystem stören. */
 export function dateiname(titel: string, typ: UnterlagenTyp): string {
   const stamm = titel.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim() || "Unterlage";

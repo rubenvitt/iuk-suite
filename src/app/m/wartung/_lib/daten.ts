@@ -122,8 +122,6 @@ export function darfEndgueltigLoeschen(db: Leser, id: string): boolean {
 }
 
 export interface GeraeteFilter {
-  /** Nur Kisten, aus denen gerade etwas unterwegs ist (IDA-372). */
-  unterwegs?: boolean;
   gruppen: readonly string[] | null;
   heute: string;
   /** Auch ausgemusterte (nur die Akte eines einzelnen Geräts). */
@@ -176,7 +174,7 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
       fehlend: kiste ? eigene.filter((m) => m.fehlt && m.inhaltId !== null).length : 0,
       unterwegs: unterwegs.has(g.id),
     };
-  }).filter((z) => !filter.unterwegs || z.unterwegs);
+  });
 }
 
 /** Die Inhaltsliste einer Materialkiste in ihrer Reihenfolge (IDA-335). */

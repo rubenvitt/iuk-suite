@@ -30,7 +30,7 @@ import {
   gruppeSpeichern, inhaltSpeichern, mangelBeheben, mangelMelden, neueId, pruefartLoeschen, pruefartSpeichern, pruefartVerschieben,
   pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen, unterlageAnlegen,
 } from "./schreiben";
-import { entferneUnterlage, legeUnterlageAb, pruefeUnterlage, UNTERLAGE_MAX_BYTES } from "./unterlagen";
+import { entferneUnterlage, entferneUnterlagen, legeUnterlageAb, pruefeUnterlage, UNTERLAGE_MAX_BYTES } from "./unterlagen";
 import { mitFahrzeugbezug } from "./fahrzeugbezug";
 import type { Ergebnis } from "./typen";
 import { anzeigename, nutzerAus, verwaltetGruppe, type Rechte, type Viewer } from "./zugang";
@@ -175,7 +175,7 @@ export const geraetLoeschenVorgang = (z: Akteur, id: unknown) => ausfuehren(z, a
   pruefeId(id);
   eigenesGeraet(rechte, id);
   const { unterlagen } = geraetLoeschen(getDb(), id);
-  await Promise.all(unterlagen.map((u) => entferneUnterlage(u.id, u.typ)));
+  await entferneUnterlagen(unterlagen);
 });
 
 export const erledigtEintragenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ viewer, rechte }) => {

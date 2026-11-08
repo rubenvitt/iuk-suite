@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { DirectoryResult } from "@/core/directory";
 import { artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
-import { ladeArten, ladeGeraet, ladeKatalog, ladePruefarten } from "./daten";
+import { entnehmen, zuruecklegen } from "./ausleihe";
+import { unterwegsStand } from "./unterwegs";
+import { ladeArten, ladeInhalt, ladeGeraet, ladeKatalog, ladePruefarten } from "./daten";
 import {
   Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAktiv, geraetAnlegen, geraetLoeschen, gruppeLoeschen, gruppeSpeichern, mangelBeheben, mangelMelden,
   neueId, pruefartLoeschen, pruefartSpeichern, pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen,
@@ -276,6 +278,44 @@ describe("Endgültig löschen (IDA-372)", () => {
     stundenEintragen(db, id, 120, K);
     geraetAktiv(db, id, false, K.jetzt);
     expect(() => geraetLoeschen(db, id)).toThrow(/hat einen Verlauf/);
+  });
+
+  it("Akte mit offener oder geschlossener Entnahme oder mit Mangel wird abgelehnt", () => {
+    const offene = () => {
+      const db = testDb();
+      const id = kiste(db);
+      const patch = ladeInhalt(db, id)[0].id;
+      entnehmen(db, id, { sendung: neueId(), ganz: false, zweck: "", positionen: [{ inhaltId: patch, menge: 1 }] }, { ...K, nutzer: "sub-a" });
+      return { db, id, patch };
+    };
+    // offen: Ausmustern selbst ist gesperrt, also die Zeile direkt ausmustern
+    const a = offene();
+    a.db.update(geraet).set({ aktiv: false }).where(eq(geraet.id, a.id)).run();
+    expect(() => geraetLoeschen(a.db, a.id)).toThrow(/hat einen Verlauf/);
+    // geschlossen
+    const b = offene();
+    zuruecklegen(b.db, b.id, { entnahmeId: unterwegsStand(b.db, b.id).entnahmen[0].id, positionen: [{ positionId: unterwegsStand(b.db, b.id).entnahmen[0].positionen[0].id, zurueck: 1, fehlt: false, offen: 1 }] }, K);
+    b.db.delete(eintrag).where(eq(eintrag.geraetId, b.id)).run();
+    b.db.delete(mangel).where(eq(mangel.geraetId, b.id)).run();
+    geraetAktiv(b.db, b.id, false, K.jetzt);
+    expect(() => geraetLoeschen(b.db, b.id)).toThrow(/hat einen Verlauf/);
+    // Mangel
+    const c = testDb();
+    const cid = kiste(c);
+    mangelMelden(c, cid, { id: neueId(), text: "Riss", foto: false, einsatzbereit: true }, K);
+    c.delete(eintrag).where(eq(eintrag.geraetId, cid)).run();
+    geraetAktiv(c, cid, false, K.jetzt);
+    expect(() => geraetLoeschen(c, cid)).toThrow(/hat einen Verlauf/);
+  });
+
+  it("löscht auch die Prüfplan-Abweichungen", () => {
+    const db = testDb();
+    const id = kiste(db);
+    pruefplanSpeichern(db, id, [{ pruefartId: START.pruefart.quartal, an: true, eigenes: { monate: 6, stunden: null } }]);
+    expect(db.select().from(geraetPruefart).where(eq(geraetPruefart.geraetId, id)).all()).not.toEqual([]);
+    geraetAktiv(db, id, false, K.jetzt);
+    geraetLoeschen(db, id);
+    expect(db.select().from(geraetPruefart).where(eq(geraetPruefart.geraetId, id)).all()).toEqual([]);
   });
 
   it("danach lässt sich die Art löschen", () => {
