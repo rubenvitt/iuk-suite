@@ -25,8 +25,11 @@ export function einsatzText(e: { seit: number; wer: string }, mitNamen: boolean)
   return [`Im Einsatz seit ${seitText(e.seit)}`, ...(mitNamen ? [e.wer] : [])].filter(Boolean).join(", ");
 }
 
-/** „Wird eingesetzt“/„Zurück“ nur an einem Gerät mit Prüfart auf Anlass; eine Kiste geht über Entnehmen und Zurücklegen. */
-export function mitAnlassKnopf(g: { kiste: boolean; staende: readonly { vorlage: { anlass: Anlass | null } }[] }): boolean {
-  return !g.kiste && g.staende.some((f) => f.vorlage.anlass);
+/**
+ * „Wird eingesetzt“/„Zurück“ an einem Gerät mit Prüfart auf Anlass, und „Zurück“ an einem im Einsatz, auch wenn die
+ * Prüfart inzwischen weg ist; eine Kiste geht über Entnehmen und Zurücklegen.
+ */
+export function mitAnlassKnopf(g: { kiste: boolean; imEinsatz: boolean; staende: readonly { vorlage: { anlass: Anlass | null } }[] }): boolean {
+  return !g.kiste && (g.imEinsatz || g.staende.some((f) => f.vorlage.anlass));
 }
 

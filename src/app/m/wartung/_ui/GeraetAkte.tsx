@@ -242,7 +242,7 @@ export function GeraetAkte({
               ].filter((z) => !g.kiste || (z.key === "h" ? Boolean(g.hersteller || g.typ) : z.key === "s" ? Boolean(g.seriennr) : z.key === "b" ? g.stunden !== null : z.key === "i" ? Boolean(g.hinweise) : true))}
             />
           </Card>
-          {unterwegsText && <Card title="Unterwegs"><p style={{ margin: 0 }}>{unterwegsText}</p></Card>}
+          {unterwegsText && <Card title={g.kiste ? "Unterwegs" : "Im Einsatz"}><p style={{ margin: 0 }}>{unterwegsText}</p></Card>}
           {g.pruefanleitung && <Card title="Prüfanleitung"><p className={s.hinweise}>{g.pruefanleitung}</p></Card>}
           {g.kiste && (
             <Card

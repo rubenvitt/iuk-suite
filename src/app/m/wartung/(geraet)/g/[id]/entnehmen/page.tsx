@@ -15,6 +15,7 @@ export default async function EntnehmenSeite({ params }: { params: Promise<{ id:
       geraetName={g.name}
       positionen={checkliste.map((c) => ({ id: c.id, text: c.text, soll: c.soll ?? 0, frei: Math.max(0, (c.soll ?? 0) - (unterwegs.jePosition.get(c.id) ?? 0)) }))}
       etwasUnterwegs={unterwegs.entnahmen.length > 0}
+      ganzMoeglich={g.staende.some((f) => f.vorlage.wer === "intern" && !f.vorlage.anlass)}
     />
   );
 }

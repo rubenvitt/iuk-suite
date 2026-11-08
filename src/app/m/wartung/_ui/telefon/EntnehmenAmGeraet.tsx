@@ -19,13 +19,15 @@ type Nutzlast = { ganz: boolean; zweck: string; positionen: { inhaltId: string; 
  * einzelnes Gerät meldet sich mit „Wird eingesetzt“ (IDA-369). Der Entwurf hält die Eingabe fest, bis der Server sie bestätigt.
  */
 export function EntnehmenAmGeraet({
-  geraetId, geraetName, positionen, etwasUnterwegs,
+  geraetId, geraetName, positionen, etwasUnterwegs, ganzMoeglich,
 }: {
   geraetId: string;
   geraetName: string;
   /** `frei`: wie viele noch da sind (Soll minus unterwegs). */
   positionen: { id: string; text: string; soll: number; frei: number }[];
   etwasUnterwegs: boolean;
+  /** Die Kiste hat eine selbst erledigte Prüfung nach Frist; nur über sie kommt die ganze Kiste zurück. */
+  ganzMoeglich: boolean;
 }) {
   const { message } = App.useApp();
   const router = useRouter();
@@ -103,7 +105,12 @@ export function EntnehmenAmGeraet({
         {fehler && <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} role="alert">{fehler}</div>}
         <div className={s.knopfstapel}>
           <Button type="primary" block disabled={gewaehlt.length === 0} loading={laeuft} onClick={() => sende(false)}>Mitnehmen</Button>
-          <Button block disabled={etwasUnterwegs} loading={laeuft} onClick={() => sende(true)}>Ganze Kiste mitnehmen</Button>
+          <Button block disabled={etwasUnterwegs || !ganzMoeglich} loading={laeuft} onClick={() => sende(true)} data-rolle="ganz-mitnehmen">Ganze Kiste mitnehmen</Button>
+          {!ganzMoeglich && (
+            <div className={`${s.neben} ${s.klein}`} data-rolle="ganz-hinweis">
+              Die ganze Kiste kommt über das Durchzählen nach Frist zurück, und diese Kiste hat keine solche Prüfung.
+            </div>
+          )}
         </div>
       </div>
     </div>

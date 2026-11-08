@@ -98,6 +98,10 @@ function pruefeGeltende(
   }
   if (a.kiste && selbst.length === 0) throw new Abgelehnt(`${name}: eine Materialkiste braucht eine Prüfart, die selbst durchgezählt wird.`, feld);
   if (a.kiste && gilt.some((v) => v.stunden !== null)) throw new Abgelehnt(`${name}: eine Materialkiste hat keine Betriebsstunden.`, feld);
+  // Entnehmen vermerkt `einsatz`; „vor Verwendung“ wäre an jeder Kiste unterwegs sofort überfällig (Spec 2.8, IDA-372).
+  if (a.kiste && gilt.some((v) => v.anlass === "einsatz")) {
+    throw new Abgelehnt(`${name}: eine Materialkiste hat keine Prüfung vor Verwendung – beim Entnehmen genügt ein kurzer Blick.`, feld);
+  }
   if (a.kiste) return;
   const ohne = selbst.find((v) => !a.checkliste.some((pk) => punktGilt(pk, v.id)));
   if (!ohne) return;
@@ -121,6 +125,14 @@ function pruefeRegeln(tx: WartungSchreiber): void {
   for (const g of abweichende) {
     const a = artVon.get(g.artId)!;
     pruefeGeltende(g.name, a, geltende(pruefplan(katalog, a.pruefarten, ab.filter((x) => x.geraetId === g.id))), true);
+  }
+  // Eine ganz entnommene Kiste kommt über ihre Prüfung nach Frist zurück (IDA-372); die darf ihr solange nicht fehlen.
+  const ganzWeg = tx.select({ id: geraet.id, name: geraet.name, artId: geraet.artId }).from(entnahme).innerJoin(geraet, eq(geraet.id, entnahme.geraetId))
+    .where(and(eq(entnahme.ganz, true), isNull(entnahme.zurueckAm))).all();
+  for (const g of ganzWeg) {
+    if (!geltende(ladePruefplan(tx, g)).some((v) => v.wer === "intern" && !v.anlass)) {
+      throw new Abgelehnt(`Erst zurücklegen: ${g.name} ist ganz unterwegs und kommt über ihre Prüfung nach Frist zurück.`);
+    }
   }
 }
 

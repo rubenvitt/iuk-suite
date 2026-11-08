@@ -218,7 +218,10 @@ Mit main kam #524 (IDA-369): Prüfarten auf Anlass („Vor Verwendung“, „Nac
    - Steckbrief und Akte einer Kiste zeigen keinen „Wird eingesetzt“/„Zurück“; auch der Vermerk über MCP lehnt Kisten ab.
      Es gibt je Kiste genau einen Weg.
    - Folge der Bindung: „Ganze Kiste mitnehmen“ geht nur, wenn die Kiste eine Prüfart nach Frist hat, die man selbst
-     erledigt; sonst käme sie nie zurück.
+     erledigt; sonst käme sie nie zurück. Solange die ganze Kiste unterwegs ist, lässt sich diese Prüfart weder aus ihrem
+     Prüfplan noch aus ihrer Art entfernen („Erst zurücklegen: …“).
+   - Eine Kisten-Art und der Prüfplan einer Kiste haben keine Prüfart „vor Verwendung“ (2.8: beim Entnehmen genügt ein
+     kurzer Blick; sonst wäre sie an jeder Kiste unterwegs überfällig). *(Nachentscheidung 08.11.2026.)*
 2. **Einzelne Geräte:** „Wird eingesetzt“/„Zurück“ aus #524 gilt; Entnehmen und Zurücklegen gibt es für Geräte nicht
    mehr („Geräte meldest du mit „Wird eingesetzt“.“). Ist ein Gerät im Einsatz, zeigen Steckbrief und Akte
    „Im Einsatz seit TT.MM., Name“ aus dem `einsatz`-Eintrag; ohne Anmeldung ohne Namen, der MCP-Server ohne Namen.

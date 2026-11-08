@@ -16,6 +16,7 @@ vi.mock("../../_actions/telefon", () => ({
 }));
 vi.mock("../../_actions/verwaltung", () => ({ inhaltSpeichernAction: (...a: unknown[]) => inhalt(...a) }));
 
+import { EntnehmenAmGeraet } from "./EntnehmenAmGeraet";
 import { InhaltAmGeraet } from "./InhaltAmGeraet";
 import { MangelAmGeraet } from "./MangelAmGeraet";
 import { PruefungAmGeraet } from "./PruefungAmGeraet";
@@ -186,5 +187,21 @@ describe("Zurücklegen am Gerät", () => {
     await mount(<App><ZuruecklegenAmGeraet geraetId={G} geraetName="Netzwerkkiste" anleitung="" entnahmen={[entnahme]} /></App>);
     await click("button[data-rolle='zuruecklegen-senden']");
     expect(push).toHaveBeenCalledWith(`/g/${G}/pruefung?art=${P}`);
+  });
+});
+
+describe("Entnehmen am Gerät", () => {
+  const entnehmen = (ganzMoeglich: boolean) => mount(
+    <App><EntnehmenAmGeraet geraetId={G} geraetName="Netzwerkkiste" positionen={[{ id: P, text: "Patchkabel", soll: 2, frei: 2 }]} etwasUnterwegs={false} ganzMoeglich={ganzMoeglich} /></App>,
+  );
+  it("ohne Prüfung nach Frist ist „Ganze Kiste mitnehmen“ gesperrt und sagt warum", async () => {
+    await entnehmen(false);
+    expect(query<HTMLButtonElement>("button[data-rolle='ganz-mitnehmen']").disabled).toBe(true);
+    expect(exists("[data-rolle='ganz-hinweis']")).toBe(true);
+  });
+  it("mit Prüfung nach Frist geht es, ohne Hinweis", async () => {
+    await entnehmen(true);
+    expect(query<HTMLButtonElement>("button[data-rolle='ganz-mitnehmen']").disabled).toBe(false);
+    expect(exists("[data-rolle='ganz-hinweis']")).toBe(false);
   });
 });

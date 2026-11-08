@@ -44,7 +44,9 @@ describe("einsatzText", () => {
 describe("mitAnlassKnopf", () => {
   const anlass = { vorlage: { anlass: "einsatz" as const } };
   const frist = { vorlage: { anlass: null } };
-  it("ein Gerät mit Prüfart auf Anlass bekommt „Wird eingesetzt“", () => expect(mitAnlassKnopf({ kiste: false, staende: [frist, anlass] })).toBe(true));
-  it("ein Gerät ohne Prüfart auf Anlass nicht", () => expect(mitAnlassKnopf({ kiste: false, staende: [frist] })).toBe(false));
-  it("eine Kiste nie, sie geht über Entnehmen und Zurücklegen", () => expect(mitAnlassKnopf({ kiste: true, staende: [frist, anlass] })).toBe(false));
+  it("ein Gerät mit Prüfart auf Anlass bekommt „Wird eingesetzt“", () => expect(mitAnlassKnopf({ kiste: false, imEinsatz: false, staende: [frist, anlass] })).toBe(true));
+  it("ein Gerät ohne Prüfart auf Anlass nicht", () => expect(mitAnlassKnopf({ kiste: false, imEinsatz: false, staende: [frist] })).toBe(false));
+  it("ein Gerät im Einsatz behält „Zurück“, auch wenn seine Prüfart auf Anlass inzwischen weg ist", () =>
+    expect(mitAnlassKnopf({ kiste: false, imEinsatz: true, staende: [frist] })).toBe(true));
+  it("eine Kiste nie, sie geht über Entnehmen und Zurücklegen", () => expect(mitAnlassKnopf({ kiste: true, imEinsatz: true, staende: [frist, anlass] })).toBe(false));
 });

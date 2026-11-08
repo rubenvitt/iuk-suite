@@ -8,7 +8,7 @@ const notiz: Releasenotiz = {
   titel: "Material entnehmen und zurücklegen",
   inhalt: [
     absatz(
-      "Am QR-Code einer Kiste nimmst du mit Entnehmen Teile oder alles mit und gibst es mit Zurücklegen zurück; ist Nach Benutzung fällig, geht es gleich dorthin. " +
+      "Am QR-Code einer Kiste nimmst du mit Entnehmen Teile oder mit Ganze Kiste mitnehmen alles mit, mit Zurücklegen gibst du es zurück. " +
         "Wird eingesetzt tippst du nur noch an Geräten, dann siehst du dort, seit wann und bei wem. " +
         "Ausgemusterte Akten ohne Verlauf löschst du mit Akte endgültig löschen.",
     ),
