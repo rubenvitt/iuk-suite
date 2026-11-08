@@ -6,11 +6,10 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
 import { art, eintrag, entnahme, entnahmePosition, inhalt, mangel } from "../_db/schema";
 import type { EntnahmeEingabe, RueckgabeEingabe } from "./eingabe";
-import { Abgelehnt, aktivesGeraet, neueId, type Kontext } from "./schreiben";
+import { Abgelehnt, aktivesGeraet, neueId, UNGUELTIG, type Kontext } from "./schreiben";
 import { unterwegsStand } from "./unterwegs";
 
 const sqlMenge = sql`${entnahmePosition.menge}`;
-const UNGUELTIG = "Die Angaben sind unvollständig. Bitte die Seite neu laden.";
 
 const istKiste = (db: WartungSchreiber, artId: string): boolean =>
   db.select({ kiste: art.kiste }).from(art).where(eq(art.id, artId)).get()?.kiste ?? false;

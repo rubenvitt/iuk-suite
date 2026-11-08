@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { and, eq, isNull } from "drizzle-orm";
 import { eintrag, inhalt, mangel } from "../_db/schema";
+import { entnehmen } from "./ausleihe";
+import { unterwegsStand } from "./unterwegs";
 import { ladeArten, ladeGeraet, ladeInhalt } from "./daten";
 import { artEingabe, inhaltEingabe } from "./eingabe";
 import { wartungFaelligkeiten } from "./faelligkeiten";
@@ -252,5 +254,53 @@ describe("Materialkisten (IDA-335)", () => {
     expect(ladeInhalt(db, id).map((p) => p.text)).toEqual(["HDMI-Kabel 2 m", "USB-C-Hub", "Mehrfachsteckdose"]);
     inhaltSpeichern(db, id, [liste[0]], inhaltStand(ladeInhalt(db, id)));
     expect(ladeInhalt(db, id)).toHaveLength(1);
+  });
+});
+
+describe("Durchzählen mit Unterwegs (IDA-372)", () => {
+  const KN = { ...K, nutzer: "sub-a" };
+  const entnimm = (db: ReturnType<typeof testDb>, id: string, ganz: boolean, positionen: { inhaltId: string; menge: number }[] = []) => {
+    const sendung = neueId();
+    entnehmen(db, id, { sendung, ganz, zweck: "", positionen }, KN);
+    return sendung;
+  };
+  const mit = (liste: Liste, unterwegs: Record<number, number>) =>
+    zaehlung(liste).map((a, i) => ({ ...a, unterwegs: unterwegs[i] ?? 0 }));
+  const sende = (db: ReturnType<typeof testDb>, id: string, antworten: ReturnType<typeof mit>, rueckgabe?: string) =>
+    pruefungAbschliessen(db, id, { sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten, rueckgabe }, new Map(), K);
+
+  it("2 Kabel unterwegs, alles andere da: in Ordnung ohne Mangel", () => {
+    const { db, id, liste } = mitKiste();
+    entnimm(db, id, false, [{ inhaltId: liste[0].id, menge: 2 }]);
+    expect(sende(db, id, mit(liste, { 0: 2 })).maengel).toBe(0);
+    expect(offen(db, id)).toHaveLength(0);
+  });
+
+  it("veralteter Unterwegs-Stand wird abgelehnt", () => {
+    const { db, id, liste } = mitKiste();
+    entnimm(db, id, false, [{ inhaltId: liste[0].id, menge: 2 }]);
+    expect(() => sende(db, id, mit(liste, {}))).toThrow(/neu durchzählen/);
+  });
+
+  it("ganze Kiste unterwegs sperrt das Durchzählen", () => {
+    const { db, id, liste } = mitKiste();
+    entnimm(db, id, true);
+    expect(() => sende(db, id, mit(liste, {}))).toThrow(/unterwegs seit \d\d\.\d\d\./);
+  });
+
+  it("Rückgabe der ganzen Kiste zählt als Prüfung", () => {
+    const { db, id, liste } = mitKiste();
+    const ent = entnimm(db, id, true);
+    sende(db, id, mit(liste, {}), ent);
+    expect(unterwegsStand(db, id).ganz).toBeNull();
+    const e = db.select().from(eintrag).where(and(eq(eintrag.geraetId, id), eq(eintrag.typ, "pruefung"))).get()!;
+    expect(e.pruefartId).toBe(START.pruefart.quartal);
+    expect(e.am).toBe(HEUTE);
+  });
+
+  it("Rückgabe mit fremder ID wird abgelehnt", () => {
+    const { db, id, liste } = mitKiste();
+    entnimm(db, id, true);
+    expect(() => sende(db, id, mit(liste, {}), neueId())).toThrow(Abgelehnt);
   });
 });

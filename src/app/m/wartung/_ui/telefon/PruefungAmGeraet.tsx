@@ -19,7 +19,8 @@ type Antwort = { ok: boolean; text: string; foto: File | null };
 type Stand = { stunden: number | null; antworten: Record<string, { ok: boolean; text: string }>; ergebnis: Zustand | null; notiz: string };
 type Daten = {
   stunden: number | null; ergebnis: Zustand; notiz: string;
-  antworten: { punktId: string; ok: boolean; text: string; soll?: number; punkt?: string; hinweis?: string }[];
+  antworten: { punktId: string; ok: boolean; text: string; soll?: number; punkt?: string; hinweis?: string; unterwegs?: number }[];
+  rueckgabe?: string;
 };
 
 /**
@@ -27,7 +28,7 @@ type Daten = {
  * Inhaltsliste: je Position „Vollständig“ oder „Fehlt“, ohne Pflichttext, und ohne Betriebsstunden.
  */
 export function PruefungAmGeraet({
-  geraetId, geraetName, titel, checkliste, kiste = false, stundenPflicht, stundenZuletzt,
+  geraetId, geraetName, titel, checkliste, kiste = false, stundenPflicht, stundenZuletzt, unterwegs = {}, anleitung = "", rueckgabe,
 }: {
   geraetId: string;
   geraetName: string;
@@ -36,6 +37,11 @@ export function PruefungAmGeraet({
   kiste?: boolean;
   stundenPflicht: boolean;
   stundenZuletzt: number | null;
+  /** Je Position, wie viele gerade unterwegs sind (IDA-372); bei `rueckgabe` leer. */
+  unterwegs?: Record<string, number>;
+  anleitung?: string;
+  /** Entnahme-ID der ganzen Kiste, die dieses Durchzählen zurücklegt. */
+  rueckgabe?: string;
 }) {
   const [stunden, setStunden] = useState<number | null>(null);
   const [antworten, setAntworten] = useState<Record<string, Antwort>>({});
@@ -105,7 +111,8 @@ export function PruefungAmGeraet({
     setFehler(null);
     entwurf.sende({
       stunden, ergebnis: gewaehlt, notiz,
-      antworten: checkliste.map((c) => ({ punktId: c.id, ok: antworten[c.id].ok, text: antworten[c.id].ok ? "" : antworten[c.id].text, soll: c.soll, punkt: kiste ? c.text : undefined, hinweis: kiste ? c.hinweis : undefined })),
+      rueckgabe,
+      antworten: checkliste.map((c) => ({ punktId: c.id, ok: antworten[c.id].ok, text: antworten[c.id].ok ? "" : antworten[c.id].text, soll: c.soll, punkt: kiste ? c.text : undefined, hinweis: kiste ? c.hinweis : undefined, unterwegs: kiste ? unterwegs[c.id] ?? 0 : undefined })),
     });
   }
 
@@ -134,6 +141,8 @@ export function PruefungAmGeraet({
         <Progress percent={Math.round((erledigt / Math.max(1, checkliste.length)) * 100)} format={() => `${erledigt} von ${checkliste.length}`} aria-label="Fortschritt" />
       </section>
 
+      {anleitung && <section className={s.karte}><p className={s.hinweis} style={{ margin: 0, whiteSpace: "pre-wrap" }}>{anleitung}</p></section>}
+
       {!kiste && <section className={s.karte}>
         <Kicker className={s.karteTitel}>Betriebsstunden</Kicker>
         <InputNumber
@@ -159,6 +168,7 @@ export function PruefungAmGeraet({
             <div className={s.quer} style={{ alignItems: "flex-start" }}>
               <strong>
                 {c.soll !== undefined ? <span className={s.ziffern}>{c.soll} ×</span> : <span className={s.ziffern}>{i + 1}.</span>} {c.text}
+                {kiste && unterwegs[c.id] > 0 && <span className={s.neben}> (davon {unterwegs[c.id]} unterwegs)</span>}
               </strong>
               {c.hinweis && !kiste && (
                 <Button type="text" aria-expanded={offenerHinweis === c.id} onClick={() => setOffenerHinweis(offenerHinweis === c.id ? null : c.id)} icon={<Icons8Ikone name="help" groesse={20} />}>

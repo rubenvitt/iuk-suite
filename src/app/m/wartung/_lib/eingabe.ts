@@ -143,10 +143,14 @@ export const pruefungEingabe = z.object({
     soll: z.number().int().min(1).max(SOLL_MAX).optional(),
     punkt: z.string().max(PUNKT_MAX).optional(),
     hinweis: z.string().max(KURZ_MAX).optional(),
+    /** Nur beim Durchzählen: so viele dieser Position sind gerade unterwegs (IDA-372); fehlt = 0. */
+    unterwegs: z.number().int().min(0).max(SOLL_MAX).optional(),
   })).max(INHALT_MAX)
     .refine((a) => new Set(a.map((x) => x.punktId)).size === a.length, "Jeder Punkt der Checkliste darf nur einmal vorkommen."),
   ergebnis: z.enum(["ok", "mangel", "defekt"]),
   notiz: frei(NOTIZ_MAX),
+  /** Entnahme-ID der offenen ganzen Entnahme: dieses Durchzählen legt die Kiste zurück (IDA-372). */
+  rueckgabe: idSchema.optional(),
 });
 export type PruefungEingabe = z.infer<typeof pruefungEingabe>;
 

@@ -6,6 +6,7 @@ import { asc, eq } from "drizzle-orm";
 import type { WartungDb } from "../_db/client";
 import { checkpunkt } from "../_db/schema";
 import { ladeGeraet, ladeInhalt, ladeMaengel, ladeUnterlagen } from "./daten";
+import { unterwegsStand, type Unterwegs } from "./unterwegs";
 import type { CheckpunktDTO, GeraetZeile, MangelDTO, UnterlageDTO } from "./typen";
 
 export interface AmGeraet {
@@ -13,6 +14,8 @@ export interface AmGeraet {
   checkliste: CheckpunktDTO[];
   offen: Pick<MangelDTO, "id" | "text" | "einsatzbereit">[];
   unterlagen: UnterlageDTO[];
+  /** Was gerade aus der Kiste unterwegs ist (IDA-372). */
+  unterwegs: Unterwegs;
 }
 
 export function ladeAmGeraet(db: Pick<WartungDb, "select">, id: string, heute: string): AmGeraet | null {
@@ -24,5 +27,5 @@ export function ladeAmGeraet(db: Pick<WartungDb, "select">, id: string, heute: s
     : db.select({ id: checkpunkt.id, text: checkpunkt.text, hinweis: checkpunkt.hinweis }).from(checkpunkt)
       .where(eq(checkpunkt.artId, g.artId)).orderBy(asc(checkpunkt.position)).all();
   const offen = ladeMaengel(db, { gruppen: null, geraetId: id, offen: true }).map((m) => ({ id: m.id, text: m.text, einsatzbereit: m.einsatzbereit }));
-  return { g, checkliste, offen, unterlagen: ladeUnterlagen(db, id) };
+  return { g, checkliste, offen, unterlagen: ladeUnterlagen(db, id), unterwegs: unterwegsStand(db, id) };
 }

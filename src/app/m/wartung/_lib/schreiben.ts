@@ -8,6 +8,8 @@ import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
 import { art, artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
+import { zeitFormat } from "@/core/zeit";
+import { ganzeSchliessen } from "./ausleihe";
 import { hatOffeneEntnahme, unterwegsStand } from "./unterwegs";
 import { ladeArten, ladeKatalog, ladePruefplan } from "./daten";
 import { geltende, pruefplan, selbstPruefung } from "./pruefplan";
@@ -23,6 +25,9 @@ export class Abgelehnt extends Error {
 }
 
 export const neueId = (): string => randomUUID();
+
+export const UNGUELTIG = "Die Angaben sind unvollständig. Bitte die Seite neu laden.";
+const TAG_MONAT = zeitFormat("de-DE", { day: "2-digit", month: "2-digit" });
 
 export interface Kontext {
   jetzt: number;
@@ -426,6 +431,14 @@ export function pruefungAbschliessen(
     const a = tx.select().from(art).where(eq(art.id, g.artId)).get()!;
     const punkte = pruefpunkte(tx, g, a.kiste);
     if (a.kiste && punkte.length === 0) throw new Abgelehnt("Die Kiste hat noch keine Inhaltsliste.");
+    // IDA-372: unterwegs ist nichts zu zählen. Eine ganz entnommene Kiste wird nur über `rueckgabe` durchgezählt,
+    // und zwar gegen den vollen Soll; sonst zählt je Position `soll − unterwegs`.
+    const stand = a.kiste ? unterwegsStand(tx, geraetId) : null;
+    if (p.rueckgabe && p.rueckgabe !== stand?.ganz?.id) throw new Abgelehnt(UNGUELTIG);
+    if (stand?.ganz && !p.rueckgabe) {
+      throw new Abgelehnt(`Die Kiste ist unterwegs seit ${TAG_MONAT.format(stand.ganz.seit)}. Durchzählen geht, wenn sie zurück ist.`);
+    }
+    const unterwegs = (id: string) => (p.rueckgabe ? 0 : stand?.jePosition.get(id) ?? 0);
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));
     const meldung = a.kiste ? "Die Inhaltsliste hat sich geändert. Bitte neu durchzählen." : "Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.";
     if (punkte.some((pk) => !antwort.has(pk.id)) || (a.kiste && antwort.size !== punkte.length)) throw new Abgelehnt(meldung);
@@ -434,7 +447,7 @@ export function pruefungAbschliessen(
       const x = antwort.get(pk.id)!;
       return x.soll !== pk.soll || x.punkt !== pk.text || (x.hinweis ?? "") !== pk.bemerkung;
     };
-    if (a.kiste && punkte.some(anders)) throw new Abgelehnt(meldung);
+    if (a.kiste && punkte.some((pk) => anders(pk) || (antwort.get(pk.id)!.unterwegs ?? 0) !== unterwegs(pk.id))) throw new Abgelehnt(meldung);
     if (!a.kiste && a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
     pruefeStunden(p.stunden, g.stunden);
 
@@ -494,6 +507,7 @@ export function pruefungAbschliessen(
         id: neueId(), geraetId, typ: "behoben", titel: "Wieder vollständig", am: k.heute, wer: k.wer, notiz: m.text, angelegtAm: k.jetzt,
       }).run();
     }
+    if (p.rueckgabe) ganzeSchliessen(tx, geraetId, p.rueckgabe, k);
     const genutzt = new Set(maengel.map((m) => m.id));
     return { maengel: maengel.length, ungenutzteFotos: [...fotos.values()].filter((id) => !genutzt.has(id)) };
   });
