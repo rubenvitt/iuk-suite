@@ -78,6 +78,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     // Gespeichert ist gespeichert: das Aufräumen ungenutzter Fotos darf die Fotos der neuen Mängel nicht treffen.
     await entferneFotos(r.ungenutzteFotos).catch(() => undefined);
-    return antwort(200, { ok: true, maengel: r.maengel, ...(r.weiter ? { weiter: r.weiter } : {}) });
+    return antwort(200, { ok: true, maengel: r.maengel });
   });
 }

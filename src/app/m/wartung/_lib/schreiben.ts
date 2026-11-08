@@ -504,7 +504,7 @@ export function pruefungAbschliessen(
   p: PruefungEingabe,
   fotos: ReadonlyMap<string, string>,
   k: Kontext,
-): { maengel: number; ungenutzteFotos: string[]; weiter: string | null } {
+): { maengel: number; ungenutzteFotos: string[] } {
   return db.transaction((tx) => {
     const g = aktivesGeraet(tx, geraetId);
     const a = tx.select().from(art).where(eq(art.id, g.artId)).get()!;
@@ -563,12 +563,13 @@ export function pruefungAbschliessen(
     const nochOffen = mitMangel.filter((pk) => offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
     const wiederDa = punkte.filter((pk) => antwort.get(pk.id)!.ok && offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
 
-    tx.insert(eintrag).values({
-      id: p.sendung, geraetId, typ: "pruefung", pruefartId: pruefFrist.id, titel: pruefFrist.name,
+    const pruefung = {
+      id: p.sendung, geraetId, typ: "pruefung" as const, pruefartId: pruefFrist.id, titel: pruefFrist.name,
       am: k.heute, stunden: p.stunden, wer: k.wer, notiz: p.notiz, ergebnis: p.ergebnis,
       antworten: JSON.stringify(punkte.map((pk) => ({ text: pk.soll === null ? pk.text : `${pk.soll} × ${pk.text}`, ok: antwort.get(pk.id)!.ok }))),
       maengel: maengel.length, angelegtAm: k.jetzt,
-    }).run();
+    };
+    tx.insert(eintrag).values(pruefung).run();
     if (p.stunden !== null) tx.update(geraet).set({ stunden: p.stunden, aktualisiertAm: k.jetzt }).where(eq(geraet.id, geraetId)).run();
     for (const m of maengel) {
       tx.insert(mangel).values({
@@ -594,9 +595,12 @@ export function pruefungAbschliessen(
         id: neueId(), geraetId, typ: "behoben", titel: "Wieder vollständig", am: k.heute, wer: k.wer, notiz: m.text, angelegtAm: k.jetzt,
       }).run();
     }
-    const weiter = p.rueckgabe ? ganzeSchliessen(tx, geraetId, p.rueckgabe, k) : null;
+    // Bei einer Kiste ist „nach Benutzung“ dasselbe Durchzählen: wird sie mit der Rückkehr fällig, erfüllt diese Zählung
+    // sie mit, als eigener Eintrag; die Mängel hängen nur am ersten (Entscheidung 08.11.2026).
+    const nachBenutzung = p.rueckgabe ? ganzeSchliessen(tx, geraetId, p.rueckgabe, k) : null;
+    if (nachBenutzung) tx.insert(eintrag).values({ ...pruefung, id: neueId(), pruefartId: nachBenutzung.id, titel: nachBenutzung.name, maengel: 0 }).run();
     const genutzt = new Set(maengel.map((m) => m.id));
-    return { maengel: maengel.length, ungenutzteFotos: [...fotos.values()].filter((id) => !genutzt.has(id)), weiter };
+    return { maengel: maengel.length, ungenutzteFotos: [...fotos.values()].filter((id) => !genutzt.has(id)) };
   });
 }
 

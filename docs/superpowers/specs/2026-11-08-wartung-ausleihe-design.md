@@ -211,7 +211,10 @@ Mit main kam #524 (IDA-369): Prüfarten auf Anlass („Vor Verwendung“, „Nac
    - Nach dem Zurücklegen am Telefon: ist jetzt eine Prüfung „nach Benutzung“ fällig, geht die Seite direkt dorthin
      (`/g/[id]/pruefung?art=<Prüfart>`), sonst zurück zum Steckbrief.
    - Die Rückgabe der ganzen Kiste (`?rueckgabe=`) bindet sich an die selbst erledigte Prüfart **nach Frist** und zählt
-     als deren Prüfung (Frist neu), nie an eine Prüfart auf Anlass. Danach gilt der vorige Punkt.
+     als deren Prüfung (Frist neu), nie an eine Prüfart auf Anlass. Sie schreibt `rueckkehr`; wird damit „nach
+     Benutzung“ fällig, erfüllt dieselbe Zählung auch sie: ein zweiter `eintrag` vom Typ `pruefung` für diese Prüfart
+     (dieselben Antworten, dasselbe Ergebnis, eigene Kennung, Mängel nur am ersten), kein zweites Durchzählen.
+     *(Nachentscheidung 08.11.2026: bei einer Kiste ist „nach Benutzung“ dasselbe Durchzählen.)*
    - Steckbrief und Akte einer Kiste zeigen keinen „Wird eingesetzt“/„Zurück“; auch der Vermerk über MCP lehnt Kisten ab.
      Es gibt je Kiste genau einen Weg.
    - Folge der Bindung: „Ganze Kiste mitnehmen“ geht nur, wenn die Kiste eine Prüfart nach Frist hat, die man selbst

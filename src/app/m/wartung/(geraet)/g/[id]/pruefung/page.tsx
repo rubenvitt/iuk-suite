@@ -37,8 +37,6 @@ export default async function PruefungSeite({ params, searchParams }: { params: 
   }
   return (
     <PruefungAmGeraet
-      // Nach der Rückgabe geht es auf derselben Seite zur Prüfung „nach Benutzung“: neu aufbauen statt „gespeichert“ stehen lassen.
-      key={`${lauf.vorlage.id}:${zurueck ?? ""}`}
       geraetId={g.id}
       geraetName={g.name}
       pruefartId={lauf.vorlage.id}

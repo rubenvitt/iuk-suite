@@ -5,8 +5,7 @@ import { FOTO_MAX_BYTES } from "./fotos";
 
 export const KOPF = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } as const;
 
-/** `weiter` wie in `Ergebnis`: nach der Rückgabe der ganzen Kiste die jetzt fällige Prüfart „nach Benutzung“. */
-export type SendeAntwort = { ok: true; maengel?: number; weiter?: string } | { ok: false; fehler: string; feld?: string };
+export type SendeAntwort = { ok: true; maengel?: number } | { ok: false; fehler: string; feld?: string };
 
 export function antwort(status: number, koerper: SendeAntwort): Response {
   return new Response(JSON.stringify(koerper), { status, headers: KOPF });

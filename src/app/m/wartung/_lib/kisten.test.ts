@@ -140,7 +140,7 @@ describe("Materialkisten (IDA-335)", () => {
     const r = pruefungAbschliessen(db, id, {
       sendung: neueId(), stunden: null, ergebnis: "defekt", notiz: "", antworten: zaehlung(liste, { 1: "" }),
     }, new Map([[liste[1].id, foto]]), spaeter);
-    expect(r).toEqual({ maengel: 0, ungenutzteFotos: [foto], weiter: null });
+    expect(r).toEqual({ maengel: 0, ungenutzteFotos: [foto] });
     expect(offen(db, id)).toMatchObject([{ inhaltId: liste[1].id, einsatzbereit: false, gemeldetAm: K.jetzt, herabgestuftAm: spaeter.jetzt }]);
     // Gemeldet wurde der Mangel vor `seit`, nicht einsatzbereit ist er erst jetzt: der Sofort-Push kommt.
     expect(ungepushteAusfaelle(db, spaeter.jetzt).map((m) => m.geraetId)).toEqual([id]);

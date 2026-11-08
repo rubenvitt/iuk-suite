@@ -302,10 +302,33 @@ describe("Entnehmen und Zurücklegen vermerken Einsatz und Rückkehr", () => {
     expect(() => sende(s.vorher)).toThrow(Abgelehnt);
     const r = sende();
     const p = s.db.select().from(eintrag).where(and(eq(eintrag.geraetId, s.id), eq(eintrag.typ, "pruefung"))).all();
-    expect(p.map((x) => x.pruefartId)).toEqual([START.pruefart.quartal]);
+    expect(p.map((x) => x.pruefartId)).toContain(START.pruefart.quartal);
+    expect(p.map((x) => x.pruefartId)).not.toContain(s.vorher);
     expect(vermerke(s.db, s.id, "rueckkehr")).toHaveLength(1);
     expect(stand(s).entnahmen).toHaveLength(0);
-    expect(r.weiter).toBe(s.nachher);
+    expect(r.maengel).toBe(0);
+  });
+
+  it("das Durchzählen der ganzen Kiste erfüllt auch „nach Benutzung“: zwei Prüfungen, Mängel einmal, kein zweites Zählen", () => {
+    const s = mitAnlass();
+    entnehmen(s.db, s.id, ganz(), k());
+    const rueckgabe = stand(s).ganz!.id;
+    // Die Blitzschutz-Position fehlt beim Zurücklegen.
+    const antworten = ladeInhalt(s.db, s.id).map((p) => ({ punktId: p.id, ok: p.id !== s.blitz, text: "", soll: p.soll, punkt: p.text, hinweis: p.bemerkung, unterwegs: 0 }));
+    const sendung = neueId();
+    const r = pruefungAbschliessen(s.db, s.id, { sendung, stunden: null, ergebnis: "mangel", notiz: "Blitzschutz fehlt", antworten, rueckgabe }, new Map(), k());
+    const p = s.db.select().from(eintrag).where(and(eq(eintrag.geraetId, s.id), eq(eintrag.typ, "pruefung"))).all();
+    expect(p.map((x) => x.pruefartId).sort()).toEqual([START.pruefart.quartal, s.nachher].sort());
+    const frist = p.find((x) => x.pruefartId === START.pruefart.quartal)!;
+    const nach = p.find((x) => x.pruefartId === s.nachher)!;
+    expect(frist).toMatchObject({ id: sendung, maengel: 1, ergebnis: "mangel" });
+    expect(nach).toMatchObject({ maengel: 0, ergebnis: "mangel", notiz: "Blitzschutz fehlt", antworten: frist.antworten, titel: "Nach dem Einsatz" });
+    expect(nach.id).not.toBe(sendung);
+    expect(r.maengel).toBe(1);
+    expect(s.db.select().from(mangel).where(and(eq(mangel.geraetId, s.id), isNull(mangel.behobenAm))).all()).toHaveLength(1);
+    expect(fristVon(s.db, s.id, s.nachher).stufe).toBe("ok");
+    expect(fristVon(s.db, s.id, START.pruefart.quartal).stufe).toBe("ok");
+    expect(r).not.toHaveProperty("weiter");
   });
 
   it("ohne Prüfart nach Frist geht die ganze Kiste nicht mit, denn sie käme nicht zurück", () => {

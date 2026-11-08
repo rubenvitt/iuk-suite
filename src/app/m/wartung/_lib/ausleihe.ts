@@ -9,6 +9,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
 import { art, eintrag, entnahme, entnahmePosition, inhalt, mangel } from "../_db/schema";
 import type { EntnahmeEingabe, RueckgabeEingabe } from "./eingabe";
+import type { FristVorlage } from "./fristen";
 import { ladeGeraet } from "./daten";
 import { Abgelehnt, aktivesGeraet, anlassSchreiben, neueId, UNGUELTIG, type Kontext } from "./schreiben";
 import { hatOffeneEntnahme, unterwegsStand } from "./unterwegs";
@@ -67,17 +68,17 @@ export function entnehmen(db: WartungDb, geraetId: string, e: EntnahmeEingabe, k
 
 /**
  * Ist keine Entnahme mehr offen, ist die Kiste zurück: Vermerk `rueckkehr`. Liefert die Prüfart „nach Benutzung“,
- * die jetzt fällig ist, damit das Telefon dorthin weitergeht; sonst null.
+ * die jetzt fällig ist (das Telefon geht dorthin, die Rückgabe der ganzen Kiste erfüllt sie gleich mit); sonst null.
  */
-function zurueckWennLeer(tx: WartungSchreiber, geraetId: string, k: Kontext): string | null {
+function zurueckWennLeer(tx: WartungSchreiber, geraetId: string, k: Kontext): FristVorlage | null {
   if (hatOffeneEntnahme(tx, geraetId)) return null;
   anlassSchreiben(tx, geraetId, "rueckkehr", k);
   return ladeGeraet(tx, geraetId, k.heute)?.staende
-    .find((f) => f.vorlage.wer === "intern" && f.vorlage.anlass === "rueckkehr" && f.stufe !== "ok")?.vorlage.id ?? null;
+    .find((f) => f.vorlage.wer === "intern" && f.vorlage.anlass === "rueckkehr" && f.stufe !== "ok")?.vorlage ?? null;
 }
 
 /** Schließt eine ganze Entnahme; nur aus `pruefungAbschliessen` (Durchzählen). Liefert wie `zurueckWennLeer`. */
-export function ganzeSchliessen(tx: WartungSchreiber, geraetId: string, entnahmeId: string, k: Kontext): string | null {
+export function ganzeSchliessen(tx: WartungSchreiber, geraetId: string, entnahmeId: string, k: Kontext): FristVorlage | null {
   const e = tx.select().from(entnahme).where(and(eq(entnahme.id, entnahmeId), eq(entnahme.geraetId, geraetId), isNull(entnahme.zurueckAm))).get();
   if (!e?.ganz) throw new Abgelehnt("Das wurde inzwischen schon zurückgelegt. Bitte die Seite neu laden.");
   tx.update(entnahmePosition).set({ zurueck: sqlMenge }).where(eq(entnahmePosition.entnahmeId, entnahmeId)).run();
@@ -128,6 +129,6 @@ export function zuruecklegen(db: WartungDb, geraetId: string, r: RueckgabeEingab
     const alle = tx.select().from(entnahmePosition).where(eq(entnahmePosition.entnahmeId, e.id)).all();
     if (!alle.every((p) => p.fehlt || p.zurueck === p.menge)) return { maengel, weiter: null };
     tx.update(entnahme).set({ zurueckAm: k.jetzt, zurueckWer: k.wer }).where(eq(entnahme.id, e.id)).run();
-    return { maengel, weiter: zurueckWennLeer(tx, geraetId, k) };
+    return { maengel, weiter: zurueckWennLeer(tx, geraetId, k)?.id ?? null };
   });
 }

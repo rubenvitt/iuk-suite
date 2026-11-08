@@ -93,14 +93,6 @@ describe("Prüfung am Gerät", () => {
     expect(ladeEntwurf(`wartung:pruefung:${G}`)?.sendung).toBeNull();
     expect(ladeEntwurf(`wartung:pruefung:${G}`)?.stand).toBeTruthy();
   });
-
-  it("nennt die Route danach eine fällige Prüfung „nach Benutzung“ (Rückgabe der ganzen Kiste), geht es direkt dorthin", async () => {
-    fetchMock.mockResolvedValue(json({ ok: true, maengel: 0, weiter: G }));
-    await pruefung();
-    await click("input[name='pruef-" + P + "'][value='ok']");
-    await click("button.ant-btn-primary");
-    expect(push).toHaveBeenCalledWith(`/g/${G}/pruefung?art=${G}`);
-  });
 });
 
 describe("Mangel am Gerät", () => {
