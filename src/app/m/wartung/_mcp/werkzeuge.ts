@@ -18,15 +18,16 @@ import {
   faelligeFristen, ladeArten, ladeGeraet, ladeGeraete, ladeGruppen, ladeInhalt, ladeMaengel, ladePruefarten, ladeUnterlagen, ladeVerlauf,
 } from "../_lib/daten";
 import { ART_IKONEN, artEingabe, idSchema, pruefartEingabe, NAME_MAX, NOTIZ_MAX, KURZ_MAX, SOLL_MAX, STUNDEN_MAX, PUNKT_MAX } from "../_lib/eingabe";
-import { heute } from "../_lib/heute";
+import { heute, tagInZone } from "../_lib/heute";
 import { inhaltStand } from "../_lib/schreiben";
 import { ladeVonAdresse } from "../_lib/abruf";
 import { ladeAmGeraet } from "../_lib/telefon";
+import { unterwegsStand } from "../_lib/unterwegs";
 import { UNTERLAGE_MAX_BYTES } from "../_lib/unterlagen";
 import type { EintragDTO, Ergebnis, GeraetZeile, GruppeDTO, MangelDTO } from "../_lib/typen";
 import {
   artLoeschenVorgang, artSpeichernVorgang, erledigtEintragenVorgang, geraetAendernVorgang, geraetAktivVorgang,
-  geraetAnlegenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang,
+  geraetAnlegenVorgang, geraetLoeschenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang,
   mangelMeldenVorgang, pruefartLoeschenVorgang, pruefartSpeichernVorgang, pruefplanSpeichernVorgang, pruefungOhneFotosVorgang,
   stundenEintragenVorgang, unterlageHochladenVorgang,
 } from "../_lib/vorgaenge";
@@ -52,7 +53,19 @@ function kurz(g: GeraetZeile) {
     id: g.id, name: g.name, art: g.artEinzahl, artId: g.artId, gruppe: g.gruppeName, gruppeId: g.gruppeId,
     hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, stunden: g.stunden,
     materialkiste: g.kiste, aktiv: g.aktiv, zustand: g.zustand, offeneMaengel: g.offeneMaengel, fehlend: g.fehlend,
-    naechsteFrist: g.naechste,
+    naechsteFrist: g.naechste, unterwegs: g.unterwegs,
+  };
+}
+
+/** Was aus der Kiste unterwegs ist, ohne `wer`/`nutzer` (Grundregel unten); `seit` als Tag in der Suite-Zone. */
+function unterwegsOhnePerson(geraetId: string) {
+  const u = unterwegsStand(getDb(), geraetId);
+  return {
+    liste: u.entnahmen.map((e) => ({
+      ganz: e.ganz, seit: tagInZone(e.seit), zweck: e.zweck,
+      positionen: e.positionen.map((p) => ({ inhalt_id: p.inhaltId, text: p.text, offen: p.offen })),
+    })),
+    je: (inhaltId: string) => u.jePosition.get(inhaltId) ?? 0,
   };
 }
 
@@ -100,6 +113,7 @@ const geraetFelder = {
   fahrzeug_id: z.string().max(100).nullable().optional().describe("Fahrzeug der Fahrzeugverwaltung, falls ort_art = fahrzeug"),
   stunden: stunden.nullable().optional().describe("Aktueller Betriebsstundenstand"),
   hinweise: z.string().max(NOTIZ_MAX).optional().describe("Hinweise für den Steckbrief am QR-Code"),
+  pruefanleitung: z.string().max(NOTIZ_MAX).optional().describe("Anleitung zum Prüfen dieses Geräts, wird bei der Prüfung angezeigt"),
 };
 
 export const wartungMcp: McpModul = {
@@ -137,17 +151,20 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_geraet", {
       title: "Gerät ansehen",
-      description: "Ein Gerät mit Checkliste (bei einer Materialkiste die Inhaltsliste), offenen Mängeln und Unterlagen. Verwalter seiner Gruppe bekommen zusätzlich den Verlauf.",
+      description: "Ein Gerät mit Checkliste (bei einer Materialkiste die Inhaltsliste, dazu was gerade unterwegs ist), Prüfanleitung, offenen Mängeln und Unterlagen. Verwalter seiner Gruppe bekommen zusätzlich den Verlauf.",
       inputSchema: { geraet_id: geraetId },
       annotations: LESEN,
     }, ({ geraet_id }) => mit("zugang", ({ rechte }) => {
       const tag = heute();
+      const uw = unterwegsOhnePerson(geraet_id);
+      const mitUnterwegs = <T extends { id: string }>(punkte: T[]) => punkte.map((p) => ({ ...p, unterwegs: uw.je(p.id) }));
       const eigen = ladeGeraet(getDb(), geraet_id, tag);
       if (eigen && verwaltetGruppe(rechte, eigen.gruppeId)) {
         return antwortJson({
           geraet: eigen,
-          checkliste: ladeAmGeraet(getDb(), geraet_id, tag)?.checkliste ?? [],
-          inhalt: eigen.kiste ? ladeInhalt(getDb(), geraet_id) : undefined,
+          checkliste: eigen.kiste ? mitUnterwegs(ladeAmGeraet(getDb(), geraet_id, tag)?.checkliste ?? []) : ladeAmGeraet(getDb(), geraet_id, tag)?.checkliste ?? [],
+          inhalt: eigen.kiste ? mitUnterwegs(ladeInhalt(getDb(), geraet_id)) : undefined,
+          unterwegs: uw.liste,
           inhaltStand: eigen.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
           offeneMaengel: ladeMaengel(getDb(), { gruppen: null, geraetId: geraet_id, offen: true }).map(mangelOhnePerson),
           verlauf: ladeVerlauf(getDb(), { gruppen: null, geraetId: geraet_id, grenze: 50 }).map(eintragOhnePerson),
@@ -158,7 +175,7 @@ export const wartungMcp: McpModul = {
       const am = ladeAmGeraet(getDb(), geraet_id, tag);
       if (!am) return antwortFehler("Dieses Gerät gibt es nicht (mehr).");
       return antwortJson({
-        geraet: am.g, checkliste: am.checkliste, offeneMaengel: am.offen, unterlagen: am.unterlagen.map((u) => u.titel),
+        geraet: am.g, checkliste: am.g.kiste ? mitUnterwegs(am.checkliste) : am.checkliste, unterwegs: uw.liste, offeneMaengel: am.offen, unterlagen: am.unterlagen.map((u) => u.titel),
         inhaltStand: am.g.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
       });
     }));
@@ -180,6 +197,7 @@ export const wartungMcp: McpModul = {
           punkt_id: idSchema.describe("Kennung des Checklistenpunkts bzw. der Position"),
           ok: z.boolean().describe("true = in Ordnung bzw. vollständig"),
           text: z.string().max(NOTIZ_MAX).optional().describe("Was los ist, Pflicht bei ok = false (außer Materialkiste)"),
+          unterwegs: z.number().int().min(0).max(SOLL_MAX).optional().describe("bei Kisten: wie viele laut wartung_geraet gerade unterwegs sind"),
         })).max(40),
         ergebnis: z.enum(["ok", "mangel", "defekt"]),
         stunden: stunden.nullable().optional().describe("Abgelesener Stand; Pflicht bei Geräten mit Betriebsstunden"),
@@ -198,7 +216,7 @@ export const wartungMcp: McpModul = {
       const antworten = a.antworten.map((x) => {
         const p = punkte.get(x.punkt_id);
         return {
-          punktId: x.punkt_id, ok: x.ok, text: x.text ?? "",
+          punktId: x.punkt_id, ok: x.ok, text: x.text ?? "", ...(x.unterwegs !== undefined ? { unterwegs: x.unterwegs } : {}),
           ...(p?.soll !== undefined ? { soll: p.soll, punkt: p.text, hinweis: p.hinweis } : {}),
         };
       });
@@ -272,7 +290,7 @@ export const wartungMcp: McpModul = {
     }, (a) => mit("verwalter", async (z) => ergebnis(await geraetAnlegenVorgang(z, {
       gruppeId: a.gruppe_id, artId: a.art_id, name: a.name, hersteller: a.hersteller ?? "", typ: a.typ ?? "",
       seriennr: a.seriennr ?? "", ortArt: a.ort_art, ort: a.ort, fahrzeugId: a.fahrzeug_id ?? null,
-      stunden: a.stunden ?? null, hinweise: a.hinweise ?? "", pruefanleitung: "",
+      stunden: a.stunden ?? null, hinweise: a.hinweise ?? "", pruefanleitung: a.pruefanleitung ?? "",
     }))));
 
     server.registerTool("wartung_geraet_aendern", {
@@ -290,7 +308,7 @@ export const wartungMcp: McpModul = {
         hersteller: a.hersteller ?? alt.hersteller, typ: a.typ ?? alt.typ, seriennr: a.seriennr ?? alt.seriennr,
         ortArt: a.ort_art ?? alt.ortArt, ort: a.ort ?? alt.ort,
         fahrzeugId: a.fahrzeug_id !== undefined ? a.fahrzeug_id : a.ort_art === "lager" ? null : alt.fahrzeugId,
-        stunden: a.stunden !== undefined ? a.stunden : alt.stunden, hinweise: a.hinweise ?? alt.hinweise, pruefanleitung: alt.pruefanleitung,
+        stunden: a.stunden !== undefined ? a.stunden : alt.stunden, hinweise: a.hinweise ?? alt.hinweise, pruefanleitung: a.pruefanleitung ?? alt.pruefanleitung,
       }));
     }));
 
@@ -301,6 +319,13 @@ export const wartungMcp: McpModul = {
       annotations: SCHREIBEN,
     }, ({ geraet_id, zurueckholen }) => mit("verwalter", async (z) =>
       ergebnis(await geraetAktivVorgang(z, geraet_id, zurueckholen === true))));
+
+    server.registerTool("wartung_geraet_loeschen", {
+      title: "Ausgemusterte Akte löschen",
+      description: "Löscht eine ausgemusterte Akte ohne Verlauf endgültig, samt Inhalt und Unterlagen. Mit Verlauf bleibt sie ausgemustert.",
+      inputSchema: { geraet_id: geraetId },
+      annotations: SCHREIBEN,
+    }, ({ geraet_id }) => mit("verwalter", async (z) => ergebnis(await geraetLoeschenVorgang(z, geraet_id))));
 
     server.registerTool("wartung_erledigt_eintragen", {
       title: "Wartung eintragen",
