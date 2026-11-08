@@ -1447,6 +1447,9 @@
     "reason": "Opening a device manual or quick guide behind the device's QR code; reads files the managers attached, writes nothing."
   },
   "src/app/m/wartung/_actions/telefon.ts#stundenEintragenAction": { "kind": "context", "via": "stundenEintragenAction" },
+  "src/app/m/wartung/_actions/telefon.ts#entnehmenAction": { "kind": "context", "via": "entnehmenAction" },
+  "src/app/m/wartung/_actions/telefon.ts#zuruecklegenAction": { "kind": "context", "via": "zuruecklegenAction" },
+  "src/app/m/wartung/_actions/verwaltung.ts#geraetLoeschenAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/wartung/(geraet)/g/[id]/pruefung/senden/route.ts#POST": { "kind": "context", "via": "POST" },
   "src/app/m/wartung/(geraet)/g/[id]/mangel/senden/route.ts#POST": { "kind": "context", "via": "POST" },
   "src/app/m/wartung/(verwaltung)/maengel/foto/[id]/route.ts#GET": {
