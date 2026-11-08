@@ -34,9 +34,9 @@ export function eintraege(p: PlanungDTO, helfer: readonly PlanHelfer[]): Eintrag
  */
 export interface AustauschZeile { x: Eintrag; h: PlanHelfer | null }
 
-/** Komma und Semikolon trennen in Lifeline Hub die Listen; in einem Namen werden sie zu Leerzeichen. */
 /** Mehr Qualifikationen je Person nimmt Lifeline Hub nicht an (die Zeile wäre ein Fehler); sie dienen dort nur dem Anlegen neuer Helfer. */
 const QUALIS_JE_PERSON_MAX = 20;
+/** Komma und Semikolon trennen in Lifeline Hub die Listen; in einem Namen werden sie zu Leerzeichen. */
 const listenTeil = (t: string) => t.replace(/[,;]+/g, " ").replace(/\s+/g, " ").trim();
 
 /**
