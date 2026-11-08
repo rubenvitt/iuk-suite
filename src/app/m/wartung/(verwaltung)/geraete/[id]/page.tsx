@@ -5,10 +5,12 @@ import { qrSvg } from "@/core/qr";
 import { bereitgestellteFahrzeuge } from "@/app/m/fahrzeuge/_lib/bereitstellung";
 import { getDb } from "../../../_db/client";
 import { linkBasisAus, qrZiel } from "../../../_lib/ansicht";
-import { bekannteOrte, ladeArten, ladeGeraet, ladeKatalog, ladeGruppen, ladeInhalt, ladeMaengel, ladeUnterlagen, ladeVerlauf } from "../../../_lib/daten";
+import { bekannteOrte, darfEndgueltigLoeschen, ladeArten, ladeEntnahmen, ladeGeraet, ladeKatalog, ladeGruppen, ladeInhalt, ladeMaengel, ladeUnterlagen, ladeVerlauf } from "../../../_lib/daten";
 import { idSchema } from "../../../_lib/eingabe";
 import { fahrzeugWahl } from "../../../_lib/fahrzeugbezug";
 import { heute } from "../../../_lib/heute";
+import { unterwegsStand } from "../../../_lib/unterwegs";
+import { unterwegsText } from "../../../_lib/unterwegsText";
 import { requireVerwalter, verwaltetGruppe } from "../../../_lib/zugang";
 import { GeraetAkte } from "../../../_ui/GeraetAkte";
 
@@ -35,6 +37,9 @@ export default async function AktenSeite({ params }: { params: Promise<{ id: str
       maengel={ladeMaengel(db, { gruppen: null, geraetId: id, offen: true })}
       verlauf={ladeVerlauf(db, { gruppen: null, geraetId: id, grenze: 200 })}
       unterlagen={ladeUnterlagen(db, id)}
+      entnahmen={ladeEntnahmen(db, id, 20)}
+      unterwegsText={unterwegsText(unterwegsStand(db, id), true)}
+      darfLoeschen={darfEndgueltigLoeschen(db, id)}
       qr={await qrSvg(qrZiel(linkBasisAus(kopf), id))}
       heute={tag}
       arten={ladeArten(db).map((a) => ({ id: a.id, einzahl: a.einzahl }))}

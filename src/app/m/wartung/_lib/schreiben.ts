@@ -11,7 +11,7 @@ import { art, artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, gruppe, 
 import { zeitFormat } from "@/core/zeit";
 import { ganzeSchliessen } from "./ausleihe";
 import { hatOffeneEntnahme, unterwegsStand } from "./unterwegs";
-import { ladeArten, ladeKatalog, ladePruefplan } from "./daten";
+import { hatVerlauf, ladeArten, ladeKatalog, ladePruefplan } from "./daten";
 import { geltende, pruefplan, selbstPruefung } from "./pruefplan";
 import {
   artIkone, UNTERLAGEN_MAX, type ArtEingabe, type ErledigtEingabe, type GeraetEingabe, type GruppeEingabe, type InhaltEingabe, type PruefartEingabe,
@@ -236,6 +236,22 @@ export function geraetAktiv(db: WartungDb, id: string, aktiv: boolean, jetzt: nu
     tx.update(geraet).set({ aktiv, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
     // Während es ausgemustert war, können sich Katalog und Art geändert haben: sein Prüfplan muss wieder passen.
     if (aktiv) pruefeRegeln(tx);
+  });
+}
+
+/**
+ * Löscht eine ausgemusterte Akte ohne Verlauf endgültig; Inhalt, Prüfplan-Abweichungen und Unterlagen-Zeilen gehen per
+ * Cascade mit. Die Dateien der zurückgegebenen Unterlagen räumt der Aufrufer danach weg.
+ */
+export function geraetLoeschen(db: WartungDb, id: string): { unterlagen: { id: string; typ: "pdf" | "bild" }[] } {
+  return db.transaction((tx) => {
+    const g = tx.select({ aktiv: geraet.aktiv }).from(geraet).where(eq(geraet.id, id)).get();
+    if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
+    if (g.aktiv) throw new Abgelehnt("Nur ausgemusterte Akten lassen sich endgültig löschen.");
+    if (hatVerlauf(tx, id)) throw new Abgelehnt("Diese Akte hat einen Verlauf. Bitte ausgemustert lassen.");
+    const unterlagen = tx.select({ id: unterlage.id, typ: unterlage.typ }).from(unterlage).where(eq(unterlage.geraetId, id)).all();
+    tx.delete(geraet).where(eq(geraet.id, id)).run();
+    return { unterlagen };
   });
 }
 

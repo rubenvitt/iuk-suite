@@ -91,6 +91,20 @@ export interface GeraetZeile {
   offeneMaengel: number;
   /** Davon beim Durchzählen als fehlend gemeldet. */
   fehlend: number;
+  /** Es ist gerade etwas aus der Kiste unterwegs (IDA-372). */
+  unterwegs: boolean;
+}
+
+/** Eine Entnahme für die Akte; `zurueckAm` null heißt: noch unterwegs. */
+export interface EntnahmeDTO {
+  id: string;
+  wer: string;
+  zweck: string;
+  ganz: boolean;
+  seit: number;
+  zurueckAm: number | null;
+  zurueckWer: string | null;
+  positionen: string[];
 }
 
 export interface EintragDTO {

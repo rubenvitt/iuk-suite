@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { DirectoryResult } from "@/core/directory";
-import { artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, mangel, pruefart, verwalter } from "../_db/schema";
+import { artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
 import { ladeArten, ladeGeraet, ladeKatalog, ladePruefarten } from "./daten";
 import {
-  Abgelehnt, artSpeichern, erledigtEintragen, geraetAnlegen, gruppeLoeschen, gruppeSpeichern, mangelBeheben, mangelMelden,
+  Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAktiv, geraetAnlegen, geraetLoeschen, gruppeLoeschen, gruppeSpeichern, mangelBeheben, mangelMelden,
   neueId, pruefartLoeschen, pruefartSpeichern, pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen,
-  ungepushteAusfaelle,
+  ungepushteAusfaelle, unterlageAnlegen, inhaltSpeichern,
 } from "./schreiben";
 import { merkePerson, verwalterHinzufuegen } from "./personen";
 import { START } from "./startbestand";
@@ -241,5 +241,50 @@ describe("Verwaltung", () => {
     verwalterHinzufuegen(db, neu, "sub-1", K.jetzt, OHNE_VERZEICHNIS);
     gruppeLoeschen(db, neu);
     expect(db.select().from(verwalter).all()).toEqual([]);
+  });
+});
+
+describe("Endgültig löschen (IDA-372)", () => {
+  const kiste = (db: ReturnType<typeof testDb>, artId: string = START.art.kiste) => {
+    const id = geraetAnlegen(db, {
+      gruppeId: START.gruppe.iuk, artId, name: "Kiste", hersteller: "", typ: "", hinweise: "", pruefanleitung: "",
+      seriennr: "", ortArt: "lager", ort: "Lager", fahrzeugId: null, stunden: null,
+    }, K.jetzt);
+    if (artId === START.art.kiste) inhaltSpeichern(db, id, [{ id: null, text: "Kabel", soll: 2, bemerkung: "" }]);
+    return id;
+  };
+
+  it("löscht eine ausgemusterte Akte ohne Verlauf samt Inhalt und Unterlagen", () => {
+    const db = testDb();
+    const id = kiste(db);
+    unterlageAnlegen(db, id, { id: "u-1", titel: "Plan", typ: "pdf", bytes: 10 }, K);
+    geraetAktiv(db, id, false, K.jetzt);
+    expect(geraetLoeschen(db, id)).toEqual({ unterlagen: [{ id: "u-1", typ: "pdf" }] });
+    expect(db.select().from(geraet).where(eq(geraet.id, id)).all()).toEqual([]);
+    expect(db.select().from(inhalt).where(eq(inhalt.geraetId, id)).all()).toEqual([]);
+    expect(db.select().from(unterlage).where(eq(unterlage.geraetId, id)).all()).toEqual([]);
+  });
+
+  it("aktive Akte wird abgelehnt", () => {
+    const db = testDb();
+    const id = kiste(db);
+    expect(() => geraetLoeschen(db, id)).toThrow(/Nur ausgemusterte/);
+  });
+
+  it("Akte mit Verlauf wird abgelehnt", () => {
+    const { db, id } = mitStromerzeuger();
+    stundenEintragen(db, id, 120, K);
+    geraetAktiv(db, id, false, K.jetzt);
+    expect(() => geraetLoeschen(db, id)).toThrow(/hat einen Verlauf/);
+  });
+
+  it("danach lässt sich die Art löschen", () => {
+    const db = testDb();
+    const artId = artSpeichern(db, null, { name: "Leuchten", einzahl: "Leuchte", ikone: "fire", stundenPflicht: false, kiste: false, pruefarten: [], checkliste: [] }, K.jetzt);
+    const id = kiste(db, artId);
+    geraetAktiv(db, id, false, K.jetzt);
+    expect(() => artLoeschen(db, artId)).toThrow(Abgelehnt);
+    geraetLoeschen(db, id);
+    expect(() => artLoeschen(db, artId)).not.toThrow();
   });
 });

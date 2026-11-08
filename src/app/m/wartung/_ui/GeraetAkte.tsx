@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button, Card, DatePicker, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Progress, Tag } from "antd";
 import dayjs from "dayjs";
 import { loescheEntwurf } from "@/core/entwurf/ablage";
@@ -11,12 +12,13 @@ import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { erledigtEintragenAction, geraetAendernAction, geraetAktivAction, mangelBehebenAction } from "../_actions/verwaltung";
+import { erledigtEintragenAction, geraetAendernAction, geraetAktivAction, geraetLoeschenAction, mangelBehebenAction } from "../_actions/verwaltung";
 import { NAME_MAX, NOTIZ_MAX } from "../_lib/eingabe";
 import { ERGEBNIS_TEXT, intervallText, WER_TEXT, type FristStand } from "../_lib/fristen";
 import type { FahrzeugWahl } from "../_lib/fahrzeugsuche";
 import type { PruefartZeile } from "../_lib/pruefplan";
-import type { BekannteOrte, EintragDTO, GeraetZeile, InhaltDTO, MangelDTO, UnterlageDTO } from "../_lib/typen";
+import { seitText } from "../_lib/unterwegsText";
+import type { BekannteOrte, EintragDTO, EntnahmeDTO, GeraetZeile, InhaltDTO, MangelDTO, UnterlageDTO } from "../_lib/typen";
 import { GeraetFormular } from "./GeraetFormular";
 import { MangelEintrag } from "./MangelEintrag";
 import { PruefplanDialog } from "./PruefplanDialog";
@@ -28,7 +30,7 @@ import s from "./wartung.module.css";
 type Erledigt = { am: string; stunden: number | null; wer: string; notiz: string };
 
 export function GeraetAkte({
-  g, inhalt, maengel, verlauf, unterlagen, qr, heute, arten, gruppen, orte, fahrzeuge, katalog,
+  g, inhalt, maengel, verlauf, unterlagen, entnahmen, unterwegsText, darfLoeschen, qr, heute, arten, gruppen, orte, fahrzeuge, katalog,
 }: {
   g: GeraetZeile;
   /** Nur bei einer Materialkiste (IDA-335). */
@@ -36,6 +38,12 @@ export function GeraetAkte({
   maengel: MangelDTO[];
   unterlagen: UnterlageDTO[];
   verlauf: EintragDTO[];
+  /** Die letzten Entnahmen, auch geschlossene (IDA-372). */
+  entnahmen: EntnahmeDTO[];
+  /** Eine Zeile „Unterwegs: …“ mit Namen, null wenn nichts unterwegs ist. */
+  unterwegsText: string | null;
+  /** Ausgemustert und ohne Verlauf: die Akte lässt sich endgültig löschen. */
+  darfLoeschen: boolean;
   qr: string;
   heute: string;
   arten: { id: string; einzahl: string }[];
@@ -45,6 +53,7 @@ export function GeraetAkte({
   /** Der Katalog der Prüfarten (IDA-368), zum Anpassen des Prüfplans. */
   katalog: PruefartZeile[];
 }) {
+  const router = useRouter();
   const { laeuft, feldFehler, setFeldFehler, fuehreAus } = useAktion();
   const [eintragen, setEintragen] = useState<FristStand | null>(null);
   const [erledigt, setErledigt] = useState<Erledigt>({ am: heute, stunden: g.stunden, wer: "", notiz: "" });
@@ -94,6 +103,18 @@ export function GeraetAkte({
             >
               <Button type="text" disabled={laeuft}>{g.aktiv ? "Ausmustern" : "Zurückholen"}</Button>
             </Popconfirm>
+            {darfLoeschen && (
+              <Popconfirm
+                title="Akte endgültig löschen?"
+                description="Die Akte und ihre Unterlagen sind danach weg."
+                okText="Löschen"
+                okButtonProps={{ danger: true }}
+                cancelText="Abbrechen"
+                onConfirm={() => fuehreAus(() => geraetLoeschenAction(g.id), "Akte gelöscht.", () => router.push("/geraete"))}
+              >
+                <Button danger disabled={laeuft}>Akte endgültig löschen</Button>
+              </Popconfirm>
+            )}
           </span>
         }
       />
@@ -147,6 +168,24 @@ export function GeraetAkte({
               ))}
             </Card>
           )}
+          {g.kiste && entnahmen.length > 0 && (
+            <Card title="Entnahmen">
+              <ul className={s.zeilen} aria-label="Entnahmen">
+                {entnahmen.map((e) => (
+                  <li key={e.id} className={s.verlauf}>
+                    <span className={`${s.neben} ${s.ziffern}`}>{seitText(e.seit)}</span>
+                    <div>
+                      <span className={s.reihe}>
+                        <strong>{e.wer || "—"}</strong>
+                        {e.zurueckAm === null ? <Tag>unterwegs</Tag> : <span className={s.neben}>zurück am {seitText(e.zurueckAm)}{e.zurueckWer ? ` (${e.zurueckWer})` : ""}</span>}
+                      </span>
+                      <div className={s.neben}>{[e.zweck, e.ganz ? "ganze Kiste" : e.positionen.join(", ")].filter(Boolean).join(" · ")}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
           <Card title="Verlauf">
             {verlauf.length === 0 ? <p className={s.neben} style={{ margin: 0 }}>Noch nichts eingetragen.</p> : (
               <ul className={s.zeilen} aria-label="Verlauf">
@@ -187,6 +226,8 @@ export function GeraetAkte({
               ].filter((z) => !g.kiste || (z.key === "h" ? Boolean(g.hersteller || g.typ) : z.key === "s" ? Boolean(g.seriennr) : z.key === "b" ? g.stunden !== null : z.key === "i" ? Boolean(g.hinweise) : true))}
             />
           </Card>
+          {unterwegsText && <Card title="Unterwegs"><p style={{ margin: 0 }}>{unterwegsText}</p></Card>}
+          {g.pruefanleitung && <Card title="Prüfanleitung"><p className={s.hinweise}>{g.pruefanleitung}</p></Card>}
           {g.kiste && (
             <Card
               title={`Inhalt (${inhalt.length})`}

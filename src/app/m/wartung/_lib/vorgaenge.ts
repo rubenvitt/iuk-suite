@@ -26,7 +26,7 @@ import { entnehmen, zuruecklegen } from "./ausleihe";
 import { verwalterEntfernen, verwalterHinzufuegen } from "./personen";
 import { heute } from "./heute";
 import {
-  Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
+  Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, geraetLoeschen, gruppeLoeschen,
   gruppeSpeichern, inhaltSpeichern, mangelBeheben, mangelMelden, neueId, pruefartLoeschen, pruefartSpeichern, pruefartVerschieben,
   pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen, unterlageAnlegen,
 } from "./schreiben";
@@ -165,6 +165,17 @@ export const geraetAktivVorgang = (z: Akteur, id: unknown, aktiv: unknown) => au
   if (typeof aktiv !== "boolean") throw new Abgelehnt(UNGUELTIG);
   eigenesGeraet(rechte, id);
   geraetAktiv(getDb(), id, aktiv, Date.now());
+});
+
+/**
+ * Eine ausgemusterte Akte ohne Verlauf endgültig löschen. Erst die Datenbank, dann die Dateien: bricht es dazwischen,
+ * bleibt höchstens eine Datei ohne Verweis liegen. Die Pfade entstehen aus den IDs der Datenbank.
+ */
+export const geraetLoeschenVorgang = (z: Akteur, id: unknown) => ausfuehren(z, async ({ rechte }) => {
+  pruefeId(id);
+  eigenesGeraet(rechte, id);
+  const { unterlagen } = geraetLoeschen(getDb(), id);
+  await Promise.all(unterlagen.map((u) => entferneUnterlage(u.id, u.typ)));
 });
 
 export const erledigtEintragenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ viewer, rechte }) => {
