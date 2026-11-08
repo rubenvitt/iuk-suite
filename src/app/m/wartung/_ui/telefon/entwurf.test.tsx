@@ -48,7 +48,7 @@ afterEach(async () => {
 
 const pruefung = () => mount(
   <App>
-    <PruefungAmGeraet geraetId={G} geraetName="Stromerzeuger" titel="Prüfung" checkliste={[{ id: P, text: "Öl", hinweis: "" }]} stundenPflicht={false} stundenZuletzt={null} />
+    <PruefungAmGeraet geraetId={G} geraetName="Stromerzeuger" pruefartId={P} titel="Prüfung" checkliste={[{ id: P, text: "Öl", hinweis: "" }]} stundenPflicht={false} stundenZuletzt={null} />
   </App>,
 );
 

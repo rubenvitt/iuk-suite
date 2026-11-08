@@ -25,10 +25,10 @@ const ALT = {
 function bisVor0006(): string {
   const ziel = join(tmp, "migrations");
   cpSync(ORDNER, ziel, { recursive: true });
-  rmSync(join(ziel, "0006_pruefarten.sql"));
-  rmSync(join(ziel, "0007_ausleihe.sql")); // spätere Migrationen setzen 0006 voraus
   const journal = JSON.parse(readFileSync(join(ziel, "meta/_journal.json"), "utf8")) as { entries: { tag: string }[] };
-  journal.entries = journal.entries.filter((e) => e.tag !== "0006_pruefarten" && e.tag !== "0007_ausleihe");
+  // 0006 und alles danach: spätere Migrationen setzen den Stand nach 0006 voraus.
+  for (const e of journal.entries) if (e.tag >= "0006") rmSync(join(ziel, `${e.tag}.sql`));
+  journal.entries = journal.entries.filter((e) => e.tag < "0006");
   writeFileSync(join(ziel, "meta/_journal.json"), JSON.stringify(journal));
   return ziel;
 }

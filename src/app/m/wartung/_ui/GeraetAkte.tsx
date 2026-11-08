@@ -12,6 +12,7 @@ import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { anlassVermerkenAction } from "../_actions/telefon";
 import { erledigtEintragenAction, geraetAendernAction, geraetAktivAction, geraetLoeschenAction, mangelBehebenAction } from "../_actions/verwaltung";
 import { NAME_MAX, NOTIZ_MAX } from "../_lib/eingabe";
 import { ERGEBNIS_TEXT, intervallText, WER_TEXT, type FristStand } from "../_lib/fristen";
@@ -62,6 +63,8 @@ export function GeraetAkte({
   const eigen = new Set(g.plan.filter((p) => p.eigenes).map((p) => p.pruefart.id));
   const zusaetzlich = new Set(g.plan.filter((p) => p.an && !p.standard).map((p) => p.pruefart.id));
   const abgewaehlt = g.plan.filter((p) => p.standard && !p.an);
+  // „Wird eingesetzt“ / „Zurück“ nur, wo eine Prüfart darauf wartet (IDA-369).
+  const mitAnlass = g.aktiv && g.staende.some((f) => f.vorlage.anlass);
   // Der Fingerabdruck nur über die Felder des Formulars; derselbe Schlüssel fürs Formular und fürs Löschen.
   const aendernStart = { gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise, pruefanleitung: g.pruefanleitung };
   const aendernSchluessel = `wartung:geraet:${g.id}:${fingerabdruck(aendernStart)}`;
@@ -122,7 +125,20 @@ export function GeraetAkte({
         <div className={s.spalte}>
           <Card
             title="Prüfungen"
-            extra={<Button icon={<Icons8Ikone name="sliders" groesse={16} />} onClick={() => setPlanOffen(true)}>Anpassen</Button>}
+            extra={
+              <span className={s.reihe}>
+                {mitAnlass && (
+                  <Button
+                    disabled={laeuft}
+                    icon={<Icons8Ikone name={g.imEinsatz ? "undo" : "truck"} groesse={16} />}
+                    onClick={() => fuehreAus(() => anlassVermerkenAction(g.id, g.imEinsatz ? "rueckkehr" : "einsatz"), g.imEinsatz ? "Als zurück vermerkt." : "Als eingesetzt vermerkt.")}
+                  >
+                    {g.imEinsatz ? "Zurück" : "Wird eingesetzt"}
+                  </Button>
+                )}
+                <Button icon={<Icons8Ikone name="sliders" groesse={16} />} onClick={() => setPlanOffen(true)}>Anpassen</Button>
+              </span>
+            }
           >
             {g.staende.length === 0 && <p className={s.neben} style={{ margin: 0 }}>Keine Prüfungen.</p>}
             <ul className={s.zeilen} aria-label="Prüfungen">

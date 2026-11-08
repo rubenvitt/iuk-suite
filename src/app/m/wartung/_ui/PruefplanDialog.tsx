@@ -60,14 +60,14 @@ export function PruefplanDialog({ geraetId, plan, katalog, offen, schliessen }: 
                 <div className={s.neben}>{WER_TEXT[z.pruefart.wer]}</div>
               </div>
               <div className={s.planIntervall}>
-                <Select
+                {z.pruefart.anlass ? <span className={s.neben}>{intervallText(z.pruefart)}</span> : <Select
                   disabled={!z.an}
                   value={eigen ? "eigen" : "katalog"}
                   aria-label={`${z.pruefart.name}: Intervall`}
                   style={{ minWidth: 200 }}
                   onChange={(v) => setze(z.pruefartId, { eigenes: v === "eigen" ? { monate: z.pruefart.monate, stunden: z.pruefart.stunden } : null })}
                   options={[{ value: "katalog", label: intervallText(z.pruefart) }, { value: "eigen", label: "Eigenes Intervall" }]}
-                />
+                />}
                 {z.an && z.eigenes && (
                   <>
                     <InputNumber value={z.eigenes.monate ?? undefined} min={1} max={120} precision={0} suffix="Monate" style={{ width: 150 }}

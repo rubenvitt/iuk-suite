@@ -7,12 +7,13 @@
 import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
-import { art, artPruefart, checkpunkt, eintrag, entnahme, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
+import { art, artPruefart, checkpunkt, checkpunktPruefart, eintrag, entnahme, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
 import { zeitFormat } from "@/core/zeit";
 import { ganzeSchliessen, SCHON_ZURUECK } from "./ausleihe";
 import { hatOffeneEntnahme, unterwegsStand } from "./unterwegs";
-import { hatVerlauf, ladeArten, ladeKatalog, ladePruefplan } from "./daten";
-import { geltende, pruefplan, selbstPruefung } from "./pruefplan";
+import { hatVerlauf, ladeArten, ladeGeraet, ladeKatalog, ladePruefplan, pruefartenJePunkt } from "./daten";
+import { ANLASS_NAME, type Anlass, type FristVorlage } from "./fristen";
+import { geltende, pruefplan, pruefungAmGeraet, punktGilt } from "./pruefplan";
 import {
   artIkone, UNTERLAGEN_MAX, type ArtEingabe, type ErledigtEingabe, type GeraetEingabe, type GruppeEingabe, type InhaltEingabe, type PruefartEingabe,
   type PruefplanEingabe, type PruefungEingabe,
@@ -72,49 +73,72 @@ export function gruppeLoeschen(db: WartungDb, id: string): void {
 
 // ---------------------------------------------------------------- Prüfarten (IDA-368)
 
+const SCHON_EINE: Record<Anlass | "frist", string> = {
+  frist: "nur eine Prüfart nach Frist wird selbst am Gerät erledigt.",
+  einsatz: `nur eine Prüfart „${ANLASS_NAME.einsatz}“.`,
+  rueckkehr: `nur eine Prüfart „${ANLASS_NAME.rueckkehr}“.`,
+};
+
+/**
+ * Was für die Prüfarten gilt, die an einer Art oder einem Gerät gelten (`name` steht vorn in der Meldung): selbst
+ * erledigt höchstens eine nach Frist und je Anlass eine; eine Materialkiste braucht eine (sie wird durchgezählt)
+ * und hat keine Betriebsstunden, also auch kein Intervall danach; sonst braucht jede selbst erledigte Prüfung
+ * mindestens einen Punkt der Checkliste, der zu ihr gehört (IDA-369).
+ */
+function pruefeGeltende(
+  name: string,
+  a: { name: string; kiste: boolean; checkliste: readonly { pruefarten?: readonly string[] }[] },
+  gilt: readonly FristVorlage[],
+  amGeraet: boolean,
+): void {
+  const selbst = gilt.filter((v) => v.wer === "intern");
+  const feld = amGeraet ? undefined : "pruefarten";
+  for (const wann of ["frist", "einsatz", "rueckkehr"] as const) {
+    if (selbst.filter((v) => (v.anlass ?? "frist") === wann).length > 1) throw new Abgelehnt(`${name}: ${SCHON_EINE[wann]}`, feld);
+  }
+  if (a.kiste && selbst.length === 0) throw new Abgelehnt(`${name}: eine Materialkiste braucht eine Prüfart, die selbst durchgezählt wird.`, feld);
+  if (a.kiste && gilt.some((v) => v.stunden !== null)) throw new Abgelehnt(`${name}: eine Materialkiste hat keine Betriebsstunden.`, feld);
+  if (a.kiste) return;
+  const ohne = selbst.find((v) => !a.checkliste.some((pk) => punktGilt(pk, v.id)));
+  if (!ohne) return;
+  if (amGeraet) throw new Abgelehnt(`${name}: für „${ohne.name}“ hat die Geräteart ${a.name} keinen Punkt in der Checkliste.`);
+  throw new Abgelehnt(`${name}: „${ohne.name}“ braucht mindestens einen Punkt in der Checkliste.`, "checkliste");
+}
+
 /**
  * Was nach jeder Änderung an Katalog, Art oder Prüfplan stimmen muss — geprüft in derselben Transaktion, ein
- * Verstoß rollt alles zurück. Eine Art hat höchstens eine Prüfart, die man selbst erledigt; eine Materialkiste
- * braucht eine (sie wird durchgezählt) und hat keine Betriebsstunden, also auch kein Intervall danach; sonst braucht
- * eine selbst erledigte Prüfung eine Checkliste. Am Gerät gilt dasselbe für das, was nach Abwahl und Zusatz übrig
+ * Verstoß rollt alles zurück (`pruefeGeltende`). Am Gerät gilt dasselbe für das, was nach Abwahl und Zusatz übrig
  * bleibt — an jedem aktiven Gerät, darum prüft auch das Zurückholen eines ausgemusterten.
  */
 function pruefeRegeln(tx: WartungSchreiber): void {
   const katalog = ladeKatalog(tx);
-  const wer = new Map(katalog.map((p) => [p.id, p.wer]));
-  const stundenVon = new Map(katalog.map((p) => [p.id, p.stunden]));
   const arten = ladeArten(tx);
-  for (const a of arten) {
-    const selbst = a.pruefarten.filter((id) => wer.get(id) === "intern").length;
-    if (selbst > 1) throw new Abgelehnt(`${a.name}: nur eine Prüfart wird selbst am Gerät erledigt.`, "pruefarten");
-    if (a.kiste && selbst === 0) throw new Abgelehnt(`${a.name}: eine Materialkiste braucht eine Prüfart, die selbst durchgezählt wird.`, "pruefarten");
-    if (a.kiste && a.pruefarten.some((id) => stundenVon.get(id) !== null)) throw new Abgelehnt(`${a.name}: eine Materialkiste hat keine Betriebsstunden.`, "pruefarten");
-    if (!a.kiste && selbst === 1 && a.checkliste.length === 0) throw new Abgelehnt(`${a.name}: die Prüfung am Gerät braucht mindestens einen Punkt.`, "checkliste");
-  }
+  for (const a of arten) pruefeGeltende(a.name, a, geltende(pruefplan(katalog, a.pruefarten, [])), false);
   const artVon = new Map(arten.map((a) => [a.id, a]));
   const abweichende = tx.selectDistinct({ id: geraet.id, name: geraet.name, artId: geraet.artId }).from(geraet)
     .innerJoin(geraetPruefart, eq(geraetPruefart.geraetId, geraet.id)).where(eq(geraet.aktiv, true)).all();
   const ab = abweichende.length ? tx.select().from(geraetPruefart).where(inArray(geraetPruefart.geraetId, abweichende.map((g) => g.id))).all() : [];
   for (const g of abweichende) {
     const a = artVon.get(g.artId)!;
-    const gilt = geltende(pruefplan(katalog, a.pruefarten, ab.filter((x) => x.geraetId === g.id)));
-    const selbst = gilt.filter((v) => v.wer === "intern").length;
-    if (selbst > 1) throw new Abgelehnt(`${g.name}: nur eine Prüfart wird selbst am Gerät erledigt.`);
-    if (a.kiste && selbst === 0) throw new Abgelehnt(`${g.name}: eine Materialkiste braucht eine Prüfart, die selbst durchgezählt wird.`);
-    if (a.kiste && gilt.some((v) => v.stunden !== null)) throw new Abgelehnt(`${g.name}: eine Materialkiste hat keine Betriebsstunden.`);
-    if (!a.kiste && selbst === 1 && a.checkliste.length === 0) {
-      throw new Abgelehnt(`${g.name}: für die Prüfung am Gerät hat die Geräteart ${a.name} keine Checkliste.`);
-    }
+    pruefeGeltende(g.name, a, geltende(pruefplan(katalog, a.pruefarten, ab.filter((x) => x.geraetId === g.id))), true);
   }
 }
 
 export function pruefartSpeichern(db: WartungDb, id: string | null, e: PruefartEingabe): string {
   return db.transaction((tx) => {
-    const werte = { name: e.name, wer: e.wer, monate: e.monate, stunden: e.stunden };
+    const werte = { name: e.name, wer: e.wer, monate: e.monate, stunden: e.stunden, anlass: e.anlass ?? null };
     let pid = id;
     if (pid) {
       const r = tx.update(pruefart).set(werte).where(eq(pruefart.id, pid)).run();
       if (r.changes === 0) throw new Abgelehnt("Diese Prüfart gibt es nicht mehr.");
+      // Auf Anlass gibt es kein Intervall: ein eigenes an Geräten fällt weg, eine bloße Abweichung ohne An/Aus auch.
+      if (werte.anlass) {
+        tx.update(geraetPruefart).set({ monate: null, stunden: null }).where(eq(geraetPruefart.pruefartId, pid)).run();
+        const standardArten = tx.select({ artId: artPruefart.artId }).from(artPruefart).where(eq(artPruefart.pruefartId, pid)).all().map((z) => z.artId);
+        const ueberfluessig = tx.select({ geraetId: geraetPruefart.geraetId }).from(geraetPruefart).innerJoin(geraet, eq(geraet.id, geraetPruefart.geraetId))
+          .where(and(eq(geraetPruefart.pruefartId, pid), eq(geraetPruefart.an, true), standardArten.length ? inArray(geraet.artId, standardArten) : sql`0`)).all();
+        for (const z of ueberfluessig) tx.delete(geraetPruefart).where(and(eq(geraetPruefart.geraetId, z.geraetId), eq(geraetPruefart.pruefartId, pid))).run();
+      }
     } else {
       pid = neueId();
       const position = tx.select({ n: sql<number>`coalesce(max(position), -1) + 1` }).from(pruefart).get()?.n ?? 0;
@@ -128,6 +152,16 @@ export function pruefartSpeichern(db: WartungDb, id: string | null, e: PruefartE
 /** Entfernt die Prüfart aus Katalog, Arten und Geräten; der Verlauf behält ihren Namen. */
 export function pruefartLoeschen(db: WartungDb, id: string): void {
   db.transaction((tx) => {
+    // Ein Punkt, der nur zu dieser Prüfart gehört, gälte nach dem Löschen still für alle (IDA-369).
+    const nurHier = tx.select({ art: art.name }).from(checkpunktPruefart)
+      .innerJoin(checkpunkt, eq(checkpunkt.id, checkpunktPruefart.checkpunktId))
+      .innerJoin(art, eq(art.id, checkpunkt.artId))
+      .where(and(eq(checkpunktPruefart.pruefartId, id), sql`NOT EXISTS (SELECT 1 FROM checkpunkt_pruefart AS w
+        WHERE w.checkpunkt_id = ${checkpunktPruefart.checkpunktId} AND w.pruefart_id <> ${id})`)).all();
+    if (nurHier.length) {
+      const arten = [...new Set(nurHier.map((z) => z.art))].sort().map((n) => `„${n}“`).join(", ");
+      throw new Abgelehnt(`Erst die Punkte dieser Prüfart in der Checkliste von ${arten} entfernen oder anderen Prüfarten zuordnen.`);
+    }
     tx.delete(pruefart).where(eq(pruefart.id, id)).run();
     pruefeRegeln(tx);
   });
@@ -155,11 +189,13 @@ export function pruefplanSpeichern(db: WartungDb, geraetId: string, liste: Pruef
     // Auch ausgemustert: ein Plan, der nicht mehr passt, lässt sich vor dem Zurückholen richten.
     const g = tx.select().from(geraet).where(eq(geraet.id, geraetId)).get();
     if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
-    const bekannt = new Set(ladeKatalog(tx).map((p) => p.id));
+    const katalog = new Map(ladeKatalog(tx).map((p) => [p.id, p]));
     const standard = new Set(tx.select({ id: artPruefart.pruefartId }).from(artPruefart).where(eq(artPruefart.artId, g.artId)).all().map((z) => z.id));
     tx.delete(geraetPruefart).where(eq(geraetPruefart.geraetId, geraetId)).run();
     for (const z of liste) {
-      if (!bekannt.has(z.pruefartId)) throw new Abgelehnt("Diese Prüfart gibt es nicht mehr. Bitte neu laden.");
+      const p = katalog.get(z.pruefartId);
+      if (!p) throw new Abgelehnt("Diese Prüfart gibt es nicht mehr. Bitte neu laden.");
+      if (p.anlass && z.an && z.eigenes) throw new Abgelehnt(`„${p.name}“ ist ${ANLASS_NAME[p.anlass].toLowerCase()} fällig und hat kein Intervall.`);
       const eigenes = z.an ? z.eigenes : null;
       if (z.an === standard.has(z.pruefartId) && !eigenes) continue;
       tx.insert(geraetPruefart).values({
@@ -201,10 +237,23 @@ export function artSpeichern(db: WartungDb, id: string | null, e: ArtEingabe, je
     const punktIds = e.checkliste.map((p) => p.id).filter((x): x is string => x !== null);
     const bestehendePunkte = new Set(tx.select({ id: checkpunkt.id }).from(checkpunkt).where(eq(checkpunkt.artId, artId)).all().map((p) => p.id));
     tx.delete(checkpunkt).where(punktIds.length ? and(eq(checkpunkt.artId, artId), notInArray(checkpunkt.id, punktIds)) : eq(checkpunkt.artId, artId)).run();
+    // Ein Punkt gehört zu Prüfarten, die man selbst am Gerät erledigt (IDA-369); die Zuordnung wird nur geändert, wo sie sich ändert.
+    const selbst = new Set(ladeKatalog(tx).filter((p) => p.wer === "intern").map((p) => p.id));
+    const bisherZu = pruefartenJePunkt(tx);
     e.checkliste.forEach((p, position) => {
+      const zu = p.pruefarten ?? [];
+      if (zu.some((x) => !selbst.has(x))) throw new Abgelehnt("Ein Punkt gehört zu einer Prüfart, die nicht selbst am Gerät erledigt wird. Bitte neu laden.", "checkliste");
       const w = { text: p.text, hinweis: p.hinweis, position };
-      if (p.id && bestehendePunkte.has(p.id)) tx.update(checkpunkt).set(w).where(eq(checkpunkt.id, p.id)).run();
-      else tx.insert(checkpunkt).values({ id: neueId(), artId, ...w }).run();
+      let pid = p.id;
+      if (pid && bestehendePunkte.has(pid)) tx.update(checkpunkt).set(w).where(eq(checkpunkt.id, pid)).run();
+      else {
+        pid = neueId();
+        tx.insert(checkpunkt).values({ id: pid, artId, ...w }).run();
+      }
+      const vorher = new Set(bisherZu.get(pid) ?? []);
+      const nachher = new Set(zu);
+      for (const x of vorher) if (!nachher.has(x)) tx.delete(checkpunktPruefart).where(and(eq(checkpunktPruefart.checkpunktId, pid), eq(checkpunktPruefart.pruefartId, x))).run();
+      for (const x of nachher) if (!vorher.has(x)) tx.insert(checkpunktPruefart).values({ checkpunktId: pid, pruefartId: x }).run();
     });
     pruefeRegeln(tx);
     return artId;
@@ -309,13 +358,18 @@ export function inhaltSpeichern(db: WartungDb, geraetId: string, liste: InhaltEi
   });
 }
 
-/** Die Punkte der Prüfung am Gerät: die Checkliste der Art, bei einer Materialkiste ihre Inhaltsliste. */
-function pruefpunkte(db: WartungSchreiber, g: { id: string; artId: string }, kiste: boolean) {
+/**
+ * Die Punkte der Prüfung am Gerät: die Punkte der Checkliste der Art, die zu dieser Prüfart gehören (IDA-369), bei
+ * einer Materialkiste ihre Inhaltsliste.
+ */
+function pruefpunkte(db: WartungSchreiber, g: { id: string; artId: string }, kiste: boolean, pruefartId: string) {
   if (kiste) {
     return db.select().from(inhalt).where(eq(inhalt.geraetId, g.id)).orderBy(inhalt.position).all()
       .map((p) => ({ id: p.id, text: p.text, soll: p.soll as number | null, bemerkung: p.bemerkung }));
   }
+  const zu = pruefartenJePunkt(db);
   return db.select().from(checkpunkt).where(eq(checkpunkt.artId, g.artId)).orderBy(checkpunkt.position).all()
+    .filter((p) => punktGilt({ pruefarten: zu.get(p.id) }, pruefartId))
     .map((p) => ({ id: p.id, text: p.text, soll: null as number | null, bemerkung: "" }));
 }
 
@@ -454,20 +508,23 @@ export function pruefungAbschliessen(
   return db.transaction((tx) => {
     const g = aktivesGeraet(tx, geraetId);
     const a = tx.select().from(art).where(eq(art.id, g.artId)).get()!;
-    const punkte = pruefpunkte(tx, g, a.kiste);
+    const stand = pruefungAmGeraet(ladeGeraet(tx, geraetId, k.heute)?.staende ?? [], p.pruefartId);
+    if (!stand) throw new Abgelehnt(p.pruefartId ? "Diese Prüfung gilt für das Gerät nicht mehr." : "Für dieses Gerät gibt es keine Prüfung am Gerät.");
+    const pruefFrist = stand.vorlage;
+    const punkte = pruefpunkte(tx, g, a.kiste, pruefFrist.id);
     if (a.kiste && punkte.length === 0) throw new Abgelehnt("Die Kiste hat noch keine Inhaltsliste.");
     // IDA-372: unterwegs ist nichts zu zählen. Eine ganz entnommene Kiste wird nur über `rueckgabe` durchgezählt,
     // und zwar gegen den vollen Soll; sonst zählt je Position `soll − unterwegs`.
-    const stand = a.kiste ? unterwegsStand(tx, geraetId) : null;
-    if (p.rueckgabe && p.rueckgabe !== stand?.ganz?.id) {
+    const weg = a.kiste ? unterwegsStand(tx, geraetId) : null;
+    if (p.rueckgabe && p.rueckgabe !== weg?.ganz?.id) {
       // Ein zweites Telefon, das dieselbe Kiste zurücklegt, kommt zu spät, ist aber nicht ungültig.
       const bekannt = tx.select({ id: entnahme.id }).from(entnahme).where(and(eq(entnahme.id, p.rueckgabe), eq(entnahme.geraetId, geraetId))).get();
       throw new Abgelehnt(bekannt ? SCHON_ZURUECK : UNGUELTIG);
     }
-    if (stand?.ganz && !p.rueckgabe) {
-      throw new Abgelehnt(`Die Kiste ist unterwegs seit ${TAG_MONAT.format(stand.ganz.seit)} Durchzählen geht, wenn sie zurück ist.`);
+    if (weg?.ganz && !p.rueckgabe) {
+      throw new Abgelehnt(`Die Kiste ist unterwegs seit ${TAG_MONAT.format(weg.ganz.seit)} Durchzählen geht, wenn sie zurück ist.`);
     }
-    const unterwegs = (id: string) => (p.rueckgabe ? 0 : stand?.jePosition.get(id) ?? 0);
+    const unterwegs = (id: string) => (p.rueckgabe ? 0 : weg?.jePosition.get(id) ?? 0);
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));
     const meldung = a.kiste ? "Die Inhaltsliste hat sich geändert. Bitte neu durchzählen." : "Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.";
     if (punkte.some((pk) => !antwort.has(pk.id)) || (a.kiste && antwort.size !== punkte.length)) throw new Abgelehnt(meldung);
@@ -504,9 +561,8 @@ export function pruefungAbschliessen(
     const nochOffen = mitMangel.filter((pk) => offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
     const wiederDa = punkte.filter((pk) => antwort.get(pk.id)!.ok && offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
 
-    const pruefFrist = selbstPruefung(ladePruefplan(tx, g));
     tx.insert(eintrag).values({
-      id: p.sendung, geraetId, typ: "pruefung", pruefartId: pruefFrist?.id ?? null, titel: pruefFrist?.name ?? "Prüfung",
+      id: p.sendung, geraetId, typ: "pruefung", pruefartId: pruefFrist.id, titel: pruefFrist.name,
       am: k.heute, stunden: p.stunden, wer: k.wer, notiz: p.notiz, ergebnis: p.ergebnis,
       antworten: JSON.stringify(punkte.map((pk) => ({ text: pk.soll === null ? pk.text : `${pk.soll} × ${pk.text}`, ok: antwort.get(pk.id)!.ok }))),
       maengel: maengel.length, angelegtAm: k.jetzt,
@@ -539,6 +595,23 @@ export function pruefungAbschliessen(
     if (p.rueckgabe) ganzeSchliessen(tx, geraetId, p.rueckgabe, k);
     const genutzt = new Set(maengel.map((m) => m.id));
     return { maengel: maengel.length, ungenutzteFotos: [...fotos.values()].filter((id) => !genutzt.has(id)) };
+  });
+}
+
+export const ANLASS_TITEL: Record<Anlass, string> = { einsatz: "Eingesetzt", rueckkehr: "Zurück vom Einsatz" };
+
+/**
+ * „Wird eingesetzt“ bzw. „Zurück“ (IDA-369): danach ist die Prüfart mit diesem Anlass fällig, bis jemand sie abhakt.
+ * Steht das Gerät schon so da (doppelt getippt, zwei Telefone), geschieht nichts.
+ */
+export function anlassVermerken(db: WartungDb, geraetId: string, anlass: Anlass, k: Kontext): void {
+  db.transaction((tx) => {
+    aktivesGeraet(tx, geraetId);
+    const zuletzt = tx.select({ typ: eintrag.typ }).from(eintrag)
+      .where(and(eq(eintrag.geraetId, geraetId), inArray(eintrag.typ, ["einsatz", "rueckkehr"])))
+      .orderBy(sql`${eintrag.angelegtAm} DESC`).limit(1).get();
+    if (zuletzt?.typ === anlass || (!zuletzt && anlass === "rueckkehr")) return;
+    tx.insert(eintrag).values({ id: neueId(), geraetId, typ: anlass, titel: ANLASS_TITEL[anlass], am: k.heute, wer: k.wer, angelegtAm: k.jetzt }).run();
   });
 }
 

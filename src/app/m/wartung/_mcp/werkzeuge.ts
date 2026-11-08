@@ -21,12 +21,12 @@ import { ART_IKONEN, artEingabe, idSchema, pruefartEingabe, NAME_MAX, NOTIZ_MAX,
 import { heute, tagInZone } from "../_lib/heute";
 import { inhaltStand } from "../_lib/schreiben";
 import { ladeVonAdresse } from "../_lib/abruf";
-import { ladeAmGeraet } from "../_lib/telefon";
+import { ladeAmGeraet, type AmGeraet } from "../_lib/telefon";
 import { unterwegsStand } from "../_lib/unterwegs";
 import { UNTERLAGE_MAX_BYTES } from "../_lib/unterlagen";
 import type { EintragDTO, Ergebnis, GeraetZeile, GruppeDTO, MangelDTO } from "../_lib/typen";
 import {
-  artLoeschenVorgang, artSpeichernVorgang, erledigtEintragenVorgang, geraetAendernVorgang, geraetAktivVorgang,
+  anlassVermerkenVorgang, artLoeschenVorgang, artSpeichernVorgang, erledigtEintragenVorgang, geraetAendernVorgang, geraetAktivVorgang,
   geraetAnlegenVorgang, geraetLoeschenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang,
   mangelMeldenVorgang, pruefartLoeschenVorgang, pruefartSpeichernVorgang, pruefplanSpeichernVorgang, pruefungOhneFotosVorgang,
   stundenEintragenVorgang, unterlageHochladenVorgang,
@@ -67,6 +67,26 @@ function unterwegsOhnePerson(geraetId: string) {
     })),
     je: (inhaltId: string) => u.jePosition.get(inhaltId) ?? 0,
   };
+}
+
+/**
+ * Die Prüfungen, die man selbst am Gerät erledigt (IDA-369), je mit ihren Punkten: nach Frist, vor der Verwendung
+ * (`anlass: einsatz`) oder nach der Benutzung (`anlass: rueckkehr`). `faellig` heißt: diese ist jetzt dran.
+ */
+/** Alle Punkte der Checkliste der Art (bei einer Materialkiste die Inhaltsliste), ohne Auswahl einer Prüfung. */
+function allePunkte(am: AmGeraet | null) {
+  if (!am) return [];
+  return am.g.kiste ? am.checkliste : ladeArten(getDb()).find((a) => a.id === am.g.artId)?.checkliste ?? [];
+}
+
+function pruefungenAmGeraet(am: AmGeraet | null) {
+  if (!am) return [];
+  const tag = heute();
+  return am.g.staende.filter((f) => f.vorlage.wer === "intern").map((f) => ({
+    pruefartId: f.vorlage.id, name: f.vorlage.name, anlass: f.vorlage.anlass, stand: f.text, stufe: f.stufe,
+    faellig: f.stufe === "ueberfaellig" || (f.faelligAm !== null && f.faelligAm <= tag),
+    punkte: am.g.kiste ? am.checkliste.map((p) => p.id) : ladeAmGeraet(getDb(), am.g.id, tag, f.vorlage.id)?.checkliste.map((p) => p.id) ?? [],
+  }));
 }
 
 // ---------------------------------------------------------------- ohne Personenbezug
@@ -151,7 +171,7 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_geraet", {
       title: "Gerät ansehen",
-      description: "Ein Gerät mit Checkliste (bei einer Materialkiste die Inhaltsliste, dazu was gerade unterwegs ist), Prüfanleitung, offenen Mängeln und Unterlagen. Verwalter seiner Gruppe bekommen zusätzlich den Verlauf.",
+      description: "Ein Gerät mit Checkliste (bei einer Materialkiste die Inhaltsliste, dazu was gerade unterwegs ist), Prüfanleitung, offenen Mängeln und Unterlagen. Hat es mehrere Prüfungen am Gerät (nach Frist, vor der Verwendung, nach der Benutzung), steht unter pruefungen je Prüfart, welche Punkte dazugehören; checkliste sind die Punkte der Prüfung, die wartung_pruefung_abschliessen ohne pruefart_id abschließt, alle_punkte die ganze Checkliste. Verwalter seiner Gruppe bekommen zusätzlich den Verlauf.",
       inputSchema: { geraet_id: geraetId },
       annotations: LESEN,
     }, ({ geraet_id }) => mit("zugang", ({ rechte }) => {
@@ -160,9 +180,11 @@ export const wartungMcp: McpModul = {
       const mitUnterwegs = <T extends { id: string }>(punkte: T[]) => punkte.map((p) => ({ ...p, unterwegs: uw.je(p.id) }));
       const eigen = ladeGeraet(getDb(), geraet_id, tag);
       if (eigen && verwaltetGruppe(rechte, eigen.gruppeId)) {
+        const am = ladeAmGeraet(getDb(), geraet_id, tag);
         return antwortJson({
           geraet: eigen,
-          checkliste: eigen.kiste ? mitUnterwegs(ladeAmGeraet(getDb(), geraet_id, tag)?.checkliste ?? []) : ladeAmGeraet(getDb(), geraet_id, tag)?.checkliste ?? [],
+          checkliste: eigen.kiste ? mitUnterwegs(am?.checkliste ?? []) : am?.checkliste ?? [], alle_punkte: allePunkte(am),
+          pruefungen: pruefungenAmGeraet(am),
           inhalt: eigen.kiste ? mitUnterwegs(ladeInhalt(getDb(), geraet_id)) : undefined,
           unterwegs: uw.liste,
           inhaltStand: eigen.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
@@ -175,7 +197,8 @@ export const wartungMcp: McpModul = {
       const am = ladeAmGeraet(getDb(), geraet_id, tag);
       if (!am) return antwortFehler("Dieses Gerät gibt es nicht (mehr).");
       return antwortJson({
-        geraet: am.g, checkliste: am.g.kiste ? mitUnterwegs(am.checkliste) : am.checkliste, unterwegs: uw.liste, offeneMaengel: am.offen, unterlagen: am.unterlagen.map((u) => u.titel),
+        geraet: am.g, checkliste: am.g.kiste ? mitUnterwegs(am.checkliste) : am.checkliste, alle_punkte: allePunkte(am), pruefungen: pruefungenAmGeraet(am),
+        unterwegs: uw.liste, offeneMaengel: am.offen, unterlagen: am.unterlagen.map((u) => u.titel),
         inhaltStand: am.g.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
       });
     }));
@@ -190,9 +213,10 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_pruefung_abschliessen", {
       title: "Prüfung am Gerät abschließen",
-      description: "Schließt die Prüfung eines Geräts ab (bei einer Materialkiste das Durchzählen). Vorher wartung_geraet lesen: jeder Punkt der Checkliste braucht eine Antwort; ein Punkt mit Mangel braucht einen Text und wird ein Mangel. Ergebnis: ok (in Ordnung), mangel (mit Mangel einsatzbereit) oder defekt (nicht einsatzbereit). Ohne Fotos.",
+      description: "Schließt eine Prüfung am Gerät ab (bei einer Materialkiste das Durchzählen). Vorher wartung_geraet lesen: pruefart_id wählt unter pruefungen (ohne Angabe die fällige, sonst die nach Frist); jeder ihrer Punkte braucht eine Antwort; ein Punkt mit Mangel braucht einen Text und wird ein Mangel. Ergebnis: ok (in Ordnung), mangel (mit Mangel einsatzbereit) oder defekt (nicht einsatzbereit). Ohne Fotos.",
       inputSchema: {
         geraet_id: geraetId,
+        pruefart_id: idSchema.optional().describe("Welche Prüfung (pruefungen[].pruefartId aus wartung_geraet)"),
         antworten: z.array(z.object({
           punkt_id: idSchema.describe("Kennung des Checklistenpunkts bzw. der Position"),
           ok: z.boolean().describe("true = in Ordnung bzw. vollständig"),
@@ -208,11 +232,17 @@ export const wartungMcp: McpModul = {
     }, (a) => mit("zugang", async (z) => {
       // Bei einer Materialkiste zählt nur, was gegen die gelesene Liste gezählt wurde: Hat sie sich seitdem geändert,
       // gilt die Zählung nicht (wie am Telefon). Menge, Wortlaut und Bemerkung kommen dann aus genau diesem Stand.
-      const am = ladeAmGeraet(getDb(), a.geraet_id, heute());
+      const am = ladeAmGeraet(getDb(), a.geraet_id, heute(), a.pruefart_id);
       if (am?.g.kiste && a.inhalt_stand !== inhaltStand(ladeInhalt(getDb(), a.geraet_id))) {
         return antwortFehler("Die Inhaltsliste hat sich geändert. Bitte mit wartung_geraet neu lesen und neu durchzählen.");
       }
       const punkte = new Map((am?.checkliste ?? []).map((p) => [p.id, p]));
+      // Ohne pruefart_id gilt die Prüfung, die jetzt dran ist. Hat sich das seit dem Lesen geändert (ein Anlass kam
+      // dazu), passen die Antworten nicht mehr: ablehnen statt sie einer anderen Checkliste zuzuschlagen.
+      if (am && !am.g.kiste && a.antworten.some((x) => !punkte.has(x.punkt_id))) {
+        return antwortFehler(`Die Antworten passen nicht zur Prüfung „${am.pruefung?.vorlage.name ?? "am Gerät"}“. Bitte mit wartung_geraet neu lesen und pruefart_id angeben.`);
+      }
+      const pruefartId = a.pruefart_id ?? am?.pruefung?.vorlage.id;
       const antworten = a.antworten.map((x) => {
         const p = punkte.get(x.punkt_id);
         return {
@@ -221,9 +251,17 @@ export const wartungMcp: McpModul = {
         };
       });
       return ergebnis(await pruefungOhneFotosVorgang(z, a.geraet_id, {
-        sendung: randomUUID(), stunden: a.stunden ?? null, antworten, ergebnis: a.ergebnis, notiz: a.notiz ?? "",
+        sendung: randomUUID(), ...(pruefartId ? { pruefartId } : {}),
+        stunden: a.stunden ?? null, antworten, ergebnis: a.ergebnis, notiz: a.notiz ?? "",
       }));
     }));
+
+    server.registerTool("wartung_einsatz_vermerken", {
+      title: "Eingesetzt oder zurück",
+      description: "Vermerkt, dass ein Gerät eingesetzt wird (anlass einsatz) oder vom Einsatz zurück ist (anlass rueckkehr). Danach ist seine Prüfung vor der Verwendung bzw. nach der Benutzung fällig, bis sie abgeschlossen ist. Steht das Gerät schon so da, ändert sich nichts.",
+      inputSchema: { geraet_id: geraetId, anlass: z.enum(["einsatz", "rueckkehr"]) },
+      annotations: SCHREIBEN,
+    }, ({ geraet_id, anlass }) => mit("zugang", async (z) => ergebnis(await anlassVermerkenVorgang(z, geraet_id, anlass))));
 
     server.registerTool("wartung_mangel_melden", {
       title: "Mangel melden",
@@ -257,7 +295,7 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_pruefarten", {
       title: "Prüfarten",
-      description: "Der Katalog der Prüfarten (wer prüft, alle wie viele Monate oder Betriebsstunden), mit den Gerätearten, die sie zuschalten, und der Zahl der Geräte, an denen sie gilt.",
+      description: "Der Katalog der Prüfarten (wer prüft, alle wie viele Monate oder Betriebsstunden, oder anlass: einsatz = vor jeder Verwendung, rueckkehr = nach jeder Benutzung), mit den Gerätearten, die sie zuschalten, und der Zahl der Geräte, an denen sie gilt.",
       inputSchema: {},
       annotations: LESEN,
     }, () => mit("verwalter", () => antwortJson(ladePruefarten(getDb()))));
@@ -400,7 +438,7 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_art_speichern", {
       title: "Geräteart speichern",
-      description: `Legt eine Geräteart an (ohne art_id) oder ersetzt eine bestehende ganz, mit Prüfarten (Kennungen aus wartung_pruefarten) und Checkliste. Bestehende Punkte mit ihrer id übergeben. Zeichen: ${ART_IKONEN.map((i) => i.name).join(", ")}.`,
+      description: `Legt eine Geräteart an (ohne art_id) oder ersetzt eine bestehende ganz, mit Prüfarten (Kennungen aus wartung_pruefarten) und Checkliste. Bestehende Punkte mit ihrer id übergeben. Ein Punkt kann mit pruefarten auf einzelne Prüfungen am Gerät beschränkt werden (leer = gehört zu allen). Zeichen: ${ART_IKONEN.map((i) => i.name).join(", ")}.`,
       inputSchema: { art_id: idSchema.optional(), art: artEingabe },
       annotations: SCHREIBEN,
     }, ({ art_id, art }) => mit("verwalter", async (z) => ergebnis(await artSpeichernVorgang(z, art_id ?? null, art))));
@@ -431,7 +469,7 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_pruefart_speichern", {
       title: "Prüfart speichern",
-      description: "Legt eine Prüfart im Katalog an (ohne pruefart_id) oder ändert sie. Eine Änderung gilt an jedem Gerät ohne eigenes Intervall.",
+      description: "Legt eine Prüfart im Katalog an (ohne pruefart_id) oder ändert sie. Eine Änderung gilt an jedem Gerät ohne eigenes Intervall. Mit anlass (einsatz oder rueckkehr) ist sie statt nach Frist fällig, wenn das Gerät eingesetzt wird bzw. zurückkommt; dann ohne Monate und Stunden und wer = intern.",
       inputSchema: { pruefart_id: idSchema.optional(), pruefart: pruefartEingabe },
       annotations: SCHREIBEN,
     }, ({ pruefart_id, pruefart }) => mit("verwalter", async (z) => ergebnis(await pruefartSpeichernVorgang(z, pruefart_id ?? null, pruefart))));

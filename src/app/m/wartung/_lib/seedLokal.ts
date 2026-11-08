@@ -1,8 +1,8 @@
 import type { WartungDb } from "../_db/client";
-import { checkpunkt, eintrag, geraet, geraetPruefart, inhalt, mangel } from "../_db/schema";
+import { artPruefart, checkpunkt, checkpunktPruefart, eintrag, geraet, geraetPruefart, inhalt, mangel, pruefart } from "../_db/schema";
 import { eq, ne } from "drizzle-orm";
 import { tagInZone } from "./heute";
-import { neueId } from "./schreiben";
+import { ANLASS_TITEL, neueId } from "./schreiben";
 import { START } from "./startbestand";
 
 /**
@@ -18,6 +18,9 @@ export async function seedLokalWartung(db: WartungDb, jetzt = Date.now()): Promi
   }
   const tag = tagRechner(jetzt);
   const { gruppe: G, art: A, pruefart: P } = START;
+  // IDA-369: IT bekommt einen Kurzcheck vor und eine Prüfung nach dem Einsatz; „Updates eingespielt“ bleibt der Quartalsprüfung.
+  const vorher = neueId();
+  const nachher = neueId();
 
   type E = [vorTagen: number, pruefart: string | null, titel: string, wer: string, rest?: { ergebnis?: "ok" | "mangel" | "defekt"; stunden?: number; notiz?: string; maengel?: number }];
   const geraete: {
@@ -25,6 +28,8 @@ export async function seedLokalWartung(db: WartungDb, jetzt = Date.now()): Promi
     ortArt: "lager" | "fahrzeug"; ort: string; stunden: number | null; hinweise?: string; verlauf: E[];
     /** Wo das Gerät von seiner Art abweicht (IDA-368). */
     abweichungen?: { pruefart: string; an: boolean; monate?: number }[];
+    /** Eingesetzt bzw. zurück, vor so vielen Tagen (IDA-369). */
+    anlaesse?: [vorTagen: number, anlass: "einsatz" | "rueckkehr"][];
     maengel?: { text: string; einsatzbereit: boolean; vorTagen: number }[];
   }[] = [
     { gruppe: G.technik, art: A.stromerzeuger, name: "Stromerzeuger 8 kVA", hersteller: "Endress", typ: "ESE 808 DBG ES DIN", seriennr: "808-19-04472",
@@ -70,7 +75,9 @@ export async function seedLokalWartung(db: WartungDb, jetzt = Date.now()): Promi
       ] },
     { gruppe: G.iuk, art: A.it, name: "Einsatz-Laptop 1", hersteller: "Lenovo", typ: "ThinkPad T14", seriennr: "PF-3KX19A",
       abweichungen: [{ pruefart: P.dguv, an: true, monate: 24 }],
+      anlaesse: [[3, "einsatz"], [1, "rueckkehr"]],
       ortArt: "fahrzeug", ort: "ELW 1", stunden: null, verlauf: [
+        [3, vorher, "Kurzcheck vor dem Einsatz", "Helfer C", { ergebnis: "ok" }],
         [20, P.quartal, "Quartalsprüfung", "Helfer C", { ergebnis: "ok" }],
         [610, P.dguv, "Elektroprüfung (DGUV V3)", "Elektrofachbetrieb"],
       ] },
@@ -82,6 +89,15 @@ export async function seedLokalWartung(db: WartungDb, jetzt = Date.now()): Promi
   }
 
   db.transaction((tx) => {
+    const position = tx.select({ id: pruefart.id }).from(pruefart).all().length;
+    tx.insert(pruefart).values([
+      { id: vorher, name: "Kurzcheck vor dem Einsatz", wer: "intern", monate: null, stunden: null, anlass: "einsatz", position },
+      { id: nachher, name: "Nach dem Einsatz", wer: "intern", monate: null, stunden: null, anlass: "rueckkehr", position: position + 1 },
+    ]).run();
+    tx.insert(artPruefart).values([{ artId: A.it, pruefartId: vorher }, { artId: A.it, pruefartId: nachher }]).run();
+    const updates = tx.select({ id: checkpunkt.id }).from(checkpunkt).where(eq(checkpunkt.text, "Updates eingespielt")).get();
+    if (updates) tx.insert(checkpunktPruefart).values({ checkpunktId: updates.id, pruefartId: P.quartal }).run();
+
     for (const g of geraete) {
       const id = neueId();
       tx.insert(geraet).values({
@@ -90,12 +106,19 @@ export async function seedLokalWartung(db: WartungDb, jetzt = Date.now()): Promi
       }).run();
       for (const [vor, pruefartId, titel, wer, rest = {}] of g.verlauf) {
         const pruefung = rest.ergebnis !== undefined;
-        const punkte = punkteJeArt.get(g.art) ?? [];
+        const punkte = (punkteJeArt.get(g.art) ?? []).filter((p) => pruefartId !== vorher || p.text !== "Updates eingespielt");
         tx.insert(eintrag).values({
           id: neueId(), geraetId: id, typ: pruefung ? "pruefung" : "erledigt", pruefartId, titel, am: tag(-vor),
           stunden: rest.stunden ?? null, wer, notiz: rest.notiz ?? "", ergebnis: rest.ergebnis ?? null,
           antworten: pruefung ? JSON.stringify(punkte.map((p, i) => ({ text: p.text, ok: rest.ergebnis === "ok" || i > 0 }))) : null,
           maengel: rest.maengel ?? 0, angelegtAm: jetzt - vor * 86_400_000,
+        }).run();
+      }
+      for (const [vor, anlass] of g.anlaesse ?? []) {
+        tx.insert(eintrag).values({
+          id: neueId(), geraetId: id, typ: anlass, titel: ANLASS_TITEL[anlass], am: tag(-vor), wer: "Helfer C",
+          // Eingesetzt vor dem Kurzcheck desselben Tages.
+          angelegtAm: jetzt - vor * 86_400_000 - (anlass === "einsatz" ? 3_600_000 : 0),
         }).run();
       }
       for (const a of g.abweichungen ?? []) {

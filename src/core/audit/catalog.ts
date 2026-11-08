@@ -769,6 +769,13 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "checkpunkt_pruefart": {
+      "mode": "audited",
+      "primaryKey": [
+        "checkpunkt_id",
+        "pruefart_id"
+      ]
+    },
     "geraet": {
       "mode": "audited",
       "primaryKey": [

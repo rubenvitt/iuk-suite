@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "85bed885-d264-48a7-b275-abe4cf191781",
+  "id": "5968692e-ba45-434e-84f2-0e4f3173749b",
   "prevId": "90d9ff0e-7d0e-4b18-98e3-8cf17299ab5c",
   "tables": {
     "art": {
@@ -312,6 +312,73 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "checkpunkt_pruefart": {
+      "name": "checkpunkt_pruefart",
+      "columns": {
+        "checkpunkt_id": {
+          "name": "checkpunkt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pruefart_id": {
+          "name": "pruefart_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "checkpunkt_pruefart_pruefart_idx": {
+          "name": "checkpunkt_pruefart_pruefart_idx",
+          "columns": [
+            "pruefart_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "checkpunkt_pruefart_checkpunkt_id_checkpunkt_id_fk": {
+          "name": "checkpunkt_pruefart_checkpunkt_id_checkpunkt_id_fk",
+          "tableFrom": "checkpunkt_pruefart",
+          "tableTo": "checkpunkt",
+          "columnsFrom": [
+            "checkpunkt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "checkpunkt_pruefart_pruefart_id_pruefart_id_fk": {
+          "name": "checkpunkt_pruefart_pruefart_id_pruefart_id_fk",
+          "tableFrom": "checkpunkt_pruefart",
+          "tableTo": "pruefart",
+          "columnsFrom": [
+            "pruefart_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "checkpunkt_pruefart_checkpunkt_id_pruefart_id_pk": {
+          "columns": [
+            "checkpunkt_id",
+            "pruefart_id"
+          ],
+          "name": "checkpunkt_pruefart_checkpunkt_id_pruefart_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "eintrag": {
       "name": "eintrag",
       "columns": {
@@ -462,7 +529,7 @@
       "checkConstraints": {
         "eintrag_typ": {
           "name": "eintrag_typ",
-          "value": "typ IN ('pruefung','erledigt','stunden','mangel','behoben')"
+          "value": "typ IN ('pruefung','erledigt','stunden','mangel','behoben','einsatz','rueckkehr')"
         },
         "eintrag_am": {
           "name": "eintrag_am",
@@ -471,216 +538,6 @@
         "eintrag_ergebnis": {
           "name": "eintrag_ergebnis",
           "value": "ergebnis IS NULL OR ergebnis IN ('ok','mangel','defekt')"
-        }
-      }
-    },
-    "entnahme": {
-      "name": "entnahme",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "geraet_id": {
-          "name": "geraet_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "nutzer": {
-          "name": "nutzer",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "wer": {
-          "name": "wer",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "zweck": {
-          "name": "zweck",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "ganz": {
-          "name": "ganz",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "entnommen_am": {
-          "name": "entnommen_am",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "zurueck_am": {
-          "name": "zurueck_am",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "zurueck_wer": {
-          "name": "zurueck_wer",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "entnahme_offen_idx": {
-          "name": "entnahme_offen_idx",
-          "columns": [
-            "geraet_id",
-            "zurueck_am"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "entnahme_geraet_id_geraet_id_fk": {
-          "name": "entnahme_geraet_id_geraet_id_fk",
-          "tableFrom": "entnahme",
-          "tableTo": "geraet",
-          "columnsFrom": [
-            "geraet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "entnahme_position": {
-      "name": "entnahme_position",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "entnahme_id": {
-          "name": "entnahme_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "inhalt_id": {
-          "name": "inhalt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "menge": {
-          "name": "menge",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "zurueck": {
-          "name": "zurueck",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "fehlt": {
-          "name": "fehlt",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        }
-      },
-      "indexes": {
-        "entnahme_position_entnahme_idx": {
-          "name": "entnahme_position_entnahme_idx",
-          "columns": [
-            "entnahme_id"
-          ],
-          "isUnique": false
-        },
-        "entnahme_position_inhalt_idx": {
-          "name": "entnahme_position_inhalt_idx",
-          "columns": [
-            "inhalt_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "entnahme_position_entnahme_id_entnahme_id_fk": {
-          "name": "entnahme_position_entnahme_id_entnahme_id_fk",
-          "tableFrom": "entnahme_position",
-          "tableTo": "entnahme",
-          "columnsFrom": [
-            "entnahme_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "entnahme_position_inhalt_id_inhalt_id_fk": {
-          "name": "entnahme_position_inhalt_id_inhalt_id_fk",
-          "tableFrom": "entnahme_position",
-          "tableTo": "inhalt",
-          "columnsFrom": [
-            "inhalt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "entnahme_position_menge": {
-          "name": "entnahme_position_menge",
-          "value": "menge >= 1"
-        },
-        "entnahme_position_zurueck": {
-          "name": "entnahme_position_zurueck",
-          "value": "zurueck >= 0 AND zurueck <= menge"
         }
       }
     },
@@ -769,14 +626,6 @@
         },
         "hinweise": {
           "name": "hinweise",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "pruefanleitung": {
-          "name": "pruefanleitung",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1305,6 +1154,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": 0
+        },
+        "anlass": {
+          "name": "anlass",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {},
@@ -1316,9 +1172,13 @@
           "name": "pruefart_wer",
           "value": "wer IN ('intern','fachfirma','elektrofachkraft')"
         },
+        "pruefart_anlass": {
+          "name": "pruefart_anlass",
+          "value": "anlass IS NULL OR anlass IN ('einsatz','rueckkehr')"
+        },
         "pruefart_intervall": {
           "name": "pruefart_intervall",
-          "value": "(monate IS NOT NULL AND monate > 0) OR (stunden IS NOT NULL AND stunden > 0)"
+          "value": "(anlass IS NULL AND ((monate IS NOT NULL AND monate > 0) OR (stunden IS NOT NULL AND stunden > 0))) OR (anlass IS NOT NULL AND monate IS NULL AND stunden IS NULL AND wer = 'intern')"
         }
       }
     },

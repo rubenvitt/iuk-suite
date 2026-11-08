@@ -88,7 +88,7 @@ describe("Prüfung am Gerät", () => {
     expect(g.stunden).toBe(110);
     expect(g.zustand).toBe("ok");
     const quartal = g.staende.find((f) => f.vorlage.id === START.pruefart.quartal)!;
-    expect(quartal.letzte).toEqual({ am: HEUTE, stunden: 110 });
+    expect(quartal.letzte).toEqual({ am: HEUTE, stunden: 110, zeit: K.jetzt });
     expect(quartal.stufe).toBe("ok");
   });
 

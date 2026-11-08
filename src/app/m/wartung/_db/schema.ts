@@ -7,7 +7,8 @@
  *   `wartung-admin` (IDA-337).
  * - Prüfarten (`pruefart`, IDA-368) mit Wer und Intervall stehen einmal im Katalog. Eine Geräteart (`art`) schaltet
  *   ihre üblichen zu (`art_pruefart`); ein Gerät weicht davon ab (`geraet_pruefart`: abgewählt, zusätzlich oder mit
- *   eigenem Intervall). Was am Gerät gilt, rechnet `_lib/pruefplan.ts`. Die Checkliste (`checkpunkt`) bleibt an der Art.
+ *   eigenem Intervall). Was am Gerät gilt, rechnet `_lib/pruefplan.ts`. Die Checkliste (`checkpunkt`) steht an der Art;
+ *   ein Punkt kann auf einzelne Prüfarten beschränkt sein (`checkpunkt_pruefart`, IDA-369).
  * - Was an einem Gerät geschah, steht in `eintrag` (Prüfung, Erledigung einer Prüfart, abgelesene Stunden,
  *   gemeldeter oder behobener Mangel). Der Stand einer Prüfart am Gerät ist der jüngste Eintrag mit ihrer
  *   `pruefart_id`; er wird gelesen, nicht gespeichert (`_lib/fristen.ts`).
@@ -75,7 +76,11 @@ export const art = sqliteTable("art", {
 /**
  * Eine Prüfart des Katalogs (IDA-368), etwa „Elektroprüfung (DGUV V3)“: wer sie erledigt und in welchem Abstand —
  * nach Zeit, nach Betriebsstunden oder beidem, was zuerst kommt. `intern` erledigt man selbst am Gerät per QR mit
- * der Checkliste der Geräteart (höchstens eine je Gerät), die anderen trägt die Verwaltung ein.
+ * der Checkliste der Geräteart, die anderen trägt die Verwaltung ein.
+ *
+ * Mit `anlass` (IDA-369) ist sie statt nach Frist fällig, sobald das Gerät eingesetzt wird (`einsatz`, „vor
+ * Verwendung“) bzw. zurückkommt (`rueckkehr`, „nach Benutzung“), bis jemand sie abhakt. Sie hat dann kein
+ * Intervall und wird immer selbst am Gerät erledigt.
  */
 export const pruefart = sqliteTable("pruefart", {
   id: text("id").primaryKey(),
@@ -84,9 +89,11 @@ export const pruefart = sqliteTable("pruefart", {
   monate: integer("monate"),
   stunden: integer("stunden"),
   position: integer("position").notNull().default(0),
+  anlass: text("anlass", { enum: ["einsatz", "rueckkehr"] }),
 }, () => [
   check("pruefart_wer", sql`wer IN ('intern','fachfirma','elektrofachkraft')`),
-  check("pruefart_intervall", sql`(monate IS NOT NULL AND monate > 0) OR (stunden IS NOT NULL AND stunden > 0)`),
+  check("pruefart_anlass", sql`anlass IS NULL OR anlass IN ('einsatz','rueckkehr')`),
+  check("pruefart_intervall", sql`(anlass IS NULL AND ((monate IS NOT NULL AND monate > 0) OR (stunden IS NOT NULL AND stunden > 0))) OR (anlass IS NOT NULL AND monate IS NULL AND stunden IS NULL AND wer = 'intern')`),
 ]);
 
 /** Welche Prüfarten jedes Gerät einer Art von sich aus hat. */
@@ -125,6 +132,18 @@ export const checkpunkt = sqliteTable("checkpunkt", {
   position: integer("position").notNull().default(0),
 }, (t) => [
   index("checkpunkt_art_idx").on(t.artId, t.position),
+]);
+
+/**
+ * Zu welchen Prüfarten ein Checklistenpunkt gehört (IDA-369), etwa „Konfiguration sichern“ nur zur jährlichen
+ * Durchsicht. Ohne Zeile gehört er zu allen.
+ */
+export const checkpunktPruefart = sqliteTable("checkpunkt_pruefart", {
+  checkpunktId: text("checkpunkt_id").notNull().references(() => checkpunkt.id, { onDelete: "cascade" }),
+  pruefartId: text("pruefart_id").notNull().references(() => pruefart.id, { onDelete: "cascade" }),
+}, (t) => [
+  primaryKey({ columns: [t.checkpunktId, t.pruefartId] }),
+  index("checkpunkt_pruefart_pruefart_idx").on(t.pruefartId),
 ]);
 
 export const geraet = sqliteTable("geraet", {
@@ -211,13 +230,14 @@ export const entnahmePosition = sqliteTable("entnahme_position", {
 
 /**
  * Der Verlauf eines Geräts. `pruefung` und `erledigt` tragen eine `pruefart_id` und setzen deren Stand; `titel`
- * hält den Namen der Prüfart zum Zeitpunkt fest (sie kann später umbenannt oder entfernt werden).
+ * hält den Namen der Prüfart zum Zeitpunkt fest (sie kann später umbenannt oder entfernt werden). `einsatz` und
+ * `rueckkehr` (IDA-369) machen die Prüfarten mit diesem Anlass fällig; verglichen wird `angelegt_am`.
  * `antworten` (JSON) ist der Nachweis der Checkliste: `[{ text, ok }]`.
  */
 export const eintrag = sqliteTable("eintrag", {
   id: text("id").primaryKey(),
   geraetId: text("geraet_id").notNull().references(() => geraet.id, { onDelete: "cascade" }),
-  typ: text("typ", { enum: ["pruefung", "erledigt", "stunden", "mangel", "behoben"] }).notNull(),
+  typ: text("typ", { enum: ["pruefung", "erledigt", "stunden", "mangel", "behoben", "einsatz", "rueckkehr"] }).notNull(),
   pruefartId: text("pruefart_id").references(() => pruefart.id, { onDelete: "set null" }),
   titel: text("titel").notNull(),
   /** Kalendertag `JJJJ-MM-TT` in der Suite-Zone. */
@@ -233,7 +253,7 @@ export const eintrag = sqliteTable("eintrag", {
 }, (t) => [
   index("eintrag_geraet_idx").on(t.geraetId, t.am),
   index("eintrag_pruefart_idx").on(t.geraetId, t.pruefartId, t.am),
-  check("eintrag_typ", sql`typ IN ('pruefung','erledigt','stunden','mangel','behoben')`),
+  check("eintrag_typ", sql`typ IN ('pruefung','erledigt','stunden','mangel','behoben','einsatz','rueckkehr')`),
   check("eintrag_am", sql`am GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
   check("eintrag_ergebnis", sql`ergebnis IS NULL OR ergebnis IN ('ok','mangel','defekt')`),
 ]);

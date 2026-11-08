@@ -19,14 +19,14 @@ import { getDb } from "../_db/client";
 import { geraet } from "../_db/schema";
 import { ladeMangel } from "./daten";
 import {
-  artEingabe, entnahmeEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, mangelEingabe,
+  anlassEingabe, artEingabe, entnahmeEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, mangelEingabe,
   pruefartEingabe, pruefplanEingabe, pruefungEingabe, rueckgabeEingabe, stundenEingabe, unterlageTitel, verwalterEingabe,
 } from "./eingabe";
 import { entnehmen, zuruecklegen } from "./ausleihe";
 import { verwalterEntfernen, verwalterHinzufuegen } from "./personen";
 import { heute } from "./heute";
 import {
-  Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, geraetLoeschen, gruppeLoeschen,
+  Abgelehnt, anlassVermerken, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, geraetLoeschen, gruppeLoeschen,
   gruppeSpeichern, inhaltSpeichern, mangelBeheben, mangelMelden, neueId, pruefartLoeschen, pruefartSpeichern, pruefartVerschieben,
   pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen, unterlageAnlegen,
 } from "./schreiben";
@@ -106,6 +106,14 @@ export const entnehmenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown)
 export const zuruecklegenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ viewer }) => {
   pruefeId(geraetId);
   zuruecklegen(getDb(), geraetId, geprueft(rueckgabeEingabe, eingabe), kontext(viewer));
+});
+
+/** „Wird eingesetzt“ bzw. „Zurück“ (IDA-369): macht die Prüfart mit diesem Anlass fällig. */
+export const anlassVermerkenVorgang = (z: Akteur, geraetId: unknown, anlass: unknown) => ausfuehren(z, ({ viewer }) => {
+  pruefeId(geraetId);
+  const a = anlassEingabe.safeParse(anlass);
+  if (!a.success) throw new Abgelehnt(UNGUELTIG);
+  anlassVermerken(getDb(), geraetId, a.data, kontext(viewer));
 });
 
 /**
