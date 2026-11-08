@@ -52,6 +52,7 @@ import wartungUnterlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2
 import wartungFahrzeugwahl from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-fahrzeugwahl";
 import wartungKiAssistent from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-ki-assistent";
 import wartungPruefarten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-pruefarten";
+import wartungEntnehmen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-08-entnehmen";
 import verpflegungVerpflegungslager from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-04-verpflegungslager";
 import unterkunftUndZelteBerechnen from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-01-unterkunft-und-zelte-berechnen";
 import unterkunftBerechnungDrucken from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-03-berechnung-drucken";
@@ -204,6 +205,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   wartungFahrzeugwahl,
   wartungKiAssistent,
   wartungPruefarten,
+  wartungEntnehmen,
   verpflegungVerpflegungslager,
   unterkunftUndZelteBerechnen,
   unterkunftBerechnungDrucken,
