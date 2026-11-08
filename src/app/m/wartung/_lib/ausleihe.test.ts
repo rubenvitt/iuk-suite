@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { and, eq, isNull } from "drizzle-orm";
-import { mangel } from "../_db/schema";
+import { eintrag, mangel } from "../_db/schema";
 import { entnehmen, ganzeSchliessen, zuruecklegen } from "./ausleihe";
 import { ladeInhalt } from "./daten";
-import { Abgelehnt, geraetAktiv, geraetAnlegen, inhaltSpeichern, mangelMelden, neueId, ungepushteAusfaelle } from "./schreiben";
+import { Abgelehnt, geraetAktiv, geraetAnlegen, inhaltSpeichern, neueId, ungepushteAusfaelle } from "./schreiben";
 import { START } from "./startbestand";
 import { testDb } from "./testDb";
 import { unterwegsStand } from "./unterwegs";
@@ -49,7 +49,8 @@ describe("Entnehmen und Zurücklegen (IDA-372)", () => {
     const e = teil(s.patch, 1);
     entnehmen(s.db, s.id, e, K);
     const anderes = geraetAnlegen(s.db, { ...basis, gruppeId: START.gruppe.iuk, artId: START.art.kiste, name: "Kiste 2" }, K.jetzt);
-    expect(() => entnehmen(s.db, anderes, e, K)).toThrow(Abgelehnt);
+    inhaltSpeichern(s.db, anderes, [{ id: null, text: "Patchkabel 10 m", soll: 4, bemerkung: "" }]);
+    expect(() => entnehmen(s.db, anderes, e, K)).toThrow(/unvollständig/);
   });
 
   it("ohne Nutzer wird abgelehnt", () => {
@@ -66,11 +67,11 @@ describe("Entnehmen und Zurücklegen (IDA-372)", () => {
   it("ganze Kiste schließt weitere Entnahmen aus", () => {
     const a = setup();
     entnehmen(a.db, a.id, ganz(), K);
-    expect(() => entnehmen(a.db, a.id, teil(a.patch, 1), K)).toThrow(Abgelehnt);
+    expect(() => entnehmen(a.db, a.id, teil(a.patch, 1), K)).toThrow(/ganze Kiste ist schon unterwegs/);
     expect(stand(a).jePosition.get(a.patch)).toBe(4);
     const b = setup();
     entnehmen(b.db, b.id, teil(b.patch, 1), K);
-    expect(() => entnehmen(b.db, b.id, ganz(), K)).toThrow(Abgelehnt);
+    expect(() => entnehmen(b.db, b.id, ganz(), K)).toThrow(/schon etwas unterwegs/);
   });
 
   it("eine Teil-Entnahme braucht Positionen, die zur Kiste gehören", () => {
@@ -116,6 +117,7 @@ describe("Entnehmen und Zurücklegen (IDA-372)", () => {
     expect(m).toHaveLength(1);
     expect(m[0]).toMatchObject({ fehlt: true, inhaltId: s.patch, einsatzbereit: true, text: "Fehlt: Patchkabel 10 m (1 von 2 nicht zurück)" });
     expect(stand(s).entnahmen).toHaveLength(0);
+    expect(s.db.select().from(eintrag).where(and(eq(eintrag.geraetId, s.id), eq(eintrag.typ, "mangel"))).all()).toHaveLength(1);
     expect(ungepushteAusfaelle(s.db, 0)).toEqual([]);
   });
 
@@ -130,15 +132,36 @@ describe("Entnehmen und Zurücklegen (IDA-372)", () => {
     expect(s.db.select().from(mangel).where(isNull(mangel.behobenAm)).all()).toHaveLength(1);
   });
 
-  it("vollständige Rückgabe behebt einen alten Fehlt-Mangel", () => {
+  it("Zurücklegen behebt keinen offenen Fehlt-Mangel", () => {
     const s = setup();
-    const mid = neueId();
-    mangelMelden(s.db, s.id, { id: mid, text: "Fehlt: Patchkabel 10 m", foto: false, einsatzbereit: true }, K);
-    s.db.update(mangel).set({ fehlt: true, inhaltId: s.patch }).where(eq(mangel.id, mid)).run();
+    entnehmen(s.db, s.id, teil(s.patch, 2), K);
+    const a = stand(s).entnahmen[0];
+    zuruecklegen(s.db, s.id, rueck(a.id, a.positionen[0].id, 0, 2, true), K);
+    entnehmen(s.db, s.id, teil(s.patch, 1), K);
+    const b = stand(s).entnahmen[0];
+    zuruecklegen(s.db, s.id, rueck(b.id, b.positionen[0].id, 1, 1), K);
+    const m = s.db.select().from(mangel).where(eq(mangel.geraetId, s.id)).all();
+    expect(m).toHaveLength(1);
+    expect(m[0].behobenAm).toBeNull();
+  });
+
+  it("ganz mit Positionen wird abgelehnt", () => {
+    const s = setup();
+    expect(() => entnehmen(s.db, s.id, { ...ganz(), positionen: [{ inhaltId: s.patch, menge: 1 }] }, K)).toThrow(/unvollständig/);
+  });
+
+  it("ein ausgemustertes Gerät lässt sich nicht entnehmen", () => {
+    const s = setup();
+    geraetAktiv(s.db, s.id, false, K.jetzt);
+    expect(() => entnehmen(s.db, s.id, teil(s.patch, 1), K)).toThrow(/gibt es nicht mehr/);
+  });
+
+  it("zurücklegen mit der Entnahme eines anderen Geräts wird abgelehnt", () => {
+    const s = setup();
     entnehmen(s.db, s.id, teil(s.patch, 1), K);
     const e = stand(s).entnahmen[0];
-    zuruecklegen(s.db, s.id, rueck(e.id, e.positionen[0].id, 1, 1), K);
-    expect(s.db.select().from(mangel).where(eq(mangel.id, mid)).get()!.behobenAm).toBe(K.jetzt);
+    const anderes = geraetAnlegen(s.db, { ...basis, gruppeId: START.gruppe.iuk, artId: START.art.kiste, name: "Kiste 2" }, K.jetzt);
+    expect(() => zuruecklegen(s.db, anderes, rueck(e.id, e.positionen[0].id, 1, 1), K)).toThrow(/schon zurückgelegt/);
   });
 
   it("Ausmustern mit offener Entnahme wird abgelehnt", () => {
@@ -176,6 +199,6 @@ describe("Entnehmen und Zurücklegen (IDA-372)", () => {
     expect(u.ganz).not.toBeNull();
     zuruecklegen(db, id, { entnahmeId: u.ganz!.id, positionen: [] }, K);
     expect(unterwegsStand(db, id).entnahmen).toHaveLength(0);
-    expect(() => entnehmen(db, id, teil(neueId(), 1), K)).toThrow(Abgelehnt);
+    expect(() => entnehmen(db, id, teil(neueId(), 1), K)).toThrow(/nur ganz entnommen/);
   });
 });

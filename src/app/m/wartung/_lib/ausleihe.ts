@@ -1,6 +1,6 @@
 /**
  * ENTNEHMEN UND ZURÜCKLEGEN (IDA-372). Wer etwas aus einer Materialkiste mitnimmt, trägt es ein; was nicht
- * zurückkommt, wird ein Fehlt-Mangel. Den Stand liest `unterwegs.ts`; hier stehen die Schreibpfade.
+ * zurückkommt, wird ein Fehlt-Mangel; behoben wird er nur beim Durchzählen, nie hier. Den Stand liest `unterwegs.ts`; hier stehen die Schreibpfade.
  */
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
@@ -9,7 +9,7 @@ import type { EntnahmeEingabe, RueckgabeEingabe } from "./eingabe";
 import { Abgelehnt, aktivesGeraet, neueId, type Kontext } from "./schreiben";
 import { unterwegsStand } from "./unterwegs";
 
-const sqlMenge = sql`menge`;
+const sqlMenge = sql`${entnahmePosition.menge}`;
 const UNGUELTIG = "Die Angaben sind unvollständig. Bitte die Seite neu laden.";
 
 const istKiste = (db: WartungSchreiber, artId: string): boolean =>
@@ -30,6 +30,7 @@ export function entnehmen(db: WartungDb, geraetId: string, e: EntnahmeEingabe, k
     const positionen: { inhaltId: string; text: string; menge: number }[] = [];
 
     if (e.ganz) {
+      if (e.positionen.length > 0) throw new Abgelehnt(UNGUELTIG);
       if (stand.entnahmen.length > 0) throw new Abgelehnt("Es ist schon etwas unterwegs. Erst zurücklegen.");
       if (kiste && liste.length === 0) throw new Abgelehnt("Die Kiste hat noch keine Inhaltsliste.");
       positionen.push(...liste.map((p) => ({ inhaltId: p.id, text: p.text, menge: p.soll })));
@@ -88,15 +89,10 @@ export function zuruecklegen(db: WartungDb, geraetId: string, r: RueckgabeEingab
       const fehlt = a.fehlt && rest > 0;
       tx.update(entnahmePosition).set({ zurueck, fehlt }).where(eq(entnahmePosition.id, p.id)).run();
 
+      // Ein offener Fehlt-Mangel wird hier nie behoben: die Rückgabe kennt nur ihre Entnahme, nicht das Soll. Das tut das Durchzählen.
       const offenerMangel = p.inhaltId
-        ? tx.select().from(mangel).where(and(eq(mangel.geraetId, geraetId), eq(mangel.fehlt, true), eq(mangel.inhaltId, p.inhaltId), isNull(mangel.behobenAm))).get()
+        ? tx.select({ id: mangel.id }).from(mangel).where(and(eq(mangel.geraetId, geraetId), eq(mangel.fehlt, true), eq(mangel.inhaltId, p.inhaltId), isNull(mangel.behobenAm))).get()
         : undefined;
-      if (rest === 0 && offenerMangel) {
-        tx.update(mangel).set({ behobenAm: k.jetzt, behobenVon: k.wer }).where(eq(mangel.id, offenerMangel.id)).run();
-        tx.insert(eintrag).values({
-          id: neueId(), geraetId, typ: "behoben", titel: "Wieder vollständig", am: k.heute, wer: k.wer, notiz: offenerMangel.text, angelegtAm: k.jetzt,
-        }).run();
-      }
       if (fehlt && !offenerMangel) {
         const text = `Fehlt: ${p.text} (${rest} von ${p.menge} nicht zurück)`;
         tx.insert(mangel).values({
