@@ -12,7 +12,7 @@ import { anzeigeKopf, dateiname, istPdf, legeUnterlageAb, leseUnterlage, pruefeU
 const K = { jetzt: Date.UTC(2026, 10, 4, 8), wer: "Verwalter Technik" };
 const BASIS = {
   gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Stromerzeuger 8 kVA", hersteller: "", typ: "",
-  seriennr: "", ortArt: "lager" as const, ort: "Lager", fahrzeugId: null, stunden: null, hinweise: "",
+  seriennr: "", ortArt: "lager" as const, ort: "Lager", fahrzeugId: null, stunden: null, hinweise: "", pruefanleitung: "",
 };
 
 function mitGeraet() {

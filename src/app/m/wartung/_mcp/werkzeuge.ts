@@ -272,7 +272,7 @@ export const wartungMcp: McpModul = {
     }, (a) => mit("verwalter", async (z) => ergebnis(await geraetAnlegenVorgang(z, {
       gruppeId: a.gruppe_id, artId: a.art_id, name: a.name, hersteller: a.hersteller ?? "", typ: a.typ ?? "",
       seriennr: a.seriennr ?? "", ortArt: a.ort_art, ort: a.ort, fahrzeugId: a.fahrzeug_id ?? null,
-      stunden: a.stunden ?? null, hinweise: a.hinweise ?? "",
+      stunden: a.stunden ?? null, hinweise: a.hinweise ?? "", pruefanleitung: "",
     }))));
 
     server.registerTool("wartung_geraet_aendern", {
@@ -290,7 +290,7 @@ export const wartungMcp: McpModul = {
         hersteller: a.hersteller ?? alt.hersteller, typ: a.typ ?? alt.typ, seriennr: a.seriennr ?? alt.seriennr,
         ortArt: a.ort_art ?? alt.ortArt, ort: a.ort ?? alt.ort,
         fahrzeugId: a.fahrzeug_id !== undefined ? a.fahrzeug_id : a.ort_art === "lager" ? null : alt.fahrzeugId,
-        stunden: a.stunden !== undefined ? a.stunden : alt.stunden, hinweise: a.hinweise ?? alt.hinweise,
+        stunden: a.stunden !== undefined ? a.stunden : alt.stunden, hinweise: a.hinweise ?? alt.hinweise, pruefanleitung: alt.pruefanleitung,
       }));
     }));
 

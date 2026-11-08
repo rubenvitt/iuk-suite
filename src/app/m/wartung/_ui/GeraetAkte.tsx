@@ -54,7 +54,7 @@ export function GeraetAkte({
   const zusaetzlich = new Set(g.plan.filter((p) => p.an && !p.standard).map((p) => p.pruefart.id));
   const abgewaehlt = g.plan.filter((p) => p.standard && !p.an);
   // Der Fingerabdruck nur über die Felder des Formulars; derselbe Schlüssel fürs Formular und fürs Löschen.
-  const aendernStart = { gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise };
+  const aendernStart = { gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise, pruefanleitung: g.pruefanleitung };
   const aendernSchluessel = `wartung:geraet:${g.id}:${fingerabdruck(aendernStart)}`;
   // IDA-358: die Angaben zu „… eintragen" liegen je Gerät und Prüfart auf dem Gerät, bis das Eintragen bestätigt ist.
   const erledigtEntwurf = useEntwurf<Erledigt>({

@@ -58,7 +58,7 @@ beforeEach(() => {
   t.verweigert = 0;
   merkePerson(t.db, "sub-technik", "Verwalter Technik");
   verwalterHinzufuegen(t.db, START.gruppe.technik, "sub-technik", 1, OHNE_VERZEICHNIS);
-  const basis = { hersteller: "", typ: "", seriennr: "", hinweise: "", ortArt: "lager" as const, ort: "Halle", fahrzeugId: null };
+  const basis = { hersteller: "", typ: "", seriennr: "", hinweise: "", pruefanleitung: "", ortArt: "lager" as const, ort: "Halle", fahrzeugId: null };
   stromerzeuger = geraetAnlegen(t.db, { ...basis, gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Stromerzeuger 8 kVA", stunden: 100 }, 1);
   akkuIuk = geraetAnlegen(t.db, { ...basis, gruppeId: START.gruppe.iuk, artId: START.art.stromerzeuger, name: "Stromerzeuger I&K", stunden: 5 }, 1);
 });
@@ -171,7 +171,7 @@ describe("dieselben Grenzen wie in der App", () => {
 
   it("eine Materialkiste: ein veralteter Stand der Inhaltsliste wird abgelehnt, beim Pflegen wie beim Durchzählen", async () => {
     const kiste = geraetAnlegen(t.db, {
-      hersteller: "", typ: "", seriennr: "", hinweise: "", ortArt: "lager", ort: "Halle", fahrzeugId: null, stunden: null,
+      hersteller: "", typ: "", seriennr: "", hinweise: "", pruefanleitung: "", ortArt: "lager", ort: "Halle", fahrzeugId: null, stunden: null,
       gruppeId: START.gruppe.technik, artId: START.art.kiste, name: "Kiste Beleuchtung",
     }, 1);
     inhaltSpeichern(t.db, kiste, [{ id: null, text: "Kabeltrommel", soll: 2, bemerkung: "" }]);

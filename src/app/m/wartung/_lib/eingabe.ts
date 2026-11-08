@@ -53,6 +53,7 @@ export const geraetEingabe = z.object({
   fahrzeugId: z.string().min(1).max(100).nullable().default(null),
   stunden,
   hinweise: frei(NOTIZ_MAX).default(""),
+  pruefanleitung: frei(NOTIZ_MAX).default(""),
 });
 export type GeraetEingabe = z.infer<typeof geraetEingabe>;
 

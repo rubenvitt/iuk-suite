@@ -792,6 +792,18 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "entnahme": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "entnahme_position": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "verpflegung": {

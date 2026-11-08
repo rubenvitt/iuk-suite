@@ -26,8 +26,9 @@ function bisVor0006(): string {
   const ziel = join(tmp, "migrations");
   cpSync(ORDNER, ziel, { recursive: true });
   rmSync(join(ziel, "0006_pruefarten.sql"));
+  rmSync(join(ziel, "0007_ausleihe.sql")); // spätere Migrationen setzen 0006 voraus
   const journal = JSON.parse(readFileSync(join(ziel, "meta/_journal.json"), "utf8")) as { entries: { tag: string }[] };
-  journal.entries = journal.entries.filter((e) => e.tag !== "0006_pruefarten");
+  journal.entries = journal.entries.filter((e) => e.tag !== "0006_pruefarten" && e.tag !== "0007_ausleihe");
   writeFileSync(join(ziel, "meta/_journal.json"), JSON.stringify(journal));
   return ziel;
 }

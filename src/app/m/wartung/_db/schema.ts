@@ -146,6 +146,8 @@ export const geraet = sqliteTable("geraet", {
   stunden: integer("stunden"),
   /** Was jeder am Gerät wissen muss, bevor er es benutzt (IDA-300); steht auf dem Steckbrief. */
   hinweise: text("hinweise").notNull().default(""),
+  /** Wie man Kiste bzw. Gerät durchgeht (IDA-372); steht beim Durchzählen und beim Zurücklegen. */
+  pruefanleitung: text("pruefanleitung").notNull().default(""),
   /** Ausgemustert: fällt aus Listen und Fristen, der Verlauf bleibt. */
   aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
   angelegtAm: integer("angelegt_am").notNull(),
@@ -171,6 +173,40 @@ export const inhalt = sqliteTable("inhalt", {
 }, (t) => [
   index("inhalt_geraet_idx").on(t.geraetId, t.position),
   check("inhalt_soll", sql`soll >= 1`),
+]);
+
+/**
+ * Eine Entnahme einer Materialkiste (IDA-372). `id` ist die Sendungs-ID vom Telefon (idempotent). Offen, solange
+ * `zurueckAm` null ist. `ganz`: die ganze Kiste mitgenommen, sonst nur Positionen (`entnahme_position`).
+ */
+export const entnahme = sqliteTable("entnahme", {
+  id: text("id").primaryKey(),
+  geraetId: text("geraet_id").notNull().references(() => geraet.id, { onDelete: "cascade" }),
+  nutzer: text("nutzer").notNull(),
+  wer: text("wer").notNull().default(""),
+  zweck: text("zweck").notNull().default(""),
+  ganz: integer("ganz", { mode: "boolean" }).notNull(),
+  entnommenAm: integer("entnommen_am").notNull(),
+  zurueckAm: integer("zurueck_am"),
+  zurueckWer: text("zurueck_wer"),
+}, (t) => [
+  index("entnahme_offen_idx").on(t.geraetId, t.zurueckAm),
+]);
+
+/** Eine entnommene Position; `text` hält den Namen zum Zeitpunkt fest, `inhalt_id` wird beim Entfernen der Position null. */
+export const entnahmePosition = sqliteTable("entnahme_position", {
+  id: text("id").primaryKey(),
+  entnahmeId: text("entnahme_id").notNull().references(() => entnahme.id, { onDelete: "cascade" }),
+  inhaltId: text("inhalt_id").references(() => inhalt.id, { onDelete: "set null" }),
+  text: text("text").notNull(),
+  menge: integer("menge").notNull(),
+  zurueck: integer("zurueck").notNull().default(0),
+  fehlt: integer("fehlt", { mode: "boolean" }).notNull().default(false),
+}, (t) => [
+  index("entnahme_position_entnahme_idx").on(t.entnahmeId),
+  index("entnahme_position_inhalt_idx").on(t.inhaltId),
+  check("entnahme_position_menge", sql`menge >= 1`),
+  check("entnahme_position_zurueck", sql`zurueck >= 0 AND zurueck <= menge`),
 ]);
 
 /**

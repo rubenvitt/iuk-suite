@@ -20,7 +20,7 @@ const K = { jetzt: Date.UTC(2026, 10, 3, 10), heute: HEUTE, wer: "Helfer A" };
 function mitStromerzeuger() {
   const db = testDb();
   const id = geraetAnlegen(db, {
-    gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Stromerzeuger 8 kVA", hersteller: "", typ: "", hinweise: "",
+    gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Stromerzeuger 8 kVA", hersteller: "", typ: "", hinweise: "", pruefanleitung: "",
     seriennr: "", ortArt: "fahrzeug", ort: "GW-Technik", fahrzeugId: null, stunden: 100,
   }, K.jetzt);
   const punkte = db.select().from(checkpunkt).where(eq(checkpunkt.artId, START.art.stromerzeuger)).orderBy(checkpunkt.position).all();
@@ -28,6 +28,18 @@ function mitStromerzeuger() {
 }
 
 const alleOk = (punkte: { id: string }[]) => punkte.map((p) => ({ punktId: p.id, ok: true, text: "" }));
+
+describe("Prüfanleitung (IDA-372)", () => {
+  it("speichert die Prüfanleitung am Gerät und liest sie zurück", () => {
+    const db = testDb();
+    const id = geraetAnlegen(db, {
+      gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "X", hersteller: "", typ: "", hinweise: "",
+      seriennr: "", ortArt: "lager", ort: "Lager", fahrzeugId: null, stunden: null,
+      pruefanleitung: "Kabel auf Knicke ansehen.\nAlles zählen.",
+    }, K.jetzt);
+    expect(ladeGeraet(db, id, HEUTE)!.pruefanleitung).toBe("Kabel auf Knicke ansehen.\nAlles zählen.");
+  });
+});
 
 describe("Startbestand", () => {
   it("bringt vier Arten mit Prüfarten und Checklisten mit, dazu die Materialkisten", () => {

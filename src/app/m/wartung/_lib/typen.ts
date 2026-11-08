@@ -80,6 +80,8 @@ export interface GeraetZeile {
   stunden: number | null;
   /** Freitext für den Steckbrief am QR-Code (IDA-300). */
   hinweise: string;
+  /** Wie man das Gerät bzw. die Kiste durchgeht (IDA-372). */
+  pruefanleitung: string;
   aktiv: boolean;
   zustand: Zustand;
   /** Die Prüfarten der Art und die zusätzlichen, mit dem, was am Gerät gilt (IDA-368). */
