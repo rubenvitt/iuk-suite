@@ -1,4 +1,7 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { seitText } from "../../../../_lib/unterwegsText";
+import s from "../../../../_ui/wartung.module.css";
 import { PruefungAmGeraet } from "../../../../_ui/telefon/PruefungAmGeraet";
 import { geraetOder404 } from "../laden";
 
@@ -11,6 +14,19 @@ export default async function PruefungSeite({ params, searchParams }: { params: 
   // Nur die offene ganze Entnahme dieses Geräts zählt als Rückgabe; alles andere ignorieren.
   const { rueckgabe } = await searchParams;
   const zurueck = rueckgabe && unterwegs.ganz?.id === rueckgabe ? rueckgabe : undefined;
+  // Eine Kiste, die ganz unterwegs ist, wird nicht durchgezählt, sondern zurückgelegt.
+  if (unterwegs.ganz && !zurueck) {
+    return (
+      <div className={s.telefon}>
+        <section className={s.karte}>
+          <p style={{ margin: "0 0 12px" }} role="status">
+            Die Kiste ist unterwegs seit {seitText(unterwegs.ganz.seit)} Durchzählen geht, wenn sie zurück ist.
+          </p>
+          <Link href={`/g/${g.id}/pruefung?rueckgabe=${unterwegs.ganz.id}`}>Zurücklegen</Link>
+        </section>
+      </div>
+    );
+  }
   return (
     <PruefungAmGeraet
       geraetId={g.id}

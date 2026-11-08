@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { Button } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { unterwegsText } from "../../../_lib/unterwegsText";
 import { loginZiel, verwaltetGruppe } from "../../../_lib/zugang";
 import { ArtZeichen, FristChip, groesseText, Kicker, OrtText, stundenText, ZustandChip } from "../../../_ui/teile";
 import s from "../../../_ui/wartung.module.css";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
  * Prüfung erst mit Zugang (IDA-337).
  */
 export default async function Steckbrief({ params }: { params: Promise<{ id: string }> }) {
-  const { g, checkliste, offen, unterlagen, rechte, viewer, zugang } = await geraetOeffentlich(params);
+  const { g, checkliste, offen, unterlagen, unterwegs, rechte, viewer, zugang } = await geraetOeffentlich(params);
   const pruefung = g.staende.find((f) => f.vorlage.wer === "intern");
   const verwaltet = zugang && verwaltetGruppe(rechte, g.gruppeId);
   // Die Inhaltsliste steht auch auf dem Etikett der Kiste, also auch ohne Anmeldung (IDA-335).
@@ -56,6 +57,26 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
     </section>
   );
 
+  // „Unterwegs“ sieht jeder; Name und Zweck nur mit Zugang. Die Knöpfe gibt es nur mit Zugang.
+  const unterwegsKarte = (mitKnoepfen: boolean) => {
+    const text = unterwegsText(unterwegs, mitKnoepfen);
+    const kannEntnehmen = mitKnoepfen && !unterwegs.ganz && (!g.kiste || checkliste.length > 0);
+    if (!text && !kannEntnehmen) return null;
+    return (
+      <section className={s.karte} aria-label="Unterwegs">
+        {text && <div className={s.meldung} role="status" data-rolle="unterwegs">{text}</div>}
+        {mitKnoepfen && (
+          <div className={s.knopfstapel} style={text ? { marginTop: 12 } : undefined}>
+            {kannEntnehmen && <Button block href={`/g/${g.id}/entnehmen`} icon={<Icons8Ikone name="package" groesse={20} />}>Entnehmen</Button>}
+            {text && (
+              <Button block href={g.kiste && unterwegs.ganz ? `/g/${g.id}/pruefung?rueckgabe=${unterwegs.ganz.id}` : `/g/${g.id}/zuruecklegen`} icon={<Icons8Ikone name="checkmark" groesse={20} />}>Zurücklegen</Button>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  };
+
   const anleitung = (
     <>
       {g.hinweise && (
@@ -88,6 +109,7 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
     return (
       <div className={s.telefon}>
         {kopf}
+        {unterwegsKarte(false)}
         {anleitung}
         {inhalt}
         <section className={s.karte}>
@@ -103,6 +125,8 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
   return (
     <div className={s.telefon}>
       {kopf}
+
+      {unterwegsKarte(true)}
 
       {anleitung}
 
