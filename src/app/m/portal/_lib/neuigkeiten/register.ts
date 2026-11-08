@@ -40,6 +40,7 @@ import helferAusHiorg from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-
 import helferAusExcel from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-24-helfer-aus-excel";
 import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-10-21-fahrzeuge-als-stammdaten";
 import schichtenImVorausPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/schichtplan/2026-11-01-schichten-im-voraus-planen";
+import schichtplanAustausch from "@/app/m/portal/_lib/neuigkeiten/notizen/schichtplan/2026-11-08-austausch-mit-lifeline-hub";
 import gemeinschaftUndBar from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-01-gemeinschaft-und-bar";
 import gemeinschaftBarQrPlakat from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-03-bar-qr-plakat";
 import gemeinschaftMietvertragDigital from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-04-mietvertrag-digital";
@@ -194,6 +195,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   helferAusHiorg,
   fahrzeugeAlsStammdaten,
   schichtenImVorausPlanen,
+  schichtplanAustausch,
   gemeinschaftUndBar,
   gemeinschaftBarQrPlakat,
   gemeinschaftMietvertragDigital,

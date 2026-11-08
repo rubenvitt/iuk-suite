@@ -46,16 +46,23 @@ describe("bereitgestellteHelfer — was das Modul anderen Modulen herausgibt", (
 });
 
 describe("helferFuerSchichtplanung — der zweite Empfänger", () => {
-  it("alle Helfer, auch ohne Einsatztagebuch-Freigabe, mit Fahrerlaubnisklassen", () => {
+  it("alle Helfer, auch ohne Einsatztagebuch-Freigabe, mit Fahrerlaubnisklassen und HiOrg-Kennung", () => {
     const db = testDb();
     wende(db, "hiorg");
     setzeFreigabe(db, [listeHelfer(db)[0].id], false);
     const b = helferFuerSchichtplanung(db);
     expect(b.helfer).toHaveLength(2);
     for (const h of b.helfer) {
-      expect(Object.keys(h).sort()).toEqual(["demo", "fahrerlaubnis", "id", "nachname", "qualifikationen", "vorname"]);
+      expect(Object.keys(h).sort()).toEqual(["demo", "fahrerlaubnis", "hiorgId", "id", "nachname", "qualifikationen", "vorname"]);
       expect(h.fahrerlaubnis).toEqual(["B", "C1"]);
     }
+    expect(b.helfer.map((h) => h.hiorgId).sort()).toEqual(["a", "b"]);
+  });
+
+  it("die HiOrg-Kennung nur bei Helfern aus HiOrg", () => {
+    const db = testDb();
+    wende(db, "demo");
+    expect(helferFuerSchichtplanung(db).helfer.map((h) => h.hiorgId)).toEqual([null, null]);
   });
 });
 

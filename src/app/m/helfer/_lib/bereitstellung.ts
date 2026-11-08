@@ -16,7 +16,9 @@
  * `bereitstellung.test.ts` hält die Feldliste fest.
  *
  * Zweiter Empfänger ist die Schichtplanung (`helferFuerSchichtplanung`, IDA-313): ALLE übernommenen
- * Helfer, denn die Freigabe gilt nur fürs Einsatzbuch, und zusätzlich die Fahrerlaubnisklassen.
+ * Helfer, denn die Freigabe gilt nur fürs Einsatzbuch, und zusätzlich die Fahrerlaubnisklassen und
+ * die HiOrg-Kennung (IDA-365). Die Schichtplanung versiegelt nichts; sie gibt die Kennung nur im
+ * Austauschblatt an Lifeline Hub weiter, damit dort dieselbe Person wiedererkannt wird.
  */
 import { desc, eq } from "drizzle-orm";
 import { getDb, type HelferDb } from "../_db/client";
@@ -68,13 +70,15 @@ export function bereitgestellteHelfer(db: HelferDb = getDb()): Bereitstellung {
 export interface HelferFuerSchichtplanung extends BereitgestellterHelfer {
   /** Nur die Klassen, z. B. `["B", "C1"]`. */
   fahrerlaubnis: string[];
+  /** Die Kennung in HiOrg-Server, `null` bei Demo-Helfern und solchen aus einer Datei. */
+  hiorgId: string | null;
 }
 
 /** Alle übernommenen Helfer — der Import lässt ohnehin nur Aktive durch —, ohne Blick auf die Einsatzbuch-Freigabe. */
 export function helferFuerSchichtplanung(db: HelferDb = getDb()): { helfer: HelferFuerSchichtplanung[]; stand: string | null } {
   const zeilen = db.select({
     id: helfer.id, vorname: helfer.vorname, nachname: helfer.nachname, qualifikationen: helfer.qualifikationen,
-    fahrerlaubnis: helfer.fahrerlaubnis, herkunft: helfer.herkunft,
+    fahrerlaubnis: helfer.fahrerlaubnis, herkunft: helfer.herkunft, quellId: helfer.quellId,
   }).from(helfer).all();
   return {
     stand: stand(db),
@@ -83,6 +87,7 @@ export function helferFuerSchichtplanung(db: HelferDb = getDb()): { helfer: Helf
       qualifikationen: json<Qualifikation[]>(z.qualifikationen, []).map((q) => ({ name: q.name, kurz: q.kurz })),
       fahrerlaubnis: json<string[]>(z.fahrerlaubnis, []),
       demo: z.herkunft === "demo",
+      hiorgId: z.herkunft === "hiorg" ? z.quellId : null,
     })),
   };
 }

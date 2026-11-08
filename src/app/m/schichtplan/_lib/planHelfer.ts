@@ -10,6 +10,7 @@ import { type PlanHelfer, type TempHelferDTO, schluessel } from "./typen";
 export function alsPlanHelfer(liste: readonly HelferFuerSchichtplanung[]): PlanHelfer[] {
   return liste.map((h) => ({
     schluessel: schluessel("stamm", h.id), quelle: "stamm", id: h.id, vorname: h.vorname, nachname: h.nachname, demo: h.demo,
+    ...(h.hiorgId ? { hiorgId: h.hiorgId } : {}),
     qualifikationen: [...h.qualifikationen.map((q) => ({ kurz: q.kurz || q.name, name: q.name })), ...h.fahrerlaubnis.map(alsFahrerlaubnis)],
   }));
 }
