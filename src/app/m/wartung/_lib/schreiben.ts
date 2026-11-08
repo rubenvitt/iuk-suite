@@ -8,6 +8,7 @@ import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
 import { art, artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
+import { hatOffeneEntnahme, unterwegsStand } from "./unterwegs";
 import { ladeArten, ladeKatalog, ladePruefplan } from "./daten";
 import { geltende, pruefplan, selbstPruefung } from "./pruefplan";
 import {
@@ -23,13 +24,13 @@ export class Abgelehnt extends Error {
 
 export const neueId = (): string => randomUUID();
 
-interface Kontext {
+export interface Kontext {
   jetzt: number;
   heute: string;
   wer: string;
 }
 
-function aktivesGeraet(db: WartungSchreiber, id: string) {
+export function aktivesGeraet(db: WartungSchreiber, id: string) {
   const g = db.select().from(geraet).where(eq(geraet.id, id)).get();
   if (!g || !g.aktiv) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
   return g;
@@ -226,6 +227,7 @@ export function geraetAendern(db: WartungDb, id: string, e: GeraetEingabe, jetzt
 
 export function geraetAktiv(db: WartungDb, id: string, aktiv: boolean, jetzt: number): void {
   db.transaction((tx) => {
+    if (!aktiv && hatOffeneEntnahme(tx, id)) throw new Abgelehnt("Erst zurücklegen: Es ist noch etwas unterwegs.");
     tx.update(geraet).set({ aktiv, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
     // Während es ausgemustert war, können sich Katalog und Art geändert haben: sein Prüfplan muss wieder passen.
     if (aktiv) pruefeRegeln(tx);
@@ -255,6 +257,15 @@ export function inhaltSpeichern(db: WartungDb, geraetId: string, liste: InhaltEi
     }
     const bestehend = new Map(tx.select({ id: inhalt.id, text: inhalt.text }).from(inhalt).where(eq(inhalt.geraetId, geraetId)).all().map((x) => [x.id, x.text]));
     const behalten = liste.map((p) => p.id).filter((x): x is string => x !== null && bestehend.has(x));
+    // Was gerade unterwegs ist, darf weder von der Liste noch unter die Menge, die draußen ist.
+    const draussen = unterwegsStand(tx, geraetId).jePosition;
+    for (const [pid, text] of bestehend) {
+      const n = draussen.get(pid) ?? 0;
+      if (n === 0) continue;
+      const neu = liste.find((p) => p.id === pid);
+      if (!neu) throw new Abgelehnt(`${text} ist gerade unterwegs und kann nicht von der Liste.`);
+      if (neu.soll < n) throw new Abgelehnt(`${text}: Es sind gerade ${n} unterwegs.`);
+    }
     tx.delete(inhalt).where(behalten.length ? and(eq(inhalt.geraetId, geraetId), notInArray(inhalt.id, behalten)) : eq(inhalt.geraetId, geraetId)).run();
     liste.forEach((p, position) => {
       const w = { text: p.text, soll: p.soll, bemerkung: p.bemerkung, position };

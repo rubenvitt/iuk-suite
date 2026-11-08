@@ -171,3 +171,21 @@ export function feldFehlerAus(fehler: z.ZodError): Record<string, string> {
   }
   return ergebnis;
 }
+
+/** Eine Entnahme aus einer Kiste (IDA-372); `sendung` macht sie idempotent. */
+export const entnahmeEingabe = z.object({
+  sendung: idSchema,
+  ganz: z.boolean(),
+  zweck: frei(KURZ_MAX).default(""),
+  positionen: z.array(z.object({ inhaltId: idSchema, menge: z.number().int().min(1).max(SOLL_MAX) })).max(INHALT_MAX),
+});
+export type EntnahmeEingabe = z.infer<typeof entnahmeEingabe>;
+
+export const rueckgabeEingabe = z.object({
+  entnahmeId: idSchema,
+  // je Position: was jetzt zurückkommt, ob der Rest fehlt, und die Offen-Menge, die auf dem Bildschirm stand
+  positionen: z.array(z.object({
+    positionId: idSchema, zurueck: z.number().int().min(0).max(SOLL_MAX), fehlt: z.boolean(), offen: z.number().int().min(1),
+  })).max(INHALT_MAX),
+});
+export type RueckgabeEingabe = z.infer<typeof rueckgabeEingabe>;
