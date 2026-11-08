@@ -504,11 +504,13 @@ export function pruefungAbschliessen(
   p: PruefungEingabe,
   fotos: ReadonlyMap<string, string>,
   k: Kontext,
-): { maengel: number; ungenutzteFotos: string[] } {
+): { maengel: number; ungenutzteFotos: string[]; weiter: string | null } {
   return db.transaction((tx) => {
     const g = aktivesGeraet(tx, geraetId);
     const a = tx.select().from(art).where(eq(art.id, g.artId)).get()!;
-    const stand = pruefungAmGeraet(ladeGeraet(tx, geraetId, k.heute)?.staende ?? [], p.pruefartId);
+    // Die Rückgabe der ganzen Kiste zählt als Prüfung nach Frist, nie als eine auf Anlass (Abgleich mit IDA-369).
+    const staende = (ladeGeraet(tx, geraetId, k.heute)?.staende ?? []).filter((f) => !p.rueckgabe || !f.vorlage.anlass);
+    const stand = pruefungAmGeraet(staende, p.pruefartId);
     if (!stand) throw new Abgelehnt(p.pruefartId ? "Diese Prüfung gilt für das Gerät nicht mehr." : "Für dieses Gerät gibt es keine Prüfung am Gerät.");
     const pruefFrist = stand.vorlage;
     const punkte = pruefpunkte(tx, g, a.kiste, pruefFrist.id);
@@ -592,9 +594,9 @@ export function pruefungAbschliessen(
         id: neueId(), geraetId, typ: "behoben", titel: "Wieder vollständig", am: k.heute, wer: k.wer, notiz: m.text, angelegtAm: k.jetzt,
       }).run();
     }
-    if (p.rueckgabe) ganzeSchliessen(tx, geraetId, p.rueckgabe, k);
+    const weiter = p.rueckgabe ? ganzeSchliessen(tx, geraetId, p.rueckgabe, k) : null;
     const genutzt = new Set(maengel.map((m) => m.id));
-    return { maengel: maengel.length, ungenutzteFotos: [...fotos.values()].filter((id) => !genutzt.has(id)) };
+    return { maengel: maengel.length, ungenutzteFotos: [...fotos.values()].filter((id) => !genutzt.has(id)), weiter };
   });
 }
 
@@ -602,17 +604,24 @@ export const ANLASS_TITEL: Record<Anlass, string> = { einsatz: "Eingesetzt", rue
 
 /**
  * „Wird eingesetzt“ bzw. „Zurück“ (IDA-369): danach ist die Prüfart mit diesem Anlass fällig, bis jemand sie abhakt.
- * Steht das Gerät schon so da (doppelt getippt, zwei Telefone), geschieht nichts.
+ * Steht das Gerät schon so da (doppelt getippt, zwei Telefone), geschieht nichts. Eine Kiste geht stattdessen über
+ * Entnehmen und Zurücklegen, die denselben Vermerk schreiben (`anlassSchreiben`); so gibt es je Kiste einen Weg.
  */
 export function anlassVermerken(db: WartungDb, geraetId: string, anlass: Anlass, k: Kontext): void {
   db.transaction((tx) => {
-    aktivesGeraet(tx, geraetId);
-    const zuletzt = tx.select({ typ: eintrag.typ }).from(eintrag)
-      .where(and(eq(eintrag.geraetId, geraetId), inArray(eintrag.typ, ["einsatz", "rueckkehr"])))
-      .orderBy(sql`${eintrag.angelegtAm} DESC`).limit(1).get();
-    if (zuletzt?.typ === anlass || (!zuletzt && anlass === "rueckkehr")) return;
-    tx.insert(eintrag).values({ id: neueId(), geraetId, typ: anlass, titel: ANLASS_TITEL[anlass], am: k.heute, wer: k.wer, angelegtAm: k.jetzt }).run();
+    const g = aktivesGeraet(tx, geraetId);
+    if (tx.select({ kiste: art.kiste }).from(art).where(eq(art.id, g.artId)).get()?.kiste) throw new Abgelehnt("Kisten meldest du mit „Entnehmen“.");
+    anlassSchreiben(tx, geraetId, anlass, k);
   });
+}
+
+/** Der Vermerk selbst, in der Transaktion des Aufrufers (auch aus `ausleihe.ts`); doppelt schreibt er nichts. */
+export function anlassSchreiben(tx: WartungSchreiber, geraetId: string, anlass: Anlass, k: Kontext): void {
+  const zuletzt = tx.select({ typ: eintrag.typ }).from(eintrag)
+    .where(and(eq(eintrag.geraetId, geraetId), inArray(eintrag.typ, ["einsatz", "rueckkehr"])))
+    .orderBy(sql`${eintrag.angelegtAm} DESC`).limit(1).get();
+  if (zuletzt?.typ === anlass || (!zuletzt && anlass === "rueckkehr")) return;
+  tx.insert(eintrag).values({ id: neueId(), geraetId, typ: anlass, titel: ANLASS_TITEL[anlass], am: k.heute, wer: k.wer, angelegtAm: k.jetzt }).run();
 }
 
 export function mangelBeheben(db: WartungDb, id: string, k: Kontext): void {

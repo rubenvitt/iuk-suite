@@ -165,7 +165,7 @@ export const geraet = sqliteTable("geraet", {
   stunden: integer("stunden"),
   /** Was jeder am Gerät wissen muss, bevor er es benutzt (IDA-300); steht auf dem Steckbrief. */
   hinweise: text("hinweise").notNull().default(""),
-  /** Wie man Kiste bzw. Gerät durchgeht (IDA-372); steht beim Durchzählen und beim Zurücklegen. */
+  /** Wie man Kiste bzw. Gerät durchgeht (IDA-372); steht bei jeder Prüfung am Gerät und beim Zurücklegen. */
   pruefanleitung: text("pruefanleitung").notNull().default(""),
   /** Ausgemustert: fällt aus Listen und Fristen, der Verlauf bleibt. */
   aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),

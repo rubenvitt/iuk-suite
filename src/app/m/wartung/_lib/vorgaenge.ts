@@ -105,7 +105,8 @@ export const entnehmenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown)
 /** Zurücklegen — auch fremde Entnahmen, damit eine Kiste nicht an einer Person hängen bleibt. */
 export const zuruecklegenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ viewer }) => {
   pruefeId(geraetId);
-  zuruecklegen(getDb(), geraetId, geprueft(rueckgabeEingabe, eingabe), kontext(viewer));
+  const { weiter } = zuruecklegen(getDb(), geraetId, geprueft(rueckgabeEingabe, eingabe), kontext(viewer));
+  return { ok: true, ...(weiter ? { weiter } : {}) };
 });
 
 /** „Wird eingesetzt“ bzw. „Zurück“ (IDA-369): macht die Prüfart mit diesem Anlass fällig. */

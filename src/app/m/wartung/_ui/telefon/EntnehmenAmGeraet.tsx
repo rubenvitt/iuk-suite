@@ -15,15 +15,14 @@ import s from "../wartung.module.css";
 type Nutzlast = { ganz: boolean; zweck: string; positionen: { inhaltId: string; menge: number }[] };
 
 /**
- * Etwas aus der Kiste mitnehmen (IDA-372). Eine Kiste: Teile mit Zähler (höchstens, was noch da ist) oder die ganze
- * Kiste; ein Gerät ohne Inhaltsliste kann nur ganz mit. Der Entwurf hält die Eingabe fest, bis der Server sie bestätigt.
+ * Etwas aus der Kiste mitnehmen (IDA-372): Teile mit Zähler (höchstens, was noch da ist) oder die ganze Kiste. Ein
+ * einzelnes Gerät meldet sich mit „Wird eingesetzt“ (IDA-369). Der Entwurf hält die Eingabe fest, bis der Server sie bestätigt.
  */
 export function EntnehmenAmGeraet({
-  geraetId, geraetName, kiste, positionen, etwasUnterwegs,
+  geraetId, geraetName, positionen, etwasUnterwegs,
 }: {
   geraetId: string;
   geraetName: string;
-  kiste: boolean;
   /** `frei`: wie viele noch da sind (Soll minus unterwegs). */
   positionen: { id: string; text: string; soll: number; frei: number }[];
   etwasUnterwegs: boolean;
@@ -69,7 +68,7 @@ export function EntnehmenAmGeraet({
         <p className={s.hinweis}>Kurz ansehen, ob alles heil ist.</p>
       </section>
 
-      {kiste && positionen.map((p) => (
+      {positionen.map((p) => (
         <section key={p.id} className={s.karte} data-rolle="entnahme-posten">
           <div className={s.quer}>
             <strong><span className={s.ziffern}>{p.soll} ×</span> {p.text}</strong>
@@ -103,10 +102,8 @@ export function EntnehmenAmGeraet({
         <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
         {fehler && <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} role="alert">{fehler}</div>}
         <div className={s.knopfstapel}>
-          {kiste && <Button type="primary" block disabled={gewaehlt.length === 0} loading={laeuft} onClick={() => sende(false)}>Mitnehmen</Button>}
-          <Button type={kiste ? "default" : "primary"} block disabled={etwasUnterwegs} loading={laeuft} onClick={() => sende(true)}>
-            {kiste ? "Ganze Kiste mitnehmen" : "Mitnehmen"}
-          </Button>
+          <Button type="primary" block disabled={gewaehlt.length === 0} loading={laeuft} onClick={() => sende(false)}>Mitnehmen</Button>
+          <Button block disabled={etwasUnterwegs} loading={laeuft} onClick={() => sende(true)}>Ganze Kiste mitnehmen</Button>
         </div>
       </div>
     </div>

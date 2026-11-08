@@ -197,3 +197,36 @@ Telefon-Seiten.
 ## 8. Offen
 
 Nichts.
+
+## 9. Nachtrag 08.11.2026: Abgleich mit Prüfungen vor/nach dem Einsatz (#524)
+
+Mit main kam #524 (IDA-369): Prüfarten auf Anlass („Vor Verwendung“, „Nach Benutzung“), die Vermerke `einsatz` und
+`rueckkehr` in `eintrag`, der Knopf „Wird eingesetzt“/„Zurück“ und `imEinsatz`. Entschieden vom Gruppenführer:
+
+1. **Kisten:** Entnehmen und Zurücklegen bleiben und speisen den Mechanismus aus #524.
+   - Wird eine Kiste unterwegs (erste offene Entnahme, Teil oder ganz), schreibt `entnehmen` in derselben
+     Transaktion den Vermerk `einsatz`, über dieselbe Funktion wie „Wird eingesetzt“; ein doppelter schreibt nichts.
+   - Ist danach keine Entnahme mehr offen (über `zuruecklegen` oder die Rückgabe der ganzen Kiste), wird in derselben
+     Transaktion `rueckkehr` geschrieben. Damit wird die Prüfart „nach Benutzung“ der Art fällig.
+   - Nach dem Zurücklegen am Telefon: ist jetzt eine Prüfung „nach Benutzung“ fällig, geht die Seite direkt dorthin
+     (`/g/[id]/pruefung?art=<Prüfart>`), sonst zurück zum Steckbrief.
+   - Die Rückgabe der ganzen Kiste (`?rueckgabe=`) bindet sich an die selbst erledigte Prüfart **nach Frist** und zählt
+     als deren Prüfung (Frist neu), nie an eine Prüfart auf Anlass. Danach gilt der vorige Punkt.
+   - Steckbrief und Akte einer Kiste zeigen keinen „Wird eingesetzt“/„Zurück“; auch der Vermerk über MCP lehnt Kisten ab.
+     Es gibt je Kiste genau einen Weg.
+   - Folge der Bindung: „Ganze Kiste mitnehmen“ geht nur, wenn die Kiste eine Prüfart nach Frist hat, die man selbst
+     erledigt; sonst käme sie nie zurück.
+2. **Einzelne Geräte:** „Wird eingesetzt“/„Zurück“ aus #524 gilt; Entnehmen und Zurücklegen gibt es für Geräte nicht
+   mehr („Geräte meldest du mit „Wird eingesetzt“.“). Ist ein Gerät im Einsatz, zeigen Steckbrief und Akte
+   „Im Einsatz seit TT.MM., Name“ aus dem `einsatz`-Eintrag; ohne Anmeldung ohne Namen, der MCP-Server ohne Namen.
+   Sperren bleiben wie in #524 (`imEinsatz` sperrt nichts).
+3. **Prüfanleitung:** bleibt und steht über der Checkliste bei jeder Prüfung am Gerät, auch vor Verwendung und nach
+   Benutzung, und über dem Zurücklegen.
+
+**Überholt** durch Entscheidung 2: 2.9 (einzelne Geräte entnehmen und zurücklegen), in 6.2 der Satz „Für ein Gerät
+ohne Inhaltsliste ist jede Entnahme `ganz` und hat keine Positionen.“ und in 6.3 der Gerät-Zweig („Bei einem Gerät:
+„in Ordnung“ oder „Mangel melden“.“), dazu in 3 „… und für einzelne Geräte“ und in 2.6 „… und Geräte, aus denen
+etwas fehlt“ (unterwegs ist nur noch eine Kiste). Ebenso der Nicht-Ziel-Punkt in 4 zu Prüfarten „vor Verwendung“/„nach
+Benutzung“: sie kamen mit #524, und das Zurücklegen macht „nach Benutzung“ fällig, statt sie zu ersetzen. Durch
+Entscheidung 1 überholt ist in 6.3 „Sonst entsteht beim Zurücklegen kein `eintrag`“: Entnehmen und Zurücklegen
+schreiben jetzt die Vermerke `einsatz` und `rueckkehr`, und der Verlauf der Akte zeigt sie neben den Entnahmen.

@@ -18,7 +18,7 @@ import { NAME_MAX, NOTIZ_MAX } from "../_lib/eingabe";
 import { ERGEBNIS_TEXT, intervallText, WER_TEXT, type FristStand } from "../_lib/fristen";
 import type { FahrzeugWahl } from "../_lib/fahrzeugsuche";
 import type { PruefartZeile } from "../_lib/pruefplan";
-import { seitText } from "../_lib/unterwegsText";
+import { mitAnlassKnopf, seitText } from "../_lib/unterwegsText";
 import type { BekannteOrte, EintragDTO, EntnahmeDTO, GeraetZeile, InhaltDTO, MangelDTO, UnterlageDTO } from "../_lib/typen";
 import { GeraetFormular } from "./GeraetFormular";
 import { MangelEintrag } from "./MangelEintrag";
@@ -41,7 +41,7 @@ export function GeraetAkte({
   verlauf: EintragDTO[];
   /** Die letzten Entnahmen, auch geschlossene (IDA-372). */
   entnahmen: EntnahmeDTO[];
-  /** Eine Zeile „Unterwegs: …“ mit Namen, null wenn nichts unterwegs ist. */
+  /** Eine Zeile „Unterwegs: …“ (Kiste) bzw. „Im Einsatz seit …“ (Gerät) mit Namen, null wenn nichts unterwegs ist. */
   unterwegsText: string | null;
   /** Ausgemustert und ohne Verlauf: die Akte lässt sich endgültig löschen. */
   darfLoeschen: boolean;
@@ -63,8 +63,8 @@ export function GeraetAkte({
   const eigen = new Set(g.plan.filter((p) => p.eigenes).map((p) => p.pruefart.id));
   const zusaetzlich = new Set(g.plan.filter((p) => p.an && !p.standard).map((p) => p.pruefart.id));
   const abgewaehlt = g.plan.filter((p) => p.standard && !p.an);
-  // „Wird eingesetzt“ / „Zurück“ nur, wo eine Prüfart darauf wartet (IDA-369).
-  const mitAnlass = g.aktiv && g.staende.some((f) => f.vorlage.anlass);
+  // „Wird eingesetzt“ / „Zurück“ nur, wo eine Prüfart darauf wartet (IDA-369), und nie an einer Kiste.
+  const mitAnlass = g.aktiv && mitAnlassKnopf(g);
   // Der Fingerabdruck nur über die Felder des Formulars; derselbe Schlüssel fürs Formular und fürs Löschen.
   const aendernStart = { gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise, pruefanleitung: g.pruefanleitung };
   const aendernSchluessel = `wartung:geraet:${g.id}:${fingerabdruck(aendernStart)}`;

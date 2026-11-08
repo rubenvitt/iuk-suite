@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App, Button, InputNumber } from "antd";
@@ -20,16 +20,14 @@ type Stand = { zurueck: Record<string, number>; fehlt: Record<string, boolean> }
 /**
  * Zurücklegen (IDA-372): je offener Teil-Entnahme die Positionen mit „wieder da“ (Vorgabe: alles, was offen ist) und,
  * wenn weniger zurückkommt, „Rest: noch draußen / fehlt“. Zurücklegen behebt nie einen Fehlt-Mangel, das tut
- * nur das Durchzählen.
+ * nur das Durchzählen. Ist danach eine Prüfung „nach Benutzung“ fällig, geht es direkt dorthin (IDA-369).
  */
-function EineEntnahme({ geraetId, e, kiste }: { geraetId: string; e: OffeneEntnahme; kiste: boolean }) {
+function EineEntnahme({ geraetId, e }: { geraetId: string; e: OffeneEntnahme }) {
   const { message } = App.useApp();
   const router = useRouter();
   const offene = e.positionen.filter((p) => p.offen > 0);
   const [stand, setStand] = useState<Stand>({ zurueck: {}, fehlt: {} });
   const [fehler, setFehler] = useState<string | null>(null);
-  // Bei einem Gerät schließt auch „Mangel melden“ die Entnahme, bevor es zur Meldung weitergeht.
-  const zumMangel = useRef(false);
   const zurueckVon = (id: string, offen: number) => stand.zurueck[id] ?? offen;
 
   const entwurf = useEntwurf<Stand, unknown, Awaited<ReturnType<typeof zuruecklegenAction>>>({
@@ -38,11 +36,10 @@ function EineEntnahme({ geraetId, e, kiste }: { geraetId: string; e: OffeneEntna
     wiederherstellen: setStand,
     senden: () => zuruecklegenAction(geraetId, {
       entnahmeId: e.id,
-      // ein Gerät ohne Inhaltsliste schließt mit leerer Liste
-      positionen: kiste ? offene.map((p) => {
+      positionen: offene.map((p) => {
         const zurueck = zurueckVon(p.id, p.offen);
         return { positionId: p.id, zurueck, fehlt: zurueck < p.offen && (stand.fehlt[p.id] ?? false), offen: p.offen };
-      }) : [],
+      }),
     }),
     antwort: (r) => {
       if (!r.ok) {
@@ -50,7 +47,7 @@ function EineEntnahme({ geraetId, e, kiste }: { geraetId: string; e: OffeneEntna
         return false;
       }
       message.success("Zurückgelegt.");
-      router.push(zumMangel.current ? `/g/${geraetId}/mangel` : `/g/${geraetId}`);
+      router.push(r.weiter ? `/g/${geraetId}/pruefung?art=${r.weiter}` : `/g/${geraetId}`);
       return true;
     },
   });
@@ -59,7 +56,7 @@ function EineEntnahme({ geraetId, e, kiste }: { geraetId: string; e: OffeneEntna
   return (
     <section className={s.karte} data-rolle="rueckgabe">
       <Kicker className={s.karteTitel}>{[e.zweck, e.wer, `seit ${seitText(e.seit)}`].filter(Boolean).join(" · ")}</Kicker>
-      {kiste && offene.map((p) => {
+      {offene.map((p) => {
         const zurueck = zurueckVon(p.id, p.offen);
         return (
           <div key={p.id} style={{ padding: "6px 0" }} data-rolle="rueckgabe-posten">
@@ -97,16 +94,10 @@ function EineEntnahme({ geraetId, e, kiste }: { geraetId: string; e: OffeneEntna
       {fehler && <div className={`${s.neben} ${s.klein}`} style={{ margin: "8px 0" }} role="alert">{fehler}</div>}
       <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
       <div className={s.knopfstapel} style={{ marginTop: 12 }}>
-        <Button type="primary" block loading={laeuft} onClick={() => { if (!laeuft) { setFehler(null); zumMangel.current = false; entwurf.sende(null); } }} data-rolle="zuruecklegen-senden">
-          {kiste ? "Zurücklegen" : "In Ordnung"}
+        <Button type="primary" block loading={laeuft} onClick={() => { if (!laeuft) { setFehler(null); entwurf.sende(null); } }} data-rolle="zuruecklegen-senden">
+          Zurücklegen
         </Button>
-        <Button
-          block
-          href={kiste ? `/g/${geraetId}/mangel` : undefined}
-          onClick={kiste ? undefined : () => { if (!laeuft) { setFehler(null); zumMangel.current = true; entwurf.sende(null); } }}
-          icon={<Icons8Ikone name="warning" groesse={20} />}
-          data-rolle="zuruecklegen-mangel"
-        >
+        <Button block href={`/g/${geraetId}/mangel`} icon={<Icons8Ikone name="warning" groesse={20} />} data-rolle="zuruecklegen-mangel">
           Mangel melden
         </Button>
       </div>
@@ -115,8 +106,8 @@ function EineEntnahme({ geraetId, e, kiste }: { geraetId: string; e: OffeneEntna
 }
 
 export function ZuruecklegenAmGeraet({
-  geraetId, geraetName, kiste, anleitung, entnahmen,
-}: { geraetId: string; geraetName: string; kiste: boolean; anleitung: string; entnahmen: OffeneEntnahme[] }) {
+  geraetId, geraetName, anleitung, entnahmen,
+}: { geraetId: string; geraetName: string; anleitung: string; entnahmen: OffeneEntnahme[] }) {
   return (
     <div className={s.telefon}>
       <section className={s.karte}>
@@ -124,7 +115,7 @@ export function ZuruecklegenAmGeraet({
         <h1 className={s.geraetName} style={{ margin: 0 }}>Zurücklegen</h1>
       </section>
       {anleitung && <section className={s.karte}><p className={s.hinweis} style={{ margin: 0, whiteSpace: "pre-wrap" }}>{anleitung}</p></section>}
-      {entnahmen.map((e) => <EineEntnahme key={e.id} geraetId={geraetId} e={e} kiste={kiste} />)}
+      {entnahmen.map((e) => <EineEntnahme key={e.id} geraetId={geraetId} e={e} />)}
     </div>
   );
 }

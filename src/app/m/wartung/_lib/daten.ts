@@ -324,6 +324,17 @@ export function ladeEntnahmen(db: Leser, geraetId: string, grenze = 20): Entnahm
   }));
 }
 
+/**
+ * Seit wann und bei wem ein Gerät im Einsatz ist (IDA-369): der letzte Vermerk, wenn er `einsatz` ist, sonst null.
+ * Mit Namen, also nur für die App; nicht an `GeraetZeile`, denn die gibt der MCP-Server heraus.
+ */
+export function ladeEinsatz(db: Leser, geraetId: string): { seit: number; wer: string } | null {
+  const z = db.select({ typ: eintrag.typ, seit: eintrag.angelegtAm, wer: eintrag.wer }).from(eintrag)
+    .where(and(eq(eintrag.geraetId, geraetId), inArray(eintrag.typ, ["einsatz", "rueckkehr"])))
+    .orderBy(desc(eintrag.angelegtAm)).limit(1).get();
+  return z?.typ === "einsatz" ? { seit: z.seit, wer: z.wer } : null;
+}
+
 /** Die Unterlagen eines Geräts in ihrer Reihenfolge (IDA-300). */
 export function ladeUnterlagen(db: Leser, geraetId: string): UnterlageDTO[] {
   return db.select({ id: unterlage.id, titel: unterlage.titel, typ: unterlage.typ, bytes: unterlage.bytes }).from(unterlage)

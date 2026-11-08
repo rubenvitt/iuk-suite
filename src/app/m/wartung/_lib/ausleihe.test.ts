@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { and, eq, isNull } from "drizzle-orm";
 import { eintrag, mangel } from "../_db/schema";
 import { entnehmen, ganzeSchliessen, zuruecklegen } from "./ausleihe";
-import { ladeArten, ladeInhalt } from "./daten";
-import { Abgelehnt, artSpeichern, geraetAendern, geraetAktiv, geraetAnlegen, inhaltSpeichern, neueId, ungepushteAusfaelle } from "./schreiben";
+import { ladeArten, ladeGeraet, ladeInhalt } from "./daten";
+import {
+  Abgelehnt, anlassVermerken, artSpeichern, geraetAendern, geraetAktiv, geraetAnlegen, inhaltSpeichern, neueId, pruefartSpeichern, pruefungAbschliessen,
+  ungepushteAusfaelle,
+} from "./schreiben";
 import { START } from "./startbestand";
 import { testDb } from "./testDb";
 import { unterwegsStand } from "./unterwegs";
@@ -209,14 +212,111 @@ describe("Entnehmen und Zurücklegen (IDA-372)", () => {
     expect(stand(s).entnahmen).toHaveLength(0);
   });
 
-  it("Gerät ohne Inhaltsliste: ganz entnehmen und zurücklegen", () => {
+  it("Geräte (keine Kiste) werden abgelehnt, sie melden sich mit „Wird eingesetzt“", () => {
     const db = testDb();
     const id = geraetAnlegen(db, { ...basis, gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Strom 1" }, K.jetzt);
-    entnehmen(db, id, ganz(), K);
-    const u = unterwegsStand(db, id);
-    expect(u.ganz).not.toBeNull();
-    zuruecklegen(db, id, { entnahmeId: u.ganz!.id, positionen: [] }, K);
+    expect(() => entnehmen(db, id, ganz(), K)).toThrow("Geräte meldest du mit „Wird eingesetzt“.");
+    expect(() => zuruecklegen(db, id, { entnahmeId: neueId(), positionen: [] }, K)).toThrow("Geräte meldest du mit „Wird eingesetzt“.");
     expect(unterwegsStand(db, id).entnahmen).toHaveLength(0);
-    expect(() => entnehmen(db, id, teil(neueId(), 1), K)).toThrow(/nur ganz entnommen/);
+  });
+});
+
+/**
+ * Abgleich mit #524 (IDA-369): Entnehmen und Zurücklegen speisen die Vermerke `einsatz`/`rueckkehr`, statt neben
+ * „Wird eingesetzt“/„Zurück“ zu stehen. Die Uhr läuft, denn die Vermerke ordnen sich nach ihrer Erfassung.
+ */
+describe("Entnehmen und Zurücklegen vermerken Einsatz und Rückkehr", () => {
+  let uhr = Date.UTC(2026, 10, 8, 10);
+  const k = () => ({ ...K, jetzt: (uhr += 60_000) });
+  const vermerke = (db: ReturnType<typeof testDb>, id: string, typ: "einsatz" | "rueckkehr") =>
+    db.select().from(eintrag).where(and(eq(eintrag.geraetId, id), eq(eintrag.typ, typ))).all();
+  const fristVon = (db: ReturnType<typeof testDb>, id: string, pruefartId: string) =>
+    ladeGeraet(db, id, K.heute)!.staende.find((f) => f.vorlage.id === pruefartId)!;
+
+  /** Die Kiste mit Prüfung nach Frist (Quartal), dazu je eine Prüfart vor Verwendung und nach Benutzung. */
+  function mitAnlass(nurAnlass = false) {
+    const s = setup();
+    const vorher = pruefartSpeichern(s.db, null, { name: "Kurzblick", wer: "intern", monate: null, stunden: null, anlass: "einsatz" });
+    const nachher = pruefartSpeichern(s.db, null, { name: "Nach dem Einsatz", wer: "intern", monate: null, stunden: null, anlass: "rueckkehr" });
+    const a = ladeArten(s.db).find((x) => x.id === START.art.kiste)!;
+    artSpeichern(s.db, a.id, { ...a, pruefarten: nurAnlass ? [nachher] : [...a.pruefarten, vorher, nachher], checkliste: [] }, k().jetzt);
+    return { ...s, vorher, nachher };
+  }
+
+  it("Entnehmen schreibt einmal `einsatz`, auch bei zwei Teil-Entnahmen", () => {
+    const s = mitAnlass();
+    entnehmen(s.db, s.id, teil(s.patch, 1), k());
+    entnehmen(s.db, s.id, teil(s.blitz, 1), k());
+    expect(vermerke(s.db, s.id, "einsatz")).toHaveLength(1);
+    expect(ladeGeraet(s.db, s.id, K.heute)!.imEinsatz).toBe(true);
+    expect(fristVon(s.db, s.id, s.vorher).stufe).toBe("ueberfaellig");
+  });
+
+  it("die letzte Rückgabe schreibt `rueckkehr`, macht „nach Benutzung“ fällig und nennt sie", () => {
+    const s = mitAnlass();
+    entnehmen(s.db, s.id, teil(s.patch, 2), k());
+    const e = stand(s).entnahmen[0];
+    const r = zuruecklegen(s.db, s.id, rueck(e.id, e.positionen[0].id, 2, 2), k());
+    expect(vermerke(s.db, s.id, "rueckkehr")).toHaveLength(1);
+    expect(ladeGeraet(s.db, s.id, K.heute)!.imEinsatz).toBe(false);
+    expect(fristVon(s.db, s.id, s.nachher).stufe).toBe("ueberfaellig");
+    expect(r.weiter).toBe(s.nachher);
+  });
+
+  it("auch ein als fehlend gemeldeter Rest schließt ab und schreibt `rueckkehr`", () => {
+    const s = mitAnlass();
+    entnehmen(s.db, s.id, teil(s.patch, 2), k());
+    const e = stand(s).entnahmen[0];
+    zuruecklegen(s.db, s.id, rueck(e.id, e.positionen[0].id, 1, 2, true), k());
+    expect(vermerke(s.db, s.id, "rueckkehr")).toHaveLength(1);
+  });
+
+  it("Teil-Rückgabe mit noch offener Entnahme schreibt kein `rueckkehr`", () => {
+    const s = mitAnlass();
+    entnehmen(s.db, s.id, teil(s.patch, 1), k());
+    entnehmen(s.db, s.id, teil(s.blitz, 1), k());
+    const e = stand(s).entnahmen[0];
+    const r = zuruecklegen(s.db, s.id, rueck(e.id, e.positionen[0].id, 1, 1), k());
+    expect(vermerke(s.db, s.id, "rueckkehr")).toHaveLength(0);
+    expect(ladeGeraet(s.db, s.id, K.heute)!.imEinsatz).toBe(true);
+    expect(r.weiter).toBeNull();
+  });
+
+  it("ohne Prüfart nach Benutzung schreibt die letzte Rückgabe `rueckkehr`, führt aber nirgends hin", () => {
+    const s = setup();
+    entnehmen(s.db, s.id, teil(s.patch, 1), k());
+    const e = stand(s).entnahmen[0];
+    expect(zuruecklegen(s.db, s.id, rueck(e.id, e.positionen[0].id, 1, 1), k()).weiter).toBeNull();
+    expect(vermerke(s.db, s.id, "rueckkehr")).toHaveLength(1);
+  });
+
+  it("Rückgabe der ganzen Kiste bindet an die Prüfart nach Frist, nie an eine auf Anlass, und schreibt `rueckkehr`", () => {
+    const s = mitAnlass();
+    entnehmen(s.db, s.id, ganz(), k());
+    // Jetzt ist „vor Verwendung“ fällig; ohne Bindung nähme das Durchzählen sie.
+    expect(fristVon(s.db, s.id, s.vorher).stufe).toBe("ueberfaellig");
+    const rueckgabe = stand(s).ganz!.id;
+    const antworten = ladeInhalt(s.db, s.id).map((p) => ({ punktId: p.id, ok: true, text: "", soll: p.soll, punkt: p.text, hinweis: p.bemerkung, unterwegs: 0 }));
+    const sende = (pruefartId?: string) =>
+      pruefungAbschliessen(s.db, s.id, { sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten, rueckgabe, pruefartId }, new Map(), k());
+    expect(() => sende(s.vorher)).toThrow(Abgelehnt);
+    const r = sende();
+    const p = s.db.select().from(eintrag).where(and(eq(eintrag.geraetId, s.id), eq(eintrag.typ, "pruefung"))).all();
+    expect(p.map((x) => x.pruefartId)).toEqual([START.pruefart.quartal]);
+    expect(vermerke(s.db, s.id, "rueckkehr")).toHaveLength(1);
+    expect(stand(s).entnahmen).toHaveLength(0);
+    expect(r.weiter).toBe(s.nachher);
+  });
+
+  it("ohne Prüfart nach Frist geht die ganze Kiste nicht mit, denn sie käme nicht zurück", () => {
+    const s = mitAnlass(true);
+    expect(() => entnehmen(s.db, s.id, ganz(), k())).toThrow(/Prüfung nach Frist/);
+    entnehmen(s.db, s.id, teil(s.patch, 1), k());
+  });
+
+  it("„Wird eingesetzt“ gibt es für eine Kiste nicht, sie geht über Entnehmen", () => {
+    const s = mitAnlass();
+    expect(() => anlassVermerken(s.db, s.id, "einsatz", k())).toThrow("Kisten meldest du mit „Entnehmen“.");
+    expect(vermerke(s.db, s.id, "einsatz")).toHaveLength(0);
   });
 });

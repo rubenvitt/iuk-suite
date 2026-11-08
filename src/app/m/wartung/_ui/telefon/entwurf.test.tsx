@@ -93,6 +93,14 @@ describe("Prüfung am Gerät", () => {
     expect(ladeEntwurf(`wartung:pruefung:${G}`)?.sendung).toBeNull();
     expect(ladeEntwurf(`wartung:pruefung:${G}`)?.stand).toBeTruthy();
   });
+
+  it("nennt die Route danach eine fällige Prüfung „nach Benutzung“ (Rückgabe der ganzen Kiste), geht es direkt dorthin", async () => {
+    fetchMock.mockResolvedValue(json({ ok: true, maengel: 0, weiter: G }));
+    await pruefung();
+    await click("input[name='pruef-" + P + "'][value='ok']");
+    await click("button.ant-btn-primary");
+    expect(push).toHaveBeenCalledWith(`/g/${G}/pruefung?art=${G}`);
+  });
 });
 
 describe("Mangel am Gerät", () => {
@@ -169,7 +177,7 @@ describe("Zurücklegen am Gerät", () => {
       id: "e1", wer: "Helfer A", nutzer: "sub-a", zweck: "Übung", ganz: false, seit: Date.UTC(2026, 10, 7, 10),
       positionen: [{ id: P, inhaltId: "i1", text: "Patchkabel", menge: 3, zurueck: 1, offen: 2 }],
     };
-    await mount(<App><ZuruecklegenAmGeraet geraetId={G} geraetName="Netzwerkkiste" kiste anleitung="Kurz ansehen." entnahmen={[entnahme]} /></App>);
+    await mount(<App><ZuruecklegenAmGeraet geraetId={G} geraetName="Netzwerkkiste" anleitung="Kurz ansehen." entnahmen={[entnahme]} /></App>);
     expect(query("main, div").textContent).toContain("Kurz ansehen.");
     await click("button[data-rolle='zuruecklegen-senden']");
     expect(zurueck).toHaveBeenCalledTimes(1);
@@ -177,15 +185,14 @@ describe("Zurücklegen am Gerät", () => {
     expect(zurueck.mock.calls[0][1]).toEqual({ entnahmeId: "e1", positionen: [{ positionId: P, zurueck: 2, fehlt: false, offen: 2 }] });
   });
 
-  it("Gerät: „Mangel melden“ schließt erst die Entnahme und geht dann zur Meldung", async () => {
-    zurueck.mockResolvedValue({ ok: true });
+  it("ist danach „nach Benutzung“ fällig, geht es direkt dorthin", async () => {
+    zurueck.mockResolvedValue({ ok: true, weiter: P });
     const entnahme = {
-      id: "e2", wer: "Helfer A", zweck: "", ganz: true, seit: Date.UTC(2026, 10, 7, 10), positionen: [],
+      id: "e2", wer: "Helfer A", zweck: "", ganz: false, seit: Date.UTC(2026, 10, 7, 10),
+      positionen: [{ id: P, inhaltId: "i1", text: "Patchkabel", menge: 1, zurueck: 0, offen: 1 }],
     };
-    await mount(<App><ZuruecklegenAmGeraet geraetId={G} geraetName="Stromerzeuger" kiste={false} anleitung="" entnahmen={[entnahme]} /></App>);
-    await click("button[data-rolle='zuruecklegen-mangel']");
-    expect(zurueck).toHaveBeenCalledTimes(1);
-    expect(zurueck.mock.calls[0][1]).toEqual({ entnahmeId: "e2", positionen: [] });
-    expect(push).toHaveBeenCalledWith(`/g/${G}/mangel`);
+    await mount(<App><ZuruecklegenAmGeraet geraetId={G} geraetName="Netzwerkkiste" anleitung="" entnahmen={[entnahme]} /></App>);
+    await click("button[data-rolle='zuruecklegen-senden']");
+    expect(push).toHaveBeenCalledWith(`/g/${G}/pruefung?art=${P}`);
   });
 });

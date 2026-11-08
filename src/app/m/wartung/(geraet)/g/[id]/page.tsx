@@ -2,7 +2,9 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { Button } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
-import { unterwegsText } from "../../../_lib/unterwegsText";
+import { getDb } from "../../../_db/client";
+import { ladeEinsatz } from "../../../_lib/daten";
+import { einsatzText, mitAnlassKnopf, unterwegsText } from "../../../_lib/unterwegsText";
 import { loginZiel, verwaltetGruppe } from "../../../_lib/zugang";
 import { ArtZeichen, FristChip, groesseText, Kicker, OrtText, stundenText, ZustandChip } from "../../../_ui/teile";
 import { AnlassKnopf } from "../../../_ui/telefon/AnlassKnopf";
@@ -21,7 +23,8 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
   // Die fällige Prüfung zuerst und hervorgehoben, die anderen darunter (IDA-369); ohne Punkte geht keine.
   const pruefungen = g.staende.filter((f) => f.vorlage.wer === "intern" && (punkteJe[f.vorlage.id] ?? 0) > 0)
     .sort((a, b) => Number(b.vorlage.id === pruefung?.vorlage.id) - Number(a.vorlage.id === pruefung?.vorlage.id));
-  const mitAnlass = g.staende.some((f) => f.vorlage.anlass);
+  const mitAnlass = mitAnlassKnopf(g);
+  const einsatz = g.kiste ? null : ladeEinsatz(getDb(), g.id);
   const verwaltet = zugang && verwaltetGruppe(rechte, g.gruppeId);
   // Die Inhaltsliste steht auch auf dem Etikett der Kiste, also auch ohne Anmeldung (IDA-335).
   const inhalt = g.kiste && (
@@ -61,19 +64,21 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
     </section>
   );
 
-  // „Unterwegs“ sieht jeder; Name und Zweck nur mit Zugang. Die Knöpfe gibt es nur mit Zugang.
+  // „Unterwegs“ sieht jeder; Name und Zweck nur mit Zugang. Die Knöpfe gibt es nur mit Zugang und nur an einer Kiste;
+  // ein Gerät zeigt hier, seit wann und bei wem es im Einsatz ist, und meldet sich mit „Wird eingesetzt“/„Zurück“.
   const unterwegsKarte = (mitKnoepfen: boolean) => {
-    const text = unterwegsText(unterwegs, mitKnoepfen, g.kiste);
-    const kannEntnehmen = mitKnoepfen && !unterwegs.ganz && (!g.kiste || checkliste.length > 0);
+    const text = g.kiste ? unterwegsText(unterwegs, mitKnoepfen) : einsatz && einsatzText(einsatz, mitKnoepfen);
+    const kannEntnehmen = mitKnoepfen && g.kiste && !unterwegs.ganz && checkliste.length > 0;
+    const kannZuruecklegen = mitKnoepfen && g.kiste && !!text;
     if (!text && !kannEntnehmen) return null;
     return (
       <section className={s.karte} aria-label="Unterwegs">
         {text && <div className={s.meldung} role="status" data-rolle="unterwegs">{text}</div>}
-        {mitKnoepfen && (
+        {(kannEntnehmen || kannZuruecklegen) && (
           <div className={s.knopfstapel} style={text ? { marginTop: 12 } : undefined}>
             {kannEntnehmen && <Button block href={`/g/${g.id}/entnehmen`} icon={<Icons8Ikone name="package" groesse={20} />}>Entnehmen</Button>}
-            {text && (
-              <Button block href={g.kiste && unterwegs.ganz ? `/g/${g.id}/pruefung?rueckgabe=${unterwegs.ganz.id}` : `/g/${g.id}/zuruecklegen`} icon={<Icons8Ikone name="checkmark" groesse={20} />}>Zurücklegen</Button>
+            {kannZuruecklegen && (
+              <Button block href={unterwegs.ganz ? `/g/${g.id}/pruefung?rueckgabe=${unterwegs.ganz.id}` : `/g/${g.id}/zuruecklegen`} icon={<Icons8Ikone name="checkmark" groesse={20} />}>Zurücklegen</Button>
             )}
           </div>
         )}

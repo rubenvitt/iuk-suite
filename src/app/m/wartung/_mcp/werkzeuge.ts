@@ -183,7 +183,8 @@ export const wartungMcp: McpModul = {
         const am = ladeAmGeraet(getDb(), geraet_id, tag);
         return antwortJson({
           geraet: eigen,
-          checkliste: eigen.kiste ? mitUnterwegs(am?.checkliste ?? []) : am?.checkliste ?? [], alle_punkte: allePunkte(am),
+          checkliste: eigen.kiste ? mitUnterwegs(am?.checkliste ?? []) : am?.checkliste ?? [],
+          alle_punkte: eigen.kiste ? mitUnterwegs(allePunkte(am)) : allePunkte(am),
           pruefungen: pruefungenAmGeraet(am),
           inhalt: eigen.kiste ? mitUnterwegs(ladeInhalt(getDb(), geraet_id)) : undefined,
           unterwegs: uw.liste,
@@ -197,7 +198,8 @@ export const wartungMcp: McpModul = {
       const am = ladeAmGeraet(getDb(), geraet_id, tag);
       if (!am) return antwortFehler("Dieses Gerät gibt es nicht (mehr).");
       return antwortJson({
-        geraet: am.g, checkliste: am.g.kiste ? mitUnterwegs(am.checkliste) : am.checkliste, alle_punkte: allePunkte(am), pruefungen: pruefungenAmGeraet(am),
+        geraet: am.g, checkliste: am.g.kiste ? mitUnterwegs(am.checkliste) : am.checkliste,
+        alle_punkte: am.g.kiste ? mitUnterwegs(allePunkte(am)) : allePunkte(am), pruefungen: pruefungenAmGeraet(am),
         unterwegs: uw.liste, offeneMaengel: am.offen, unterlagen: am.unterlagen.map((u) => u.titel),
         inhaltStand: am.g.kiste ? inhaltStand(ladeInhalt(getDb(), geraet_id)) : undefined,
       });
@@ -258,7 +260,7 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_einsatz_vermerken", {
       title: "Eingesetzt oder zurück",
-      description: "Vermerkt, dass ein Gerät eingesetzt wird (anlass einsatz) oder vom Einsatz zurück ist (anlass rueckkehr). Danach ist seine Prüfung vor der Verwendung bzw. nach der Benutzung fällig, bis sie abgeschlossen ist. Steht das Gerät schon so da, ändert sich nichts.",
+      description: "Vermerkt, dass ein Gerät eingesetzt wird (anlass einsatz) oder vom Einsatz zurück ist (anlass rueckkehr). Danach ist seine Prüfung vor der Verwendung bzw. nach der Benutzung fällig, bis sie abgeschlossen ist. Steht das Gerät schon so da, ändert sich nichts. Nur für Geräte: eine Materialkiste wird in der App entnommen und zurückgelegt, das vermerkt beides selbst.",
       inputSchema: { geraet_id: geraetId, anlass: z.enum(["einsatz", "rueckkehr"]) },
       annotations: SCHREIBEN,
     }, ({ geraet_id, anlass }) => mit("zugang", async (z) => ergebnis(await anlassVermerkenVorgang(z, geraet_id, anlass))));

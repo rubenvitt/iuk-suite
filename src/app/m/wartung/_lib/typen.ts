@@ -157,7 +157,8 @@ export interface FristZeile {
 export type { PlanPunkt, Wer, Zustand };
 
 /** Ergebnis einer Server Action, mit Fehlern am Feld. */
-export type Ergebnis = { ok: true; id?: string } | { ok: false; fehler: string; feldFehler?: Record<string, string> };
+/** `weiter`: nach dem Zurücklegen die Prüfart „nach Benutzung“, die jetzt fällig ist (das Telefon geht dorthin). */
+export type Ergebnis = { ok: true; id?: string; weiter?: string } | { ok: false; fehler: string; feldFehler?: Record<string, string> };
 
 /** Orte, die schon vorkommen, je Art — Vorschläge im Gerät-Formular. */
 export interface BekannteOrte {

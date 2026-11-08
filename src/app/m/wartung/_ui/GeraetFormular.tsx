@@ -112,7 +112,7 @@ export function GeraetFormular({
         <Form.Item label="Hinweise am Gerät" htmlFor="gw-hinweise" {...fehler("hinweise")}>
           <Input.TextArea id="gw-hinweise" rows={3} maxLength={NOTIZ_MAX} showCount value={w.hinweise} onChange={(e) => setze({ hinweise: e.target.value })} />
         </Form.Item>
-        <Form.Item label="Prüfanleitung" htmlFor="gw-pruefanleitung" extra="Wie man diese Kiste bzw. dieses Gerät durchgeht. Steht beim Durchzählen und beim Zurücklegen." {...fehler("pruefanleitung")}>
+        <Form.Item label="Prüfanleitung" htmlFor="gw-pruefanleitung" extra="Wie man diese Kiste bzw. dieses Gerät durchgeht. Steht bei jeder Prüfung am Gerät und beim Zurücklegen." {...fehler("pruefanleitung")}>
           <Input.TextArea id="gw-pruefanleitung" rows={3} maxLength={NOTIZ_MAX} showCount value={w.pruefanleitung} onChange={(e) => setze({ pruefanleitung: e.target.value })} />
         </Form.Item>
       </Form>

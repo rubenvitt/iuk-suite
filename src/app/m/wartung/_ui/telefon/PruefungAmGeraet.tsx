@@ -2,7 +2,8 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Button, Input, InputNumber, Progress, Result } from "antd";
+import { useRouter } from "next/navigation";
+import { App, Button, Input, InputNumber, Progress, Result } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
@@ -54,6 +55,8 @@ export function PruefungAmGeraet({
   const [offenerHinweis, setOffenerHinweis] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [fertig, setFertig] = useState<{ ergebnis: Zustand; maengel: number } | null>(null);
+  const { message } = App.useApp();
+  const router = useRouter();
   const antwortenRef = useRef(antworten);
   useLayoutEffect(() => {
     antwortenRef.current = antworten;
@@ -94,6 +97,12 @@ export function PruefungAmGeraet({
       if (!a.ok) {
         setFehler(a.fehler);
         return false;
+      }
+      // Nach der Rückgabe der ganzen Kiste direkt weiter zur Prüfung „nach Benutzung“, wenn sie jetzt fällig ist.
+      if (a.weiter) {
+        message.success("Zurückgelegt.");
+        router.push(`/g/${geraetId}/pruefung?art=${a.weiter}`);
+        return true;
       }
       setFertig({ ergebnis: e, maengel: a.maengel ?? 0 });
       return true;

@@ -271,9 +271,10 @@ describe("Ausleihe, Prüfanleitung und Löschen (IDA-372)", () => {
     for (const p of [NUTZER, VERWALTER]) {
       const { rufe } = await verbinde(p);
       const r = await rufe("wartung_geraet", { geraet_id: kiste });
-      const a = json<{ unterwegs: { ganz: boolean; seit: string; zweck: string; positionen: { inhalt_id: string; text: string; offen: number }[] }[]; checkliste: { unterwegs: number }[] }>(r);
+      const a = json<{ unterwegs: { ganz: boolean; seit: string; zweck: string; positionen: { inhalt_id: string; text: string; offen: number }[] }[]; checkliste: { unterwegs: number }[]; alle_punkte: { unterwegs: number }[] }>(r);
       expect(a.unterwegs).toEqual([{ ganz: false, seit: "2026-11-08", zweck: "Übung Nord", positionen: [{ inhalt_id: pos, text: "Kabeltrommel", offen: 2 }] }]);
       expect(a.checkliste[0].unterwegs).toBe(2);
+      expect(a.alle_punkte[0].unterwegs).toBe(2);
       for (const verboten of ["Helfer A", "sub-helfer"]) expect(text(r)).not.toContain(verboten);
       expect(json<{ id: string; unterwegs: boolean }[]>(await rufe("wartung_geraete")).find((g) => g.id === kiste)?.unterwegs).toBe(true);
     }

@@ -53,9 +53,9 @@ export type PruefungModus =
   | { art: "rueckgabe"; id: string }
   | { art: "unterwegs"; seit: number; id: string };
 
-/** Was die Prüfseite zeigt: nur eine Kiste wird gegen `rueckgabe` durchgezählt; ein ganz entnommenes Gerät wird zurückgelegt. */
-export function pruefungModus(kiste: boolean, u: Unterwegs, rueckgabe: string | undefined): PruefungModus {
+/** Was die Prüfseite zeigt: eine ganz entnommene Kiste wird nur gegen ihre `rueckgabe` durchgezählt. */
+export function pruefungModus(u: Unterwegs, rueckgabe: string | undefined): PruefungModus {
   if (!u.ganz) return { art: "frei" };
-  if (kiste && rueckgabe === u.ganz.id) return { art: "rueckgabe", id: u.ganz.id };
+  if (rueckgabe === u.ganz.id) return { art: "rueckgabe", id: u.ganz.id };
   return { art: "unterwegs", seit: u.ganz.seit, id: u.ganz.id };
 }
