@@ -20,7 +20,7 @@ export default async function PruefungSeite({ params, searchParams }: { params: 
       <div className={s.telefon}>
         <section className={s.karte}>
           <p style={{ margin: "0 0 12px" }} role="status">
-            {g.kiste ? `Die Kiste ist unterwegs seit ${seitText(modus.seit)}. Durchzählen geht, wenn sie zurück ist.` : `Das Gerät ist unterwegs seit ${seitText(modus.seit)}.`}
+            {g.kiste ? `Die Kiste ist unterwegs seit ${seitText(modus.seit)} Durchzählen geht, wenn sie zurück ist.` : `Das Gerät ist unterwegs seit ${seitText(modus.seit)}`}
           </p>
           <Link href={g.kiste ? `/g/${g.id}/pruefung?rueckgabe=${modus.id}` : `/g/${g.id}/zuruecklegen`}>Zurücklegen</Link>
         </section>

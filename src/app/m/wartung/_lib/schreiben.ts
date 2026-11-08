@@ -178,6 +178,12 @@ export function artSpeichern(db: WartungDb, id: string | null, e: ArtEingabe, je
     const artId = id ?? neueId();
     const werte = { name: e.name, einzahl: e.einzahl, ikone: artIkone(e.ikone), stundenPflicht: e.stundenPflicht, kiste: e.kiste, aktualisiertAm: jetzt };
     if (id) {
+      // Kiste ↔ Gerät mit Material draußen: die Entnahme ließe sich danach nicht mehr zurücklegen (IDA-372).
+      const alt = tx.select({ kiste: art.kiste }).from(art).where(eq(art.id, id)).get();
+      if (alt && alt.kiste !== e.kiste && tx.select({ id: entnahme.id }).from(entnahme).innerJoin(geraet, eq(geraet.id, entnahme.geraetId))
+        .where(and(eq(geraet.artId, id), isNull(entnahme.zurueckAm))).get()) {
+        throw new Abgelehnt("Erst zurücklegen: An einem Gerät dieser Art ist noch etwas unterwegs.", "kiste");
+      }
       const r = tx.update(art).set(werte).where(eq(art.id, id)).run();
       if (r.changes === 0) throw new Abgelehnt("Diese Geräteart gibt es nicht mehr.");
     } else {
@@ -459,7 +465,7 @@ export function pruefungAbschliessen(
       throw new Abgelehnt(bekannt ? SCHON_ZURUECK : UNGUELTIG);
     }
     if (stand?.ganz && !p.rueckgabe) {
-      throw new Abgelehnt(`Die Kiste ist unterwegs seit ${TAG_MONAT.format(stand.ganz.seit)}. Durchzählen geht, wenn sie zurück ist.`);
+      throw new Abgelehnt(`Die Kiste ist unterwegs seit ${TAG_MONAT.format(stand.ganz.seit)} Durchzählen geht, wenn sie zurück ist.`);
     }
     const unterwegs = (id: string) => (p.rueckgabe ? 0 : stand?.jePosition.get(id) ?? 0);
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));

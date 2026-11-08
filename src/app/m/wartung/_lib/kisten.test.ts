@@ -285,7 +285,7 @@ describe("Durchzählen mit Unterwegs (IDA-372)", () => {
   it("ganze Kiste unterwegs sperrt das Durchzählen", () => {
     const { db, id, liste } = mitKiste();
     entnimm(db, id, true);
-    expect(() => sende(db, id, mit(liste, {}))).toThrow(/unterwegs seit \d\d\.\d\d\./);
+    expect(() => sende(db, id, mit(liste, {}))).toThrow(/unterwegs seit \d\d\.\d\d\. Durchzählen/);
   });
 
   it("zweites Telefon: schon zurückgelegte Rückgabe meldet „inzwischen zurückgelegt“, eine fremde Kennung bleibt ungültig", () => {

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { and, eq, isNull } from "drizzle-orm";
 import { eintrag, mangel } from "../_db/schema";
 import { entnehmen, ganzeSchliessen, zuruecklegen } from "./ausleihe";
-import { ladeInhalt } from "./daten";
-import { Abgelehnt, geraetAendern, geraetAktiv, geraetAnlegen, inhaltSpeichern, neueId, ungepushteAusfaelle } from "./schreiben";
+import { ladeArten, ladeInhalt } from "./daten";
+import { Abgelehnt, artSpeichern, geraetAendern, geraetAktiv, geraetAnlegen, inhaltSpeichern, neueId, ungepushteAusfaelle } from "./schreiben";
 import { START } from "./startbestand";
 import { testDb } from "./testDb";
 import { unterwegsStand } from "./unterwegs";
@@ -177,6 +177,15 @@ describe("Entnehmen und Zurücklegen (IDA-372)", () => {
     const e = stand(s).entnahmen[0];
     zuruecklegen(s.db, s.id, rueck(e.id, e.positionen[0].id, 1, 1), K);
     geraetAendern(s.db, s.id, { ...basis, gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Kiste 1" }, K.jetzt);
+  });
+
+  it("Art zur Nicht-Kiste machen mit offener Entnahme wird abgelehnt", () => {
+    const s = setup();
+    entnehmen(s.db, s.id, teil(s.patch, 1), K);
+    const a = ladeArten(s.db).find((x) => x.id === START.art.kiste)!;
+    const eingabe = { ...a, kiste: false, checkliste: a.checkliste.map((p) => ({ id: p.id, text: p.text, hinweis: p.hinweis })) };
+    expect(() => artSpeichern(s.db, a.id, eingabe, K.jetzt)).toThrow(/Erst zurücklegen/);
+    expect(ladeArten(s.db).find((x) => x.id === START.art.kiste)!.kiste).toBe(true);
   });
 
   it("Inhaltsliste: unterwegs schützt Position und Soll", () => {
