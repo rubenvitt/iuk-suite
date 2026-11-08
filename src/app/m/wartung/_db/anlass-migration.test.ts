@@ -18,9 +18,10 @@ afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 function bisVor0007(): string {
   const ziel = join(tmp, "migrations");
   cpSync(ORDNER, ziel, { recursive: true });
-  rmSync(join(ziel, "0007_anlass.sql"));
   const journal = JSON.parse(readFileSync(join(ziel, "meta/_journal.json"), "utf8")) as { entries: { tag: string }[] };
-  journal.entries = journal.entries.filter((e) => e.tag !== "0007_anlass");
+  // 0007 und alles danach: der Migrator überspringt eine Migration, die älter ist als die zuletzt angewandte.
+  for (const e of journal.entries) if (e.tag >= "0007") rmSync(join(ziel, `${e.tag}.sql`));
+  journal.entries = journal.entries.filter((e) => e.tag < "0007");
   writeFileSync(join(ziel, "meta/_journal.json"), JSON.stringify(journal));
   return ziel;
 }

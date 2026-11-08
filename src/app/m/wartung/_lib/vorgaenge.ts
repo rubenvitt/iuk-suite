@@ -19,20 +19,21 @@ import { getDb } from "../_db/client";
 import { geraet } from "../_db/schema";
 import { ladeMangel } from "./daten";
 import {
-  anlassEingabe, artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, mangelEingabe,
-  pruefartEingabe, pruefplanEingabe, pruefungEingabe, stundenEingabe, unterlageTitel, verwalterEingabe,
+  anlassEingabe, artEingabe, entnahmeEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, inhaltEingabe, mangelEingabe,
+  pruefartEingabe, pruefplanEingabe, pruefungEingabe, rueckgabeEingabe, stundenEingabe, unterlageTitel, verwalterEingabe,
 } from "./eingabe";
+import { entnehmen, zuruecklegen } from "./ausleihe";
 import { verwalterEntfernen, verwalterHinzufuegen } from "./personen";
 import { heute } from "./heute";
 import {
-  Abgelehnt, anlassVermerken, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
+  Abgelehnt, anlassVermerken, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, geraetLoeschen, gruppeLoeschen,
   gruppeSpeichern, inhaltSpeichern, mangelBeheben, mangelMelden, neueId, pruefartLoeschen, pruefartSpeichern, pruefartVerschieben,
   pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen, unterlageAnlegen,
 } from "./schreiben";
-import { entferneUnterlage, legeUnterlageAb, pruefeUnterlage, UNTERLAGE_MAX_BYTES } from "./unterlagen";
+import { entferneUnterlage, entferneUnterlagen, legeUnterlageAb, pruefeUnterlage, UNTERLAGE_MAX_BYTES } from "./unterlagen";
 import { mitFahrzeugbezug } from "./fahrzeugbezug";
 import type { Ergebnis } from "./typen";
-import { anzeigename, verwaltetGruppe, type Rechte, type Viewer } from "./zugang";
+import { anzeigename, nutzerAus, verwaltetGruppe, type Rechte, type Viewer } from "./zugang";
 
 export interface Akteur { viewer: Viewer; rechte: Rechte }
 
@@ -82,7 +83,7 @@ function eigenesGeraet(rechte: Rechte, id: string): void {
 }
 
 function kontext(viewer: Viewer) {
-  return { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer) };
+  return { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer), nutzer: nutzerAus(viewer) ?? "" };
 }
 
 // ---------------------------------------------------------------- Stufe „zugang“
@@ -93,6 +94,19 @@ export const stundenEintragenVorgang = (z: Akteur, geraetId: unknown, eingabe: u
     return { ok: false, fehler: "Bitte ganze Stunden eingeben.", feldFehler: { stunden: "Bitte ganze Stunden eingeben." } };
   }
   stundenEintragen(getDb(), geraetId as string, e.data.stunden, kontext(viewer), e.data.sendung);
+});
+
+/** Etwas aus einer Kiste mitnehmen (IDA-372) — jeder mit Modulzugang. Wer, steht aus der Anmeldung da. */
+export const entnehmenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ viewer }) => {
+  pruefeId(geraetId);
+  entnehmen(getDb(), geraetId, geprueft(entnahmeEingabe, eingabe), kontext(viewer));
+});
+
+/** Zurücklegen — auch fremde Entnahmen, damit eine Kiste nicht an einer Person hängen bleibt. */
+export const zuruecklegenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ viewer }) => {
+  pruefeId(geraetId);
+  const { weiter } = zuruecklegen(getDb(), geraetId, geprueft(rueckgabeEingabe, eingabe), kontext(viewer));
+  return { ok: true, ...(weiter ? { weiter } : {}) };
 });
 
 /** „Wird eingesetzt“ bzw. „Zurück“ (IDA-369): macht die Prüfart mit diesem Anlass fällig. */
@@ -160,6 +174,17 @@ export const geraetAktivVorgang = (z: Akteur, id: unknown, aktiv: unknown) => au
   if (typeof aktiv !== "boolean") throw new Abgelehnt(UNGUELTIG);
   eigenesGeraet(rechte, id);
   geraetAktiv(getDb(), id, aktiv, Date.now());
+});
+
+/**
+ * Eine ausgemusterte Akte ohne Verlauf endgültig löschen. Erst die Datenbank, dann die Dateien: bricht es dazwischen,
+ * bleibt höchstens eine Datei ohne Verweis liegen. Die Pfade entstehen aus den IDs der Datenbank.
+ */
+export const geraetLoeschenVorgang = (z: Akteur, id: unknown) => ausfuehren(z, async ({ rechte }) => {
+  pruefeId(id);
+  eigenesGeraet(rechte, id);
+  const { unterlagen } = geraetLoeschen(getDb(), id);
+  await entferneUnterlagen(unterlagen);
 });
 
 export const erledigtEintragenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ viewer, rechte }) => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { checkpunkt, eintrag } from "../_db/schema";
-import { ladeArten, ladeGeraet } from "./daten";
+import { ladeArten, ladeEinsatz, ladeGeraet } from "./daten";
 import { anlassVermerken, artSpeichern, erledigtEintragen, geraetAnlegen, pruefartSpeichern, pruefplanSpeichern, pruefungAbschliessen } from "./schreiben";
 import { START } from "./startbestand";
 import { ladeAmGeraet } from "./telefon";
@@ -31,7 +31,7 @@ function mitLaptop() {
     ],
   }, k().jetzt);
   const id = geraetAnlegen(db, {
-    gruppeId: START.gruppe.iuk, artId: START.art.it, name: "Laptop 1", hersteller: "", typ: "", hinweise: "",
+    gruppeId: START.gruppe.iuk, artId: START.art.it, name: "Laptop 1", hersteller: "", typ: "", hinweise: "", pruefanleitung: "",
     seriennr: "", ortArt: "lager", ort: "Lager", fahrzeugId: null, stunden: null,
   }, k().jetzt);
   const punkt = (text: string) => db.select().from(checkpunkt).where(eq(checkpunkt.text, text)).get()!.id;
@@ -77,6 +77,16 @@ describe("Prüfungen vor und nach dem Einsatz (IDA-369)", () => {
     expect(stand(db, id, vorher).stufe).toBe("ueberfaellig");
     erledigtEintragen(db, id, { pruefartId: vorher, am: "2026-11-01", stunden: null, wer: "Helfer A", notiz: "" }, k());
     expect(stand(db, id, vorher).stufe).toBe("ueberfaellig");
+  });
+
+  it("im Einsatz: seit wann und bei wem, bis es zurück ist (Abgleich mit IDA-372)", () => {
+    const { db, id } = mitLaptop();
+    expect(ladeEinsatz(db, id)).toBeNull();
+    const einsatz = k();
+    anlassVermerken(db, id, "einsatz", einsatz);
+    expect(ladeEinsatz(db, id)).toEqual({ seit: einsatz.jetzt, wer: "Helfer A" });
+    anlassVermerken(db, id, "rueckkehr", k());
+    expect(ladeEinsatz(db, id)).toBeNull();
   });
 
   it("doppelt getippt und „Zurück“ ohne Einsatz schreiben nichts", () => {

@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { DirectoryResult } from "@/core/directory";
-import { artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, mangel, pruefart, verwalter } from "../_db/schema";
-import { ladeArten, ladeGeraet, ladeKatalog, ladePruefarten } from "./daten";
+import { artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
+import { entnehmen, zuruecklegen } from "./ausleihe";
+import { unterwegsStand } from "./unterwegs";
+import { ladeArten, ladeInhalt, ladeGeraet, ladeKatalog, ladePruefarten } from "./daten";
 import {
-  Abgelehnt, artSpeichern, erledigtEintragen, geraetAnlegen, gruppeLoeschen, gruppeSpeichern, mangelBeheben, mangelMelden,
+  Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAktiv, geraetAnlegen, geraetLoeschen, gruppeLoeschen, gruppeSpeichern, mangelBeheben, mangelMelden,
   neueId, pruefartLoeschen, pruefartSpeichern, pruefplanSpeichern, pruefungAbschliessen, schonGesendet, stundenEintragen,
-  ungepushteAusfaelle,
+  ungepushteAusfaelle, unterlageAnlegen, inhaltSpeichern,
 } from "./schreiben";
 import { merkePerson, verwalterHinzufuegen } from "./personen";
 import { START } from "./startbestand";
@@ -20,7 +22,7 @@ const K = { jetzt: Date.UTC(2026, 10, 3, 10), heute: HEUTE, wer: "Helfer A" };
 function mitStromerzeuger() {
   const db = testDb();
   const id = geraetAnlegen(db, {
-    gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Stromerzeuger 8 kVA", hersteller: "", typ: "", hinweise: "",
+    gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Stromerzeuger 8 kVA", hersteller: "", typ: "", hinweise: "", pruefanleitung: "",
     seriennr: "", ortArt: "fahrzeug", ort: "GW-Technik", fahrzeugId: null, stunden: 100,
   }, K.jetzt);
   const punkte = db.select().from(checkpunkt).where(eq(checkpunkt.artId, START.art.stromerzeuger)).orderBy(checkpunkt.position).all();
@@ -28,6 +30,18 @@ function mitStromerzeuger() {
 }
 
 const alleOk = (punkte: { id: string }[]) => punkte.map((p) => ({ punktId: p.id, ok: true, text: "" }));
+
+describe("Prüfanleitung (IDA-372)", () => {
+  it("speichert die Prüfanleitung am Gerät und liest sie zurück", () => {
+    const db = testDb();
+    const id = geraetAnlegen(db, {
+      gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "X", hersteller: "", typ: "", hinweise: "",
+      seriennr: "", ortArt: "lager", ort: "Lager", fahrzeugId: null, stunden: null,
+      pruefanleitung: "Kabel auf Knicke ansehen.\nAlles zählen.",
+    }, K.jetzt);
+    expect(ladeGeraet(db, id, HEUTE)!.pruefanleitung).toBe("Kabel auf Knicke ansehen.\nAlles zählen.");
+  });
+});
 
 describe("Startbestand", () => {
   it("bringt vier Arten mit Prüfarten und Checklisten mit, dazu die Materialkisten", () => {
@@ -229,5 +243,88 @@ describe("Verwaltung", () => {
     verwalterHinzufuegen(db, neu, "sub-1", K.jetzt, OHNE_VERZEICHNIS);
     gruppeLoeschen(db, neu);
     expect(db.select().from(verwalter).all()).toEqual([]);
+  });
+});
+
+describe("Endgültig löschen (IDA-372)", () => {
+  const kiste = (db: ReturnType<typeof testDb>, artId: string = START.art.kiste) => {
+    const id = geraetAnlegen(db, {
+      gruppeId: START.gruppe.iuk, artId, name: "Kiste", hersteller: "", typ: "", hinweise: "", pruefanleitung: "",
+      seriennr: "", ortArt: "lager", ort: "Lager", fahrzeugId: null, stunden: null,
+    }, K.jetzt);
+    if (artId === START.art.kiste) inhaltSpeichern(db, id, [{ id: null, text: "Kabel", soll: 2, bemerkung: "" }]);
+    return id;
+  };
+
+  it("löscht eine ausgemusterte Akte ohne Verlauf samt Inhalt und Unterlagen", () => {
+    const db = testDb();
+    const id = kiste(db);
+    unterlageAnlegen(db, id, { id: "u-1", titel: "Plan", typ: "pdf", bytes: 10 }, K);
+    geraetAktiv(db, id, false, K.jetzt);
+    expect(geraetLoeschen(db, id)).toEqual({ unterlagen: [{ id: "u-1", typ: "pdf" }] });
+    expect(db.select().from(geraet).where(eq(geraet.id, id)).all()).toEqual([]);
+    expect(db.select().from(inhalt).where(eq(inhalt.geraetId, id)).all()).toEqual([]);
+    expect(db.select().from(unterlage).where(eq(unterlage.geraetId, id)).all()).toEqual([]);
+  });
+
+  it("aktive Akte wird abgelehnt", () => {
+    const db = testDb();
+    const id = kiste(db);
+    expect(() => geraetLoeschen(db, id)).toThrow(/Nur ausgemusterte/);
+  });
+
+  it("Akte mit Verlauf wird abgelehnt", () => {
+    const { db, id } = mitStromerzeuger();
+    stundenEintragen(db, id, 120, K);
+    geraetAktiv(db, id, false, K.jetzt);
+    expect(() => geraetLoeschen(db, id)).toThrow(/hat einen Verlauf/);
+  });
+
+  it("Akte mit offener oder geschlossener Entnahme oder mit Mangel wird abgelehnt", () => {
+    const offene = () => {
+      const db = testDb();
+      const id = kiste(db);
+      const patch = ladeInhalt(db, id)[0].id;
+      entnehmen(db, id, { sendung: neueId(), ganz: false, zweck: "", positionen: [{ inhaltId: patch, menge: 1 }] }, { ...K, nutzer: "sub-a" });
+      return { db, id, patch };
+    };
+    // offen: Ausmustern selbst ist gesperrt, also die Zeile direkt ausmustern
+    const a = offene();
+    a.db.update(geraet).set({ aktiv: false }).where(eq(geraet.id, a.id)).run();
+    expect(() => geraetLoeschen(a.db, a.id)).toThrow(/hat einen Verlauf/);
+    // geschlossen
+    const b = offene();
+    zuruecklegen(b.db, b.id, { entnahmeId: unterwegsStand(b.db, b.id).entnahmen[0].id, positionen: [{ positionId: unterwegsStand(b.db, b.id).entnahmen[0].positionen[0].id, zurueck: 1, fehlt: false, offen: 1 }] }, K);
+    b.db.delete(eintrag).where(eq(eintrag.geraetId, b.id)).run();
+    b.db.delete(mangel).where(eq(mangel.geraetId, b.id)).run();
+    geraetAktiv(b.db, b.id, false, K.jetzt);
+    expect(() => geraetLoeschen(b.db, b.id)).toThrow(/hat einen Verlauf/);
+    // Mangel
+    const c = testDb();
+    const cid = kiste(c);
+    mangelMelden(c, cid, { id: neueId(), text: "Riss", foto: false, einsatzbereit: true }, K);
+    c.delete(eintrag).where(eq(eintrag.geraetId, cid)).run();
+    geraetAktiv(c, cid, false, K.jetzt);
+    expect(() => geraetLoeschen(c, cid)).toThrow(/hat einen Verlauf/);
+  });
+
+  it("löscht auch die Prüfplan-Abweichungen", () => {
+    const db = testDb();
+    const id = kiste(db);
+    pruefplanSpeichern(db, id, [{ pruefartId: START.pruefart.quartal, an: true, eigenes: { monate: 6, stunden: null } }]);
+    expect(db.select().from(geraetPruefart).where(eq(geraetPruefart.geraetId, id)).all()).not.toEqual([]);
+    geraetAktiv(db, id, false, K.jetzt);
+    geraetLoeschen(db, id);
+    expect(db.select().from(geraetPruefart).where(eq(geraetPruefart.geraetId, id)).all()).toEqual([]);
+  });
+
+  it("danach lässt sich die Art löschen", () => {
+    const db = testDb();
+    const artId = artSpeichern(db, null, { name: "Leuchten", einzahl: "Leuchte", ikone: "fire", stundenPflicht: false, kiste: false, pruefarten: [], checkliste: [] }, K.jetzt);
+    const id = kiste(db, artId);
+    geraetAktiv(db, id, false, K.jetzt);
+    expect(() => artLoeschen(db, artId)).toThrow(Abgelehnt);
+    geraetLoeschen(db, id);
+    expect(() => artLoeschen(db, artId)).not.toThrow();
   });
 });

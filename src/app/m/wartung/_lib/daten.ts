@@ -7,11 +7,11 @@
  */
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { WartungDb } from "../_db/client";
-import { art, artPruefart, checkpunkt, checkpunktPruefart, eintrag, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage } from "../_db/schema";
+import { art, artPruefart, checkpunkt, checkpunktPruefart, eintrag, entnahme, entnahmePosition, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage } from "../_db/schema";
 import { ladeVerwalter } from "./personen";
 import { fristStand, naechsteFrist, vergleicheStaende, zustandAus, type Anlass, type Ereignis, type LetzteErledigung } from "./fristen";
 import { geltende, pruefplan, type Abweichung, type PlanPunkt, type PruefartZeile } from "./pruefplan";
-import type { ArtDTO, BekannteOrte, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, InhaltDTO, MangelDTO, PruefartDTO, UnterlageDTO } from "./typen";
+import type { ArtDTO, BekannteOrte, EintragDTO, EntnahmeDTO, FristZeile, GeraetZeile, GruppeDTO, InhaltDTO, MangelDTO, PruefartDTO, UnterlageDTO } from "./typen";
 
 type Leser = Pick<WartungDb, "select">;
 
@@ -140,6 +140,17 @@ function letzteAnlaesse(db: Leser, geraetIds: readonly string[]): Map<string, { 
   return ergebnis;
 }
 
+/** Hat das Gerät Einträge, Mängel oder Entnahmen — dann bleibt die Akte als Nachweis ausgemustert stehen. */
+export function hatVerlauf(db: Leser, geraetId: string): boolean {
+  return [eintrag, mangel, entnahme].some((t) => db.select({ id: t.id }).from(t).where(eq(t.geraetId, geraetId)).limit(1).get() !== undefined);
+}
+
+/** Ob der Knopf „Akte endgültig löschen“ erscheint: ausgemustert und ohne Verlauf. */
+export function darfEndgueltigLoeschen(db: Leser, id: string): boolean {
+  const g = db.select({ aktiv: geraet.aktiv }).from(geraet).where(eq(geraet.id, id)).get();
+  return g !== undefined && !g.aktiv && !hatVerlauf(db, id);
+}
+
 export interface GeraeteFilter {
   gruppen: readonly string[] | null;
   heute: string;
@@ -168,6 +179,8 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
   const standard = standardJeArt(db);
   const abweichungen = abweichungenJeGeraet(db, ids);
   const letzte = letzteErledigungen(db, ids);
+  const unterwegs = new Set(db.select({ g: entnahme.geraetId }).from(entnahme)
+    .where(and(inArray(entnahme.geraetId, ids), isNull(entnahme.zurueckAm))).all().map((z) => z.g));
   const anlaesse = letzteAnlaesse(db, ids);
   const offen = db.select({ g: mangel.geraetId, einsatzbereit: mangel.einsatzbereit, fehlt: mangel.fehlt, inhaltId: mangel.inhaltId }).from(mangel)
     .where(and(inArray(mangel.geraetId, ids), isNull(mangel.behobenAm))).all();
@@ -187,12 +200,13 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
     return {
       id: g.id, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr,
       gruppeId: g.gruppeId, gruppeName, artId: g.artId, artEinzahl, ikone, stundenPflicht, kiste,
-      ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise, aktiv: g.aktiv,
+      ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise, pruefanleitung: g.pruefanleitung, aktiv: g.aktiv,
       zustand: zustandAus(eigene), plan, staende, naechste: naechsteFrist(staende), offeneMaengel: eigene.length,
       imEinsatz: anlass?.zuletzt === "einsatz",
       // Nur Positionen, die noch auf der Liste stehen: ein Mangel zu einer entfernten Position bleibt offen,
       // lässt sich aber durch Durchzählen nicht mehr beheben.
       fehlend: kiste ? eigene.filter((m) => m.fehlt && m.inhaltId !== null).length : 0,
+      unterwegs: unterwegs.has(g.id),
     };
   });
 }
@@ -297,6 +311,28 @@ export function bekannteOrte(db: Pick<WartungDb, "selectDistinct">): BekannteOrt
     lager: zeilen.filter((z) => z.ortArt === "lager").map((z) => z.ort),
     fahrzeug: zeilen.filter((z) => z.ortArt === "fahrzeug").map((z) => z.ort),
   };
+}
+
+/** Die letzten Entnahmen einer Kiste, auch geschlossene (IDA-372), jüngste zuerst. */
+export function ladeEntnahmen(db: Leser, geraetId: string, grenze = 20): EntnahmeDTO[] {
+  const kopf = db.select().from(entnahme).where(eq(entnahme.geraetId, geraetId)).orderBy(desc(entnahme.entnommenAm), desc(entnahme.id)).limit(grenze).all();
+  if (kopf.length === 0) return [];
+  const pos = db.select().from(entnahmePosition).where(inArray(entnahmePosition.entnahmeId, kopf.map((e) => e.id))).all();
+  return kopf.map((e) => ({
+    id: e.id, wer: e.wer, zweck: e.zweck, ganz: e.ganz, seit: e.entnommenAm, zurueckAm: e.zurueckAm, zurueckWer: e.zurueckWer,
+    positionen: pos.filter((p) => p.entnahmeId === e.id).map((p) => `${p.menge} × ${p.text}`),
+  }));
+}
+
+/**
+ * Seit wann und bei wem ein Gerät im Einsatz ist (IDA-369): der letzte Vermerk, wenn er `einsatz` ist, sonst null.
+ * Mit Namen, also nur für die App; nicht an `GeraetZeile`, denn die gibt der MCP-Server heraus.
+ */
+export function ladeEinsatz(db: Leser, geraetId: string): { seit: number; wer: string } | null {
+  const z = db.select({ typ: eintrag.typ, seit: eintrag.angelegtAm, wer: eintrag.wer }).from(eintrag)
+    .where(and(eq(eintrag.geraetId, geraetId), inArray(eintrag.typ, ["einsatz", "rueckkehr"])))
+    .orderBy(desc(eintrag.angelegtAm)).limit(1).get();
+  return z?.typ === "einsatz" ? { seit: z.seit, wer: z.wer } : null;
 }
 
 /** Die Unterlagen eines Geräts in ihrer Reihenfolge (IDA-300). */

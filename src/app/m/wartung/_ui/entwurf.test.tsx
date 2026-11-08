@@ -19,7 +19,7 @@ import { GeraetFormular, type GeraetWerte } from "./GeraetFormular";
  * beim nächsten Öffnen wieder da; nach bestätigtem Speichern ist der Entwurf weg.
  */
 const START: GeraetWerte = {
-  gruppeId: "g1", artId: "a1", name: "", hersteller: "", typ: "", seriennr: "", ortArt: "lager", ort: "", fahrzeugId: null, stunden: null, hinweise: "",
+  gruppeId: "g1", artId: "a1", name: "", hersteller: "", typ: "", seriennr: "", ortArt: "lager", ort: "", fahrzeugId: null, stunden: null, hinweise: "", pruefanleitung: "",
 };
 
 beforeEach(() => {

@@ -41,16 +41,18 @@ export function GeraeteListe({
   const { message } = App.useApp();
   const router = useRouter();
   const [art, setArt] = useState("alle");
+  const [nurUnterwegs, setNurUnterwegs] = useState(false);
   const [anlegen, setAnlegen] = useState(false);
   const [feldFehler, setFeldFehler] = useState<Record<string, string>>({});
   const [laeuft, starte] = useTransition();
   const sperre = useRef(false);
   const href = (id: string) => (verwalter ? `/geraete/${id}` : `/g/${id}`);
-  const liste = art === "alle" ? zeilen : zeilen.filter((g) => g.artId === art);
+  const liste = zeilen.filter((g) => (art === "alle" || g.artId === art) && (!nurUnterwegs || g.unterwegs));
+  const gibtUnterwegs = zeilen.some((g) => g.unterwegs);
   const artWahl = arten.filter((a) => zeilen.some((g) => g.artId === a.id));
   const start = useMemo<GeraetWerte>(() => ({
     gruppeId: gewaehlt ?? gruppen[0]?.id ?? "", artId: arten[0]?.id ?? "", name: "", hersteller: "", typ: "", seriennr: "",
-    ortArt: "lager", ort: "", fahrzeugId: null, stunden: null, hinweise: "",
+    ortArt: "lager", ort: "", fahrzeugId: null, stunden: null, hinweise: "", pruefanleitung: "",
   }), [gewaehlt, gruppen, arten]);
 
   const speichern = (w: GeraetWerte) => {
@@ -86,7 +88,7 @@ export function GeraeteListe({
           </Button>
         ) : undefined}
       />
-      {(gruppenWahl.length > 1 || artWahl.length > 1) && (
+      {(gruppenWahl.length > 1 || artWahl.length > 1 || gibtUnterwegs) && (
         <div className={s.reihe}>
           <GruppenFilter wahl={gruppenWahl} gewaehlt={gewaehlt} />
           {artWahl.length > 1 && (
@@ -97,13 +99,21 @@ export function GeraeteListe({
               optionen={[{ label: "Alle Arten", wert: "alle" }, ...artWahl.map((a) => ({ label: a.name, wert: a.id }))]}
             />
           )}
+          {(gibtUnterwegs || nurUnterwegs) && (
+            <Filterchips<string>
+              aria-label="Unterwegs"
+              wert={nurUnterwegs ? "unterwegs" : "alle"}
+              onChange={(w) => setNurUnterwegs(w === "unterwegs")}
+              optionen={[{ label: "Alle", wert: "alle" }, { label: "Unterwegs", wert: "unterwegs" }]}
+            />
+          )}
         </div>
       )}
       <Kartentabelle<GeraetZeile>
         rowKey="id"
         aria-label="Geräte"
         dataSource={liste}
-        leer={{ nichts: "Noch keine Geräte", figur: "wartung", gefiltert: "Keine Geräte dieser Art.", aktiv: art !== "alle" }}
+        leer={{ nichts: "Noch keine Geräte", figur: "wartung", gefiltert: "Keine Geräte mit dieser Auswahl.", aktiv: art !== "alle" || nurUnterwegs }}
         karte={{ titel: "name", kennzeichen: ["zustand"] }}
         columns={[
           {

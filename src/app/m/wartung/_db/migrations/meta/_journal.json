@@ -57,6 +57,13 @@
       "when": 1793971768957,
       "tag": "0007_anlass",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794147916839,
+      "tag": "0008_ausleihe",
+      "breakpoints": true
     }
   ]
 }

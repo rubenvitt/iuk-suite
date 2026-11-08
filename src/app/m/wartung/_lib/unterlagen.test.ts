@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,12 +7,12 @@ import { Abgelehnt, geraetAktiv, geraetAendern, geraetAnlegen, neueId, unterlage
 import { START } from "./startbestand";
 import { testDb } from "./testDb";
 import { UNTERLAGEN_MAX } from "./eingabe";
-import { anzeigeKopf, dateiname, istPdf, legeUnterlageAb, leseUnterlage, pruefeUnterlage, entferneUnterlage, UNTERLAGE_MAX_BYTES } from "./unterlagen";
+import { anzeigeKopf, dateiname, istPdf, legeUnterlageAb, leseUnterlage, pruefeUnterlage, entferneUnterlage, entferneUnterlagen, UNTERLAGE_MAX_BYTES } from "./unterlagen";
 
 const K = { jetzt: Date.UTC(2026, 10, 4, 8), wer: "Verwalter Technik" };
 const BASIS = {
   gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Stromerzeuger 8 kVA", hersteller: "", typ: "",
-  seriennr: "", ortArt: "lager" as const, ort: "Lager", fahrzeugId: null, stunden: null, hinweise: "",
+  seriennr: "", ortArt: "lager" as const, ort: "Lager", fahrzeugId: null, stunden: null, hinweise: "", pruefanleitung: "",
 };
 
 function mitGeraet() {
@@ -95,5 +95,17 @@ describe("Dateien der Unterlagen", () => {
       `inline; filename="Kurzanleitung Zeltheizung.jpg"; filename*=UTF-8''Kurzanleitung%20Zeltheizung.jpg`,
     );
     expect(anzeigeKopf("Größe", "pdf")).toContain(`filename="Groe.pdf"`);
+  });
+});
+
+describe("entferneUnterlagen", () => {
+  it("ein Fehler bei einer Datei wirft nicht und die übrigen werden trotzdem entfernt", async () => {
+    const weg: string[] = [];
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const entferne = async (id: string) => { if (id === "u-1") throw new Error("EACCES"); weg.push(id); };
+    await expect(entferneUnterlagen([{ id: "u-1", typ: "pdf" }, { id: "u-2", typ: "bild" }], entferne)).resolves.toBeUndefined();
+    expect(weg).toEqual(["u-2"]);
+    expect(log).toHaveBeenCalledTimes(1);
+    log.mockRestore();
   });
 });

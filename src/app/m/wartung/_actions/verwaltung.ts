@@ -12,7 +12,7 @@ import { entferneUnterlage } from "../_lib/unterlagen";
 import type { Ergebnis, PersonVorschlag } from "../_lib/typen";
 import {
   artLoeschenVorgang, artSpeichernVorgang, ausfuehren, erledigtEintragenVorgang, geraetAendernVorgang, geraetAktivVorgang,
-  geraetAnlegenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang,
+  geraetAnlegenVorgang, geraetLoeschenVorgang, gruppeLoeschenVorgang, gruppeSpeichernVorgang, inhaltSpeichernVorgang, mangelBehebenVorgang,
   pruefartLoeschenVorgang, pruefartSpeichernVorgang, pruefartVerschiebenVorgang, pruefplanSpeichernVorgang, UNGUELTIG,
   verwalterEntfernenVorgang, verwalterHinzufuegenVorgang,
 } from "../_lib/vorgaenge";
@@ -46,6 +46,11 @@ export async function geraetAendernAction(id: string, eingabe: unknown): Promise
 /** Ausmustern (aktiv = false) und zurückholen. */
 export async function geraetAktivAction(id: string, aktiv: boolean): Promise<Ergebnis> {
   return schreibe("verwalter", (z) => geraetAktivVorgang(z, id, aktiv));
+}
+
+/** Endgültig löschen: nur ausgemusterte Akten ohne Verlauf. */
+export async function geraetLoeschenAction(id: string): Promise<Ergebnis> {
+  return schreibe("verwalter", (z) => geraetLoeschenVorgang(z, id));
 }
 
 export async function erledigtEintragenAction(geraetId: string, eingabe: unknown): Promise<Ergebnis> {

@@ -7,8 +7,11 @@
 import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
-import { art, artPruefart, checkpunkt, checkpunktPruefart, eintrag, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
-import { ladeArten, ladeGeraet, ladeKatalog, ladePruefplan, pruefartenJePunkt } from "./daten";
+import { art, artPruefart, checkpunkt, checkpunktPruefart, eintrag, entnahme, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
+import { zeitFormat } from "@/core/zeit";
+import { ganzeSchliessen, SCHON_ZURUECK } from "./ausleihe";
+import { hatOffeneEntnahme, unterwegsStand } from "./unterwegs";
+import { hatVerlauf, ladeArten, ladeGeraet, ladeKatalog, ladePruefplan, pruefartenJePunkt } from "./daten";
 import { ANLASS_NAME, type Anlass, type FristVorlage } from "./fristen";
 import { geltende, pruefplan, pruefungAmGeraet, punktGilt } from "./pruefplan";
 import {
@@ -24,13 +27,16 @@ export class Abgelehnt extends Error {
 
 export const neueId = (): string => randomUUID();
 
-interface Kontext {
+export const UNGUELTIG = "Die Angaben sind unvollständig. Bitte die Seite neu laden.";
+const TAG_MONAT = zeitFormat("de-DE", { day: "2-digit", month: "2-digit" });
+
+export interface Kontext {
   jetzt: number;
   heute: string;
   wer: string;
 }
 
-function aktivesGeraet(db: WartungSchreiber, id: string) {
+export function aktivesGeraet(db: WartungSchreiber, id: string) {
   const g = db.select().from(geraet).where(eq(geraet.id, id)).get();
   if (!g || !g.aktiv) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
   return g;
@@ -92,6 +98,10 @@ function pruefeGeltende(
   }
   if (a.kiste && selbst.length === 0) throw new Abgelehnt(`${name}: eine Materialkiste braucht eine Prüfart, die selbst durchgezählt wird.`, feld);
   if (a.kiste && gilt.some((v) => v.stunden !== null)) throw new Abgelehnt(`${name}: eine Materialkiste hat keine Betriebsstunden.`, feld);
+  // Entnehmen vermerkt `einsatz`; „vor Verwendung“ wäre an jeder Kiste unterwegs sofort überfällig (Spec 2.8, IDA-372).
+  if (a.kiste && gilt.some((v) => v.anlass === "einsatz")) {
+    throw new Abgelehnt(`${name}: eine Materialkiste hat keine Prüfung vor Verwendung – beim Entnehmen genügt ein kurzer Blick.`, feld);
+  }
   if (a.kiste) return;
   const ohne = selbst.find((v) => !a.checkliste.some((pk) => punktGilt(pk, v.id)));
   if (!ohne) return;
@@ -115,6 +125,14 @@ function pruefeRegeln(tx: WartungSchreiber): void {
   for (const g of abweichende) {
     const a = artVon.get(g.artId)!;
     pruefeGeltende(g.name, a, geltende(pruefplan(katalog, a.pruefarten, ab.filter((x) => x.geraetId === g.id))), true);
+  }
+  // Eine ganz entnommene Kiste kommt über ihre Prüfung nach Frist zurück (IDA-372); die darf ihr solange nicht fehlen.
+  const ganzWeg = tx.select({ id: geraet.id, name: geraet.name, artId: geraet.artId }).from(entnahme).innerJoin(geraet, eq(geraet.id, entnahme.geraetId))
+    .where(and(eq(entnahme.ganz, true), isNull(entnahme.zurueckAm))).all();
+  for (const g of ganzWeg) {
+    if (!geltende(ladePruefplan(tx, g)).some((v) => v.wer === "intern" && !v.anlass)) {
+      throw new Abgelehnt(`Erst zurücklegen: ${g.name} ist ganz unterwegs und kommt über ihre Prüfung nach Frist zurück.`);
+    }
   }
 }
 
@@ -208,6 +226,12 @@ export function artSpeichern(db: WartungDb, id: string | null, e: ArtEingabe, je
     const artId = id ?? neueId();
     const werte = { name: e.name, einzahl: e.einzahl, ikone: artIkone(e.ikone), stundenPflicht: e.stundenPflicht, kiste: e.kiste, aktualisiertAm: jetzt };
     if (id) {
+      // Kiste ↔ Gerät mit Material draußen: die Entnahme ließe sich danach nicht mehr zurücklegen (IDA-372).
+      const alt = tx.select({ kiste: art.kiste }).from(art).where(eq(art.id, id)).get();
+      if (alt && alt.kiste !== e.kiste && tx.select({ id: entnahme.id }).from(entnahme).innerJoin(geraet, eq(geraet.id, entnahme.geraetId))
+        .where(and(eq(geraet.artId, id), isNull(entnahme.zurueckAm))).get()) {
+        throw new Abgelehnt("Erst zurücklegen: An einem Gerät dieser Art ist noch etwas unterwegs.", "kiste");
+      }
       const r = tx.update(art).set(werte).where(eq(art.id, id)).run();
       if (r.changes === 0) throw new Abgelehnt("Diese Geräteart gibt es nicht mehr.");
     } else {
@@ -266,6 +290,9 @@ export function geraetAnlegen(db: WartungDb, e: GeraetEingabe, jetzt: number): s
 export function geraetAendern(db: WartungDb, id: string, e: GeraetEingabe, jetzt: number): void {
   if (!db.select({ id: art.id }).from(art).where(eq(art.id, e.artId)).get()) throw new Abgelehnt("Diese Geräteart gibt es nicht mehr.", "artId");
   db.transaction((tx) => {
+    // Eine andere Art würde eine offene Entnahme verwaisen lassen (Kiste ↔ Gerät kehrt den Rückweg um).
+    const alt = tx.select({ artId: geraet.artId }).from(geraet).where(eq(geraet.id, id)).get();
+    if (alt && alt.artId !== e.artId && hatOffeneEntnahme(tx, id)) throw new Abgelehnt("Erst zurücklegen: Es ist noch etwas unterwegs.", "artId");
     const r = tx.update(geraet).set({ ...e, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
     if (r.changes === 0) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
     // Eine andere Art bringt andere Prüfarten mit; die Abweichungen bleiben und müssen weiter zusammenpassen.
@@ -275,9 +302,26 @@ export function geraetAendern(db: WartungDb, id: string, e: GeraetEingabe, jetzt
 
 export function geraetAktiv(db: WartungDb, id: string, aktiv: boolean, jetzt: number): void {
   db.transaction((tx) => {
+    if (!aktiv && hatOffeneEntnahme(tx, id)) throw new Abgelehnt("Erst zurücklegen: Es ist noch etwas unterwegs.");
     tx.update(geraet).set({ aktiv, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
     // Während es ausgemustert war, können sich Katalog und Art geändert haben: sein Prüfplan muss wieder passen.
     if (aktiv) pruefeRegeln(tx);
+  });
+}
+
+/**
+ * Löscht eine ausgemusterte Akte ohne Verlauf endgültig; Inhalt, Prüfplan-Abweichungen und Unterlagen-Zeilen gehen per
+ * Cascade mit. Die Dateien der zurückgegebenen Unterlagen räumt der Aufrufer danach weg.
+ */
+export function geraetLoeschen(db: WartungDb, id: string): { unterlagen: { id: string; typ: "pdf" | "bild" }[] } {
+  return db.transaction((tx) => {
+    const g = tx.select({ aktiv: geraet.aktiv }).from(geraet).where(eq(geraet.id, id)).get();
+    if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
+    if (g.aktiv) throw new Abgelehnt("Nur ausgemusterte Akten lassen sich endgültig löschen.");
+    if (hatVerlauf(tx, id)) throw new Abgelehnt("Diese Akte hat einen Verlauf. Bitte ausgemustert lassen.");
+    const unterlagen = tx.select({ id: unterlage.id, typ: unterlage.typ }).from(unterlage).where(eq(unterlage.geraetId, id)).all();
+    tx.delete(geraet).where(eq(geraet.id, id)).run();
+    return { unterlagen };
   });
 }
 
@@ -304,6 +348,15 @@ export function inhaltSpeichern(db: WartungDb, geraetId: string, liste: InhaltEi
     }
     const bestehend = new Map(tx.select({ id: inhalt.id, text: inhalt.text }).from(inhalt).where(eq(inhalt.geraetId, geraetId)).all().map((x) => [x.id, x.text]));
     const behalten = liste.map((p) => p.id).filter((x): x is string => x !== null && bestehend.has(x));
+    // Was gerade unterwegs ist, darf weder von der Liste noch unter die Menge, die draußen ist.
+    const draussen = unterwegsStand(tx, geraetId).jePosition;
+    for (const [pid, text] of bestehend) {
+      const n = draussen.get(pid) ?? 0;
+      if (n === 0) continue;
+      const neu = liste.find((p) => p.id === pid);
+      if (!neu) throw new Abgelehnt(`${text} ist gerade unterwegs und kann nicht von der Liste.`);
+      if (neu.soll < n) throw new Abgelehnt(`${text}: Es sind gerade ${n} unterwegs.`);
+    }
     tx.delete(inhalt).where(behalten.length ? and(eq(inhalt.geraetId, geraetId), notInArray(inhalt.id, behalten)) : eq(inhalt.geraetId, geraetId)).run();
     liste.forEach((p, position) => {
       const w = { text: p.text, soll: p.soll, bemerkung: p.bemerkung, position };
@@ -467,11 +520,25 @@ export function pruefungAbschliessen(
   return db.transaction((tx) => {
     const g = aktivesGeraet(tx, geraetId);
     const a = tx.select().from(art).where(eq(art.id, g.artId)).get()!;
-    const stand = pruefungAmGeraet(ladeGeraet(tx, geraetId, k.heute)?.staende ?? [], p.pruefartId);
+    // Die Rückgabe der ganzen Kiste zählt als Prüfung nach Frist, nie als eine auf Anlass (Abgleich mit IDA-369).
+    const staende = (ladeGeraet(tx, geraetId, k.heute)?.staende ?? []).filter((f) => !p.rueckgabe || !f.vorlage.anlass);
+    const stand = pruefungAmGeraet(staende, p.pruefartId);
     if (!stand) throw new Abgelehnt(p.pruefartId ? "Diese Prüfung gilt für das Gerät nicht mehr." : "Für dieses Gerät gibt es keine Prüfung am Gerät.");
     const pruefFrist = stand.vorlage;
     const punkte = pruefpunkte(tx, g, a.kiste, pruefFrist.id);
     if (a.kiste && punkte.length === 0) throw new Abgelehnt("Die Kiste hat noch keine Inhaltsliste.");
+    // IDA-372: unterwegs ist nichts zu zählen. Eine ganz entnommene Kiste wird nur über `rueckgabe` durchgezählt,
+    // und zwar gegen den vollen Soll; sonst zählt je Position `soll − unterwegs`.
+    const weg = a.kiste ? unterwegsStand(tx, geraetId) : null;
+    if (p.rueckgabe && p.rueckgabe !== weg?.ganz?.id) {
+      // Ein zweites Telefon, das dieselbe Kiste zurücklegt, kommt zu spät, ist aber nicht ungültig.
+      const bekannt = tx.select({ id: entnahme.id }).from(entnahme).where(and(eq(entnahme.id, p.rueckgabe), eq(entnahme.geraetId, geraetId))).get();
+      throw new Abgelehnt(bekannt ? SCHON_ZURUECK : UNGUELTIG);
+    }
+    if (weg?.ganz && !p.rueckgabe) {
+      throw new Abgelehnt(`Die Kiste ist unterwegs seit ${TAG_MONAT.format(weg.ganz.seit)} Durchzählen geht, wenn sie zurück ist.`);
+    }
+    const unterwegs = (id: string) => (p.rueckgabe ? 0 : weg?.jePosition.get(id) ?? 0);
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));
     const meldung = a.kiste ? "Die Inhaltsliste hat sich geändert. Bitte neu durchzählen." : "Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.";
     if (punkte.some((pk) => !antwort.has(pk.id)) || (a.kiste && antwort.size !== punkte.length)) throw new Abgelehnt(meldung);
@@ -480,7 +547,7 @@ export function pruefungAbschliessen(
       const x = antwort.get(pk.id)!;
       return x.soll !== pk.soll || x.punkt !== pk.text || (x.hinweis ?? "") !== pk.bemerkung;
     };
-    if (a.kiste && punkte.some(anders)) throw new Abgelehnt(meldung);
+    if (a.kiste && punkte.some((pk) => anders(pk) || (antwort.get(pk.id)!.unterwegs ?? 0) !== unterwegs(pk.id))) throw new Abgelehnt(meldung);
     if (!a.kiste && a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
     pruefeStunden(p.stunden, g.stunden);
 
@@ -508,12 +575,13 @@ export function pruefungAbschliessen(
     const nochOffen = mitMangel.filter((pk) => offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
     const wiederDa = punkte.filter((pk) => antwort.get(pk.id)!.ok && offenFehlt.has(pk.id)).map((pk) => offenFehlt.get(pk.id)!);
 
-    tx.insert(eintrag).values({
-      id: p.sendung, geraetId, typ: "pruefung", pruefartId: pruefFrist.id, titel: pruefFrist.name,
+    const pruefung = {
+      id: p.sendung, geraetId, typ: "pruefung" as const, pruefartId: pruefFrist.id, titel: pruefFrist.name,
       am: k.heute, stunden: p.stunden, wer: k.wer, notiz: p.notiz, ergebnis: p.ergebnis,
       antworten: JSON.stringify(punkte.map((pk) => ({ text: pk.soll === null ? pk.text : `${pk.soll} × ${pk.text}`, ok: antwort.get(pk.id)!.ok }))),
       maengel: maengel.length, angelegtAm: k.jetzt,
-    }).run();
+    };
+    tx.insert(eintrag).values(pruefung).run();
     if (p.stunden !== null) tx.update(geraet).set({ stunden: p.stunden, aktualisiertAm: k.jetzt }).where(eq(geraet.id, geraetId)).run();
     for (const m of maengel) {
       tx.insert(mangel).values({
@@ -539,6 +607,10 @@ export function pruefungAbschliessen(
         id: neueId(), geraetId, typ: "behoben", titel: "Wieder vollständig", am: k.heute, wer: k.wer, notiz: m.text, angelegtAm: k.jetzt,
       }).run();
     }
+    // Bei einer Kiste ist „nach Benutzung“ dasselbe Durchzählen: wird sie mit der Rückkehr fällig, erfüllt diese Zählung
+    // sie mit, als eigener Eintrag; die Mängel hängen nur am ersten (Entscheidung 08.11.2026).
+    const nachBenutzung = p.rueckgabe ? ganzeSchliessen(tx, geraetId, p.rueckgabe, k) : null;
+    if (nachBenutzung) tx.insert(eintrag).values({ ...pruefung, id: neueId(), pruefartId: nachBenutzung.id, titel: nachBenutzung.name, maengel: 0 }).run();
     const genutzt = new Set(maengel.map((m) => m.id));
     return { maengel: maengel.length, ungenutzteFotos: [...fotos.values()].filter((id) => !genutzt.has(id)) };
   });
@@ -548,17 +620,24 @@ export const ANLASS_TITEL: Record<Anlass, string> = { einsatz: "Eingesetzt", rue
 
 /**
  * „Wird eingesetzt“ bzw. „Zurück“ (IDA-369): danach ist die Prüfart mit diesem Anlass fällig, bis jemand sie abhakt.
- * Steht das Gerät schon so da (doppelt getippt, zwei Telefone), geschieht nichts.
+ * Steht das Gerät schon so da (doppelt getippt, zwei Telefone), geschieht nichts. Eine Kiste geht stattdessen über
+ * Entnehmen und Zurücklegen, die denselben Vermerk schreiben (`anlassSchreiben`); so gibt es je Kiste einen Weg.
  */
 export function anlassVermerken(db: WartungDb, geraetId: string, anlass: Anlass, k: Kontext): void {
   db.transaction((tx) => {
-    aktivesGeraet(tx, geraetId);
-    const zuletzt = tx.select({ typ: eintrag.typ }).from(eintrag)
-      .where(and(eq(eintrag.geraetId, geraetId), inArray(eintrag.typ, ["einsatz", "rueckkehr"])))
-      .orderBy(sql`${eintrag.angelegtAm} DESC`).limit(1).get();
-    if (zuletzt?.typ === anlass || (!zuletzt && anlass === "rueckkehr")) return;
-    tx.insert(eintrag).values({ id: neueId(), geraetId, typ: anlass, titel: ANLASS_TITEL[anlass], am: k.heute, wer: k.wer, angelegtAm: k.jetzt }).run();
+    const g = aktivesGeraet(tx, geraetId);
+    if (tx.select({ kiste: art.kiste }).from(art).where(eq(art.id, g.artId)).get()?.kiste) throw new Abgelehnt("Kisten meldest du mit „Entnehmen“.");
+    anlassSchreiben(tx, geraetId, anlass, k);
   });
+}
+
+/** Der Vermerk selbst, in der Transaktion des Aufrufers (auch aus `ausleihe.ts`); doppelt schreibt er nichts. */
+export function anlassSchreiben(tx: WartungSchreiber, geraetId: string, anlass: Anlass, k: Kontext): void {
+  const zuletzt = tx.select({ typ: eintrag.typ }).from(eintrag)
+    .where(and(eq(eintrag.geraetId, geraetId), inArray(eintrag.typ, ["einsatz", "rueckkehr"])))
+    .orderBy(sql`${eintrag.angelegtAm} DESC`).limit(1).get();
+  if (zuletzt?.typ === anlass || (!zuletzt && anlass === "rueckkehr")) return;
+  tx.insert(eintrag).values({ id: neueId(), geraetId, typ: anlass, titel: ANLASS_TITEL[anlass], am: k.heute, wer: k.wer, angelegtAm: k.jetzt }).run();
 }
 
 export function mangelBeheben(db: WartungDb, id: string, k: Kontext): void {

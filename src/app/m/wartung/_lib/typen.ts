@@ -82,6 +82,8 @@ export interface GeraetZeile {
   stunden: number | null;
   /** Freitext für den Steckbrief am QR-Code (IDA-300). */
   hinweise: string;
+  /** Wie man das Gerät bzw. die Kiste durchgeht (IDA-372). */
+  pruefanleitung: string;
   aktiv: boolean;
   zustand: Zustand;
   /** Die Prüfarten der Art und die zusätzlichen, mit dem, was am Gerät gilt (IDA-368). */
@@ -91,8 +93,22 @@ export interface GeraetZeile {
   offeneMaengel: number;
   /** Davon beim Durchzählen als fehlend gemeldet. */
   fehlend: number;
+  /** Es ist gerade etwas aus der Kiste unterwegs (IDA-372). */
+  unterwegs: boolean;
   /** Zuletzt als eingesetzt vermerkt, noch nicht zurück (IDA-369). */
   imEinsatz: boolean;
+}
+
+/** Eine Entnahme für die Akte; `zurueckAm` null heißt: noch unterwegs. */
+export interface EntnahmeDTO {
+  id: string;
+  wer: string;
+  zweck: string;
+  ganz: boolean;
+  seit: number;
+  zurueckAm: number | null;
+  zurueckWer: string | null;
+  positionen: string[];
 }
 
 export interface EintragDTO {
@@ -141,7 +157,8 @@ export interface FristZeile {
 export type { PlanPunkt, Wer, Zustand };
 
 /** Ergebnis einer Server Action, mit Fehlern am Feld. */
-export type Ergebnis = { ok: true; id?: string } | { ok: false; fehler: string; feldFehler?: Record<string, string> };
+/** `weiter`: nach dem Zurücklegen die Prüfart „nach Benutzung“, die jetzt fällig ist (das Telefon geht dorthin). */
+export type Ergebnis = { ok: true; id?: string; weiter?: string } | { ok: false; fehler: string; feldFehler?: Record<string, string> };
 
 /** Orte, die schon vorkommen, je Art — Vorschläge im Gerät-Formular. */
 export interface BekannteOrte {

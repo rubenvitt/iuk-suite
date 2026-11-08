@@ -6,15 +6,22 @@ import { click, exists, fill, mount, query, unmount } from "@/app/m/qr/_lib/test
 
 const stunden = vi.fn();
 const inhalt = vi.fn();
+const zurueck = vi.fn();
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }));
-vi.mock("../../_actions/telefon", () => ({ stundenEintragenAction: (...a: unknown[]) => stunden(...a) }));
+vi.mock("../../_actions/telefon", () => ({
+  stundenEintragenAction: (...a: unknown[]) => stunden(...a),
+  entnehmenAction: vi.fn(),
+  zuruecklegenAction: (...a: unknown[]) => zurueck(...a),
+}));
 vi.mock("../../_actions/verwaltung", () => ({ inhaltSpeichernAction: (...a: unknown[]) => inhalt(...a) }));
 
+import { EntnehmenAmGeraet } from "./EntnehmenAmGeraet";
 import { InhaltAmGeraet } from "./InhaltAmGeraet";
 import { MangelAmGeraet } from "./MangelAmGeraet";
 import { PruefungAmGeraet } from "./PruefungAmGeraet";
 import { StundenAmGeraet } from "./StundenAmGeraet";
+import { ZuruecklegenAmGeraet } from "./ZuruecklegenAmGeraet";
 
 /**
  * IDA-358 — was am Gerät getippt ist, übersteht Neuladen und gescheitertes Absenden. „Neuladen" ist Abbau und
@@ -31,6 +38,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   stunden.mockReset();
   inhalt.mockReset();
+  zurueck.mockReset();
   push.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -152,5 +160,48 @@ describe("Inhalt am Gerät", () => {
     await click("button.ant-btn-primary");
     expect(inhalt).toHaveBeenCalledTimes(1);
     expect(ladeEntwurf(`wartung:inhalt:${G}:s1`)).toBeNull();
+  });
+});
+
+describe("Zurücklegen am Gerät", () => {
+  it("ZuruecklegenAmGeraet setzt „wieder da“ auf die offene Menge und schickt offen mit", async () => {
+    zurueck.mockResolvedValue({ ok: true });
+    const entnahme = {
+      id: "e1", wer: "Helfer A", nutzer: "sub-a", zweck: "Übung", ganz: false, seit: Date.UTC(2026, 10, 7, 10),
+      positionen: [{ id: P, inhaltId: "i1", text: "Patchkabel", menge: 3, zurueck: 1, offen: 2 }],
+    };
+    await mount(<App><ZuruecklegenAmGeraet geraetId={G} geraetName="Netzwerkkiste" anleitung="Kurz ansehen." entnahmen={[entnahme]} /></App>);
+    expect(query("main, div").textContent).toContain("Kurz ansehen.");
+    await click("button[data-rolle='zuruecklegen-senden']");
+    expect(zurueck).toHaveBeenCalledTimes(1);
+    expect(zurueck.mock.calls[0][0]).toBe(G);
+    expect(zurueck.mock.calls[0][1]).toEqual({ entnahmeId: "e1", positionen: [{ positionId: P, zurueck: 2, fehlt: false, offen: 2 }] });
+  });
+
+  it("ist danach „nach Benutzung“ fällig, geht es direkt dorthin", async () => {
+    zurueck.mockResolvedValue({ ok: true, weiter: P });
+    const entnahme = {
+      id: "e2", wer: "Helfer A", zweck: "", ganz: false, seit: Date.UTC(2026, 10, 7, 10),
+      positionen: [{ id: P, inhaltId: "i1", text: "Patchkabel", menge: 1, zurueck: 0, offen: 1 }],
+    };
+    await mount(<App><ZuruecklegenAmGeraet geraetId={G} geraetName="Netzwerkkiste" anleitung="" entnahmen={[entnahme]} /></App>);
+    await click("button[data-rolle='zuruecklegen-senden']");
+    expect(push).toHaveBeenCalledWith(`/g/${G}/pruefung?art=${P}`);
+  });
+});
+
+describe("Entnehmen am Gerät", () => {
+  const entnehmen = (ganzMoeglich: boolean) => mount(
+    <App><EntnehmenAmGeraet geraetId={G} geraetName="Netzwerkkiste" positionen={[{ id: P, text: "Patchkabel", soll: 2, frei: 2 }]} etwasUnterwegs={false} ganzMoeglich={ganzMoeglich} /></App>,
+  );
+  it("ohne Prüfung nach Frist ist „Ganze Kiste mitnehmen“ gesperrt und sagt warum", async () => {
+    await entnehmen(false);
+    expect(query<HTMLButtonElement>("button[data-rolle='ganz-mitnehmen']").disabled).toBe(true);
+    expect(exists("[data-rolle='ganz-hinweis']")).toBe(true);
+  });
+  it("mit Prüfung nach Frist geht es, ohne Hinweis", async () => {
+    await entnehmen(true);
+    expect(query<HTMLButtonElement>("button[data-rolle='ganz-mitnehmen']").disabled).toBe(false);
+    expect(exists("[data-rolle='ganz-hinweis']")).toBe(false);
   });
 });

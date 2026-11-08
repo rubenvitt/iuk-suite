@@ -14,7 +14,7 @@ const BESTAND = [
 ];
 const basis: GeraetEingabe = {
   gruppeId: "g", artId: "a", name: "Stromerzeuger", hersteller: "", typ: "", seriennr: "",
-  ortArt: "fahrzeug", ort: "", fahrzeugId: null, stunden: null, hinweise: "",
+  ortArt: "fahrzeug", ort: "", fahrzeugId: null, stunden: null, hinweise: "", pruefanleitung: "",
 };
 
 describe("Fahrzeugwahl der Gerätewartung (IDA-342)", () => {

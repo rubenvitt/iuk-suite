@@ -22,7 +22,9 @@ import { bauServer } from "@/app/m/mcp/_lib/server";
 import type { McpPerson } from "@/app/m/mcp/_lib/token";
 import { eq } from "drizzle-orm";
 import { eintrag, geraet, mangel, unterlage, verwalter } from "../_db/schema";
-import { geraetAnlegen, inhaltSpeichern } from "../_lib/schreiben";
+import { entnehmen } from "../_lib/ausleihe";
+import { ladeInhalt } from "../_lib/daten";
+import { geraetAktiv, geraetAnlegen, inhaltSpeichern, neueId } from "../_lib/schreiben";
 import { merkePerson, verwalterHinzufuegen } from "../_lib/personen";
 import { START } from "../_lib/startbestand";
 import { testDb } from "../_lib/testDb";
@@ -58,7 +60,7 @@ beforeEach(() => {
   t.verweigert = 0;
   merkePerson(t.db, "sub-technik", "Verwalter Technik");
   verwalterHinzufuegen(t.db, START.gruppe.technik, "sub-technik", 1, OHNE_VERZEICHNIS);
-  const basis = { hersteller: "", typ: "", seriennr: "", hinweise: "", ortArt: "lager" as const, ort: "Halle", fahrzeugId: null };
+  const basis = { hersteller: "", typ: "", seriennr: "", hinweise: "", pruefanleitung: "", ortArt: "lager" as const, ort: "Halle", fahrzeugId: null };
   stromerzeuger = geraetAnlegen(t.db, { ...basis, gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Stromerzeuger 8 kVA", stunden: 100 }, 1);
   akkuIuk = geraetAnlegen(t.db, { ...basis, gruppeId: START.gruppe.iuk, artId: START.art.stromerzeuger, name: "Stromerzeuger I&K", stunden: 5 }, 1);
 });
@@ -171,7 +173,7 @@ describe("dieselben Grenzen wie in der App", () => {
 
   it("eine Materialkiste: ein veralteter Stand der Inhaltsliste wird abgelehnt, beim Pflegen wie beim Durchzählen", async () => {
     const kiste = geraetAnlegen(t.db, {
-      hersteller: "", typ: "", seriennr: "", hinweise: "", ortArt: "lager", ort: "Halle", fahrzeugId: null, stunden: null,
+      hersteller: "", typ: "", seriennr: "", hinweise: "", pruefanleitung: "", ortArt: "lager", ort: "Halle", fahrzeugId: null, stunden: null,
       gruppeId: START.gruppe.technik, artId: START.art.kiste, name: "Kiste Beleuchtung",
     }, 1);
     inhaltSpeichern(t.db, kiste, [{ id: null, text: "Kabeltrommel", soll: 2, bemerkung: "" }]);
@@ -254,6 +256,54 @@ describe("dieselben Grenzen wie in der App", () => {
     const weg = await rufe("wartung_pruefart_loeschen", { pruefart_id: START.pruefart.quartal });
     expect(weg.isError).toBe(true);
     expect(JSON.stringify(weg.content)).toMatch(/Erst die Punkte dieser Prüfart/);
+  });
+});
+
+describe("Ausleihe, Prüfanleitung und Löschen (IDA-372)", () => {
+  const basis = { hersteller: "", typ: "", seriennr: "", hinweise: "", pruefanleitung: "", ortArt: "lager" as const, ort: "Halle", fahrzeugId: null, stunden: null };
+
+  it("wartung_geraet liefert unterwegs ohne Namen", async () => {
+    const kiste = geraetAnlegen(t.db, { ...basis, gruppeId: START.gruppe.technik, artId: START.art.kiste, name: "Kiste Kabel" }, 1);
+    inhaltSpeichern(t.db, kiste, [{ id: null, text: "Kabeltrommel", soll: 4, bemerkung: "" }]);
+    const pos = ladeInhalt(t.db, kiste)[0].id;
+    entnehmen(t.db, kiste, { sendung: neueId(), ganz: false, zweck: "Übung Nord", positionen: [{ inhaltId: pos, menge: 2 }] },
+      { jetzt: Date.UTC(2026, 10, 8, 10), heute: "2026-11-08", wer: "Helfer A", nutzer: "sub-helfer" });
+    for (const p of [NUTZER, VERWALTER]) {
+      const { rufe } = await verbinde(p);
+      const r = await rufe("wartung_geraet", { geraet_id: kiste });
+      const a = json<{ unterwegs: { ganz: boolean; seit: string; zweck: string; positionen: { inhalt_id: string; text: string; offen: number }[] }[]; checkliste: { unterwegs: number }[]; alle_punkte: { unterwegs: number }[] }>(r);
+      expect(a.unterwegs).toEqual([{ ganz: false, seit: "2026-11-08", zweck: "Übung Nord", positionen: [{ inhalt_id: pos, text: "Kabeltrommel", offen: 2 }] }]);
+      expect(a.checkliste[0].unterwegs).toBe(2);
+      expect(a.alle_punkte[0].unterwegs).toBe(2);
+      for (const verboten of ["Helfer A", "sub-helfer"]) expect(text(r)).not.toContain(verboten);
+      expect(json<{ id: string; unterwegs: boolean }[]>(await rufe("wartung_geraete")).find((g) => g.id === kiste)?.unterwegs).toBe(true);
+    }
+  });
+
+  it("wartung_geraet_aendern setzt die Prüfanleitung, ohne Angabe bleibt sie", async () => {
+    const { rufe } = await verbinde(VERWALTER);
+    await rufe("wartung_geraet_aendern", { geraet_id: stromerzeuger, pruefanleitung: "Erst Öl prüfen" });
+    await rufe("wartung_geraet_aendern", { geraet_id: stromerzeuger, ort: "GW" });
+    expect(t.db.select().from(geraet).where(eq(geraet.id, stromerzeuger)).get()?.pruefanleitung).toBe("Erst Öl prüfen");
+    expect(json<{ geraet: { pruefanleitung: string } }>(await rufe("wartung_geraet", { geraet_id: stromerzeuger })).geraet.pruefanleitung).toBe("Erst Öl prüfen");
+    await rufe("wartung_geraet_anlegen", { gruppe_id: START.gruppe.technik, art_id: START.art.stromerzeuger, name: "Neu", ort_art: "lager", ort: "H", pruefanleitung: "Hinweis" });
+    expect(t.db.select().from(geraet).where(eq(geraet.name, "Neu")).get()?.pruefanleitung).toBe("Hinweis");
+  });
+
+  it("wartung_geraet_loeschen löscht eine unbenutzte ausgemusterte Akte", async () => {
+    const { rufe } = await verbinde(VERWALTER);
+    geraetAktiv(t.db, stromerzeuger, false, 1);
+    expect((await rufe("wartung_geraet_loeschen", { geraet_id: stromerzeuger })).isError).toBeFalsy();
+    expect(t.db.select().from(geraet).where(eq(geraet.id, stromerzeuger)).all()).toEqual([]);
+    expect((await verbinde(NUTZER)).namen).not.toContain("wartung_geraet_loeschen");
+  });
+
+  it("wartung_geraet_loeschen lehnt eine Akte mit Verlauf ab", async () => {
+    const { rufe } = await verbinde(VERWALTER);
+    await rufe("wartung_stunden_eintragen", { geraet_id: stromerzeuger, stunden: 120 });
+    geraetAktiv(t.db, stromerzeuger, false, 1);
+    expect((await rufe("wartung_geraet_loeschen", { geraet_id: stromerzeuger })).isError).toBe(true);
+    expect(t.db.select().from(geraet).where(eq(geraet.id, stromerzeuger)).all().length).toBe(1);
   });
 });
 
