@@ -64,6 +64,8 @@ export interface PlanHelfer {
   demo: boolean;
   telefon?: string;
   organisation?: string;
+  /** Kennung in HiOrg-Server (nur Stammhelfer aus HiOrg) — für das Austauschblatt an Lifeline Hub (IDA-365). */
+  hiorgId?: string;
 }
 
 /** Ein Fahrzeug aus den Stammdaten, wie die Auswahl es braucht. */

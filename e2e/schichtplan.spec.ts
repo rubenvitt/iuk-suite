@@ -1,4 +1,6 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { blattnamen, blattZellen } from "../src/core/export/test-mappe";
 import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte } from "./fixtures";
 
 /**
@@ -109,7 +111,17 @@ test("planen: anlegen, aufziehen, verschieben, Helfer ziehen, prüfen, Excel", a
   await page.getByRole("tab", { name: "Ausgabe" }).click();
   const laden = page.waitForEvent("download");
   await page.getByRole("button", { name: "Excel herunterladen" }).click();
-  expect((await laden).suggestedFilename()).toMatch(/^schichtplan-testfest-\d+-2030-11-14\.xlsx$/);
+  const datei = await laden;
+  expect(datei.suggestedFilename()).toMatch(/^schichtplan-testfest-\d+-2030-11-14\.xlsx$/);
+
+  // Das Blatt „Austausch“ für Lifeline Hub (IDA-365) aus dem Browser-Weg: Zeile je Person und Schicht.
+  const bytes = new Uint8Array(await readFile((await datei.path())!));
+  expect(blattnamen(bytes)).toEqual(["Planung", "Je Abschnitt", "Je Helfer", "Konflikte", "Austausch"]);
+  const austausch = blattZellen(bytes, 4);
+  expect(austausch[0].slice(0, 5)).toEqual(["Posten", "Abschnitt", "Posten-Art", "Beginn", "Ende"]);
+  const erika = austausch.find((z) => z[7] === "Beispiel" && z[8] === "Erika")!;
+  expect(erika[3]).toMatch(/^2030-11-14T\d{2}:\d{2}\+01:00$/);
+  expect(erika[13]).toBe("IuK-Suite temporär");
 });
 
 test("ohne Gruppe 403, ohne Admin-Gruppe kein Löschen", async ({ page, browser }) => {

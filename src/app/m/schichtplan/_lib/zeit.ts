@@ -58,6 +58,20 @@ export function zeitspanne(von: number, bis: number, mitTag = false): string {
   return `${kurzTag(von)} ${uhrzeit(von)} – ${kurzTag(bis)} ${uhrzeit(bis)}`;
 }
 
+/**
+ * `2027-06-26T14:00+02:00`: Wanduhr der Suite-Zone mit ihrem Versatz, minutengenau. Für das
+ * Austauschblatt an Lifeline Hub (IDA-365) — eine Zeit mit Versatz liest es, wie sie ist, ohne
+ * Rücksicht auf die Zone des Einsatzes. Die doppelte Herbststunde bleibt so eindeutig.
+ */
+export function isoMitVersatz(ms: number): string {
+  const minute = Math.floor(ms / MINUTE) * MINUTE;
+  const w = wanduhr(minute);
+  const versatz = Math.round((Date.UTC(w.jahr, w.monat - 1, w.tag, w.stunde, w.minute) - minute) / MINUTE);
+  const zwei = (n: number) => String(n).padStart(2, "0");
+  const betrag = Math.abs(versatz);
+  return `${w.jahr}-${zwei(w.monat)}-${zwei(w.tag)}T${zwei(w.stunde)}:${zwei(w.minute)}${versatz < 0 ? "-" : "+"}${zwei(Math.floor(betrag / 60))}:${zwei(betrag % 60)}`;
+}
+
 /** Rundet auf das Raster der Planung (`RASTER_MIN`). */
 export function rasten(ms: number, raster = RASTER_MIN): number {
   const schritt = raster * MINUTE;

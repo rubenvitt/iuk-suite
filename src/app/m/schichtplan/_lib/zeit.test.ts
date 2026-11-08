@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { setzeAktiveZeitzone, STANDARD_ZEITZONE } from "@/core/zeit";
-import { ausWanduhr, rasten, stunden, wanduhr, zeitspanne } from "./zeit";
+import { ausWanduhr, isoMitVersatz, rasten, stunden, wanduhr, zeitspanne } from "./zeit";
 
 afterEach(() => setzeAktiveZeitzone(STANDARD_ZEITZONE));
 
@@ -21,6 +21,18 @@ describe("Zeiten in der Suite-Zone", () => {
     expect(iso(8, 0, 25, 10)).toBe("2026-10-25T07:00:00.000Z");
     expect(iso(2, 30, 25, 10)).toBe("2026-10-25T00:30:00.000Z"); // doppelt: das erste Vorkommen
     expect(iso(0, 0, 25, 10)).toBe("2026-10-24T22:00:00.000Z");
+  });
+
+  it("ISO mit Versatz der Suite-Zone, auch in der doppelten Herbststunde", () => {
+    setzeAktiveZeitzone("Europe/Berlin");
+    expect(isoMitVersatz(Date.UTC(2027, 5, 26, 12))).toBe("2027-06-26T14:00+02:00");
+    expect(isoMitVersatz(Date.UTC(2026, 10, 14, 7, 5, 30))).toBe("2026-11-14T08:05+01:00");
+    expect(isoMitVersatz(Date.UTC(2026, 9, 25, 0, 30))).toBe("2026-10-25T02:30+02:00");
+    expect(isoMitVersatz(Date.UTC(2026, 9, 25, 1, 30))).toBe("2026-10-25T02:30+01:00");
+    setzeAktiveZeitzone("America/St_Johns");
+    expect(isoMitVersatz(Date.UTC(2026, 10, 14, 12))).toBe("2026-11-14T08:30-03:30");
+    setzeAktiveZeitzone("UTC");
+    expect(isoMitVersatz(Date.UTC(2026, 10, 14, 12))).toBe("2026-11-14T12:00+00:00");
   });
 
   it("eine andere Suite-Zone verschiebt die Wanduhr", () => {
