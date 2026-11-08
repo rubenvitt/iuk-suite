@@ -178,7 +178,6 @@ export function Formular({ entwurf: e, paket, umsysteme, umsystemFehler, bearbei
           <div className="stapel stapel-16">
             <Feld
               label="Stichwort, Freitext"
-              hilfe="Antippen übernimmt ein Stichwort aus der Liste; du kannst es hier ergänzen oder ein eigenes schreiben."
               wert={e.stichwort}
               beiAenderung={setze("stichwort")}
               placeholder="z. B. RD 1 – Sturz im Treppenhaus"
