@@ -9,7 +9,7 @@ export default async function ZuruecklegenSeite({ params }: { params: Promise<{ 
   // Die ganze Kiste kommt übers Durchzählen zurück; ohne offene Entnahme gibt es nichts zurückzulegen.
   if (g.kiste && unterwegs.ganz) redirect(`/g/${g.id}/pruefung?rueckgabe=${unterwegs.ganz.id}`);
   if (unterwegs.entnahmen.length === 0) redirect(`/g/${g.id}`);
-  return <ZuruecklegenAmGeraet geraetId={g.id} geraetName={g.name} kiste={g.kiste} anleitung={g.pruefanleitung} entnahmen={unterwegs.entnahmen} />;
+  return <ZuruecklegenAmGeraet geraetId={g.id} geraetName={g.name} kiste={g.kiste} anleitung={g.pruefanleitung} entnahmen={unterwegs.entnahmen.map(({ id, wer, zweck, ganz, seit, positionen }) => ({ id, wer, zweck, ganz, seit, positionen }))} />;
 }
 
 export const metadata = { title: "Zurücklegen" };

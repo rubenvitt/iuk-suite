@@ -3,7 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { eintrag, mangel } from "../_db/schema";
 import { entnehmen, ganzeSchliessen, zuruecklegen } from "./ausleihe";
 import { ladeInhalt } from "./daten";
-import { Abgelehnt, geraetAktiv, geraetAnlegen, inhaltSpeichern, neueId, ungepushteAusfaelle } from "./schreiben";
+import { Abgelehnt, geraetAendern, geraetAktiv, geraetAnlegen, inhaltSpeichern, neueId, ungepushteAusfaelle } from "./schreiben";
 import { START } from "./startbestand";
 import { testDb } from "./testDb";
 import { unterwegsStand } from "./unterwegs";
@@ -168,6 +168,15 @@ describe("Entnehmen und Zurücklegen (IDA-372)", () => {
     const s = setup();
     entnehmen(s.db, s.id, teil(s.patch, 1), K);
     expect(() => geraetAktiv(s.db, s.id, false, K.jetzt)).toThrow(/Erst zurücklegen/);
+  });
+
+  it("Art ändern mit offener Entnahme wird abgelehnt", () => {
+    const s = setup();
+    entnehmen(s.db, s.id, teil(s.patch, 1), K);
+    expect(() => geraetAendern(s.db, s.id, { ...basis, gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Kiste 1" }, K.jetzt)).toThrow(/Erst zurücklegen/);
+    const e = stand(s).entnahmen[0];
+    zuruecklegen(s.db, s.id, rueck(e.id, e.positionen[0].id, 1, 1), K);
+    geraetAendern(s.db, s.id, { ...basis, gruppeId: START.gruppe.technik, artId: START.art.stromerzeuger, name: "Kiste 1" }, K.jetzt);
   });
 
   it("Inhaltsliste: unterwegs schützt Position und Soll", () => {

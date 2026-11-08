@@ -176,4 +176,16 @@ describe("Zurücklegen am Gerät", () => {
     expect(zurueck.mock.calls[0][0]).toBe(G);
     expect(zurueck.mock.calls[0][1]).toEqual({ entnahmeId: "e1", positionen: [{ positionId: P, zurueck: 2, fehlt: false, offen: 2 }] });
   });
+
+  it("Gerät: „Mangel melden“ schließt erst die Entnahme und geht dann zur Meldung", async () => {
+    zurueck.mockResolvedValue({ ok: true });
+    const entnahme = {
+      id: "e2", wer: "Helfer A", zweck: "", ganz: true, seit: Date.UTC(2026, 10, 7, 10), positionen: [],
+    };
+    await mount(<App><ZuruecklegenAmGeraet geraetId={G} geraetName="Stromerzeuger" kiste={false} anleitung="" entnahmen={[entnahme]} /></App>);
+    await click("button[data-rolle='zuruecklegen-mangel']");
+    expect(zurueck).toHaveBeenCalledTimes(1);
+    expect(zurueck.mock.calls[0][1]).toEqual({ entnahmeId: "e2", positionen: [] });
+    expect(push).toHaveBeenCalledWith(`/g/${G}/mangel`);
+  });
 });

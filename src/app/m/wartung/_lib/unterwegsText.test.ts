@@ -15,23 +15,26 @@ const stand = (entnahmen: OffeneEntnahme[]): Unterwegs => ({ ganz: entnahmen.fin
 
 describe("unterwegsText", () => {
   it("zeigt Teile mit Name und Zweck", () => {
-    expect(unterwegsText(stand([teil]), true)).toBe("Unterwegs: 2 × Patchkabel 10 m, 1 × Blitzschutz – seit 07.11., Übung Stadtfest, Helfer A");
+    expect(unterwegsText(stand([teil]), true, true)).toBe("Unterwegs: 2 × Patchkabel 10 m, 1 × Blitzschutz – seit 07.11., Übung Stadtfest, Helfer A");
   });
   it("ganze Kiste", () => {
-    expect(unterwegsText(stand([{ ...teil, ganz: true }]), true)).toBe("Ganze Kiste unterwegs – seit 07.11., Übung Stadtfest, Helfer A");
+    expect(unterwegsText(stand([{ ...teil, ganz: true }]), true, true)).toBe("Ganze Kiste unterwegs – seit 07.11., Übung Stadtfest, Helfer A");
+  });
+  it("ganzes Gerät ohne Kiste", () => {
+    expect(unterwegsText(stand([{ ...teil, ganz: true }]), true, false)).toBe("Gerät unterwegs – seit 07.11., Übung Stadtfest, Helfer A");
   });
   it("mehrere Entnahmen mit · getrennt", () => {
-    const t = unterwegsText(stand([teil, { ...teil, id: "e2", zweck: "", wer: "B" }]), true);
+    const t = unterwegsText(stand([teil, { ...teil, id: "e2", zweck: "", wer: "B" }]), true, true);
     expect(t?.split(" · ")).toHaveLength(2);
     expect(t).toContain("seit 07.11., B");
   });
   it("ohne Anmeldung ohne Name und Zweck", () => {
-    const t = unterwegsText(stand([teil]), false);
+    const t = unterwegsText(stand([teil]), false, true);
     expect(t).toBe("Unterwegs: 2 × Patchkabel 10 m, 1 × Blitzschutz – seit 07.11.");
     expect(t).not.toContain("Helfer A");
     expect(t).not.toContain("Stadtfest");
   });
   it("nichts unterwegs → null", () => {
-    expect(unterwegsText(stand([]), true)).toBeNull();
+    expect(unterwegsText(stand([]), true, true)).toBeNull();
   });
 });

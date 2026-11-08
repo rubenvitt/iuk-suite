@@ -288,6 +288,14 @@ describe("Durchzählen mit Unterwegs (IDA-372)", () => {
     expect(() => sende(db, id, mit(liste, {}))).toThrow(/unterwegs seit \d\d\.\d\d\./);
   });
 
+  it("zweites Telefon: schon zurückgelegte Rückgabe meldet „inzwischen zurückgelegt“, eine fremde Kennung bleibt ungültig", () => {
+    const { db, id, liste } = mitKiste();
+    const ent = entnimm(db, id, true);
+    sende(db, id, mit(liste, {}), ent);
+    expect(() => sende(db, id, mit(liste, {}), ent)).toThrow(/schon zurückgelegt/);
+    expect(() => sende(db, id, mit(liste, {}), neueId())).toThrow(/unvollständig/);
+  });
+
   it("Rückgabe der ganzen Kiste zählt als Prüfung", () => {
     const { db, id, liste } = mitKiste();
     const ent = entnimm(db, id, true);

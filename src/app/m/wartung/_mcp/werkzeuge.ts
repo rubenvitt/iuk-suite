@@ -324,7 +324,7 @@ export const wartungMcp: McpModul = {
       title: "Ausgemusterte Akte löschen",
       description: "Löscht eine ausgemusterte Akte ohne Verlauf endgültig, samt Inhalt und Unterlagen. Mit Verlauf bleibt sie ausgemustert.",
       inputSchema: { geraet_id: geraetId },
-      annotations: SCHREIBEN,
+      annotations: ENTFERNEN,
     }, ({ geraet_id }) => mit("verwalter", async (z) => ergebnis(await geraetLoeschenVorgang(z, geraet_id))));
 
     server.registerTool("wartung_erledigt_eintragen", {

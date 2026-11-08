@@ -47,3 +47,15 @@ export function unterwegsStand(db: Pick<WartungDb, "select">, geraetId: string):
 export function hatOffeneEntnahme(db: Pick<WartungDb, "select">, geraetId: string): boolean {
   return db.select({ id: entnahme.id }).from(entnahme).where(and(eq(entnahme.geraetId, geraetId), isNull(entnahme.zurueckAm))).limit(1).get() !== undefined;
 }
+
+export type PruefungModus =
+  | { art: "frei" }
+  | { art: "rueckgabe"; id: string }
+  | { art: "unterwegs"; seit: number; id: string };
+
+/** Was die Prüfseite zeigt: nur eine Kiste wird gegen `rueckgabe` durchgezählt; ein ganz entnommenes Gerät wird zurückgelegt. */
+export function pruefungModus(kiste: boolean, u: Unterwegs, rueckgabe: string | undefined): PruefungModus {
+  if (!u.ganz) return { art: "frei" };
+  if (kiste && rueckgabe === u.ganz.id) return { art: "rueckgabe", id: u.ganz.id };
+  return { art: "unterwegs", seit: u.ganz.seit, id: u.ganz.id };
+}

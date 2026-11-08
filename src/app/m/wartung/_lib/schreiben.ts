@@ -7,9 +7,9 @@
 import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
-import { art, artPruefart, checkpunkt, eintrag, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
+import { art, artPruefart, checkpunkt, eintrag, entnahme, geraet, geraetPruefart, gruppe, inhalt, mangel, pruefart, unterlage, verwalter } from "../_db/schema";
 import { zeitFormat } from "@/core/zeit";
-import { ganzeSchliessen } from "./ausleihe";
+import { ganzeSchliessen, SCHON_ZURUECK } from "./ausleihe";
 import { hatOffeneEntnahme, unterwegsStand } from "./unterwegs";
 import { hatVerlauf, ladeArten, ladeKatalog, ladePruefplan } from "./daten";
 import { geltende, pruefplan, selbstPruefung } from "./pruefplan";
@@ -223,6 +223,9 @@ export function geraetAnlegen(db: WartungDb, e: GeraetEingabe, jetzt: number): s
 export function geraetAendern(db: WartungDb, id: string, e: GeraetEingabe, jetzt: number): void {
   if (!db.select({ id: art.id }).from(art).where(eq(art.id, e.artId)).get()) throw new Abgelehnt("Diese Geräteart gibt es nicht mehr.", "artId");
   db.transaction((tx) => {
+    // Eine andere Art würde eine offene Entnahme verwaisen lassen (Kiste ↔ Gerät kehrt den Rückweg um).
+    const alt = tx.select({ artId: geraet.artId }).from(geraet).where(eq(geraet.id, id)).get();
+    if (alt && alt.artId !== e.artId && hatOffeneEntnahme(tx, id)) throw new Abgelehnt("Erst zurücklegen: Es ist noch etwas unterwegs.", "artId");
     const r = tx.update(geraet).set({ ...e, aktualisiertAm: jetzt }).where(eq(geraet.id, id)).run();
     if (r.changes === 0) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
     // Eine andere Art bringt andere Prüfarten mit; die Abweichungen bleiben und müssen weiter zusammenpassen.
@@ -450,7 +453,11 @@ export function pruefungAbschliessen(
     // IDA-372: unterwegs ist nichts zu zählen. Eine ganz entnommene Kiste wird nur über `rueckgabe` durchgezählt,
     // und zwar gegen den vollen Soll; sonst zählt je Position `soll − unterwegs`.
     const stand = a.kiste ? unterwegsStand(tx, geraetId) : null;
-    if (p.rueckgabe && p.rueckgabe !== stand?.ganz?.id) throw new Abgelehnt(UNGUELTIG);
+    if (p.rueckgabe && p.rueckgabe !== stand?.ganz?.id) {
+      // Ein zweites Telefon, das dieselbe Kiste zurücklegt, kommt zu spät, ist aber nicht ungültig.
+      const bekannt = tx.select({ id: entnahme.id }).from(entnahme).where(and(eq(entnahme.id, p.rueckgabe), eq(entnahme.geraetId, geraetId))).get();
+      throw new Abgelehnt(bekannt ? SCHON_ZURUECK : UNGUELTIG);
+    }
     if (stand?.ganz && !p.rueckgabe) {
       throw new Abgelehnt(`Die Kiste ist unterwegs seit ${TAG_MONAT.format(stand.ganz.seit)}. Durchzählen geht, wenn sie zurück ist.`);
     }

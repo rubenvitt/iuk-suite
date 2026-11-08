@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { App, Button, InputNumber } from "antd";
@@ -8,11 +8,13 @@ import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { zuruecklegenAction } from "../../_actions/telefon";
-import type { OffeneEntnahme } from "../../_lib/unterwegs";
+import type { OffeneEntnahme as Offene } from "../../_lib/unterwegs";
 import { seitText } from "../../_lib/unterwegsText";
 import { Kicker } from "../teile";
 import s from "../wartung.module.css";
 
+/** Ohne `nutzer`: die Kennung des Anmelders gehört nicht ins Telefon. */
+type OffeneEntnahme = Omit<Offene, "nutzer">;
 type Stand = { zurueck: Record<string, number>; fehlt: Record<string, boolean> };
 
 /**
@@ -26,6 +28,8 @@ function EineEntnahme({ geraetId, e, kiste }: { geraetId: string; e: OffeneEntna
   const offene = e.positionen.filter((p) => p.offen > 0);
   const [stand, setStand] = useState<Stand>({ zurueck: {}, fehlt: {} });
   const [fehler, setFehler] = useState<string | null>(null);
+  // Bei einem Gerät schließt auch „Mangel melden“ die Entnahme, bevor es zur Meldung weitergeht.
+  const zumMangel = useRef(false);
   const zurueckVon = (id: string, offen: number) => stand.zurueck[id] ?? offen;
 
   const entwurf = useEntwurf<Stand, unknown, Awaited<ReturnType<typeof zuruecklegenAction>>>({
@@ -46,7 +50,7 @@ function EineEntnahme({ geraetId, e, kiste }: { geraetId: string; e: OffeneEntna
         return false;
       }
       message.success("Zurückgelegt.");
-      router.push(`/g/${geraetId}`);
+      router.push(zumMangel.current ? `/g/${geraetId}/mangel` : `/g/${geraetId}`);
       return true;
     },
   });
@@ -93,10 +97,18 @@ function EineEntnahme({ geraetId, e, kiste }: { geraetId: string; e: OffeneEntna
       {fehler && <div className={`${s.neben} ${s.klein}`} style={{ margin: "8px 0" }} role="alert">{fehler}</div>}
       <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
       <div className={s.knopfstapel} style={{ marginTop: 12 }}>
-        <Button type="primary" block loading={laeuft} onClick={() => { if (!laeuft) { setFehler(null); entwurf.sende(null); } }} data-rolle="zuruecklegen-senden">
+        <Button type="primary" block loading={laeuft} onClick={() => { if (!laeuft) { setFehler(null); zumMangel.current = false; entwurf.sende(null); } }} data-rolle="zuruecklegen-senden">
           {kiste ? "Zurücklegen" : "In Ordnung"}
         </Button>
-        <Button block href={`/g/${geraetId}/mangel`} icon={<Icons8Ikone name="warning" groesse={20} />}>Mangel melden</Button>
+        <Button
+          block
+          href={kiste ? `/g/${geraetId}/mangel` : undefined}
+          onClick={kiste ? undefined : () => { if (!laeuft) { setFehler(null); zumMangel.current = true; entwurf.sende(null); } }}
+          icon={<Icons8Ikone name="warning" groesse={20} />}
+          data-rolle="zuruecklegen-mangel"
+        >
+          Mangel melden
+        </Button>
       </div>
     </section>
   );

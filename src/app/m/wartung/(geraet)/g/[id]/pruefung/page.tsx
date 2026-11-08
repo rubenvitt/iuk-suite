@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { pruefungModus } from "../../../../_lib/unterwegs";
 import { seitText } from "../../../../_lib/unterwegsText";
 import s from "../../../../_ui/wartung.module.css";
 import { PruefungAmGeraet } from "../../../../_ui/telefon/PruefungAmGeraet";
@@ -11,22 +12,22 @@ export default async function PruefungSeite({ params, searchParams }: { params: 
   const { g, checkliste, unterwegs } = await geraetOder404(params, "pruefung");
   const frist = g.staende.find((f) => f.vorlage.wer === "intern");
   if (!frist || checkliste.length === 0) notFound();
-  // Nur die offene ganze Entnahme dieses Geräts zählt als Rückgabe; alles andere ignorieren.
   const { rueckgabe } = await searchParams;
-  const zurueck = rueckgabe && unterwegs.ganz?.id === rueckgabe ? rueckgabe : undefined;
-  // Eine Kiste, die ganz unterwegs ist, wird nicht durchgezählt, sondern zurückgelegt.
-  if (unterwegs.ganz && !zurueck) {
+  const modus = pruefungModus(g.kiste, unterwegs, rueckgabe);
+  // Eine Kiste, die ganz unterwegs ist, wird nicht durchgezählt, sondern zurückgelegt; ein Gerät über seine Zurücklegen-Seite.
+  if (modus.art === "unterwegs") {
     return (
       <div className={s.telefon}>
         <section className={s.karte}>
           <p style={{ margin: "0 0 12px" }} role="status">
-            Die Kiste ist unterwegs seit {seitText(unterwegs.ganz.seit)} Durchzählen geht, wenn sie zurück ist.
+            {g.kiste ? `Die Kiste ist unterwegs seit ${seitText(modus.seit)}. Durchzählen geht, wenn sie zurück ist.` : `Das Gerät ist unterwegs seit ${seitText(modus.seit)}.`}
           </p>
-          <Link href={`/g/${g.id}/pruefung?rueckgabe=${unterwegs.ganz.id}`}>Zurücklegen</Link>
+          <Link href={g.kiste ? `/g/${g.id}/pruefung?rueckgabe=${modus.id}` : `/g/${g.id}/zuruecklegen`}>Zurücklegen</Link>
         </section>
       </div>
     );
   }
+  const zurueck = modus.art === "rueckgabe" ? modus.id : undefined;
   return (
     <PruefungAmGeraet
       geraetId={g.id}

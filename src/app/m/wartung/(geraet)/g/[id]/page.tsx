@@ -59,7 +59,7 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
 
   // „Unterwegs“ sieht jeder; Name und Zweck nur mit Zugang. Die Knöpfe gibt es nur mit Zugang.
   const unterwegsKarte = (mitKnoepfen: boolean) => {
-    const text = unterwegsText(unterwegs, mitKnoepfen);
+    const text = unterwegsText(unterwegs, mitKnoepfen, g.kiste);
     const kannEntnehmen = mitKnoepfen && !unterwegs.ganz && (!g.kiste || checkliste.length > 0);
     if (!text && !kannEntnehmen) return null;
     return (

@@ -62,7 +62,7 @@ export function ganzeSchliessen(tx: WartungSchreiber, geraetId: string, entnahme
   tx.update(entnahme).set({ zurueckAm: k.jetzt, zurueckWer: k.wer }).where(eq(entnahme.id, entnahmeId)).run();
 }
 
-const SCHON_ZURUECK = "Das wurde inzwischen schon zurückgelegt. Bitte die Seite neu laden.";
+export const SCHON_ZURUECK = "Das wurde inzwischen schon zurückgelegt. Bitte die Seite neu laden.";
 
 export function zuruecklegen(db: WartungDb, geraetId: string, r: RueckgabeEingabe, k: Kontext): { maengel: number } {
   return db.transaction((tx) => {

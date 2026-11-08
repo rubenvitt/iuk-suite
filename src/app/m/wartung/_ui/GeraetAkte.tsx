@@ -168,7 +168,7 @@ export function GeraetAkte({
               ))}
             </Card>
           )}
-          {g.kiste && entnahmen.length > 0 && (
+          {entnahmen.length > 0 && (
             <Card title="Entnahmen">
               <ul className={s.zeilen} aria-label="Entnahmen">
                 {entnahmen.map((e) => (
@@ -179,7 +179,7 @@ export function GeraetAkte({
                         <strong>{e.wer || "—"}</strong>
                         {e.zurueckAm === null ? <Tag>unterwegs</Tag> : <span className={s.neben}>zurück am {seitText(e.zurueckAm)}{e.zurueckWer ? ` (${e.zurueckWer})` : ""}</span>}
                       </span>
-                      <div className={s.neben}>{[e.zweck, e.ganz ? "ganze Kiste" : e.positionen.join(", ")].filter(Boolean).join(" · ")}</div>
+                      <div className={s.neben}>{[e.zweck, e.ganz ? (g.kiste ? "ganze Kiste" : "ganzes Gerät") : e.positionen.join(", ")].filter(Boolean).join(" · ")}</div>
                     </div>
                   </li>
                 ))}

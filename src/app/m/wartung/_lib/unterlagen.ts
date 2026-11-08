@@ -86,7 +86,7 @@ export async function entferneUnterlagen(
 ): Promise<void> {
   const r = await Promise.allSettled(liste.map((u) => entferne(u.id, u.typ)));
   r.forEach((x, i) => {
-    if (x.status === "rejected") console.error(`[wartung] Unterlage ${liste[i].id} liess sich nicht entfernen`, x.reason);
+    if (x.status === "rejected") console.error(`[wartung] Unterlage ${liste[i].id} ließ sich nicht entfernen`, x.reason);
   });
 }
 

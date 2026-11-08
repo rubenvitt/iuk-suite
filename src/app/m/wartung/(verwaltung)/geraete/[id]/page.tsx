@@ -38,7 +38,7 @@ export default async function AktenSeite({ params }: { params: Promise<{ id: str
       verlauf={ladeVerlauf(db, { gruppen: null, geraetId: id, grenze: 200 })}
       unterlagen={ladeUnterlagen(db, id)}
       entnahmen={ladeEntnahmen(db, id, 20)}
-      unterwegsText={unterwegsText(unterwegsStand(db, id), true)}
+      unterwegsText={unterwegsText(unterwegsStand(db, id), true, g.kiste)}
       darfLoeschen={darfEndgueltigLoeschen(db, id)}
       qr={await qrSvg(qrZiel(linkBasisAus(kopf), id))}
       heute={tag}
