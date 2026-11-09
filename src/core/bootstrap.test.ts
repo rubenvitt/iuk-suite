@@ -780,11 +780,14 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      *
      * ⛔ ANGEHOBEN VON `5` AUF `6` (IDA-314): `starteFeedbackHintergrund`
      * (`src/app/m/feedback/_lib/ehrlich/hintergrund.ts`), die Löschfrist von „Ehrlich gesagt".
+     *
+     * ⛔ ANGEHOBEN VON `6` AUF `7` (IDA-375): `starteGemeinschaftHintergrund`
+     * (`src/app/m/gemeinschaft/_lib/hintergrund.ts`), die Löschfrist für Bar-Testanfragen.
      */
     for (const name of starterAufrufe) {
       expect(importierteNamen, `${name}: kein benannter Import in bootstrap.ts`).toContain(name);
     }
-    expect(starterAufrufe.length).toBe(6);
+    expect(starterAufrufe.length).toBe(7);
   });
 
   it("kein Blockkommentar in den zwei gelesenen Ausschnitten, denn der Filter kennt nur //", () => {

@@ -5,7 +5,7 @@ import { neueId } from "./kennung";
 import { testDb, type TestDb } from "./testDb";
 import {
   Abgelehnt, anfrageNachCode, anfragenSeit, entferneVertrag, ladeAnfragen, ladeBelegendeEintraege, ladeSperrzeiten, ladeVertragsdatei,
-  legeAnfrageAn, legeSperrzeitAn, legeVertragAb, lehneAb, loescheSperrzeit, NichtGefunden, nimmZusageZurueck, sageZu, setzeVertrag, zieheZurueck,
+  legeAnfrageAn, legeSperrzeitAn, legeVertragAb, lehneAb, loescheFaelligeTestanfragen, loescheSperrzeit, NichtGefunden, nimmZusageZurueck, sageZu, setzeVertrag, zieheZurueck,
 } from "./vermietung";
 import type { AnfrageWert } from "./vermietungEingabe";
 import { zeitpunkt } from "./zeit";
@@ -210,5 +210,25 @@ describe("Vertrag", () => {
     setzeVertrag(db, id, "verschickt");
     legeVertragAb(db, id, "mietvertrag", "v.pdf", PDF, JETZT);
     expect(ladeAnfragen(db)[0].vertrag).toBe("unterschrieben");
+  });
+});
+
+describe("Löschfrist für Testanfragen (IDA-375)", () => {
+  it("löscht „Test“ einen Kalendermonat nach dem Eingangstag, samt Vertrag — andere Anlässe nie", () => {
+    const db = testDb();
+    const test = legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00", " test "), false, JETZT);
+    legeAnfrageAn(db, wert("2026-11-14", "18:00", "2026-11-14", "23:00", "Testament"), false, JETZT);
+    legeAnfrageAn(db, wert("2026-11-21", "18:00", "2026-11-21", "23:00"), false, JETZT);
+    const id = idVon(db, test);
+    sageZu(db, id, JETZT);
+    legeVertragAb(db, id, "mietvertrag", "v.pdf", Buffer.from("%PDF-1.7\n…"), JETZT);
+
+    expect(loescheFaelligeTestanfragen(db, um("2026-11-30", "23:59"))).toBe(0);
+    expect(ladeAnfragen(db)).toHaveLength(3);
+    expect(loescheFaelligeTestanfragen(db, um("2026-12-01", "00:01"))).toBe(1);
+    expect(ladeAnfragen(db).map((a) => a.anlass)).toEqual(["Testament", "Geburtstag"]);
+    expect(anfrageNachCode(db, test)).toBeNull();
+    expect(ladeVertragsdatei(db, id, "mietvertrag")).toBeNull();
+    expect(loescheFaelligeTestanfragen(db, um("2027-06-01", "12:00"))).toBe(0);
   });
 });
