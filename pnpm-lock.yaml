@@ -58,8 +58,8 @@ importers:
         specifier: ^6.2.14
         version: 6.2.14
       maplibre-gl:
-        specifier: 6.13.0
-        version: 6.13.0
+        specifier: 6.16.0
+        version: 6.16.0
       nanoid:
         specifier: ^6.0.1
         version: 6.0.1
@@ -3584,8 +3584,8 @@ packages:
   magic-string@1.4.3:
     resolution: {integrity: sha512-z12OxmaPGE0F4xlpGdjuAUckipLpQlTAuAmyGhNoD7ODpYUzvDfvtxUbjM/jwznyP178oju/KDdyi220wNJ0RQ==}
 
-  maplibre-gl@6.13.0:
-    resolution: {integrity: sha512-ELXk4h+xl0URFQEnVbAN6MGn61P6jq4amUWHiskLVsvHCaKdf1Zq6G8UNOD0AQ3UaXoL5ECc8ovz8yqYEBGPKw==}
+  maplibre-gl@6.16.0:
+    resolution: {integrity: sha512-gApO66EMtoDZuio680RUBvskR7ahFd/NNhLN4tBAs+Y7FeT4gQV8zVFgYVMRmFxQznOEzecW19w6xOd9XjZjiA==}
     engines: {node: '>=16.14.0', npm: '>=8.1.0'}
 
   math-intrinsics@1.1.0:
@@ -7844,7 +7844,7 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  maplibre-gl@6.13.0:
+  maplibre-gl@6.16.0:
     dependencies:
       '@mapbox/point-geometry': 1.1.0
       '@mapbox/tiny-sdf': 2.3.0
