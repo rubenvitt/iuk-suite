@@ -73,6 +73,19 @@ describe("Bar anfragen", () => {
   });
 });
 
+describe("Bar anfragen — Anlass „Test“ (IDA-375)", () => {
+  it("zeigt den Löschtag erst, wenn genau „Test“ dasteht", async () => {
+    await mount(<BarAnfrage belegt={[]} heute="2026-01-31" vorbelegung={null} anmeldeHref="/login" />);
+    await clickElement(knopf("Bar anfragen"));
+    const anlass = 'input[maxlength="120"]:not([autocomplete])';
+    expect(exists('[data-testid="test-hinweis"]')).toBe(false);
+    await fill(anlass, " TEST ");
+    expect(query('[data-testid="test-hinweis"]').textContent).toContain("Samstag, 28. Februar 2026");
+    await fill(anlass, "Testament");
+    expect(exists('[data-testid="test-hinweis"]')).toBe(false);
+  });
+});
+
 describe("Bar anfragen — Entwurf auf dem Gerät (IDA-358)", () => {
   const ansicht = () => mount(<BarAnfrage belegt={[]} heute="2026-11-03" vorbelegung={null} anmeldeHref="/login" />);
 
@@ -107,7 +120,15 @@ describe("Bar anfragen — Entwurf auf dem Gerät (IDA-358)", () => {
 });
 
 describe("Statusseite", () => {
-  const A = { von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-07", "23:00"), anlass: "Geburtstag", personen: 20, person: "Erika Sommer", kontakt: "05141 12345", begruendung: "", vertrag: null };
+  const A = { von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-07", "23:00"), anlass: "Geburtstag", personen: 20, person: "Erika Sommer", kontakt: "05141 12345", begruendung: "", eingegangenAm: zeitpunkt("2026-11-01", "12:00"), vertrag: null };
+
+  it("IDA-375: eine Testanfrage nennt ihren Löschtag, andere nicht", async () => {
+    await mount(<Statusansicht code="abcdefghijklmnopqrstuv" a={{ ...A, status: "angefragt", anlass: "Test" }} />);
+    expect(query('[data-testid="test-hinweis"]').textContent).toContain("Dienstag, 1. Dezember 2026");
+    await unmount();
+    await mount(<Statusansicht code="abcdefghijklmnopqrstuv" a={{ ...A, status: "angefragt" }} />);
+    expect(exists('[data-testid="test-hinweis"]')).toBe(false);
+  });
 
   it("Absage mit Begründung, ohne Zurückziehen", async () => {
     await mount(<Statusansicht code="abcdefghijklmnopqrstuv" a={{ ...A, status: "abgelehnt", begruendung: "Dienstabend." }} />);
@@ -132,7 +153,7 @@ describe("Statusseite", () => {
 });
 
 describe("Dokumente auf der Statusseite (IDA-343, IDA-354)", () => {
-  const A = { von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-07", "23:00"), anlass: "Geburtstag", personen: 20, person: "Erika Sommer", kontakt: "05141 12345", begruendung: "" };
+  const A = { von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-07", "23:00"), anlass: "Geburtstag", personen: 20, person: "Erika Sommer", kontakt: "05141 12345", begruendung: "", eingegangenAm: zeitpunkt("2026-11-01", "12:00") };
   const CODE = "abcdefghijklmnopqrstuv";
 
   it("nichts freigegeben: keine Karte", async () => {

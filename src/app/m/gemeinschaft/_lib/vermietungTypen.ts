@@ -63,7 +63,7 @@ export type VertragStatus = { stand: VertragStand; dokumente: StatusDokument[] }
 export type SperrzeitDTO = { id: string; von: number; bis: number; grund: string; eventId: string | null };
 
 /** Was die anfragende Person auf ihrer Statusseite sieht — ihre eigenen Angaben und die Entscheidung. */
-export type StatusDTO = Pick<AnfrageDTO, "status" | "von" | "bis" | "anlass" | "personen" | "person" | "kontakt" | "begruendung"> & {
+export type StatusDTO = Pick<AnfrageDTO, "status" | "von" | "bis" | "anlass" | "personen" | "person" | "kontakt" | "begruendung" | "eingegangenAm"> & {
   vertrag: VertragStatus | null;
 };
 

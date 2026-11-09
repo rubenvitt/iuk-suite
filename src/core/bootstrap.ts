@@ -21,6 +21,7 @@ import { starteAufgabenScanArbeiter } from "@/app/m/aufgaben/_lib/scan";
 import { starteEinsatzbuchHintergrund } from "@/app/m/einsatzbuch/_lib/anbindung/aufraeumen";
 import { starteFaelligkeitenTakt } from "@/app/m/portal/_lib/faelligkeiten/takt";
 import { starteFeedbackHintergrund } from "@/app/m/feedback/_lib/ehrlich/hintergrund";
+import { starteGemeinschaftHintergrund } from "@/app/m/gemeinschaft/_lib/hintergrund";
 import { lokalHttpFehler } from "@/core/lokalHttp";
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
 // Migrations-Pfad ist cwd-relativ: Dev = Repo-Root, Prod = /app (Dockerfile
@@ -188,6 +189,9 @@ export function startBackgroundWork(): void {
   // feedback: Löschfrist für erledigte Mitteilungen in „Ehrlich gesagt" (IDA-314) — alle sechs Stunden,
   // synchron und wirft nie, siehe `feedback/_lib/ehrlich/hintergrund.ts`.
   starteFeedbackHintergrund();
+  // gemeinschaft: Löschfrist für Bar-Anfragen mit dem Anlass „Test" (IDA-375) — alle sechs Stunden, synchron und
+  // wirft nie, siehe `gemeinschaft/_lib/hintergrund.ts`.
+  starteGemeinschaftHintergrund();
 }
 
 export async function seedAllModules(): Promise<void> {

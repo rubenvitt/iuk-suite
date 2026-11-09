@@ -1,8 +1,9 @@
-import { and, asc, count, eq, gt, lt } from "drizzle-orm";
+import { and, asc, count, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import type { GemeinschaftDb, GemeinschaftSchreiber } from "../_db/client";
 import { anfrage, sperrzeit, vertragsdatei, vertragsdokument, vertragsunterschrift, vertragsvorlage, vorhaben } from "../_db/schema";
 import { EVENT_PRAEFIX, harteKonflikte, sperrenAusEvents, ueberlappt, type BarEvent, type Eintrag, type Zeitraum } from "./belegung";
 import { neueId, neuerLinkCode } from "./kennung";
+import { TEST_ANLASS, testanfrageFaellig } from "./testanfrage";
 import type { AnfrageWert, SperrzeitWert } from "./vermietungEingabe";
 import { felderAusJson, unterschriftfelder, werteAusJson, type Vertragsfeld, type Werte } from "./vertragFeld";
 import { dokumentDateiname } from "./vertragName";
@@ -87,7 +88,7 @@ export function ladeBelegendeEintraege(db: GemeinschaftSchreiber, ab = 0): Eintr
 export function anfrageNachCode(db: GemeinschaftSchreiber, code: string): StatusDTO | null {
   const z = db.select({
     id: anfrage.id, status: anfrage.status, von: anfrage.von, bis: anfrage.bis, anlass: anfrage.anlass, personen: anfrage.personen,
-    person: anfrage.person, kontakt: anfrage.kontakt, begruendung: anfrage.begruendung, stand: anfrage.vertrag,
+    person: anfrage.person, kontakt: anfrage.kontakt, begruendung: anfrage.begruendung, stand: anfrage.vertrag, eingegangenAm: anfrage.eingegangenAm,
   }).from(anfrage).where(eq(anfrage.code, code)).get();
   if (!z) return null;
   const { id, stand, ...a } = z;
@@ -153,6 +154,23 @@ export function zieheZurueck(db: GemeinschaftDb, code: string, jetzt: number): v
     if (!a) throw new NichtGefunden();
     if (a.status !== "angefragt" && a.status !== "zugesagt") throw new Abgelehnt("Diese Anfrage ist schon abgeschlossen.");
     tx.update(anfrage).set({ status: "zurueckgezogen", entschiedenAm: jetzt }).where(eq(anfrage.id, a.id)).run();
+  });
+}
+
+/* ---------------- Löschfrist ---------------- */
+
+/**
+ * IDA-375: löscht die Testanfragen (Anlass „Test"), deren Löschtag erreicht ist — Regel in `testanfrage.ts`, Takt in
+ * `hintergrund.ts`. Vorauswahl in SQL (nur „test" nach `trim`/`lower`), der Tag wird in der Suite-Zone gerechnet.
+ * Dokumente, Dateien und Unterschriften gehen per `ON DELETE CASCADE` mit. Gibt die Zahl der gelöschten zurück.
+ */
+export function loescheFaelligeTestanfragen(db: GemeinschaftDb, jetzt: number): number {
+  return db.transaction((tx) => {
+    const ids = tx.select({ id: anfrage.id, anlass: anfrage.anlass, eingegangenAm: anfrage.eingegangenAm }).from(anfrage)
+      .where(and(eq(anfrage.raum, RAUM), sql`lower(trim(${anfrage.anlass})) = ${TEST_ANLASS}`)).all()
+      .filter((a) => testanfrageFaellig(a, jetzt)).map((a) => a.id);
+    if (ids.length === 0) return 0;
+    return tx.delete(anfrage).where(inArray(anfrage.id, ids)).run().changes;
   });
 }
 

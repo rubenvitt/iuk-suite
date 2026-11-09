@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { anfrageZurueckziehenAction } from "../../_actions/anfrage";
+import { istTestanlass, testLoeschtag } from "../../_lib/testanfrage";
 import type { StatusDTO } from "../../_lib/vermietungTypen";
-import { zeitraumText, ZUSTAND_TEXT } from "../../_lib/vermietungText";
+import { tagText, zeitraumText, ZUSTAND_TEXT } from "../../_lib/vermietungText";
 import { Vertragsbereich } from "./Vertragsbereich";
 import s from "./bar.module.css";
 
@@ -43,6 +44,11 @@ export function Statusansicht({ code, a }: { code: string; a: StatusDTO }) {
       <h2 className={s.ueberschrift} id="status-titel">Deine Anfrage</h2>
       <span className={`${s.plakette} ${s[a.status] ?? ""}`} data-testid="status-stand">{ZUSTAND_TEXT[a.status]}</span>
       <p className="go-text" style={{ marginTop: 12 }}>{SATZ[a.status]}</p>
+      {istTestanlass(a.anlass) ? (
+        <p className="go-meta" data-testid="test-hinweis">
+          Das ist eine Testanfrage. Wir löschen sie am {tagText(testLoeschtag(a.eingegangenAm), true)} automatisch, danach führt dieser Link ins Leere.
+        </p>
+      ) : null}
       {a.status === "abgelehnt" && a.begruendung ? <p className={s.begruendung} data-testid="status-begruendung">{a.begruendung}</p> : null}
       <dl className={s.angaben}>
         <dt>Wann</dt><dd>{zeitraumText(a.von, a.bis)}</dd>

@@ -5,6 +5,7 @@ import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
 import { anfrageSendenAction } from "../../_actions/anfrage";
 import { tagesstuecke, type Belegt } from "../../_lib/belegung";
+import { istTestanlass, plusMonate, TEST_FRIST_MONATE } from "../../_lib/testanfrage";
 import { tagText } from "../../_lib/vermietungText";
 import { BarKalender } from "./BarKalender";
 import s from "./bar.module.css";
@@ -138,6 +139,11 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
                 <input className="go-feld" required maxLength={120} value={f.anlass} onChange={setFeld("anlass")} {...beschr("anlass")} />
               </label>
               {ff("anlass")}
+              {istTestanlass(f.anlass) ? (
+                <p className="go-meta" role="status" data-testid="test-hinweis" style={{ margin: 0 }}>
+                  Anfragen mit dem Anlass „Test“ löschen wir einen Monat nach dem Absenden automatisch, diese also am {tagText(plusMonate(heute, TEST_FRIST_MONATE), true)}.
+                </p>
+              ) : null}
               <label><span className="go-label">Wie viele Personen kommen ungefähr?</span>
                 <input className={`go-feld ${s.personen}`} type="number" inputMode="numeric" required min={1} max={200} value={f.personen} onChange={setFeld("personen")} {...beschr("personen")} />
               </label>

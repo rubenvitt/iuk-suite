@@ -8,7 +8,8 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachZahl } from "@/core/tabelle";
 import { konflikte } from "../../_lib/belegung";
 import { anfrageAlsEintrag, sperreAlsEintrag, type AnfrageDTO, type SperrzeitDTO } from "../../_lib/vermietungTypen";
-import { zeitraumText } from "../../_lib/vermietungText";
+import { istTestanlass, testLoeschtag } from "../../_lib/testanfrage";
+import { tagText, zeitraumText } from "../../_lib/vermietungText";
 import { useEntscheidung } from "./Entscheidung";
 import { Eintragsflyin } from "./Eintragsflyin";
 import { useTokensAmBody, Vertragschip, Zustandschip } from "./teile";
@@ -59,7 +60,15 @@ export function Anfragenliste({ anfragen, sperren, startId }: { anfragen: Anfrag
               </div>
             ),
           },
-          { title: "Anlass", key: "anlass", render: (_: unknown, a: AnfrageDTO) => <Button type="link" style={{ paddingInline: 0, whiteSpace: "normal", textAlign: "start", height: "auto", minHeight: 44 }} onClick={() => setOffenId(a.id)}>{a.anlass}</Button> },
+          {
+            title: "Anlass", key: "anlass",
+            render: (_: unknown, a: AnfrageDTO) => (
+              <div>
+                <Button type="link" style={{ paddingInline: 0, whiteSpace: "normal", textAlign: "start", height: "auto", minHeight: 44 }} onClick={() => setOffenId(a.id)}>{a.anlass}</Button>
+                {istTestanlass(a.anlass) ? <div className={s.neben} data-testid="test-hinweis">Wird am {tagText(testLoeschtag(a.eingegangenAm), true)} gelöscht</div> : null}
+              </div>
+            ),
+          },
           { title: "Personen", key: "personen", dataIndex: "personen", align: "right" },
           {
             title: "Ansprechperson", key: "person",
