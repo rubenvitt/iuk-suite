@@ -1124,7 +1124,7 @@ describe("CheckFlow — Nachfuellen", () => {
   it("startet bei 0 — der greedy Vorschlag gilt erst mit „Alles geholt“, gedeckelt am Handlager (IDA-377)", async () => {
     // IDA-377: bis hier stand der Vorschlag als Vorbelegung da, und die
     // Nachfuellung war bestaetigt, bevor jemand im Handlager war. Der Vorschlag
-    // verspricht weiterhin nie mehr, als der Handlager hergibt (wie bisher).
+    // verspricht weiterhin nie mehr, als der Handlager hergibt (lagerbuch/src/app/helfer/check/CheckFlow.tsx:222-238).
     // Luecke 5, Handlager 2 → Vorschlag 2.
     await mount(
       <CheckFlow
@@ -1865,7 +1865,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
 
   it("der Druck startet LEER — der letzte Messwert ist nur ein Hinweis (IDA-377)", async () => {
     // Bis IDA-377 stand hier der Nennfuelldruck („voll annehmen, Abgelesenes
-    // runterstellen", alte Vorbelegung) — gruen, 100 %, direkt neben „zuletzt gemessen:
+    // runterstellen", lagerbuch/src/app/helfer/check/CheckFlow.tsx:136-137) — gruen, 100 %, direkt neben „zuletzt gemessen:
     // 40 bar", und ein Tipp auf „Abschliessen" buchte eine volle Flasche, die
     // niemand abgelesen hatte. Der letzte Messwert (190) wird weiterhin nur
     // ANGEZEIGT: sonst schriebe ein Check den vorigen Wert fort.
