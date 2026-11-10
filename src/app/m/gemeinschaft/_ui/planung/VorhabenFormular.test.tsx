@@ -59,7 +59,7 @@ describe("Formular Event/Projekt", () => {
     await clickElement(knopf("Anlegen"));
     await act(async () => {});
     expect(aktion.speichern).toHaveBeenCalledWith(null, expect.objectContaining({ art: "event", titel: "Quizabend", ...ABEND, projektId: "p1", barBelegen: false }));
-    expect(router.push).toHaveBeenCalledWith("/v/neu-1");
+    expect(router.push).toHaveBeenCalledWith("/events/neu-1");
     expect(fertig).toHaveBeenCalled();
   });
 

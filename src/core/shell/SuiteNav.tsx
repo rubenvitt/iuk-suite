@@ -101,7 +101,7 @@ function istPfadanfang(href: string, pfad: string): boolean {
  *
  * 2. **Die Wurzel `/` ist Pfadanfang von allem** und deshalb nur exakt ein
  *    Treffer. Seiten, die zu keinem Eintrag gehoeren (`/profil` im Portal,
- *    `/etiketten` in der Verpflegung), markieren NICHTS: die „Übersicht"
+ *    bis IDA-398 `/etiketten` der Verpflegung), markieren NICHTS: die „Übersicht"
  *    dort hervorzuheben behauptete einen Ort, an dem man nicht ist — genau der
  *    Befund aus IDA-392. Wo die Wurzel fachlich die Seiten ohne eigenen
  *    Eintrag TRAEGT (der QR-Generator seine Arten `/wifi`, `/tel`; die

@@ -13,7 +13,7 @@ import {
 } from "../../_actions/vorhaben";
 import type { ActionAusgang } from "../../_lib/vorhabenErgebnis";
 import {
-  faelligText, fortschritt, kalendertagLang, zeitraumText, type AufgabeDTO, type FormularDaten, type MitgliedWahl, type VorhabenDetailDTO,
+  faelligText, fortschritt, kalendertagLang, vorhabenPfad, zeitraumText, type AufgabeDTO, type FormularDaten, type MitgliedWahl, type VorhabenDetailDTO,
 } from "../../_lib/vorhabenTypen";
 import { tagAusDayjs } from "./datum";
 import { useTokensAmBody } from "./fokus";
@@ -111,7 +111,7 @@ export function VorhabenSeite({ v, heute, daten }: { v: VorhabenDetailDTO; heute
               showSearch={{ optionFilterProp: "label" }} options={personen} style={{ minWidth: 200, marginInlineStart: -11 }}
               onChange={(w?: string) => ausfuehren(() => setzeVerantwortlichOptimistisch(w ?? null), () => verantwortlichSetzenAction(v.id, w ?? null))} />
           </div>
-          {v.projekt ? <div><span className={s.neben}>Gehört zu</span><Link href={`/v/${v.projekt.id}`}>{v.projekt.titel}</Link></div> : null}
+          {v.projekt ? <div><span className={s.neben}>Gehört zu</span><Link href={vorhabenPfad("projekt", v.projekt.id)}>{v.projekt.titel}</Link></div> : null}
         </div>
       </Card>
 

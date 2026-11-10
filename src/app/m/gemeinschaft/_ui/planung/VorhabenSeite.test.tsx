@@ -47,7 +47,7 @@ describe("Seite eines Projekts", () => {
     expect(text).toContain("fällig Fr, 6. Nov.");
     expect(text).toContain("war fällig 26. Okt.");
     expect(text).toContain("verantwortlich · Standplatz anmelden");
-    expect(query("[data-vorhaben='e1']").getAttribute("href")).toBe("/v/e1");
+    expect(query("[data-vorhaben='e1']").getAttribute("href")).toBe("/events/e1");
     expect(query("[data-vorhaben='e1']").textContent).toContain("1 ohne Zuständige");
   });
 

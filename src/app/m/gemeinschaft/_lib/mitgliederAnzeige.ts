@@ -3,6 +3,7 @@
  * Aufbau des persönlichen Links. `_lib/mitglieder.ts` zieht Drizzle und `_lib/kennung.ts` nach sich und darf
  * deshalb nicht in eine `"use client"`-Datei. Kein `"use client"` hier (Falle 6).
  */
+import type { VorhabenArt } from "./vorhabenTypen";
 
 export const MITGLIED_NAME_MAX = 80;
 export const MITGLIED_TELEFON_MAX = 40;
@@ -14,7 +15,7 @@ export interface MitgliedZeile {
   telefon: string;
   link: string;
   /** Nicht vergangene Events und Projekte, für die das Mitglied verantwortlich ist. */
-  verantwortlich: { id: string; titel: string }[];
+  verantwortlich: { id: string; art: VorhabenArt; titel: string }[];
   /** Offene Aufgaben in nicht vergangenen Vorhaben, für die das Mitglied zuständig ist. */
   offeneAufgaben: number;
 }

@@ -9,7 +9,7 @@ import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Statuschip, type Statuston } from "@/core/status/Statuschip";
 import type { Vertragsstand } from "../../_lib/uebersicht";
 import {
-  datumsblock, fortschritt, kalendertagMittel, kuerzel, zeitraumText, type MitgliedWahl, type VorhabenKarteDTO,
+  datumsblock, fortschritt, kalendertagMittel, kuerzel, vorhabenPfad, zeitraumText, type MitgliedWahl, type VorhabenKarteDTO,
 } from "../../_lib/vorhabenTypen";
 import s from "./planung.module.css";
 
@@ -63,13 +63,13 @@ export function Person({ m }: { m: MitgliedWahl | null | undefined }) {
   );
 }
 
-/** Eine Karte in Events-, Projekte- und Projektliste (POC `VorhabenKarte`). Ganz ein Link auf `/v/<id>`. */
+/** Eine Karte in Events-, Projekte- und Projektliste (POC `VorhabenKarte`). Ganz ein Link auf die Seite des Vorhabens. */
 export function VorhabenKarte({ v }: { v: VorhabenKarteDTO }) {
   const zeile = v.art === "event"
     ? zeitraumText(v.von!, v.bis!) + (v.ort ? ` · ${v.ort}` : "")
     : (v.ziel ? `fertig bis ${kalendertagMittel(v.ziel)}` : "ohne Zieltermin") + (v.events ? ` · ${v.events} ${v.events === 1 ? "Event" : "Events"}` : "");
   return (
-    <Link href={`/v/${v.id}`} className={`${s.vorhabenKarte} ${v.vorbei ? s.vorbei : ""}`} data-vorhaben={v.id}>
+    <Link href={vorhabenPfad(v.art, v.id)} className={`${s.vorhabenKarte} ${v.vorbei ? s.vorbei : ""}`} data-vorhaben={v.id}>
       {v.art === "event"
         ? <Datumsblock ms={v.von!} />
         : <span className={s.projektZeichen} aria-hidden="true"><Icons8Ikone name="folder" groesse={26} /></span>}
