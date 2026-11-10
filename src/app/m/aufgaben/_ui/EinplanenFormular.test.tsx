@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fill, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
-import { feldWertImDom, waehleDatum, waehleZeit } from "./testFelder";
+import { mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { feldWertImDom, listenOptionen, oeffneListe, waehleAusListe, waehleDatum, waehleZeit } from "./testFelder";
 import type { AufgabeRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
 import { entwurfSchluessel, ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
@@ -123,12 +123,16 @@ describe("EinplanenFormular — Vorbelegung", () => {
   /**
    * FIX-RUNDE 1 (Betreiberentscheidung): die Dauerschaetzung ist jetzt ein ECHTES Eingabefeld,
    * vorbelegt mit dem bisherigen Wert der Aufgabe — nicht mehr der reine Lesetext der ersten
-   * Fassung.
+   * Fassung. Seit IDA-386 eine Auswahl in Stufen statt einer Minutenzahl.
    */
-  it("zeigt die Dauerschaetzung vorbelegt als echtes Eingabefeld", async () => {
+  it("zeigt die Dauerschaetzung vorbelegt als Auswahl in Stufen", async () => {
     await mount(<EinplanenFormular task={task({ id: "a1", dauerMinuten: 90 })} />);
-    expect(query<HTMLInputElement>("#ep-dauerMinuten").value).toBe("90");
-    expect(query<HTMLInputElement>("input[name='dauerMinuten']").type).toBe("number");
+    expect(feldWertImDom("dauerMinuten")).toBe("90");
+    expect(query("#ep-dauerMinuten").closest(".ant-select")?.textContent).toContain("1,5 Std.");
+    await oeffneListe("#ep-dauerMinuten");
+    expect(listenOptionen().map((o) => o.textContent)).toEqual([
+      "15 Min.", "30 Min.", "45 Min.", "1 Std.", "1,5 Std.", "2 Std.", "3 Std.", "4 Std.", "6 Std.", "8 Std.",
+    ]);
   });
 
   it("die Uhrzeit ist optional — kein `required`, kein erzwungener Wert", async () => {
@@ -207,7 +211,7 @@ describe("EinplanenFormular — Absenden", () => {
   it("eine geaenderte Dauerschaetzung wird mit dem NEUEN Wert gesendet", async () => {
     await mount(<EinplanenFormular task={task({ id: "a1", dauerMinuten: 60 })} />);
     await waehleDatum("#ep-planDatum", "2026-08-18");
-    await fill("#ep-dauerMinuten", "90");
+    await waehleAusListe("#ep-dauerMinuten", "1,5 Std.");
     await submitForm();
 
     const formData = absendenMock.mock.calls[0]![0] as FormData;
@@ -228,11 +232,11 @@ describe("EinplanenFormular — Feldfehler tragen die Eingaben mit, nicht die Vo
   it("zeigt eine Tag-Fehlermeldung am Feld, mit aria-invalid", async () => {
     stelleZustandEin({
       ok: false,
-      fieldErrors: { planDatum: "Plantag fehlt oder ist ungueltig." },
+      fieldErrors: { planDatum: "Plantag fehlt oder ist ungültig." },
       values: { aufgabeId: "a1", planDatum: "", planUhrzeit: "" },
     });
     await mount(<EinplanenFormular task={task({ id: "a1" })} />);
-    expect(query("#ep-planDatum-err").textContent).toBe("Plantag fehlt oder ist ungueltig.");
+    expect(query("#ep-planDatum-err").textContent).toBe("Plantag fehlt oder ist ungültig.");
     expect(query<HTMLInputElement>("#ep-planDatum").getAttribute("aria-invalid")).toBe("true");
     expect(query<HTMLInputElement>("#ep-planDatum").value).toBe("");
   });
@@ -240,7 +244,7 @@ describe("EinplanenFormular — Feldfehler tragen die Eingaben mit, nicht die Vo
   it("ein leerer values.planDatum im Fehlerzustand ueberschreibt eine vorhandene Vorbelegung", async () => {
     stelleZustandEin({
       ok: false,
-      fieldErrors: { planDatum: "Plantag fehlt oder ist ungueltig." },
+      fieldErrors: { planDatum: "Plantag fehlt oder ist ungültig." },
       values: { aufgabeId: "a1", planDatum: "", planUhrzeit: "" },
     });
     await mount(<EinplanenFormular task={task({ id: "a1", planDatum: "2026-08-10" })} />);
@@ -257,14 +261,14 @@ describe("EinplanenFormular — Feldfehler tragen die Eingaben mit, nicht die Vo
   it("ein leerer values.planUhrzeit im Fehlerzustand ueberschreibt eine vorhandene Vorbelegung", async () => {
     stelleZustandEin({
       ok: false,
-      fieldErrors: { planUhrzeit: "Uhrzeit ungueltig — Format HH:MM." },
+      fieldErrors: { planUhrzeit: "Uhrzeit ungültig — Format HH:MM." },
       values: { aufgabeId: "a1", planDatum: "2026-08-18", planUhrzeit: "" },
     });
     await mount(
       <EinplanenFormular task={task({ id: "a1", planDatum: "2026-08-17", planUhrzeit: "09:00" })} />,
     );
     expect(query<HTMLInputElement>("#ep-planUhrzeit").value).toBe("");
-    expect(query("#ep-planUhrzeit-err").textContent).toBe("Uhrzeit ungueltig — Format HH:MM.");
+    expect(query("#ep-planUhrzeit-err").textContent).toBe("Uhrzeit ungültig — Format HH:MM.");
   });
 
   /*
@@ -276,13 +280,13 @@ describe("EinplanenFormular — Feldfehler tragen die Eingaben mit, nicht die Vo
   it("ein ungueltiger values.dauerMinuten im Fehlerzustand ueberschreibt eine vorhandene Vorbelegung", async () => {
     stelleZustandEin({
       ok: false,
-      fieldErrors: { dauerMinuten: "Dauerschaetzung muss eine ganze Zahl groesser 0 sein." },
+      fieldErrors: { dauerMinuten: "Dauerschätzung muss eine ganze Zahl größer 0 sein." },
       values: { aufgabeId: "a1", planDatum: "2026-08-18", planUhrzeit: "", dauerMinuten: "0" },
     });
     await mount(<EinplanenFormular task={task({ id: "a1", dauerMinuten: 60 })} />);
-    expect(query<HTMLInputElement>("#ep-dauerMinuten").value).toBe("0");
+    expect(feldWertImDom("dauerMinuten")).toBe("0");
     expect(query("#ep-dauerMinuten-err").textContent).toBe(
-      "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.",
+      "Dauerschätzung muss eine ganze Zahl größer 0 sein.",
     );
   });
 });
@@ -300,12 +304,12 @@ describe("EinplanenFormular — Entwurf auf dem Geraet (IDA-358)", () => {
     const t = task({ id: "a1" });
     await mount(<EinplanenFormular task={t} />);
     await waehleDatum("#ep-planDatum", "2026-11-05");
-    await fill("#ep-dauerMinuten", "25");
+    await waehleAusListe("#ep-dauerMinuten", "30 Min.");
     await unmount();
 
     await mount(<EinplanenFormular task={t} />);
     expect(feldWertImDom("planDatum")).toBe("2026-11-05");
-    expect(query<HTMLInputElement>("#ep-dauerMinuten").value).toBe("25");
+    expect(feldWertImDom("dauerMinuten")).toBe("30");
 
     stelleZustandEin({ ok: true });
     await rerender(<EinplanenFormular task={t} />);

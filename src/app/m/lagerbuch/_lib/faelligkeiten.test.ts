@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import {
   artikel, bzGeraete, bzKontrollen, lagerorte, lagerortVerfall, o2Flaschen, o2Messungen, plomben, users,
@@ -92,6 +93,31 @@ describe("lagerbuchFaelligkeiten — was das Lagerbuch an „Was steht an“ her
       ["Gerät alt", "ueberfaellig", "Kontrolle seit 9 Tagen überfällig"],
       ["Gerät bald", "bald", "Kontrolle fällig in 3 Tagen"],
       ["Gerät nie", "ueberfaellig", "noch nie kontrolliert"],
+    ]);
+  });
+
+  it("BZ (IDA-379): eine nicht bestandene oder stornierte Kontrolle erfüllt die Frist nicht", () => {
+    const geraet = (id: string, name: string) => ({
+      id, name, barcode: null, lagerortId: "rtw-1", streifenLot: null, level1Label: null, level1Min: null,
+      level1Max: null, level2Label: null, level2Min: null, level2Max: null, aktiv: true, createdAt: NOW,
+    });
+    const kontrolle = (id: string, geraetId: string, ts: Date, bestanden: boolean) => ({
+      id, geraetId, ts, quelleTyp: "oidc" as const, quelleId: "sub-1", level1Wert: 1, level1ImBereich: null,
+      level2Wert: null, level2ImBereich: null, kompresseVerfall: "2027-01", sticks: 10, lanzetten: 10,
+      batterieGewechselt: false, kommentar: null, bestanden, refSnapshot: null,
+    });
+    t.db.insert(bzGeraete).values([geraet("bz-nb", "Gerät nicht bestanden"), geraet("bz-st", "Gerät storniert")]).run();
+    t.db.insert(bzKontrollen).values([
+      kontrolle("k1", "bz-nb", vorTagen(2), false),
+      kontrolle("k2", "bz-st", vorTagen(40), true),
+      kontrolle("k3", "bz-st", vorTagen(2), true),
+    ]).run();
+    t.db.update(bzKontrollen).set({ storniertAt: NOW, storniertVon: "sub-1" })
+      .where(eq(bzKontrollen.id, "k3")).run();
+    const liste = lagerbuchFaelligkeiten(NOW, t.db).map((f) => [f.titel, f.dringlichkeit, f.zustand]);
+    expect(liste).toEqual([
+      ["Gerät nicht bestanden", "ueberfaellig", "noch nie bestanden"],
+      ["Gerät storniert", "ueberfaellig", "Kontrolle seit 9 Tagen überfällig"],
     ]);
   });
 

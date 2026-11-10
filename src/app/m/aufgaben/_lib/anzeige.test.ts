@@ -21,6 +21,8 @@ import {
   STATUS_TON,
   WOCHENTAG_BIT,
   aufgabenInWoche,
+  DAUER_STUFEN_MINUTEN,
+  dauerOptionen,
   fmtDauer,
   fmtStunden,
   fmtWochentage,
@@ -702,5 +704,27 @@ describe("ANLASS_TEXT — jeder AnlassArt ein Schluessel (§3.5)", () => {
     expect(ANLASS_TEXT.koordNegativ.satz).toBe("Sonst liegt nichts an.");
     expect(ANLASS_TEXT.bufdiNegativ.satz).toBe("Sonst ist für heute nichts offen.");
     expect(ANLASS_TEXT.auftragNegativ.satz).toBe("Nichts wartet auf deine Freigabe.");
+  });
+});
+
+describe("dauerOptionen — die Dauerwahl der Formulare (IDA-386)", () => {
+  it("bietet die Stufen in der Anzeigeform, gespeichert als Minuten", () => {
+    expect(dauerOptionen("").map((o) => o.text)).toEqual([
+      "15 Min.", "30 Min.", "45 Min.", "1 Std.", "1,5 Std.", "2 Std.", "3 Std.", "4 Std.", "6 Std.", "8 Std.",
+    ]);
+    expect(dauerOptionen("").map((o) => o.wert)).toEqual(DAUER_STUFEN_MINUTEN.map(String));
+  });
+
+  it("behaelt einen Wert ausserhalb der Stufen als zusaetzliche Option an seiner Stelle", () => {
+    const optionen = dauerOptionen("20");
+    expect(optionen).toHaveLength(DAUER_STUFEN_MINUTEN.length + 1);
+    expect(optionen[1]).toEqual({ wert: "20", text: "20 Min." });
+    expect(dauerOptionen("600").at(-1)).toEqual({ wert: "600", text: "10 Std." });
+  });
+
+  it("fuegt fuer einen Stufenwert oder Ungueltiges nichts hinzu", () => {
+    for (const roh of ["60", "0", "-5", "abc", "7,5"]) {
+      expect(dauerOptionen(roh), roh).toHaveLength(DAUER_STUFEN_MINUTEN.length);
+    }
   });
 });

@@ -28,7 +28,10 @@ export function HilfeKapitel({
   zielHref,
 }: {
   sicht: HilfeSicht;
-  /** Die Adresse der beschriebenen Sicht — `null`, wo es keine gibt (`/a/<id>`). */
+  /**
+   * Die Adresse der beschriebenen Sicht — `null`, wo es keine gibt (`/a/<id>`) oder wo sie der
+   * lesenden Person nicht offensteht (`zielHref` in `_lib/hilfe.ts`).
+   */
   zielHref: string | null;
 }) {
   return (
@@ -59,6 +62,13 @@ export function HilfeKapitel({
         <p style={{ ...SCHRIFT.text, marginBlockEnd: SPACE.xl, maxWidth: 640 }}>
           <strong>So kommst du hin:</strong> {sicht.ziel.hinweis}
         </p>
+      ) : null}
+      {/*
+       * DIE SICHT STEHT DIESER PERSON NICHT OFFEN (`zielHref` ist dann `null`, IDA-386): statt eines
+       * Verweises, der auf 404 fuehrte, ein Satz, wem sie gehoert.
+       */}
+      {zielHref === null && sicht.ziel.art !== "kein" && sicht.nurFuer ? (
+        <p style={{ ...SCHRIFT.text, marginBlockEnd: SPACE.xl, maxWidth: 640 }}>{sicht.nurFuer}</p>
       ) : null}
 
       <section style={{ marginBlockEnd: SPACE.xxl }}>

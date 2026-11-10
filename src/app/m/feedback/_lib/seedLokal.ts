@@ -392,7 +392,7 @@ const NORD_TERMINE: Terminprofil[] = [
 /**
  * Ausbildungsgruppe San-A: drei Abende, ALLE geschlossen. Damit gibt es lokal
  * auch eine Gruppe OHNE offene Umfrage — der Zustand, in dem das Cockpit
- * "Feedback starten" anbietet statt QR und Rücklauf. Der mittlere Abend ist ein
+ * "Umfrage starten" anbietet statt QR und Rücklauf. Der mittlere Abend ist ein
  * Ausreißer nach unten, damit die Trendlinie nicht bloß monoton fällt.
  *
  * ⚠️ UND SIE BEKOMMT ABSICHTLICH KEINE GEPLANTEN ABENDE (kein `termine` beim

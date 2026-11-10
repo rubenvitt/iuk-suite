@@ -10,7 +10,7 @@ import type { SchichtplanDb, SchichtplanSchreiber } from "../_db/client";
 import { einheit, planung, schicht, tempHelfer, zuordnung } from "../_db/schema";
 import type { EinheitEingabe, PlanungEingabe, SchichtZeitEingabe, TempHelferEingabe } from "./eingabe";
 import type { Anforderung, EinheitDTO, HelferQuelle, PlanungDTO, Quali, SchichtDTO, TempHelferDTO } from "./typen";
-import { MIN_SCHICHT_MIN, MINUTE } from "./typen";
+import { MIN_SCHICHT_MIN, MINUTE, postenSchluessel } from "./typen";
 
 export class NichtGefunden extends Error {
   constructor(was = "Diese Planung gibt es nicht mehr.") {
@@ -150,6 +150,10 @@ export function loeschePlanung(db: SchichtplanDb, planId: string): void {
 export function speichereEinheit(db: SchichtplanDb, planId: string, einheitId: string | null, e: EinheitEingabe): string {
   return db.transaction((tx) => {
     const p = planungsZeile(tx, planId);
+    // IDA-373: Der Name ist in Lifeline Hub der Posten — zwei gleiche Namen fielen dort zusammen.
+    const doppelt = tx.select({ id: einheit.id, name: einheit.name }).from(einheit).where(eq(einheit.planungId, planId)).all()
+      .some((x) => x.id !== einheitId && postenSchluessel(x.name) === postenSchluessel(e.name));
+    if (doppelt) throw new Abgelehnt(e.art === "fahrzeug" ? "Dieses Fahrzeug ist in der Planung schon eingetragen." : "Diesen Namen trägt schon eine Einheit der Planung.");
     const werte = {
       art: e.art, name: e.name, fahrzeugId: e.art === "fahrzeug" ? e.fahrzeugId : null, kenner: e.kenner || null,
       schichtMin: e.schichtMin, soll: e.soll, anforderungen: JSON.stringify(e.anforderungen),

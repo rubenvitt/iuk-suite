@@ -69,6 +69,7 @@ const ALLE_AUS: Record<string, boolean> = {
   wiederaufnehmen: false,
   zurueckziehen: false,
   umverteilen: false,
+  verteilen: false,
   bearbeiten: false,
   nachweisHochladen: false,
 };
@@ -93,6 +94,7 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
       wiederaufnehmen: uebergang(a, "wiederaufnehmen", akteur(bufdi), HEUTE).erlaubt,
       zurueckziehen: uebergang(a, "zurueckziehen", akteur(bufdi), HEUTE).erlaubt,
       umverteilen: uebergang(a, "umverteilen", akteur(bufdi), HEUTE).erlaubt,
+      verteilen: uebergang(a, "verteilen", akteur(bufdi), HEUTE).erlaubt,
       bearbeiten: bearbeitung(a, akteur(bufdi), HEUTE).erlaubt,
       // KEIN `uebergang()`-Aufruf hier (Aufgabe 19, Kopfkommentar von `aktionsOptionen`): Nachweis
       // hochladen ist kein Uebergang der Tabelle. `a.status === "verteilt"` in dieser Fixtur macht
@@ -278,6 +280,23 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
       zurueckziehen: true,
       bearbeiten: true,
     });
+  });
+
+  it("„eingegangen“, Koordination: verteilen ist erlaubt, umverteilen nicht (IDA-386)", () => {
+    const koordination = person("auftrag", { id: "koord-v-1" });
+    const a = aufgabe({ status: "eingegangen", zugewiesenAn: null });
+    expect(aktionsOptionen(a, akteur(koordination, true), HEUTE)).toEqual({
+      ...ALLE_AUS,
+      verteilen: true,
+      zurueckziehen: true,
+      bearbeiten: true,
+    });
+  });
+
+  it("„eingegangen“, Auftraggeber ohne Koordination: KEIN verteilen — `darfVerteilen` ist falsch", () => {
+    const auftrag = person("auftrag", { id: "auftrag-v-2" });
+    const a = aufgabe({ status: "eingegangen", zugewiesenAn: null });
+    expect(aktionsOptionen(a, akteur(auftrag), HEUTE).verteilen).toBe(false);
   });
 
   it("„in_arbeit“, Koordination: KEIN umverteilen — die Tabelle kennt es nur aus „verteilt“", () => {

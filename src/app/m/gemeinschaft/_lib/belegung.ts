@@ -105,6 +105,55 @@ export function tagesstuecke(belegt: readonly Zeitraum[], isoTag: string): Tages
   }));
 }
 
+/** Ein Zeitraum für das Anfrageformular: Tage `JJJJ-MM-TT`, Uhrzeiten `HH:MM`. */
+export type Zeitwahl = { vonTag: string; vonUhr: string; bisTag: string; bisUhr: string };
+
+/** Der übliche Abend, wenn nichts dagegen spricht. */
+export const WUNSCHZEIT = { ab: "18:00", bis: "23:00" } as const;
+
+const minuten = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+const hhmm = (m: number): string => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const TAGES_ENDE = 24 * 60;
+/** Kürzer lohnt kein Vorschlag; der Tag gilt dann als voll. */
+const MIN_LUECKE = 60;
+
+/**
+ * Die Vorbelegung für „An diesem Tag anfragen“ (IDA-387): der übliche Abend, wenn er frei ist; sonst die freie
+ * Lücke, die sich am meisten mit dem Abend deckt. Deckt sie mindestens zwei Stunden, ihr Teil des Abends
+ * (17–21 belegt → 21:00–23:00); sonst fünf Stunden darin, so nah am Abend wie möglich (ab 19 belegt →
+ * 14:00–19:00). Grenzen auf die Viertelstunde nach innen gerundet.
+ * `null`, wenn keine Lücke von einer Stunde bleibt — dann bleibt der Abend stehen, der Hinweis sagt den Rest.
+ */
+export function vorschlagAmTag(belegt: readonly Zeitraum[], isoTag: string): Zeitwahl | null {
+  const stuecke = tagesstuecke(belegt, isoTag).map((t) => ({ ab: t.ab === null ? 0 : minuten(t.ab), bis: t.bis === null ? TAGES_ENDE : minuten(t.bis) }));
+  const luecken: { ab: number; bis: number }[] = [];
+  let frei = 0;
+  for (const b of [...stuecke].sort((x, y) => x.ab - y.ab)) {
+    if (b.ab > frei) luecken.push({ ab: frei, bis: b.ab });
+    frei = Math.max(frei, b.bis);
+  }
+  if (frei < TAGES_ENDE) luecken.push({ ab: frei, bis: TAGES_ENDE });
+  const gerundet = luecken.map((l) => ({ ab: Math.ceil(l.ab / 15) * 15, bis: Math.floor(l.bis / 15) * 15 })).filter((l) => l.bis - l.ab >= MIN_LUECKE);
+  if (!gerundet.length) return null;
+  const w = { ab: minuten(WUNSCHZEIT.ab), bis: minuten(WUNSCHZEIT.bis) };
+  const deckung = (l: { ab: number; bis: number }) => Math.max(0, Math.min(l.bis, w.bis) - Math.max(l.ab, w.ab));
+  const beste = [...gerundet].sort((x, y) => deckung(y) - deckung(x) || (y.bis - y.ab) - (x.bis - x.ab))[0];
+  let ab: number;
+  let bis: number;
+  if (deckung(beste) >= 2 * 60) {
+    ab = Math.max(beste.ab, w.ab);
+    bis = Math.min(beste.bis, w.bis);
+  } else {
+    // Fünf Stunden (oder die ganze Lücke), so nah am Abend wie die Lücke es zulässt.
+    const dauer = Math.min(w.bis - w.ab, beste.bis - beste.ab);
+    ab = Math.min(Math.max(w.ab, beste.ab), beste.bis - dauer);
+    bis = ab + dauer;
+  }
+  return bis === TAGES_ENDE
+    ? { vonTag: isoTag, vonUhr: hhmm(ab), bisTag: plusTage(isoTag, 1), bisUhr: "00:00" }
+    : { vonTag: isoTag, vonUhr: hhmm(ab), bisTag: isoTag, bisUhr: hhmm(bis) };
+}
+
 /* ---------------- Monatsraster ---------------- */
 
 /** Monat `JJJJ-MM` eines Kalendertags. */

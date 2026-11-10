@@ -638,10 +638,15 @@ test.describe("radio-Verwaltung", () => {
       page.locator('[data-rolle="radio-update-stand"]'),
       "der Anzeige-Slot Update-Stand fehlt",
     ).toBeVisible();
+    /*
+     * IDA-383: die Update-Anmerkung steht fuer die Admin-Stufe nur noch im Formularfeld; die
+     * Anhaengen-Karte (`NotizFeld`) bekommt nur die Updater-Stufe (`page.tsx`).
+     */
+    await expect(page.locator("#updateNote"), "das Feld Update-Anmerkung fehlt").toBeVisible();
     await expect(
       page.locator('[data-rolle="radio-notiz-eingabe"]'),
-      "das Notizfeld fehlt — es steht fuer BEIDE Stufen (Spec:4448)",
-    ).toBeVisible();
+      "die Anmerkung steht fuer die Admin-Stufe wieder doppelt",
+    ).toHaveCount(0);
 
     /*
      * ⛔ ANHAENGEN, DANN SPEICHERN — DIE EINE REIHENFOLGE, DIE EINE APPEND-ONLY-SPALTE
@@ -681,8 +686,12 @@ test.describe("radio-Verwaltung", () => {
      * Anstoss, siehe unten.
      */
     const marke = `E2E-${Date.now()}`;
-    await page.locator('[data-rolle="radio-notiz-eingabe"]').fill(`Sonde ${marke}`);
-    await page.locator('[data-rolle="radio-notiz-anhaengen"]').click();
+    /*
+     * IDA-383: ohne `NotizFeld` auf der Admin-Akte schreibt der Fall die Zeile ins Formularfeld
+     * und speichert sie zusammen mit `#tei`; die Zusage nach dem Neuladen bleibt dieselbe.
+     */
+    const bisher = await page.locator("#updateNote").inputValue();
+    await page.locator("#updateNote").fill(`${bisher}${bisher ? "\n" : ""}Sonde ${marke}`);
 
     /*
      * ⛔ ERST WENN DIE ANGEHAENGTE ZEILE IM FORMULARFELD STEHT, ist der Serverstand
@@ -897,7 +906,7 @@ test.describe("radio-Verwaltung", () => {
     await expect(page.locator("table thead th")).toHaveText([
       "Gerät",
       "Typ",
-      "Ausleihende:r",
+      "Ausgeliehen von",
       "Ausgeliehen",
       "Zurückgegeben",
       "Status",
@@ -996,7 +1005,7 @@ test.describe("radio-Verwaltung", () => {
      */
     const woerter = await marken.allTextContents();
     expect(
-      woerter.filter((w) => !["Aktiv", "Zurückgegeben"].includes(w)),
+      woerter.filter((w) => !["Ausgeliehen", "Zurückgegeben"].includes(w)),
       "eine Statuszelle zeigt nicht das Wort aus StatusMarke (AusleihenTabelle.tsx:95-103)",
     ).toEqual([]);
   });

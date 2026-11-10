@@ -6,7 +6,8 @@ import { Kartentabelle } from "@/core/tabelle";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { erstimportAction } from "../_actions/verwaltung";
-import type { Entscheidungen, Wahl } from "../_lib/erstimport/anwenden";
+import type { Wahl } from "../_lib/erstimport/anwenden";
+import { auswahlsumme, entscheidungen, knopfText, nichtsGewaehlt, rueckfrage } from "../_lib/erstimport/auswahl";
 import { QUELL_NAMEN, type Erstimportplan, type Quelle, type Vorschlag, type Ziel } from "../_lib/erstimport/plan";
 
 /* Kein Rot auf der Datenfläche (Falle 3): „offen“ trägt die Warnfarbe, jedes Ziel steht als Wort da. */
@@ -39,9 +40,13 @@ const ausWert = (wert: string): Wahl | undefined =>
  * sind vorausgewählt und abwählbar, „Offen“ bekommt eine Auswahl (ein Fahrzeug aus dem Bestand, ein
  * angehaktes neues, oder „kein Fahrzeug“). Nicht Entschiedenes bleibt stehen und kommt beim nächsten
  * Aufruf wieder. Nach dem Übernehmen lädt die Seite neu (die Action ruft `revalidatePath`).
+ *
+ * IDA-384: die Entscheidung steht in der ERSTEN Spalte und die Tabelle bricht um statt quer zu scrollen
+ * (bei 1280 px lag die Spalte vorher 499 px außerhalb). Der Knopf steht oben und unten, nennt, was er
+ * anlegt und zuordnet, und fragt vorher nach — er legt auf einen Klick Dutzende Fahrzeuge an.
  */
 export function Erstimport({ plan, bestand, fehler }: { plan: Erstimportplan; bestand: ErstimportBestand[]; fehler: string[] }) {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [uebernehmen, setUebernehmen] = useState<Set<string>>(
     () => new Set(plan.vorschlaege.filter((v) => v.ziel.art !== "offen").map((v) => v.schluessel)),
   );
@@ -74,12 +79,25 @@ export function Erstimport({ plan, bestand, fehler }: { plan: Erstimportplan; be
     { value: "kein", label: "kein Fahrzeug" },
   ];
 
+  const e = entscheidungen(uebernehmen, offen);
+  const summe = auswahlsumme(plan.vorschlaege, e);
+  const neueSchluessel = plan.vorschlaege.filter((v) => v.ziel.art === "neu").map((v) => v.schluessel);
+  const keinNeuesAngehakt = neueAngehakt.length === 0;
+
+  function alleNeuen(an: boolean): void {
+    setUebernehmen((alt) => {
+      const neu = new Set(alt);
+      for (const s of neueSchluessel) {
+        if (an) neu.add(s);
+        else neu.delete(s);
+      }
+      return neu;
+    });
+  }
+
   async function anwenden(): Promise<void> {
     setFehlerText(null);
     setLaeuft(true);
-    // Eine Wahl auf ein inzwischen abgewähltes neues Fahrzeug fällt weg, statt still ins Leere zu zeigen.
-    const gueltig = Object.fromEntries(Object.entries(offen).filter(([, w]) => w.art !== "vorschlag" || uebernehmen.has(w.schluessel)));
-    const e: Entscheidungen = { uebernehmen: [...uebernehmen], offen: gueltig };
     try {
       const r = await erstimportAction(e);
       if (r.ok) void message.success(`${r.wert.neu} Fahrzeuge angelegt, ${r.wert.zugeordnet} Zeilen zugeordnet, ${r.wert.keinFahrzeug} als „kein Fahrzeug“ vermerkt.`);
@@ -91,9 +109,26 @@ export function Erstimport({ plan, bestand, fehler }: { plan: Erstimportplan; be
     }
   }
 
+  function nachfragen(): void {
+    const { titel, text } = rueckfrage(summe);
+    void modal.confirm({ title: titel, content: text, okText: "Übernehmen", cancelText: "Abbrechen", onOk: anwenden });
+  }
+
   const anzahl = (art: Ziel["art"]) => plan.vorschlaege.filter((v) => v.ziel.art === art).length;
   const schon = QUELLEN.reduce((n, q) => n + plan.schonZugeordnet[q], 0);
-  const entschieden = uebernehmen.size + Object.keys(offen).length;
+
+  const leiste = (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: SPACE.sm }}>
+      <Button type="primary" onClick={nachfragen} loading={laeuft} disabled={laeuft || nichtsGewaehlt(summe) || fehler.length > 0}>
+        {knopfText(summe)}
+      </Button>
+      {neueSchluessel.length > 0 ? (
+        <Button onClick={() => alleNeuen(keinNeuesAngehakt)} disabled={laeuft}>
+          {keinNeuesAngehakt ? "Alle neuen auswählen" : "Alle neuen abwählen"}
+        </Button>
+      ) : null}
+    </div>
+  );
 
   return (
     <section aria-labelledby="vorschau" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}>
@@ -105,49 +140,24 @@ export function Erstimport({ plan, bestand, fehler }: { plan: Erstimportplan; be
         {anzahl("bestand")} zu vorhandenen Fahrzeugen · {anzahl("neu")} neue Fahrzeuge · {anzahl("offen")} offen
         {schon > 0 ? ` · ${schon} Zeilen schon zugeordnet (${QUELLEN.filter((q) => plan.schonZugeordnet[q] > 0).map((q) => `${QUELL_NAMEN[q]} ${plan.schonZugeordnet[q]}`).join(", ")})` : ""}
       </p>
+      {leiste}
       <Kartentabelle<Vorschlag>
         rowKey="schluessel"
         aria-label="Vorschläge des Erstimports"
         dataSource={plan.vorschlaege}
         leer={{ nichts: schon > 0 ? "Alle Fahrzeugzeilen der Apps sind zugeordnet." : "In den Apps steht kein Fahrzeug." }}
+        scroll={false}
+        karte={{ titel: "wird", kennzeichen: ["ziel"], aktionen: "entscheidung" }}
         columns={[
-          {
-            title: "Vorschlag",
-            key: "ziel",
-            filters: (Object.keys(ZIEL) as Ziel["art"][]).map((a) => ({ text: ZIEL[a].text, value: a })),
-            onFilter: (wert, v: Vorschlag) => v.ziel.art === wert,
-            render: (_: unknown, v: Vorschlag) => <Tag color={ZIEL[v.ziel.art].farbe}>{ZIEL[v.ziel.art].text}</Tag>,
-          },
-          {
-            title: "In den Apps",
-            key: "kandidaten",
-            render: (_: unknown, v: Vorschlag) => (
-              <ul style={{ margin: 0, paddingInlineStart: SPACE.lg }}>
-                {v.kandidaten.map((k) => (
-                  <li key={`${k.quelle}:${k.quellId}`}>
-                    {QUELL_NAMEN[k.quelle]}: {k.anzeige}
-                    {k.hinweis ? <span style={SCHRIFT.neben}> ({k.hinweis})</span> : null}
-                  </li>
-                ))}
-              </ul>
-            ),
-          },
-          {
-            title: "Wird",
-            key: "wird",
-            render: (_: unknown, v: Vorschlag) =>
-              v.ziel.art === "bestand" ? `zugeordnet zu „${v.ziel.anzeige}“`
-              : v.ziel.art === "neu" ? [v.ziel.fahrzeug.typ, v.ziel.fahrzeug.funkrufname, v.ziel.fahrzeug.funkkenner, v.ziel.fahrzeug.kennzeichen, v.ziel.fahrzeug.standort].filter(Boolean).join(" · ")
-              : v.ziel.grund,
-          },
           {
             title: "Entscheidung",
             key: "entscheidung",
+            width: 240,
             render: (_: unknown, v: Vorschlag) =>
               v.ziel.art === "offen" ? (
                 <Select
                   aria-label={`Zuordnung für ${v.kandidaten[0].anzeige}`}
-                  style={{ minWidth: 220, width: "100%" }}
+                  style={{ width: "100%" }}
                   value={alsWert(offen[v.schluessel])}
                   options={auswahl}
                   onChange={(wert: string) => waehle(v.schluessel, wert)}
@@ -163,14 +173,39 @@ export function Erstimport({ plan, bestand, fehler }: { plan: Erstimportplan; be
                 </Checkbox>
               ),
           },
+          {
+            title: "Vorschlag",
+            key: "ziel",
+            filters: (Object.keys(ZIEL) as Ziel["art"][]).map((a) => ({ text: ZIEL[a].text, value: a })),
+            onFilter: (wert, v: Vorschlag) => v.ziel.art === wert,
+            render: (_: unknown, v: Vorschlag) => <Tag color={ZIEL[v.ziel.art].farbe}>{ZIEL[v.ziel.art].text}</Tag>,
+          },
+          {
+            title: "Wird",
+            key: "wird",
+            render: (_: unknown, v: Vorschlag) =>
+              v.ziel.art === "bestand" ? `zugeordnet zu „${v.ziel.anzeige}“`
+              : v.ziel.art === "neu" ? [v.ziel.fahrzeug.typ, v.ziel.fahrzeug.funkrufname, v.ziel.fahrzeug.funkkenner, v.ziel.fahrzeug.kennzeichen, v.ziel.fahrzeug.standort].filter(Boolean).join(" · ")
+              : v.ziel.grund,
+          },
+          {
+            title: "In den Apps",
+            key: "kandidaten",
+            render: (_: unknown, v: Vorschlag) => (
+              <ul style={{ margin: 0, paddingInlineStart: SPACE.lg }}>
+                {v.kandidaten.map((k) => (
+                  <li key={`${k.quelle}:${k.quellId}`}>
+                    {QUELL_NAMEN[k.quelle]}: {k.anzeige}
+                    {k.hinweis ? <span style={SCHRIFT.neben}> ({k.hinweis})</span> : null}
+                  </li>
+                ))}
+              </ul>
+            ),
+          },
         ]}
       />
       {fehlerText ? <Alert type="warning" showIcon={false} title={fehlerText} /> : null}
-      <div>
-        <Button type="primary" onClick={() => void anwenden()} loading={laeuft} disabled={laeuft || entschieden === 0 || fehler.length > 0}>
-          Übernehmen
-        </Button>
-      </div>
+      {leiste}
     </section>
   );
 }

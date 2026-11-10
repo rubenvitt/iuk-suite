@@ -480,6 +480,37 @@ describe("AussondernRow — Ortswahl (DRK-339)", () => {
     expect(mocks.aussondern.mock.calls[0]?.[0]).not.toHaveProperty("lagerortId");
   });
 
+  /**
+   * IDA-379 — DIE RUECKFRAGE NENNT, WAS DRAUSSEN LIEGEN BLEIBT. Gebucht wird
+   * nur der Handlager-Rest; ohne die Zeile hielte man die Charge nach dem
+   * Bestaetigen fuer erledigt, waehrend im KTW noch sechs Packungen liegen.
+   */
+  it("nennt in der Rueckfrage die Orte ausserhalb des Handlagers, mit Sprung", async () => {
+    await mount(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={EIN_ORT}
+        draussen={[
+          { id: "ktw-1", name: "KTW 1", menge: 6, href: "/verwaltung/fahrzeuge/ktw-1" },
+          { id: "lager-x", name: "Kellerlager", menge: 2, href: null },
+        ]}
+        einheit="Stk."
+      />,
+    );
+    await bestaetigungOeffnen();
+
+    expect(queryPortal(".ant-popconfirm [data-rolle='aussen-orte']").textContent)
+      .toBe("Liegt außerdem in: KTW 1 (6 Stk.), Kellerlager (2 Stk.)");
+    expect([...queryPortal(".ant-popconfirm [data-rolle='aussen-orte']").querySelectorAll("a")]
+      .map((a) => a.getAttribute("href")))
+      .toEqual(["/verwaltung/fahrzeuge/ktw-1"]);
+    // Gebucht wird weiterhin nur der Handlager-Ort.
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    await warteAuf(() => mocks.aussondern.mock.calls.length === 1, "Aussonderungs-Action");
+    expect(mocks.aussondern.mock.calls[0]?.[0]).toMatchObject({ lagerortId: HANDLAGER_ID });
+  });
+
   it("schickt den gewaehlten Ort mit, und zwar OHNE Menge", async () => {
     await mount(
       <AussondernRow
@@ -629,7 +660,9 @@ describe("Verfallsseite als Server Component", () => {
       await mount(<>{verfallSeitenInhalt(testDb.db, jetzt)}</>);
 
       expect(queryAll(".ant-card-head-title").map((titel) => titel.textContent)).toEqual([
-        "Chargen im Handlager",
+        // IDA-379: „Chargen" — die Karte fuehrt auch Chargen, die nur noch
+        // draussen liegen.
+        "Chargen",
         // DRK-309: NEUTRAL — die Tabelle darunter fuehrt beide Arten.
         // DRK-377: und seither auch die Entnahmebox, die keine Einheit ist.
         "An Einheiten und in der Entnahmebox gemeldet",
@@ -641,7 +674,7 @@ describe("Verfallsseite als Server Component", () => {
        * stehen in einer eigenen, weil dort nichts zu buchen ist.
        * Begruendung im Kopf von `page.tsx`.
        */
-      expect(queryAll(`table[aria-label='Chargen im Handlager'] tbody tr[data-row-key]`)
+      expect(queryAll(`table[aria-label='Chargen'] tbody tr[data-row-key]`)
         .map((zeile) => zeile.getAttribute("data-row-key")))
         .toEqual(["charge-abgelaufen", "charge-warnend"]);
       expect(document.body.textContent).toContain("ALT-42");
@@ -653,18 +686,19 @@ describe("Verfallsseite als Server Component", () => {
       /**
        * DRK-339 — DER LIEGEPLATZ STEHT IN DER ZEILE. Beide Chargen liegen in
        * der Wurzel, also „in keinem Schrank"; der Stammname „Handlager" waere
-       * auf einer Karte namens „Chargen im Handlager" keine Auskunft.
+       * auf dieser Karte keine Auskunft.
        */
       expect(document.body.textContent).toContain("Nicht zugeordnet: 2 Pkg");
       expect(document.body.textContent).toContain("Nicht zugeordnet: 3 Pkg");
-      // IDA-238: KEIN Einzelknopf — beide Chargen liegen an EINEM Ort, und dort
-      // kann er nichts, was die Auswahl nicht auch kann (Kopf von
-      // `HandlagerVerfallTabelle.tsx`). Ausgesondert wird ueber die Auswahl.
-      expect(queryAll(`[data-rolle='breitansicht'] button[aria-label$='aussondern']`))
-        .toHaveLength(0);
+      // IDA-379: der Einzelknopf steht an der abgelaufenen Charge, obwohl sie
+      // an EINEM Ort liegt (bis dahin nur bei mehreren, Kopf von
+      // `HandlagerVerfallTabelle.tsx`); an der warnenden nicht.
+      expect(queryAll(`[data-rolle='breitansicht'] button[aria-label$='aussondern']`)
+        .map((knopf) => knopf.getAttribute("aria-label")))
+        .toEqual(["ALT-42 · Kompressen aussondern"]);
       // IDA-238: auswaehlbar ist nur die abgelaufene Charge.
       expect(queryAll<HTMLInputElement>(
-        "table[aria-label='Chargen im Handlager'] tbody tr[data-row-key] input[type='checkbox']",
+        "table[aria-label='Chargen'] tbody tr[data-row-key] input[type='checkbox']",
       ).map((kreuz) => kreuz.disabled)).toEqual([false, true]);
       /**
        * ⚠️ DER AUSSONDERN-KNOPF HAENGT AN DER HANDLAGER-HAELFTE UND NUR DORT.
@@ -680,6 +714,79 @@ describe("Verfallsseite als Server Component", () => {
       )).toHaveLength(0);
       expect(query<HTMLAnchorElement>("a[href='/verwaltung/fahrzeuge/rtw-warn']").textContent)
         .toContain("RTW Warnend");
+    } finally {
+      testDb.schliessen();
+    }
+  });
+
+  /**
+   * IDA-379, Befund 2 — EINE ABGELAUFENE CHARGE OHNE HANDLAGER-REST FEHLTE
+   * GANZ, waehrend die Artikel-Schublade „abgelaufen: Entnahmebox 6, KTW 1 6"
+   * zeigte. Sie steht jetzt oben, mit ihren Orten und einem Sprung je Ort —
+   * ohne Knopf und ohne Kaestchen, denn im Handlager ist nichts auszubuchen.
+   * Und eine Charge MIT Handlager-Rest nennt, was ausserdem draussen liegt.
+   */
+  it("fuehrt abgelaufene Chargen auch ohne Handlager-Rest, mit ihren Orten", async () => {
+    vi.stubEnv("LAGERBUCH_VERFALL_ROT_TAGE", "31");
+    vi.stubEnv("LAGERBUCH_VERFALL_GELB_TAGE", "56");
+    const jetzt = new Date("2026-06-15T10:00:00Z");
+    const testDb = migrierteTestDb("lagerbuch-verfall-draussen-");
+    try {
+      testDb.db.insert(lagerorte).values([
+        { id: "ktw-1", name: "KTW 1", typ: "fahrzeug", kennung: "UE-RK 140", aktiv: true },
+        {
+          id: "san-1", name: "Sanitätstasche 1", typ: "fahrzeug", kennung: null,
+          einheitenart: "tasche", aktiv: true,
+        },
+      ]).run();
+      testDb.db.insert(artikel).values({
+        id: "verband", name: "Kompressen", einheit: "Pkg", fach: "A1",
+        mindestbestand: 0, aktiv: true, createdAt: jetzt,
+      }).run();
+      testDb.db.insert(chargen).values([
+        { id: "c-draussen", artikelId: "verband", chargenNr: "K-2024-118", verfall: "2024-11", createdAt: jetzt },
+        { id: "c-beides", artikelId: "verband", chargenNr: "K-2025-007", verfall: "2025-03", createdAt: jetzt },
+        // Abgelaufen und ueberall aufgebraucht: steht weiter nirgends.
+        { id: "c-weg", artikelId: "verband", chargenNr: "K-2023-001", verfall: "2023-01", createdAt: jetzt },
+      ]).run();
+      const zugang = (id: string, chargeId: string, lagerortId: string, menge: number) => ({
+        id, ts: jetzt, typ: "zugang" as const, artikelId: "verband", chargeId, lagerortId,
+        menge, quelleTyp: "system" as const, quelleId: "test", referenz: null, kommentar: null,
+      });
+      testDb.db.insert(buchungen).values([
+        zugang("b1", "c-draussen", "entnahmebox", 6),
+        zugang("b2", "c-draussen", "ktw-1", 6),
+        zugang("b3", "c-draussen", "san-1", 6),
+        zugang("b4", "c-beides", HANDLAGER_ID, 4),
+        zugang("b5", "c-beides", "ktw-1", 2),
+        zugang("b6", "c-weg", "ktw-1", 3),
+        zugang("b7", "c-weg", "ktw-1", -3),
+      ]).run();
+
+      await mount(<>{verfallSeitenInhalt(testDb.db, jetzt)}</>);
+
+      expect(queryAll(`table[aria-label='Chargen'] tbody tr[data-row-key]`)
+        .map((zeile) => zeile.getAttribute("data-row-key")))
+        .toEqual(["c-draussen", "c-beides"]);
+
+      const draussen = query("table[aria-label='Chargen'] tr[data-row-key='c-draussen']");
+      expect(draussen.querySelector("[data-rolle='aussen-orte']")?.textContent)
+        .toBe("liegt in: Entnahmebox (6 Pkg), KTW 1 (6 Pkg), Sanitätstasche 1 (6 Pkg)");
+      expect([...draussen.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual([
+        "/verwaltung/entnahmebox",
+        "/verwaltung/fahrzeuge/ktw-1",
+        "/verwaltung/fahrzeuge/san-1",
+      ]);
+      expect(draussen.querySelector("button[aria-label$='aussondern']")).toBeNull();
+      expect(draussen.querySelector<HTMLInputElement>("input[type='checkbox']")?.disabled).toBe(true);
+
+      const beides = query("table[aria-label='Chargen'] tr[data-row-key='c-beides']");
+      expect(beides.textContent).toContain("Nicht zugeordnet: 4 Pkg");
+      expect(beides.querySelector("[data-rolle='aussen-orte']")?.textContent)
+        .toBe("liegt außerdem in: KTW 1 (2 Pkg)");
+      expect(beides.querySelector("button[aria-label$='aussondern']")).not.toBeNull();
+      expect(beides.querySelector<HTMLInputElement>("input[type='checkbox']")?.disabled).toBe(false);
+      expect(document.body.textContent).not.toContain("K-2023-001");
     } finally {
       testDb.schliessen();
     }

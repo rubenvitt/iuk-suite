@@ -3,7 +3,7 @@
  * noch ihr Schema, nur was hier herausgegeben wird (Muster `lagerbuch/_lib/faelligkeiten.ts`).
  *
  * Herausgegeben wird jede Charge mit roter Ampel: abgelaufen → überfällig, sonst bald. Die Schwellen stehen am
- * Artikel; gerechnet wird wie in der MHD-Kontrolle (`ladeChargen` → `mhd.ts`).
+ * Artikel; gerechnet wird wie in den MHD-Stufen des Bestands (`ladeChargen` → `mhd.ts`).
  *
  * TAGESMELDUNG (Entscheidung 2026-11-04 an IDA-316): montags reicht für Konserven, aber nicht für Brot, Joghurt
  * oder Würstchen. Ab 07:00 in der Suite-Zone geht deshalb einmal am Tag eine Sofortmeldung hinaus, wenn heute etwas
@@ -16,6 +16,7 @@ import type { Faelligkeit, Sofortmeldung } from "@/core/faelligkeiten";
 import { getDb, type VerpflegungDb } from "../_db/client";
 import { ladeArtikel, ladeChargen, ladeOrte } from "./daten";
 import { stundeInZone, tagInZone } from "./heute";
+import { stufeVon } from "./bestand";
 import { mengeText, restText } from "./mhd";
 import { vermerke, vermerkt } from "./schreiben";
 
@@ -52,7 +53,8 @@ export function verpflegungFaelligkeiten(jetzt: Date, db: Leser = getDb()): Fael
       zustand: c.status.gesperrt ? `${restText(c.status.tage)}, gesperrt` : restText(c.status.tage),
       dringlichkeit: c.status.abgelaufen ? "ueberfaellig" : "bald",
       sortierung: c.mhd,
-      pfad: "/mhd",
+      // IDA-382: auf die Stufe des Bestands, in der diese Charge steht.
+      pfad: `/bestand?stufe=${stufeVon(c)}`,
     };
   });
 }
@@ -81,7 +83,7 @@ export function verpflegungSofortmeldungen(jetzt: Date, db: Leser = getDb()): So
     art: "MHD heute",
     titel: `MHD heute: ${liste.length} ${liste.length === 1 ? "Charge" : "Chargen"}`,
     zeilen,
-    pfad: "/mhd",
+    pfad: "/bestand?stufe=kritisch",
   }];
 }
 

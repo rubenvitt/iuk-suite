@@ -40,7 +40,7 @@ Status 503.
 
 Der Entwicklungs-KEK, den `pnpm seed:lokal einsatzbuch` nennt, steht im Repo und taugt nur lokal:
 `erzeugen` und `wiederherstellen` lehnen ihn mit Exit 2 ab, und läuft die Suite im Container
-(`NODE_ENV=production`) mit ihm, warnt die Übersicht „Der Entwicklungs-KEK ist aktiv“.
+(`NODE_ENV=production`) mit ihm, warnt die Übersicht „Die Verschlüsselung läuft mit einem Testschlüssel“.
 
 Den KEK **nie** als Wert in eine Befehlszeile schreiben — er landet sonst im Klartext in der
 Shell-History. Verdeckt einlesen und in der Sitzung weiterreichen:

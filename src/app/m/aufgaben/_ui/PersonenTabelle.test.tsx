@@ -207,7 +207,7 @@ describe("PersonenTabelle — Spaltenkopf: Sortierung ueber den Rohwert, Filter 
     // Ohne Zutun bleibt die Ordnung die der Seite — keine Spalte traegt `defaultSortOrder`.
     expect(zeilenSchluessel()).toEqual(["p-viel", "p-wenig"]);
 
-    await clickElement(spaltenkopf("Soll-Zeit"));
+    await clickElement(spaltenkopf("Zeit pro Tag"));
     // 468 vor 1200. Ueber den Anzeigetext stuende „20 Std./Tag" vorn.
     expect(zeilenSchluessel()).toEqual(["p-wenig", "p-viel"]);
   });

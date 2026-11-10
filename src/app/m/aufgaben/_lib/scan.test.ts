@@ -29,7 +29,7 @@ import type { TestDb } from "../_db/testdb";
 import { migrierteTestDb } from "../_db/testdb";
 import { aufgaben, dateien, personen, type PersonRow, type ScanStatus } from "../_db/schema";
 
-import { avKonfigAusEnv, bearbeiteOffeneDateien, istFreigegeben } from "./scan";
+import { avKonfigAusEnv, bearbeiteOffeneDateien, istFreigegeben, pruefeBildVorFertigmeldung } from "./scan";
 import { nachweisPfad } from "./ablage";
 
 // ---------------------------------------------------------------------------
@@ -383,5 +383,100 @@ it("audit separates a started scan worker from the triggering request actor", as
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) expect(JSON.parse(row.actor)).toEqual({ kind: "system" });
     expect(t.db.select().from(dateien).all().find(d => d.id === datei.id)?.scanStatus).not.toBe("offen");
+  });
+});
+
+describe("pruefeBildVorFertigmeldung — „Fertig melden“ prüft in einem Schritt (IDA-386)", () => {
+  function statusVon(id: string): ScanStatus | undefined {
+    return t.db.select().from(dateien).all().find((z) => z.id === id)?.scanStatus;
+  }
+
+  it("`offen`: wartet auf den Durchlauf und liefert das Ergebnis der EIGENEN Zeile", async () => {
+    const aufgabeId = legeAufgabeFuer(legePerson("dev:a@b").id);
+    const datei = legeDatei(aufgabeId, "offen");
+    const server = await lausche((befehl) => `${pfadAusBefehl(befehl)}: OK`);
+    try {
+      expect(await pruefeBildVorFertigmeldung(t.db, datei.id, 5000, konfigFuer(server.port))).toBe("sauber");
+      expect(statusVon(datei.id)).toBe("sauber");
+    } finally {
+      await server.stoppe();
+    }
+  });
+
+  it("der Durchlauf aus der Fertigmeldung schreibt sein Ergebnis unter dem Systemakteur", async () => {
+    const { withAuditContext } = await import("@/core/audit/context");
+    const person = legePerson("dev:fertig@b");
+    const datei = legeDatei(legeAufgabeFuer(person.id), "offen");
+    t.sqlite.exec("DELETE FROM audit_outbox");
+    const server = await lausche((befehl) => `${pfadAusBefehl(befehl)}: OK`);
+    try {
+      const status = await withAuditContext({ actor: { kind: "user", id: person.sub } }, () =>
+        pruefeBildVorFertigmeldung(t.db, datei.id, 5000, konfigFuer(server.port)),
+      );
+      expect(status).toBe("sauber");
+      const rows = t.sqlite.prepare("SELECT actor FROM audit_outbox WHERE object_type = 'dateien'").all() as { actor: string }[];
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) expect(JSON.parse(row.actor)).toEqual({ kind: "system" });
+    } finally {
+      await server.stoppe();
+    }
+  });
+
+  it("`fehler` (Scanner war weg) wird mit DEMSELBEN Bild neu geprüft — kein neues Bild nötig", async () => {
+    const aufgabeId = legeAufgabeFuer(legePerson("dev:a@b").id);
+    const datei = legeDatei(aufgabeId, "fehler");
+    const server = await lausche((befehl) => `${pfadAusBefehl(befehl)}: OK`);
+    try {
+      expect(await pruefeBildVorFertigmeldung(t.db, datei.id, 5000, konfigFuer(server.port))).toBe("sauber");
+      expect(server.befehle()).toEqual([`zSCAN ${nachweisPfad(datei.id)}`]);
+    } finally {
+      await server.stoppe();
+    }
+  });
+
+  it("Scanner weiter nicht erreichbar: bleibt `fehler` und gibt NICHT frei", async () => {
+    const aufgabeId = legeAufgabeFuer(legePerson("dev:a@b").id);
+    const datei = legeDatei(aufgabeId, "fehler");
+    const port = await freierPort();
+    const status = await pruefeBildVorFertigmeldung(t.db, datei.id, 5000, konfigFuer(port));
+    expect(status).toBe("fehler");
+    expect(istFreigegeben(status!)).toBe(false);
+    expect(statusVon(datei.id)).toBe("fehler");
+  });
+
+  it("`befund` bleibt `befund` und fragt den Scanner gar nicht erst", async () => {
+    const aufgabeId = legeAufgabeFuer(legePerson("dev:a@b").id);
+    const datei = legeDatei(aufgabeId, "befund");
+    const server = await lausche((befehl) => `${pfadAusBefehl(befehl)}: OK`);
+    try {
+      expect(await pruefeBildVorFertigmeldung(t.db, datei.id, 5000, konfigFuer(server.port))).toBe("befund");
+      expect(server.befehle()).toEqual([]);
+    } finally {
+      await server.stoppe();
+    }
+  });
+
+  it("ein hängender Scanner hält nicht länger als die Wartezeit fest — Ergebnis `offen`, nicht `sauber`", async () => {
+    const aufgabeId = legeAufgabeFuer(legePerson("dev:a@b").id);
+    const datei = legeDatei(aufgabeId, "offen");
+    // Antwortet nie: der Socket bleibt offen, bis der Scanner-Timeout (1 s) greift.
+    const verbindungen: net.Socket[] = [];
+    const stumm = net.createServer((v) => {
+      verbindungen.push(v);
+      v.on("error", () => {});
+    });
+    await new Promise<void>((fertig) => stumm.listen(0, "127.0.0.1", fertig));
+    const port = (stumm.address() as net.AddressInfo).port;
+    try {
+      const start = Date.now();
+      expect(await pruefeBildVorFertigmeldung(t.db, datei.id, 200, konfigFuer(port, 1000))).toBe("offen");
+      expect(Date.now() - start).toBeLessThan(1500);
+      expect(istFreigegeben("offen")).toBe(false);
+      // Den Hintergrund-Durchlauf zu Ende laufen lassen, bevor die DB schliesst.
+      await bearbeiteOffeneDateien(t.db, konfigFuer(port, 1000));
+    } finally {
+      for (const v of verbindungen) v.destroy();
+      await new Promise<void>((fertig) => stumm.close(() => fertig()));
+    }
   });
 });
