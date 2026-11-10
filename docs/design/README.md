@@ -388,8 +388,8 @@ umgebrochene Tabellenzeile ist unlesbarer als eine gescrollte.
 **`scroll={{ x: … }}` braucht den richtigen Wert, und der hängt an den Spaltenbreiten.** Tragen die
 Spalten `width`, ist die Summe die Zahl. Tragen sie keine, ist `"max-content"` die einzige ehrliche
 Angabe — jede Pixelzahl wäre erfunden. **Eine Bedingung dazu:** rc-table schaltet auf
-`table-layout: fixed`, sobald eine Spalte `fixed` oder `ellipsis` trägt oder `scroll.y` gesetzt ist
-(`lib/Table.js:426-442`); dann verteilt es die Spalten gleichmäßig und **das Desktop-Bild ändert sich**,
+`table-layout: fixed`, sobald eine Spalte `ellipsis` trägt, `scroll.y` gesetzt ist oder `fixed` bei
+`scroll.x` als Zahl (`lib/Table.js`, `mergedTableLayout`); dann verteilt es die Spalten gleichmäßig und **das Desktop-Bild ändert sich**,
 ohne dass irgendwo etwas überläuft. Wer `scroll` ergänzt, misst die Spaltenbreiten bei 1280px vorher
 und nachher — `documentElement.scrollWidth` allein würde den Unterschied nicht sehen.
 
@@ -405,6 +405,22 @@ einem nackten `<span>` steht die Deklaration richtig da und der Browser verwirft
 ZWEITE Entscheidung** und gehört nur in eine Übersicht, hinter der die Nachweisfläche einen Klick
 entfernt liegt: `overflow: hidden` schneidet für das Auge ab, und `title` braucht einen Zeiger, den
 ein Telefon nicht hat. Auf Logbuch, Journal und Messungsverlauf deckelt allein die Breite (DRK-372).
+
+**Bei 1280px scrollt keine Tabelle waagerecht (IDA-393).** Ein Laptop ist kein schmales Gerät: der
+Inhalt hat dort 984px, und jede Tabelle der Verwaltung passt hinein (`e2e/tabellen-desktop.spec.ts`).
+Die Werkzeuge stehen in `core/tabelle`, in dieser Reihenfolge:
+
+- **Zeilenaktionen.** Eine Aktion ist ein Knopf mit Text, ab zwei liegen sie im Menü hinter einem
+  Knopf „Aktionen für …" (`Zeilenaktionen`). Ausgeschriebene Knöpfe nebeneinander waren der größte
+  Einzelposten (bis 528px in einer Spalte). Bestätigt wird im Dialog (`bestaetigen`), nicht per
+  `Popconfirm` — ein Menüeintrag verschwindet beim Klick mitsamt seinem Anker.
+- **Die Aktionsspalte haftet rechts.** `Datentabelle` heftet jede Spalte mit dem Schlüssel `aktion`
+  oder `aktionen` an (`fixed: "right"`); bei `scroll.x: "max-content"` bleibt das Layout dabei `auto`.
+- **Status nach vorn**, direkt hinter die Spalte, die die Zeile benennt.
+- **Lange Kennungen gekürzt** (`Kurzkennung`: Anfang, „…", Kopierknopf), Freitext mit Lesebreite
+  (`Zellentext`).
+- **Zeilenhöhe:** Zellen haben 5px oben und unten (Theme, `Table.cellPaddingBlock`), eine Zeile mit
+  44px-Knopf ist damit 55px hoch statt 77px.
 
 **Eine Tabelle, die auf schmalen Geräten gar nicht sichtbar ist, braucht kein `scroll`.**
 `feedback/_ui/Verlauf.tsx` rendert beide Darstellungen ins HTML und blendet per CSS eine aus; die
