@@ -228,6 +228,7 @@
   "src/app/m/gemeinschaft/_actions/anfrage.ts#vertragUnterschreibenAction": { "kind": "context", "via": "vertragUnterschreibenAction" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#anfrageZusagenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#anfrageAblehnenAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#zusageRueckgaengigAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#zusageZuruecknehmenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#vertragStandAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#vertragEntfernenAction": { "kind": "context", "via": "alsLeitung" },

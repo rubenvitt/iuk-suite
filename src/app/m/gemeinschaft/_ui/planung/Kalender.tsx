@@ -24,7 +24,8 @@ const monatText = (d: Dayjs) => MONAT.format(Date.UTC(d.year(), d.month(), 1));
  * `heute`/`?tag=`; ein Wechsel in einen anderen Monat geht über die Adresse und lädt neu.
  *
  * Tage rechnen in der Suite-Zone (`eintraegeAmTag`); der `Dayjs` des Kalenders ist nur die Wanduhr.
- * Unter 768px stehen in den Zellen nur Punkte (CSS), die Tagesliste nennt alles mit 44px-Zielen.
+ * Unter 768px stehen in den Zellen nur Punkte (CSS), in flachen Zellen; die Form unterscheidet die Art (IDA-387),
+ * die Tagesliste nennt alles mit 44px-Zielen.
  */
 export function Kalender({ tag, heute, eintraege }: { tag: string; heute: string; eintraege: KalenderEintrag[] }) {
   useTokensAmBody();
@@ -42,10 +43,11 @@ export function Kalender({ tag, heute, eintraege }: { tag: string; heute: string
     <div className={s.modul}>
       <Seitenkopf titel="Kalender" />
       <div className={s.legende}>
-        {KALENDER_LEGENDE.map((l) => <span key={l.art}><i className={`${s.muster} ${s[l.art]}`} />{l.text}</span>)}
+        {KALENDER_LEGENDE.map((l) => <span key={l.art}><i className={`${s.muster} ${s[l.art]}`} /><i className={`${s.punkt} ${s[l.art]}`} />{l.text}</span>)}
       </div>
       <Card>
         <Calendar
+          className={s.kalender}
           value={wert}
           onSelect={(d) => waehle(d)}
           headerRender={({ value }) => (

@@ -220,6 +220,23 @@
   width: 100%;
 }
 
+/* Belegung der gewählten Tage direkt unter der Zeitwahl (IDA-387); bei Überschneidung mit Hinweiskante. */
+.wahlInfo,
+.wahlBelegt {
+  display: grid;
+  gap: 2px;
+  font-size: 14px;
+  color: var(--go-gedaempft);
+  padding-left: 12px;
+  border-left: 3px solid var(--go-linie-stark);
+  overflow-wrap: anywhere;
+}
+
+.wahlBelegt {
+  color: var(--go-tinte);
+  border-left-color: var(--go-hinweis);
+}
+
 /* ---------- Danke und Status ---------- */
 
 .danke {
