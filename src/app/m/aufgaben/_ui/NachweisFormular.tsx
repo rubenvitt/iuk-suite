@@ -10,6 +10,7 @@ import type { NachweisArt } from "../_db/schema";
 import { alsMegabyte } from "../_lib/anzeige";
 import { FORM_START, feldFehler, type FormState } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
+import { randomId } from "@/core/zufallsId";
 
 /**
  * „FERTIG MELDEN" MIT NACHWEIS — EIN FORMULAR, EIN KNOPF (IDA-386). Bis dahin standen zwei
@@ -57,7 +58,6 @@ type NachweisAntwort =
 
 type Phase = "hochladen" | "pruefen" | "melden";
 
-
 /** Ein Wurf der Server Action selbst (nicht des Netzes) traegt einen `digest`. */
 function istServerFehler(fehler: unknown): boolean {
   return !!fehler && typeof fehler === "object" && typeof (fehler as { digest?: unknown }).digest === "string";
@@ -94,7 +94,7 @@ export function NachweisFormular({
         const formData = new FormData();
         formData.set("text", n.text);
         formData.set("datei", datei.current);
-        formData.set("sendung", sendung);
+        formData.set("sendung", sendungFuerFoto(fotoSendung, sendung, datei.current));
         const antwort = await fetch(`/a/${aufgabeId}/nachweis/hochladen`, { method: "POST", body: formData });
         // SILENT-SUCCESS-RIEGEL, s. Kopfkommentar — MUSS vor jeder anderen Auswertung stehen.
         if (antwort.redirected) return { art: "anmeldung" };
@@ -161,6 +161,8 @@ export function NachweisFormular({
       return false;
     },
   });
+  // Liest erst `senden`, also nach dem Rendern — deshalb darf er hier unten stehen.
+  const fotoSendung = useRef<FotoSendung | null>(null);
   const laeuft = entwurf.zustand === "sendet";
 
   const textFehler = feldFehler(zustand, "text") ?? feldFehler(zustand, "nachweisText");
@@ -261,4 +263,23 @@ export function NachweisFormular({
       ) : null}
     </form>
   );
+}
+
+/** Welche Sendungs-ID welches Foto zuletzt an die Route trug. */
+type FotoSendung = { sendung: string; foto: string; id: string };
+
+/**
+ * DIE SENDUNGS-ID GILT FUER EIN FOTO (IDA-386, Review). `useEntwurf` behaelt die ID, bis eine
+ * Antwort kommt. Ging nach einem gelungenen Upload nur die Antwort verloren und waehlt die Person
+ * dann ein ANDERES Foto, bestaetigte die Route mit derselben ID den alten Nachweis (`route.ts`,
+ * Wiederholungsschutz) — das neue Foto kaeme nie an. Darum bekommt ein anderes Foto (Name, Groesse,
+ * Aenderungszeit) eine neue ID; dasselbe Foto behaelt seine, eine Wiederholung bleibt einfach.
+ */
+function sendungFuerFoto(bindung: { current: FotoSendung | null }, sendung: string, datei: File): string {
+  const foto = `${datei.name}\u0000${datei.size}\u0000${datei.lastModified}`;
+  const bisher = bindung.current;
+  if (bisher?.sendung === sendung && bisher.foto === foto) return bisher.id;
+  const id = bisher?.sendung === sendung ? randomId() : sendung;
+  bindung.current = { sendung, foto, id };
+  return id;
 }

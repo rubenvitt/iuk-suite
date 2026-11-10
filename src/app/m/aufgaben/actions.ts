@@ -52,6 +52,7 @@ import {
   darfRoutinenVerwalten,
   istVertretungsfreigabe,
   akteurFuerSession,
+  type Akteur,
 } from "./_lib/zugang";
 import { isoTag } from "./_lib/datum";
 import { requireModuleAdmin } from "@/core/auth/guards";
@@ -767,23 +768,56 @@ function neuesterBildNachweis(vorhandene: readonly NachweisRow[]): NachweisRow |
   );
 }
 
-async function bildMeldung(db: DB, vorhandene: readonly NachweisRow[]): Promise<string | null> {
+/**
+ * Was am neuesten Bild fehlt, nach dem Stand der Zeile — SYNCHRON, damit es in der Transaktion
+ * der Fertigmeldung laufen kann (IDA-386, Review: das Warten liegt davor, `warteAufBildpruefung`).
+ */
+function bildMeldung(db: DB, vorhandene: readonly NachweisRow[]): string | null {
   const neuester = neuesterBildNachweis(vorhandene);
-  if (neuester === undefined) return "Für diese Aufgabe ist ein Foto erforderlich.";
-  const datei = neuester.dateiId !== null ? dateiNachId(db, neuester.dateiId) : null;
+  const datei = neuester?.dateiId != null ? dateiNachId(db, neuester.dateiId) : null;
   if (datei === null) return "Für diese Aufgabe ist ein Foto erforderlich.";
-  const status = istFreigegeben(datei.scanStatus) ? datei.scanStatus : await pruefeBildVorFertigmeldung(db, datei.id);
-  if (status !== null && istFreigegeben(status)) return null;
-  if (status === "offen") return BILD_WIRD_GEPRUEFT;
-  if (status === "fehler") return BILD_PRUEFUNG_NICHT_MOEGLICH;
+  if (istFreigegeben(datei.scanStatus)) return null;
+  if (datei.scanStatus === "offen") return BILD_WIRD_GEPRUEFT;
+  if (datei.scanStatus === "fehler") return BILD_PRUEFUNG_NICHT_MOEGLICH;
   return "Das Foto hat die Sicherheitsprüfung nicht bestanden. Bitte ein anderes Foto wählen.";
+}
+
+/** Wartet auf die Pruefung des neuesten Bildes; das Ergebnis liest danach `bildMeldung` neu. */
+async function warteAufBildpruefung(db: DB, vorhandene: readonly NachweisRow[]): Promise<void> {
+  const neuester = neuesterBildNachweis(vorhandene);
+  const datei = neuester?.dateiId != null ? dateiNachId(db, neuester.dateiId) : null;
+  if (datei !== null && !istFreigegeben(datei.scanStatus)) await pruefeBildVorFertigmeldung(db, datei.id);
 }
 
 /** Die Pruefmeldungen in Alltagssprache (IDA-386) — beide verlangen KEIN neues Bild. */
 const BILD_WIRD_GEPRUEFT = "Bild wird geprüft… Bitte gleich noch einmal „Fertig melden“ drücken.";
 const BILD_PRUEFUNG_NICHT_MOEGLICH =
   "Prüfung gerade nicht möglich. Das Foto bleibt gespeichert — bitte später erneut „Fertig melden“ drücken.";
+/** Waehrend der Wartezeit zurueckgesetzt, umverteilt oder anders erledigt — kein Angriff, ein Zeitfenster. */
+const AUFGABE_INZWISCHEN_GEAENDERT =
+  "Die Aufgabe wurde inzwischen geändert. Bitte die Seite neu laden und den Stand prüfen.";
 
+/** `uebergang(task, "fertig")` mit den Wuerfen der Action — vor dem Warten der fruehe Riegel. */
+function fertigUebergang(db: DB, aufgabeId: string, akteur: Akteur, heute: string) {
+  const task = aufgabe(db, aufgabeId);
+  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+  const ergebnis = uebergang(task, "fertig", akteur, heute);
+  if (!ergebnis.erlaubt) {
+    if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
+    throw new Error(ergebnis.grund);
+  }
+  if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Übergangsergebnis.");
+  return { task, nach: ergebnis.nach };
+}
+
+/*
+ * IDA-386, REVIEW — NACH DEM WARTEN WIRD ALLES NEU GELESEN: waehrend der bis zu
+ * `FERTIG_PRUEF_WARTEZEIT_MS` kann die Aufgabe zurueckgesetzt oder umverteilt werden und ein
+ * neueres Foto hinzukommen. Deshalb laufen Uebergangspruefung, Nachweispruefung und Schreiben erst
+ * danach, in EINER synchronen Transaktion ohne `await` (better-sqlite3) — so atomar wie die Action
+ * vor dem Warten war. Massgeblich ist das dann NEUESTE Bild; ist es noch `offen`, gilt
+ * `BILD_WIRD_GEPRUEFT`, auch wenn das erste inzwischen `sauber` ist.
+ */
 export async function fertigMeldenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
@@ -791,59 +825,63 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
     const heute = isoTag(new Date());
 
     const aufgabeId = feld(formData, "aufgabeId");
-    const task = aufgabe(db, aufgabeId);
-    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
-
-    const ergebnis = uebergang(task, "fertig", akteur, heute);
-    if (!ergebnis.erlaubt) {
-      if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
-      throw new Error(ergebnis.grund);
-    }
-    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Übergangsergebnis.");
-
     const values = { aufgabeId, nachweisText: feld(formData, "nachweisText") };
     const nachweisText = values.nachweisText.trim();
 
-    if (task.nachweisPflicht) {
-      const vorhandene = nachweiseSeitLetzterZurueckweisung(db, task.id);
-      if (task.nachweisArt === "bild") {
-        const meldung = await bildMeldung(db, vorhandene);
-        if (meldung !== null) {
-          return {
-            ok: false,
-            // Eigener Schluessel "nachweis" statt "nachweisText": diese Ablehnung handelt vom
-            // FEHLENDEN/NOCH NICHT FREIGEGEBENEN BILD, nicht vom Inhalt des Textfelds — ein Formular
-            // mit ausgefuelltem Text UND fehlendem Bild soll nicht so aussehen, als sei der Text das
-            // Problem.
-            fieldErrors: { nachweis: meldung },
-            values,
-          };
-        }
-      } else {
-        const hatText =
-          nachweisText !== "" || vorhandene.some((n) => n.art === "text" && (n.text ?? "").trim() !== "");
-        if (!hatText) {
-          return {
-            ok: false,
-            fieldErrors: { nachweisText: "Für diese Aufgabe ist ein Textnachweis erforderlich." },
-            values,
-          };
+    const vorher = fertigUebergang(db, aufgabeId, akteur, heute).task;
+    const wartet = vorher.nachweisPflicht && vorher.nachweisArt === "bild";
+    if (wartet) await warteAufBildpruefung(db, nachweiseSeitLetzterZurueckweisung(db, vorher.id));
+
+    const ergebnis = db.transaction((): FormState => {
+      const jetzt = aufgabe(db, aufgabeId);
+      const neu = jetzt ? uebergang(jetzt, "fertig", akteur, heute) : null;
+      if (wartet && (jetzt === null || !neu?.erlaubt || jetzt.status !== vorher.status)) {
+        return { ok: false, fieldErrors: { nachweis: AUFGABE_INZWISCHEN_GEAENDERT }, values };
+      }
+      const { task, nach } = fertigUebergang(db, aufgabeId, akteur, heute);
+
+      if (task.nachweisPflicht) {
+        const vorhandene = nachweiseSeitLetzterZurueckweisung(db, task.id);
+        if (task.nachweisArt === "bild") {
+          const meldung = bildMeldung(db, vorhandene);
+          if (meldung !== null) {
+            return {
+              ok: false,
+              // Eigener Schluessel "nachweis" statt "nachweisText": diese Ablehnung handelt vom
+              // FEHLENDEN/NOCH NICHT FREIGEGEBENEN BILD, nicht vom Inhalt des Textfelds — ein Formular
+              // mit ausgefuelltem Text UND fehlendem Bild soll nicht so aussehen, als sei der Text das
+              // Problem.
+              fieldErrors: { nachweis: meldung },
+              values,
+            };
+          }
+        } else {
+          const hatText =
+            nachweisText !== "" || vorhandene.some((n) => n.art === "text" && (n.text ?? "").trim() !== "");
+          if (!hatText) {
+            return {
+              ok: false,
+              fieldErrors: { nachweisText: "Für diese Aufgabe ist ein Textnachweis erforderlich." },
+              values,
+            };
+          }
         }
       }
-    }
 
-    if (nachweisText !== "") {
-      erstelleNachweis(db, { aufgabeId: task.id, art: "text", text: nachweisText, erstelltVon: akteur.person.id });
-    }
+      if (nachweisText !== "") {
+        erstelleNachweis(db, { aufgabeId: task.id, art: "text", text: nachweisText, erstelltVon: akteur.person.id });
+      }
 
-    aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
-    schreibeVerlauf(db, {
-      aufgabeId: task.id,
-      ereignis: ergebnis.nach === "abgeschlossen" ? "abgeschlossen" : "fertig_gemeldet",
-      akteurId: akteur.person.id,
+      aktualisiereAufgabe(db, task.id, { status: nach });
+      schreibeVerlauf(db, {
+        aufgabeId: task.id,
+        ereignis: nach === "abgeschlossen" ? "abgeschlossen" : "fertig_gemeldet",
+        akteurId: akteur.person.id,
+      });
+      return { ok: true };
     });
-    revalidate();
-    return { ok: true };
+    if (ergebnis.ok) revalidate();
+    return ergebnis;
   });
 }
 

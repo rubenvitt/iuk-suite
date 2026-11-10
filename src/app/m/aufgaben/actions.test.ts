@@ -1561,6 +1561,52 @@ describe("fertigMeldenAction", () => {
       expect(pruefeMock).not.toHaveBeenCalled();
     });
 
+    it("IDA-386 Review: kommt WAEHREND der Wartezeit ein neueres Foto dazu, entscheidet dieses — nicht das erste", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "offen");
+      pruefeMock.mockImplementation(async (db: TestDb["db"], id: string) => {
+        db.update(dateien).set({ scanStatus: "sauber" }).where(eq(dateien.id, id)).run();
+        legeNachweisMitDatei(task.id, bufdi.id, "befund", new Date(`${HEUTE}T12:00:05Z`));
+        return "sauber";
+      });
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+      expect(ergebnis.fieldErrors.nachweis).toContain("anderes Foto");
+      expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
+
+    it("IDA-386 Review: wird die Aufgabe WAEHREND der Wartezeit zurueckgesetzt, ueberschreibt die Fertigmeldung das nicht", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "offen");
+      const verlaufVorher = verlaufFuer(t.db, task.id).length;
+      pruefeMock.mockImplementation(async (db: TestDb["db"], id: string) => {
+        db.update(dateien).set({ scanStatus: "sauber" }).where(eq(dateien.id, id)).run();
+        db.update(aufgaben).set({ status: "verteilt" }).where(eq(aufgaben.id, task.id)).run();
+        return "sauber";
+      });
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(
+        await fertigMeldenAction({ ok: true }, form(task.id, { nachweisText: "dazu ein Satz" })),
+      );
+      expect(ergebnis.fieldErrors.nachweis).toContain("inzwischen geändert");
+      expect(aufgabe(t.db, task.id)!.status).toBe("verteilt");
+      expect(verlaufFuer(t.db, task.id)).toHaveLength(verlaufVorher);
+      expect(t.db.select().from(nachweise).where(eq(nachweise.art, "text")).all()).toHaveLength(0);
+      expect(revalidatePathMock).not.toHaveBeenCalled();
+    });
+
     it("`befund`: abgelehnt", async () => {
       const auftrag = legePerson("dev:malte@test", "auftrag");
       const bufdi = legePerson("dev:alina@test", "bufdi");

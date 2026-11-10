@@ -257,4 +257,24 @@ describe("NachweisFormular — Entwurf auf dem Gerät (IDA-358)", () => {
     expect(fertigFormData(1).get("nachweisText")).toBe("Fahrzeug gewaschen");
     expect(ladeEntwurf("aufgaben:nachweis:a1")).toBeNull();
   });
+
+  it("IDA-386 Review: ging die Antwort nach dem Upload verloren, bekommt ein ANDERES Foto eine neue Sendungs-ID", async () => {
+    fertigMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    fertigMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await mount(bildFormular());
+    waehleFoto(1024, "erstes.jpg");
+    await absenden();
+    expect(document.body.textContent).toMatch(/Nicht gesendet\./);
+    // Dasselbe Foto noch einmal: dieselbe ID — die Route bestaetigt den schon gespeicherten Upload.
+    await absenden();
+    // Ein anderes Foto: eine neue ID, sonst bestaetigte die Route nur den alten Upload.
+    waehleFoto(2048, "zweites.jpg");
+    await absenden();
+    const sendungen = aufrufe.map((a) => (a.init?.body as FormData).get("sendung"));
+    expect(sendungen).toHaveLength(3);
+    expect(sendungen[1]).toBe(sendungen[0]);
+    expect(sendungen[2]).not.toBe(sendungen[0]);
+    expect(String(sendungen[2])).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(((aufrufe[2]!.init?.body as FormData).get("datei") as File).name).toBe("zweites.jpg");
+  });
 });
