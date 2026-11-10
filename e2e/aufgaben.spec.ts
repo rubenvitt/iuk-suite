@@ -1351,7 +1351,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     .locator("#af-beschreibung")
     .fill("Vom vollen e2e-Durchlauf (Aufgabe 21) angelegte Testaufgabe.");
   await waehleDatum(page, "#af-faelligAm", faelligAm);
-  await page.locator("#af-dauerMinuten").fill("30");
+  await waehleAusListe(page, "#af-dauerMinuten", "30 Min.");
   // Checkbox ZUERST, dann erst erscheint #af-nachweisart ueberhaupt (AufgabeFormular.tsx rendert
   // das Auswahlfeld nur bei angehaktem Schalter) — die umgekehrte Reihenfolge schluege still fehl.
   await page.locator("#af-nachweispflicht").check();
@@ -1732,6 +1732,8 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
    * Test liefe also klaglos durch den Suchzweig und riefe dabei bei jedem Anschlag einen fremden
    * Identitaetsanbieter.
    */
+  // IDA-386: die Liste steht zuerst, das Formular liegt in einer Schublade hinter „Person anlegen".
+  await page.getByRole("button", { name: "Person anlegen" }).click();
   await expect(page.locator("#pf-sub")).toHaveAttribute("name", "sub");
   await page.locator("#pf-sub").fill(`dev:${bufdiAdresse}`);
   await page.locator("#pf-name").fill(bufdiName);
@@ -1741,7 +1743,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   // liesse jede spaetere Handlung dieses BuFDi scheitern, und zwar mit einem Befund, der nach
   // einem Rechteproblem aussieht statt nach einem Datum.
   await waehleDatum(page, "#pf-aktiv-von", inTagen(0));
-  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Person anlegen" }));
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Speichern" }));
   // DER SICHTBARE ZUSTANDSWECHSEL (ein Feldfehler antwortet ebenfalls mit 200): die Zeile steht in
   // der Tabelle. `getByRole("cell")` statt `getByText`, weil das Namensfeld des Formulars den
   // gesendeten Wert zurueckträgt und sonst mehrdeutig waere.
@@ -1752,7 +1754,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   await page.locator("#af-titel").fill(titel);
   await page.locator("#af-beschreibung").fill("Vom Leerstart-Rundlauf angelegte Testaufgabe.");
   await waehleDatum(page, "#af-faelligAm", inTagen(21));
-  await page.locator("#af-dauerMinuten").fill("45");
+  await waehleAusListe(page, "#af-dauerMinuten", "45 Min.");
   await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Aufgabe einstellen" }));
 
   // 4. VERTEILEN — die Id kommt aus dem gerenderten Markup (`data-testid="verteilen-<id>"`), nicht
@@ -1875,7 +1877,7 @@ test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ih
   await page.locator("#af-titel").fill(titel);
   await page.locator("#af-beschreibung").fill("Vom Brett-Fall der vierten Oberflaechen-Runde angelegt.");
   await waehleDatum(page, "#af-faelligAm", inTagen(28));
-  await page.locator("#af-dauerMinuten").fill("45");
+  await waehleAusListe(page, "#af-dauerMinuten", "45 Min.");
   await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Aufgabe einstellen" }));
 
   await page.goto(`http://${HOST}:${E2E_PORT}/`);
@@ -1939,7 +1941,7 @@ test("Bearbeiten und Zurückziehen (DRK-487): Malte korrigiert seinen Auftrag un
   await page.locator("#af-titel").fill(titel);
   await page.locator("#af-beschreibung").fill("Vom Bearbeiten-Fall (DRK-487) angelegte Testaufgabe.");
   await waehleDatum(page, "#af-faelligAm", inTagen(21));
-  await page.locator("#af-dauerMinuten").fill("30");
+  await waehleAusListe(page, "#af-dauerMinuten", "30 Min.");
   await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Aufgabe einstellen" }));
 
   await page.goto(`http://${HOST}:${E2E_PORT}/`);

@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { click, fill, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
-import { feldWertImDom, waehleZeit } from "./testFelder";
+import { feldWertImDom, waehleAusListe, waehleZeit } from "./testFelder";
 import type { RoutineRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
 import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
@@ -111,7 +111,7 @@ describe("RoutineFormular — Anlegen", () => {
     await mount(<RoutineFormular />);
     expect(query<HTMLInputElement>("#rt-titel").value).toBe("");
     expect(query<HTMLInputElement>("#rt-uhrzeit").value).toBe("");
-    expect(query<HTMLInputElement>("#rt-dauer").value).toBe("");
+    expect(feldWertImDom("dauerMinuten")).toBe("");
     expect(angehakteIndizes()).toEqual([]);
     expect(query("button[type='submit']").textContent).toBe("Routine anlegen");
     expect(queryAll("input[name='routineId']")).toHaveLength(0);
@@ -123,7 +123,7 @@ describe("RoutineFormular — Anlegen", () => {
     await click("#rt-wochentag-2");
     await fill("#rt-titel", "Joggen");
     await waehleZeit("#rt-uhrzeit", "06:30");
-    await fill("#rt-dauer", "40");
+    await waehleAusListe("#rt-dauer", "45 Min.");
     await submitForm();
 
     expect(absendenMock).toHaveBeenCalledTimes(1);
@@ -131,7 +131,7 @@ describe("RoutineFormular — Anlegen", () => {
     expect(formData.get("titel")).toBe("Joggen");
     expect(formData.getAll("wochentage")).toEqual(["0", "2"]);
     expect(formData.get("uhrzeit")).toBe("06:30");
-    expect(formData.get("dauerMinuten")).toBe("40");
+    expect(formData.get("dauerMinuten")).toBe("45");
   });
 
   it("ein zweites Anhaken hebt das erste wieder auf — ein Kontrollkaestchen schaltet um", async () => {
@@ -148,7 +148,7 @@ describe("RoutineFormular — Aendern", () => {
     await mount(<RoutineFormular routine={ROUTINE} />);
     expect(query<HTMLInputElement>("#rt-titel").value).toBe("Fruehsport");
     expect(query<HTMLInputElement>("#rt-uhrzeit").value).toBe("07:00");
-    expect(query<HTMLInputElement>("#rt-dauer").value).toBe("30");
+    expect(feldWertImDom("dauerMinuten")).toBe("30");
     expect(query<HTMLInputElement>("input[name='routineId']").value).toBe("r1");
     expect(query("button[type='submit']").textContent).toBe("Speichern");
     // DIE BITMASKE GEHT IN BEIDE RICHTUNGEN RICHTIG (Brief): 0b10101 = Bit 0 + Bit 2 + Bit 4 = Mo, Mi, Fr.
@@ -186,20 +186,20 @@ describe("RoutineFormular — Feldfehler tragen die Eingaben mit", () => {
   it("nach einem Feldfehler traegt die Wochentagsauswahl GENAU die zurueckgemeldeten Tage — nicht leer", async () => {
     stelleZustandEin({
       ok: false,
-      fieldErrors: { wochentage: "Mindestens ein Wochentag muss gewaehlt sein." },
+      fieldErrors: { wochentage: "Mindestens ein Wochentag muss gewählt sein." },
       values: { titel: "Joggen", wochentage: "1,3", uhrzeit: "", dauerMinuten: "20" },
     });
     await mount(<RoutineFormular />);
     expect(angehakteIndizes()).toEqual([1, 3]);
     expect(query("#rt-wochentage-err").textContent).toBe(
-      "Mindestens ein Wochentag muss gewaehlt sein.",
+      "Mindestens ein Wochentag muss gewählt sein.",
     );
   });
 
   it("eine leere Wochentagsauswahl im Feldfehler ergibt KEINE angehakten Tage, nicht alle", async () => {
     stelleZustandEin({
       ok: false,
-      fieldErrors: { wochentage: "Mindestens ein Wochentag muss gewaehlt sein." },
+      fieldErrors: { wochentage: "Mindestens ein Wochentag muss gewählt sein." },
       values: { titel: "Joggen", wochentage: "", uhrzeit: "", dauerMinuten: "20" },
     });
     await mount(<RoutineFormular />);
@@ -209,16 +209,16 @@ describe("RoutineFormular — Feldfehler tragen die Eingaben mit", () => {
   it("traegt Uhrzeit und Dauer aus dem Feldfehler-Zustand weiter, NICHT aus der Vorbelegung des Ziels", async () => {
     stelleZustandEin({
       ok: false,
-      fieldErrors: { dauerMinuten: "Dauerschaetzung muss eine ganze Zahl groesser 0 sein." },
+      fieldErrors: { dauerMinuten: "Dauerschätzung muss eine ganze Zahl größer 0 sein." },
       values: { titel: "Joggen", wochentage: "0", uhrzeit: "09:15", dauerMinuten: "0" },
     });
     // `routine={ROUTINE}` traegt "Fruehsport"/"07:00"/30 — der Fehlerzustand muss trotzdem gewinnen.
     await mount(<RoutineFormular routine={ROUTINE} />);
     expect(query<HTMLInputElement>("#rt-titel").value).toBe("Joggen");
     expect(query<HTMLInputElement>("#rt-uhrzeit").value).toBe("09:15");
-    expect(query<HTMLInputElement>("#rt-dauer").value).toBe("0");
+    expect(feldWertImDom("dauerMinuten")).toBe("0");
     expect(query("#rt-dauer-err").textContent).toBe(
-      "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.",
+      "Dauerschätzung muss eine ganze Zahl größer 0 sein.",
     );
   });
 });

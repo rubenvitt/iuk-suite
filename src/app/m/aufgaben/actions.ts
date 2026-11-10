@@ -40,6 +40,7 @@ import {
   istGueltigerIsoTag,
   istGueltigeRolle,
   istGueltigeUhrzeit,
+  stundenAlsMinuten,
 } from "./_lib/eingabe";
 import { FORM_START, type FormState } from "./_lib/formState";
 import { anfangsZustand, bearbeitung, uebergang, type Aktion } from "./_lib/lebenszyklus";
@@ -119,7 +120,7 @@ function istGesetzt(formData: FormData, name: string): boolean {
  * im Wochenplan, zwei Regeln fuer dasselbe Feld waeren willkuerlich. Ein Feldfehler statt eines
  * Wurfs, weil ein Bestandstitel ueber der Grenze beim naechsten Speichern ganz regulaer mitkommt.
  */
-const TITEL_ZU_LANG = `Titel zu lang — hoechstens ${TITEL_MAX_LAENGE} Zeichen.`;
+const TITEL_ZU_LANG = `Titel zu lang — höchstens ${TITEL_MAX_LAENGE} Zeichen.`;
 
 /** Die Inhaltsfelder einer Aufgabe — was „Einstellen" und „Bearbeiten" (DRK-487) gemeinsam schreiben. */
 type AufgabenInhalt = Pick<
@@ -153,7 +154,7 @@ function leseInhalt(formData: FormData): {
   // Nur ueber ein manipuliertes Formular erreichbar (die Oberflaeche bietet je ein `<select>` mit
   // genau den gueltigen Werten an) — deshalb Wurf statt Feldfehler (Brief, Eingabevalidierung).
   if (!istGueltigePrioritaet(prioritaet)) {
-    throw new Error(`Unbekannte Prioritaet "${prioritaet}".`);
+    throw new Error(`Unbekannte Priorität "${prioritaet}".`);
   }
   if (!istGueltigeNachweisArt(nachweisArt)) {
     throw new Error(`Unbekannte Nachweisart "${nachweisArt}".`);
@@ -164,17 +165,18 @@ function leseInhalt(formData: FormData): {
   if (titel === "") fieldErrors.titel = "Titel fehlt.";
   else if (titelZuLang(titel)) fieldErrors.titel = TITEL_ZU_LANG;
   const beschreibung = values.beschreibung.trim();
-  if (beschreibung === "") fieldErrors.beschreibung = "Erklaerung fehlt.";
+  if (beschreibung === "") fieldErrors.beschreibung = "Erklärung fehlt.";
   if (!istGueltigerIsoTag(values.faelligAm)) {
-    fieldErrors.faelligAm = "Frist fehlt oder ist ungueltig.";
+    fieldErrors.faelligAm = "Frist fehlt oder ist ungültig.";
   }
   const faelligUhrzeit = values.faelligUhrzeit.trim();
   if (faelligUhrzeit !== "" && !istGueltigeUhrzeit(faelligUhrzeit)) {
-    fieldErrors.faelligUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
+    fieldErrors.faelligUhrzeit = "Uhrzeit ungültig — Format HH:MM.";
   }
   const dauerMinuten = Number(values.dauerMinuten);
-  if (!istGueltigeDauerMinuten(dauerMinuten)) {
-    fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
+  if (values.dauerMinuten.trim() === "") fieldErrors.dauerMinuten = "Dauerschätzung fehlt.";
+  else if (!istGueltigeDauerMinuten(dauerMinuten)) {
+    fieldErrors.dauerMinuten = "Dauerschätzung muss eine ganze Zahl größer 0 sein.";
   }
   if (Object.keys(fieldErrors).length > 0) return { values, fieldErrors, inhalt: null };
 
@@ -346,7 +348,7 @@ async function verteilenGemeinsam(
     if (ergebnis.wirkung !== "aendern") {
       // Nur eine Verteidigungslinie fuer den Typ: "verteilen"/"umverteilen" erzeugen bei `uebergang()`
       // nie `wirkung: "loeschen"` (das ist ausschliesslich `zurueckziehen` vorbehalten).
-      throw new Error("Unerwartetes Uebergangsergebnis.");
+      throw new Error("Unerwartetes Übergangsergebnis.");
     }
 
     /*
@@ -388,11 +390,11 @@ async function verteilenGemeinsam(
     }
     const vorschlagDatum = values.vorschlagDatum.trim();
     if (vorschlagDatum !== "" && !istGueltigerIsoTag(vorschlagDatum)) {
-      fieldErrors.vorschlagDatum = "Vorschlagstag ungueltig.";
+      fieldErrors.vorschlagDatum = "Vorschlagstag ungültig.";
     }
     const vorschlagUhrzeit = values.vorschlagUhrzeit.trim();
     if (vorschlagUhrzeit !== "" && !istGueltigeUhrzeit(vorschlagUhrzeit)) {
-      fieldErrors.vorschlagUhrzeit = "Vorschlagsuhrzeit ungueltig — Format HH:MM.";
+      fieldErrors.vorschlagUhrzeit = "Vorschlagsuhrzeit ungültig — Format HH:MM.";
     }
     if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
@@ -513,7 +515,7 @@ async function einfacherUebergang(
     if (ergebnis.wirkung !== "aendern") {
       // Verteidigungslinie fuer den Typ, wie in `verteilenGemeinsam": keine dieser drei Aktionen
       // erzeugt bei `uebergang()` `wirkung: "loeschen"`.
-      throw new Error("Unerwartetes Uebergangsergebnis.");
+      throw new Error("Unerwartetes Übergangsergebnis.");
     }
 
     aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
@@ -616,7 +618,7 @@ async function einplanenGemeinsam(_prev: FormState, formData: FormData): Promise
       if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
       throw new Error(ergebnis.grund);
     }
-    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Übergangsergebnis.");
 
     const values = {
       aufgabeId,
@@ -627,11 +629,11 @@ async function einplanenGemeinsam(_prev: FormState, formData: FormData): Promise
     const fieldErrors: Record<string, string> = {};
     const planDatum = values.planDatum.trim();
     if (!istGueltigerIsoTag(planDatum)) {
-      fieldErrors.planDatum = "Plantag fehlt oder ist ungueltig.";
+      fieldErrors.planDatum = "Plantag fehlt oder ist ungültig.";
     }
     const planUhrzeit = values.planUhrzeit.trim();
     if (planUhrzeit !== "" && !istGueltigeUhrzeit(planUhrzeit)) {
-      fieldErrors.planUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
+      fieldErrors.planUhrzeit = "Uhrzeit ungültig — Format HH:MM.";
     }
     // LEER = UNVERAENDERT, GESENDET = MUSS GUELTIG SEIN (Kopfkommentar oben) — dieselbe Zweiteilung wie
     // bei `planUhrzeit`, nur mit einem anderen "leer bedeutet"-Ergebnis (dort `null`, hier "kein Patch").
@@ -640,7 +642,7 @@ async function einplanenGemeinsam(_prev: FormState, formData: FormData): Promise
     if (dauerMinutenRoh !== "") {
       const n = Number(dauerMinutenRoh);
       if (!istGueltigeDauerMinuten(n)) {
-        fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
+        fieldErrors.dauerMinuten = "Dauerschätzung muss eine ganze Zahl größer 0 sein.";
       } else {
         dauerMinuten = n;
       }
@@ -787,7 +789,7 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
       if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
       throw new Error(ergebnis.grund);
     }
-    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Übergangsergebnis.");
 
     const values = { aufgabeId, nachweisText: feld(formData, "nachweisText") };
     const nachweisText = values.nachweisText.trim();
@@ -813,7 +815,7 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
         if (!hatText) {
           return {
             ok: false,
-            fieldErrors: { nachweisText: "Fuer diese Aufgabe ist ein Textnachweis erforderlich." },
+            fieldErrors: { nachweisText: "Für diese Aufgabe ist ein Textnachweis erforderlich." },
             values,
           };
         }
@@ -883,13 +885,13 @@ export async function freigebenAction(formData: FormData): Promise<void> {
       if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
       throw new Error(ergebnis.grund);
     }
-    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Übergangsergebnis.");
 
     let notiz: string | undefined;
     if (istVertretungsfreigabe(akteur, task) && task.prueferId !== null) {
       const pruefer = personNachId(db, task.prueferId);
       if (!pruefer) {
-        throw new Error(`Pruefer "${task.prueferId}" nicht gefunden — Datenbankinkonsistenz.`);
+        throw new Error(`Prüfer "${task.prueferId}" nicht gefunden — Datenbankinkonsistenz.`);
       }
       notiz = `Freigegeben von ${akteur.person.name} in Vertretung für ${pruefer.name}`;
     }
@@ -925,12 +927,12 @@ export async function zurueckweisenAction(_prev: FormState, formData: FormData):
       if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
       throw new Error(ergebnis.grund);
     }
-    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Übergangsergebnis.");
 
     const values = { aufgabeId, begruendung: feld(formData, "begruendung") };
     const begruendung = values.begruendung.trim();
     if (begruendung === "") {
-      return { ok: false, fieldErrors: { begruendung: "Eine Begruendung ist Pflicht." }, values };
+      return { ok: false, fieldErrors: { begruendung: "Eine Begründung ist Pflicht." }, values };
     }
 
     aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
@@ -1024,7 +1026,7 @@ async function routineFormularGemeinsam(
     const zielPersonId = bestehende ? bestehende.personId : akteur.person.id;
     if (!darfRoutinenVerwalten(akteur, heute) || !darfPlanAendern(akteur, zielPersonId, heute)) {
       auditDenied("aufgaben", auditActor(akteur.person));
-      throw new Error("Keine Berechtigung, diese Routine zu aendern.");
+      throw new Error("Keine Berechtigung, diese Routine zu ändern.");
     }
 
     const indizes = wochentageAusFormData(formData);
@@ -1045,15 +1047,16 @@ async function routineFormularGemeinsam(
     if (titel === "") fieldErrors.titel = "Titel fehlt.";
     else if (titelZuLang(titel)) fieldErrors.titel = TITEL_ZU_LANG;
     if (indizes.length === 0) {
-      fieldErrors.wochentage = "Mindestens ein Wochentag muss gewaehlt sein.";
+      fieldErrors.wochentage = "Mindestens ein Wochentag muss gewählt sein.";
     }
     const uhrzeit = values.uhrzeit.trim();
     if (uhrzeit !== "" && !istGueltigeUhrzeit(uhrzeit)) {
-      fieldErrors.uhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
+      fieldErrors.uhrzeit = "Uhrzeit ungültig — Format HH:MM.";
     }
     const dauerMinuten = Number(values.dauerMinuten);
-    if (!istGueltigeDauerMinuten(dauerMinuten)) {
-      fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
+    if (values.dauerMinuten.trim() === "") fieldErrors.dauerMinuten = "Dauer fehlt.";
+    else if (!istGueltigeDauerMinuten(dauerMinuten)) {
+      fieldErrors.dauerMinuten = "Dauer muss eine ganze Zahl größer 0 sein.";
     }
     if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
@@ -1109,7 +1112,7 @@ export async function routineRuhenAction(formData: FormData): Promise<void> {
       !darfPlanAendern(akteur, bestehende.personId, heute)
     ) {
       auditDenied("aufgaben", auditActor(akteur.person));
-      throw new Error("Keine Berechtigung, diese Routine zu aendern.");
+      throw new Error("Keine Berechtigung, diese Routine zu ändern.");
     }
 
     aktualisiereRoutine(db, bestehende.id, { aktiv: !bestehende.aktiv });
@@ -1192,7 +1195,7 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
     const zielPersonId = task.zugewiesenAn;
     if (zielPersonId === null || !darfPlanAendern(akteur, zielPersonId, heute)) {
       auditDenied("aufgaben", auditActor(akteur.person));
-      throw new Error("Keine Berechtigung, diesen Rang zu aendern.");
+      throw new Error("Keine Berechtigung, diesen Rang zu ändern.");
     }
     if (task.planDatum === null) {
       throw new Error("Aufgabe ist nicht eingeplant — kein Rang zu verschieben.");
@@ -1371,7 +1374,7 @@ async function personFormularGemeinsam(
       name: feld(formData, "name"),
       rolle: feld(formData, "rolle"),
       initialen: feld(formData, "initialen"),
-      sollMinutenTag: feld(formData, "sollMinutenTag"),
+      sollStundenTag: feld(formData, "sollStundenTag"),
       aktivVon: feld(formData, "aktivVon"),
       aktivBis: feld(formData, "aktivBis"),
     };
@@ -1396,16 +1399,18 @@ async function personFormularGemeinsam(
     if (name === "") fieldErrors.name = "Name fehlt.";
     const initialen = values.initialen.trim();
     if (initialen === "") fieldErrors.initialen = "Initialen fehlen.";
-    const sollMinutenTag = Number(values.sollMinutenTag);
-    if (!istGueltigeDauerMinuten(sollMinutenTag)) {
-      fieldErrors.sollMinutenTag = "Soll-Minuten pro Tag muss eine ganze Zahl groesser 0 sein.";
+    // IDA-386: die Eingabe ist in Stunden („7,8"), gespeichert wird weiter in Minuten.
+    const sollMinutenTagOderNull = stundenAlsMinuten(values.sollStundenTag);
+    if (values.sollStundenTag.trim() === "") fieldErrors.sollStundenTag = "Zeit pro Tag fehlt.";
+    else if (sollMinutenTagOderNull === null) {
+      fieldErrors.sollStundenTag = "Zeit pro Tag muss eine Stundenzahl über 0 und bis 24 sein, z. B. 7,8.";
     }
     if (!istGueltigerIsoTag(values.aktivVon)) {
-      fieldErrors.aktivVon = "Aktiv von fehlt oder ist ungueltig.";
+      fieldErrors.aktivVon = "Aktiv von fehlt oder ist ungültig.";
     }
     const aktivBis = values.aktivBis.trim();
     if (aktivBis !== "" && !istGueltigerIsoTag(aktivBis)) {
-      fieldErrors.aktivBis = "Aktiv bis ist ungueltig.";
+      fieldErrors.aktivBis = "Aktiv bis ist ungültig.";
     }
     // `aktivBis` SCHLIESST EIN (Brief, Spec §4) — die Reihenfolge selbst ist trotzdem eine
     // Formalpruefung: ein Enddatum vor dem Anfang waere in jeder Auslegung falsch.
@@ -1420,7 +1425,7 @@ async function personFormularGemeinsam(
       // naechsten Anmeldung STILL nie trifft (`personFuerSeite` vergleicht exakt).
       sub = values.sub.trim();
       if (sub === "") {
-        fieldErrors.sub = "Die Pocket-ID-Kennung fehlt.";
+        fieldErrors.sub = "Die Konto-Kennung fehlt.";
       } else if (personNachSub(db, sub)) {
         // DIE EINDEUTIGKEIT WIRD HIER GEPRUEFT, NICHT DEM UNIQUE-INDEX UEBERLASSEN
         // (`personen_sub_idx"): eine SQLite-Constraint-Verletzung waere ein Wurf auf der technischen
@@ -1430,7 +1435,10 @@ async function personFormularGemeinsam(
       }
     }
 
-    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+    if (Object.keys(fieldErrors).length > 0 || sollMinutenTagOderNull === null) {
+      return { ok: false, fieldErrors, values };
+    }
+    const sollMinutenTag = sollMinutenTagOderNull;
 
     const aktivBisWert = aktivBis === "" ? null : aktivBis;
     if (bestehende) {

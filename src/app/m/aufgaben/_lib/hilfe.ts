@@ -608,7 +608,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         titel: "Dauer schätzen",
         text:
-          "In Minuten, und lieber ehrlich als sportlich: mit dieser Zahl rechnet das Budget, nicht " +
+          "Aus der Liste gewählt, und lieber ehrlich als sportlich: damit rechnet das Budget, nicht " +
           "mit der tatsächlichen Arbeitszeit. Zu knapp geschätzt wirkt die Woche freier, als sie " +
           "ist — und der nächste Auftrag kommt trotzdem.",
       },
@@ -801,7 +801,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         form: "formular",
         titel: "Neue Routine anlegen",
         erklaerung:
-          "Titel, Wochentage, optionale Uhrzeit und Dauer in Minuten. Dieselbe Maske ändert später " +
+          "Titel, Wochentage, optionale Uhrzeit und Dauer. Dieselbe Maske ändert später " +
           "eine bestehende Routine.",
       },
       {
@@ -850,28 +850,31 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     wofuer: "Wer macht mit, in welcher Rolle, ab wann — und mit wie viel Zeit am Tag?",
     szene:
       "Ein neuer Jahrgang fängt an, zwei Leute hören auf. Zehn Minuten Arbeit — wenn man weiß, " +
-      "welches Feld was auslöst. Drei davon sind es, die zählen: die Kennung, die Rolle und das " +
-      "Tagessoll.",
+      "welches Feld was auslöst. Drei davon sind es, die zählen: die Kennung, die Rolle und die " +
+      "Zeit pro Tag.",
     ziel: { art: "fest", href: "/personen" },
     skizze: [
       {
         form: "kopf",
         titel: "Aufgaben › Personenverwaltung",
-        erklaerung: "Die Kontextzeile nennt die Zahl der Personen und wie viele davon heute aktiv sind.",
-      },
-      {
-        form: "formular",
-        titel: "Neue Person anlegen",
         erklaerung:
-          "Name, Initialen, Kennung aus Pocket ID, Rolle, Tagessoll in Minuten sowie aktiv von und " +
-          "bis. Hängt das Verzeichnis dran, füllt die Suche die Felder für dich.",
+          "Die Kontextzeile nennt die Zahl der Personen und wie viele davon heute aktiv sind; " +
+          "rechts daneben „Person anlegen“.",
       },
       {
         form: "liste",
         titel: "Personen",
         erklaerung:
-          "Je Zeile Rolle, Zeitraum, Tagessoll und ob die Person heute aktiv ist — dazu „Beenden“ " +
-          "mit Rückfrage.",
+          "Je Zeile Rolle, Zeitraum, Zeit pro Tag und ob die Person heute aktiv ist — dazu " +
+          "„Ändern“ und „Beenden“ mit Rückfrage.",
+      },
+      {
+        form: "formular",
+        titel: "Person anlegen",
+        erklaerung:
+          "Öffnet sich als Schublade: Name, Initialen, Konto-Kennung, Rolle, Zeit pro Tag in " +
+          "Stunden sowie aktiv von und bis. Hängt das Verzeichnis dran, füllt die Suche die Felder " +
+          "für dich.",
       },
     ],
     bilder: ["rollen"],
@@ -879,7 +882,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         titel: "Zuerst die Kennung",
         text:
-          "Die Kennung aus Pocket ID verbindet die Anmeldung mit dieser Zeile. Ohne sie sieht die " +
+          "Die Konto-Kennung verbindet die Anmeldung mit dieser Zeile. Ohne sie sieht die " +
           "Person zwar das Modul, findet sich aber nicht darin wieder — sie landet auf der " +
           "Hinweisseite „noch nicht eingetragen“. Genau dort steht ihre Kennung; sie kann sie dir " +
           "einfach durchgeben.",
@@ -892,9 +895,9 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
           "Pocket ID — sonst gäbe es zwei Register für dieselbe Frage, und die laufen auseinander.",
       },
       {
-        titel: "Tagessoll setzen",
+        titel: "Zeit pro Tag setzen",
         text:
-          "Die Minuten pro Arbeitstag sind die Bezugsgröße jedes Budgetbalkens. Steht hier eine " +
+          "Die Stunden pro Arbeitstag sind die Bezugsgröße jedes Budgetbalkens. Steht hier eine " +
           "falsche Zahl, ist jede Auslastungsangabe falsch — für die Person und für dich.",
       },
       {

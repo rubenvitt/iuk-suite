@@ -340,7 +340,7 @@ describe("aufgabeEinstellenAction", () => {
 
     await expect(
       aufgabeEinstellenAction({ ok: true }, form({ prioritaet: "dringend" })),
-    ).rejects.toThrow(/Unbekannte Prioritaet/);
+    ).rejects.toThrow(/Unbekannte Priorität/);
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
   });
 
@@ -767,7 +767,7 @@ describe("zurueckziehenAction", () => {
       anmelden(auftrag);
 
       await expect(zurueckziehenAction(form(task.id))).rejects.toThrow(
-        /Zurueckziehen ist nur moeglich, solange niemand an der Aufgabe arbeitet/,
+        /Zurückziehen ist nur möglich, solange niemand an der Aufgabe arbeitet/,
       );
       expect(aufgabe(t.db, task.id)).not.toBeNull();
     },
@@ -1807,7 +1807,7 @@ describe("freigebenAction", () => {
     t.sqlite.pragma("foreign_keys = ON");
     anmelden(koordination, true);
 
-    await expect(freigebenAction(form(task.id))).rejects.toThrow(/Pruefer .* nicht gefunden/);
+    await expect(freigebenAction(form(task.id))).rejects.toThrow(/Prüfer .* nicht gefunden/);
     expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
   });
 });
@@ -1952,7 +1952,7 @@ describe("wiederaufnehmenAction", () => {
  * das den Zeitplan schuetzt, keine zweite Fassung derselben Regel.
  */
 
-const BERECHTIGUNGS_MELDUNG = /Keine Berechtigung, diese Routine zu aendern\./;
+const BERECHTIGUNGS_MELDUNG = /Keine Berechtigung, diese Routine zu ändern\./;
 
 describe("routineAnlegenAction", () => {
   function form(over: Record<string, string | string[]> = {}): FormData {
@@ -2476,7 +2476,7 @@ describe("rangVerschiebenAction", () => {
     anmelden(bufdi2);
 
     await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
-      /Keine Berechtigung, diesen Rang zu aendern\./,
+      /Keine Berechtigung, diesen Rang zu ändern\./,
     );
     expect(aufgabe(t.db, mitte.id)!.planRang).toBe(5);
   });
@@ -2489,7 +2489,7 @@ describe("rangVerschiebenAction", () => {
     anmelden(koordination, true);
 
     await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
-      /Keine Berechtigung, diesen Rang zu aendern\./,
+      /Keine Berechtigung, diesen Rang zu ändern\./,
     );
     expect(aufgabe(t.db, mitte.id)!.planRang).toBe(5);
   });
@@ -2501,7 +2501,7 @@ describe("rangVerschiebenAction", () => {
     anmelden(exBufdi);
 
     await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
-      /Keine Berechtigung, diesen Rang zu aendern\./,
+      /Keine Berechtigung, diesen Rang zu ändern\./,
     );
   });
 
@@ -2574,7 +2574,7 @@ describe("personAnlegenAction", () => {
     f.set("name", "Neu");
     f.set("initialen", "NE");
     f.set("rolle", "bufdi");
-    f.set("sollMinutenTag", "300");
+    f.set("sollStundenTag", "5");
     f.set("aktivVon", "2026-08-14");
     f.set("aktivBis", "");
     for (const [k, v] of Object.entries(over)) f.set(k, v);
@@ -2634,7 +2634,7 @@ describe("personAnlegenAction", () => {
     expect(ergebnis.fieldErrors.name).toBeTruthy();
     expect(ergebnis.values.sub).toBe("dev:neu@localtest.me");
     expect(ergebnis.values.rolle).toBe("bufdi");
-    expect(ergebnis.values.sollMinutenTag).toBe("300");
+    expect(ergebnis.values.sollStundenTag).toBe("5");
   });
 
   it("ein bereits vergebener sub kommt als Feldfehler zurueck, keine zweite Zeile entsteht", async () => {
@@ -2757,7 +2757,7 @@ describe("personAendernAction", () => {
     f.set("name", "Geaendert");
     f.set("initialen", "GA");
     f.set("rolle", "bufdi");
-    f.set("sollMinutenTag", "400");
+    f.set("sollStundenTag", "6,67");
     f.set("aktivVon", "2026-08-01");
     f.set("aktivBis", "");
     for (const [k, v] of Object.entries(over)) f.set(k, v);
@@ -2772,6 +2772,36 @@ describe("personAendernAction", () => {
     const ergebnis = await personAendernAction({ ok: true }, form(ziel.id));
     expect(ergebnis).toEqual({ ok: true });
     expect(personNachId(t.db, ziel.id)).toMatchObject({ name: "Geaendert", sollMinutenTag: 400 });
+  });
+
+  /*
+   * IDA-386: die Zeit pro Tag kommt in Stunden mit Dezimalkomma herein und wird in Minuten
+   * gespeichert — „7,8" ist der Vorgabewert der Tabelle (468 Min.).
+   */
+  it("nimmt die Zeit pro Tag in Stunden mit Komma an und speichert Minuten", async () => {
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    const ziel = legePerson("dev:alina@test", "bufdi");
+    anmelden(koordination, true);
+
+    expect(await personAendernAction({ ok: true }, form(ziel.id, { sollStundenTag: "7,8" }))).toEqual({ ok: true });
+    expect(personNachId(t.db, ziel.id)?.sollMinutenTag).toBe(468);
+    expect(await personAendernAction({ ok: true }, form(ziel.id, { sollStundenTag: "4.5" }))).toEqual({ ok: true });
+    expect(personNachId(t.db, ziel.id)?.sollMinutenTag).toBe(270);
+  });
+
+  it("eine leere, nicht-numerische oder zu grosse Zeit pro Tag kommt als Feldfehler zurueck", async () => {
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    const ziel = legePerson("dev:alina@test", "bufdi");
+    anmelden(koordination, true);
+
+    for (const roh of ["", "abc", "0", "25", "-1"]) {
+      const ergebnis = erwarteFeldfehler(
+        await personAendernAction({ ok: true }, form(ziel.id, { sollStundenTag: roh })),
+      );
+      expect(ergebnis.fieldErrors.sollStundenTag, roh).toBeTruthy();
+      expect(ergebnis.values.sollStundenTag).toBe(roh);
+    }
+    expect(personNachId(t.db, ziel.id)?.sollMinutenTag).toBe(ziel.sollMinutenTag);
   });
 
   /**
