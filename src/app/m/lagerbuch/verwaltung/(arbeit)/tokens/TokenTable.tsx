@@ -322,7 +322,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       title: "Bezeichnung",
       dataIndex: "label",
       sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.label),
-      render: (label: string) => <Zellentext text={label} style={{ maxWidth: "16ch" }} />,
+      render: (label: string) => <Zellentext text={label} style={{ maxWidth: "12ch" }} />,
     },
     {
       title: "Code",
@@ -382,10 +382,13 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
            * Auskunft über seine Herkunft — und zwar an der Stelle, an der man
            * sie nachschlägt.
            */
-          <Chip ton="grau" zeichen="schluessel">{ART_TEXT[artVon(zeile)]}</Chip>
+          <Chip ton="grau" zeichen="schluessel">
+            {/* IDA-393: umbrechen dürfen — „Ohne Ortsetikett" in einer Zeile war die Mindestbreite der Spalte. */}
+            <span style={{ whiteSpace: "normal" }}>{ART_TEXT[artVon(zeile)]}</span>
+          </Chip>
         ) : (
           // IDA-393: Lesebreite, sonst schob ein langer Ortsname Zustand und Aktionen hinaus.
-          <div style={{ maxWidth: "14ch", overflowWrap: "anywhere" }}>
+          <div style={{ maxWidth: "12ch", overflowWrap: "anywhere" }}>
             <div>{zeile.ortName}</div>
             {zeile.ortMeta ? <div style={SCHRIFT.neben}>{zeile.ortMeta}</div> : null}
           </div>
@@ -413,7 +416,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
            * Lastwagen — er ist dort kein Befund, sondern die Gruppe, und ein
            * eigenes Zeichen fuer „weiss nicht" gibt es nicht.
            */
-          <div style={{ maxWidth: "16ch", overflowWrap: "anywhere" }}>
+          <div style={{ maxWidth: "12ch", overflowWrap: "anywhere" }}>
             <Chip
               ton="grau"
               zeichen={ziel === "fahrzeug"
