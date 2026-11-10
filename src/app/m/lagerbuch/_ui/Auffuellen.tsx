@@ -13,7 +13,9 @@ import { SendeStatus } from "./SendeStatus";
 import { bucheAuffuellung } from "../_actions/buchung";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import { istAbgelaufen, type Ampel } from "../_lib/domain/verfall";
-import { MONAT_REGEX, PSEUDO_VERFALL, istOhneVerfall } from "../_lib/konstanten";
+import {
+  CHARGE_OHNE_NUMMER, CHARGE_OHNE_VERFALL, MONAT_REGEX, PSEUDO_VERFALL, istOhneVerfall,
+} from "../_lib/konstanten";
 import s from "./helfer.module.css";
 
 /**
@@ -207,7 +209,13 @@ export function Auffuellen({
        * anzulegen — also genau zurueck in den Fehler.
        */
       if (n.charge.art === "neu") {
-        setAngelegt({ id: r.wert.chargeId, chargenNr: n.charge.chargenNr, verfall: n.charge.verfall });
+        setAngelegt({
+          id: r.wert.chargeId,
+          // Derselbe Platzhalter, den der Server speichert (`zugangBuchen`).
+          chargenNr: n.charge.chargenNr
+            || (istOhneVerfall(n.charge.verfall) ? CHARGE_OHNE_VERFALL : CHARGE_OHNE_NUMMER),
+          verfall: n.charge.verfall,
+        });
         setChargeWahl(r.wert.chargeId);
         setChargenNr("");
         setVerfall("");

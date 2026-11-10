@@ -138,10 +138,10 @@ export async function gegenbucheVorgang(
       });
     } catch (e) {
       // Sentinel statt `Error` — Begruendung am `catch` von `bucheZugang`.
-      return {
-        ok: false,
-        fehler: e instanceof BuchungAbgewiesen ? e.message : "Gegenbuchung konnte nicht gebucht werden.",
-      };
+      if (e instanceof BuchungAbgewiesen) return { ok: false, fehler: e.message };
+      // Ein Defekt, keine erwartbare Lage: die Ursache gehoert ins Serverlog.
+      console.error("[lagerbuch] Gegenbuchung fehlgeschlagen", e);
+      return { ok: false, fehler: "Gegenbuchung konnte nicht gebucht werden." };
     }
     revalidiereBestand();
     return { ok: true, wert: { gegengebucht, ids: zeilen.map((z) => z.id) } };
