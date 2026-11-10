@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { datumKurz } from "../../_lib/datum";
 import type { Durchfuehrung } from "../offline/progress";
 import { teamSchluessel } from "../offline/localStore";
@@ -12,30 +12,44 @@ type Props = {
   heute: string;
   /** Besitzer des Speichers (DRK-286) — die Vorbelegung trägt Namen und ist persönlich. */
   besitzer: string;
+  /** Name der angemeldeten Person — Vorbelegung des Steuerers, solange kein letztes Team gemerkt ist. */
+  eigenerName?: string;
 };
 
 type Team = { drohnensteuerer: string; luftraumbeobachter: string };
 const LEERES_TEAM: Team = { drohnensteuerer: "", luftraumbeobachter: "" };
 
 /** Port aus uav-praxis/src/components/DurchfuehrungForm.tsx. */
-export function DurchfuehrungForm({ onAdd, heute, besitzer }: Props) {
+export function DurchfuehrungForm({ onAdd, heute, besitzer, eigenerName = "" }: Props) {
   // Zuletzt erfasstes Team aufgaben- und sitzungsübergreifend merken, damit die
   // beiden Namensfelder beim nächsten Eintrag bereits vorbelegt sind.
   const [letztesTeam, setLetztesTeam] = useLocalStorage<Team>(teamSchluessel(besitzer), LEERES_TEAM);
   const [datum, setDatum] = useState(heute);
-  const [drohnensteuerer, setDrohnensteuerer] = useState(letztesTeam.drohnensteuerer);
+  const [drohnensteuerer, setDrohnensteuerer] = useState(letztesTeam.drohnensteuerer || eigenerName);
   const [luftraumbeobachter, setLuftraumbeobachter] = useState(letztesTeam.luftraumbeobachter);
+  const [steuererFehlt, setSteuererFehlt] = useState(false);
+  const steuererFeld = useRef<HTMLInputElement>(null);
 
   function absenden(e: FormEvent) {
     e.preventDefault();
-    onAdd({ datum, drohnensteuerer, luftraumbeobachter });
-    setLetztesTeam({ drohnensteuerer, luftraumbeobachter });
+    // IDA-389: eine Durchführung ohne Steuerer zählte trotzdem auf die
+    // Zielanzahl („10.11.2026 · — / —"). Ohne Namen wird nichts gespeichert.
+    const steuerer = drohnensteuerer.trim();
+    const beobachter = luftraumbeobachter.trim();
+    if (!steuerer) {
+      setSteuererFehlt(true);
+      steuererFeld.current?.focus();
+      return;
+    }
+    setSteuererFehlt(false);
+    onAdd({ datum, drohnensteuerer: steuerer, luftraumbeobachter: beobachter });
+    setLetztesTeam({ drohnensteuerer: steuerer, luftraumbeobachter: beobachter });
     setDatum(heute);
     // Namensfelder bleiben als Vorbelegung für die nächste Durchführung stehen.
   }
 
   return (
-    <form className={styles["df-form"]} onSubmit={absenden}>
+    <form className={styles["df-form"]} onSubmit={absenden} noValidate>
       <label className={styles.feld} htmlFor="df-datum">
         {/*
          * Das gewählte Datum steht in deutscher Form NEBEN der Beschriftung.
@@ -62,13 +76,25 @@ export function DurchfuehrungForm({ onAdd, heute, besitzer }: Props) {
       <label className={styles.feld} htmlFor="df-drohnensteuerer">
         <span className={styles["feld-label"]}>Drohnensteuerer</span>
         <input
+          ref={steuererFeld}
           id="df-drohnensteuerer"
           type="text"
+          required
           value={drohnensteuerer}
-          onChange={(e) => setDrohnensteuerer(e.target.value)}
+          onChange={(e) => {
+            setDrohnensteuerer(e.target.value);
+            if (e.target.value.trim()) setSteuererFehlt(false);
+          }}
           autoComplete="off"
+          aria-invalid={steuererFehlt || undefined}
+          aria-describedby={steuererFehlt ? "df-steuerer-fehler" : undefined}
         />
       </label>
+      {steuererFehlt && (
+        <p id="df-steuerer-fehler" className={styles["feld-fehler"]} role="alert">
+          Name des Drohnensteuerers fehlt.
+        </p>
+      )}
       <label className={styles.feld} htmlFor="df-luftraumbeobachter">
         <span className={styles["feld-label"]}>Luftraumbeobachter</span>
         <input

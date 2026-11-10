@@ -115,11 +115,21 @@ export function useFortschritt(katalog: TaskDTO[], besitzer: string) {
   // ohne auf den Merge-Effekt unten zu warten. Verhindert Render-Lücken
   // (undefined) in der Übersicht, falls der DB-Katalog Aufgaben enthält, die der
   // lokale Stand noch nicht kennt (frisch vom Admin angelegt).
+  //
+  // IDA-389: das Ziel setzt der Ausbilder. Ein lokal noch gesenkter Wert (aus
+  // der Zeit, als Teilnehmer ihn ändern konnten) wird angezeigt wie das
+  // Katalogziel — der Server rechnet genauso.
   const fortschritt = useMemo(() => {
-    const fehlend = katalog.filter((t) => !sicher.fortschritt[t.id]);
-    if (fehlend.length === 0) return sicher.fortschritt;
+    const zuNiedrig = katalog.filter((t) => {
+      const f = sicher.fortschritt[t.id];
+      return !f || f.zielanzahl < t.zielanzahlDefault;
+    });
+    if (zuNiedrig.length === 0) return sicher.fortschritt;
     const map = { ...sicher.fortschritt };
-    for (const t of fehlend) map[t.id] = leererFortschritt(t.zielanzahlDefault);
+    for (const t of zuNiedrig) {
+      const f = map[t.id];
+      map[t.id] = f ? { ...f, zielanzahl: t.zielanzahlDefault } : leererFortschritt(t.zielanzahlDefault);
+    }
     return map;
   }, [sicher.fortschritt, katalog]);
 
@@ -200,7 +210,8 @@ export function useFortschritt(katalog: TaskDTO[], besitzer: string) {
     [besitzer],
   );
 
-  // Spiegelt eine TaskStatus-Mutation (Zielanzahl/nicht-anwendbar) in die Queue.
+  // Spiegelt eine TaskStatus-Mutation („nicht anwendbar") in die Queue — die
+  // Zielanzahl reist unverändert mit, setzen kann sie seit IDA-389 nur der Katalog.
   // Ebenfalls ohne `eingeloggterTeilnehmer`-Wächter — Begründung s. `execMutation`.
   const statusMutation = useCallback(
     (taskId: string, f: AufgabenFortschritt) => {
@@ -252,17 +263,6 @@ export function useFortschritt(katalog: TaskDTO[], besitzer: string) {
     [aendern, basis, execMutation],
   );
 
-  const zielanzahlSetzen = useCallback(
-    (id: string, ziel: number) => {
-      const nachher = aendern(id, (f) => ({
-        ...f,
-        zielanzahl: Math.max(1, Math.floor(ziel) || 1),
-      }));
-      if (nachher) statusMutation(id, nachher);
-    },
-    [aendern, statusMutation],
-  );
-
   const nichtAnwendbarSetzen = useCallback(
     (id: string, wert: boolean) => {
       const nachher = aendern(id, (f) => ({ ...f, nichtAnwendbar: wert }));
@@ -276,7 +276,6 @@ export function useFortschritt(katalog: TaskDTO[], besitzer: string) {
     fortschritt,
     durchfuehrungHinzufuegen,
     durchfuehrungEntfernen,
-    zielanzahlSetzen,
     nichtAnwendbarSetzen,
   };
 }

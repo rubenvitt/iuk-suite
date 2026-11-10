@@ -357,7 +357,7 @@ export function teilnehmerDetail(db: UavDb, id: string): ParticipantDetailDTO {
 
 /**
  * Aufgaben-Aufschlüsselung eines Teilnehmers über den aktiven Katalog: effektive
- * Zielanzahl = task_status.zielanzahl ?? tasks.zielanzahl_default (min. 1);
+ * Zielanzahl = max(tasks.zielanzahl_default, task_status.zielanzahl) (min. 1);
  * erledigt, wenn die Anzahl nicht-gelöschter Durchführungen ≥ Zielanzahl und
  * die Aufgabe anwendbar ist.
  */
@@ -385,7 +385,9 @@ function teilnehmerAufgaben(db: UavDb, participantId: string): TaskProgressDTO[]
     const st = statusMap.get(t.id);
     const anzahl = ex?.anzahl ?? 0;
     const nichtAnwendbar = st?.nichtAnwendbar === 1;
-    const ziel = Math.max(1, st?.zielanzahl ?? t.zielanzahlDefault);
+    // IDA-389: das Ziel setzt der Ausbilder (Katalog). Ein Teilnehmer kann es
+    // nicht mehr senken; ein früher gesenkter Wert zählt nicht.
+    const ziel = Math.max(1, t.zielanzahlDefault, st?.zielanzahl ?? 0);
     return {
       taskId: t.id,
       teil: t.teil,

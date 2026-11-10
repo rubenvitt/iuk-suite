@@ -110,10 +110,19 @@ describe("Fortschritt und Auswertung", () => {
     expect(d.teile).toEqual([{ teil: 1, erledigt: 1, gesamt: 1, quote: 1 }]);
     expect(q.teilnehmerUebersicht(db)[0]).toMatchObject({ erledigt: 1, gesamt: 1 });
   });
-  it("Zielanzahl-Override, mindestens 1", () => {
+  // IDA-389: das Ziel setzt der Katalog. Ein vom Teilnehmer gesenkter Wert
+  // (1 statt 2) machte die Aufgabe sofort „erledigt".
+  it("Zielanzahl: ein gesenkter Wert zählt nicht, das Katalogziel gilt", () => {
     const db = testDb(); const pid = grund(db).id;
-    q.sync(db, pid, { since: null, executions: [], taskStatus: [{ taskId: "1-1", zielanzahl: 0, nichtAnwendbar: false, updatedAt: "2026-08-10T00:00:00.000Z" }] });
-    expect(q.teilnehmerDetail(db, pid).aufgaben[0].ziel).toBe(1);
+    q.sync(db, pid, { since: null, executions: [{ id: "e", taskId: "1-1", datum: "2026-08-10", drohnensteuerer: "Ada", luftraumbeobachter: "" }], taskStatus: [{ taskId: "1-1", zielanzahl: 1, nichtAnwendbar: false, updatedAt: "2026-08-10T00:00:00.000Z" }] });
+    const a = q.teilnehmerDetail(db, pid).aufgaben[0];
+    expect(a.ziel).toBe(2);
+    expect(a.erledigt).toBe(false);
+  });
+  it("Zielanzahl: ein früher erhöhter Wert bleibt bestehen", () => {
+    const db = testDb(); const pid = grund(db).id;
+    q.sync(db, pid, { since: null, executions: [], taskStatus: [{ taskId: "1-1", zielanzahl: 4, nichtAnwendbar: false, updatedAt: "2026-08-10T00:00:00.000Z" }] });
+    expect(q.teilnehmerDetail(db, pid).aufgaben[0].ziel).toBe(4);
   });
 });
 

@@ -313,7 +313,7 @@ export function personenSpeicher(besitzer: string) {
      * Baut aus einem autoritativen Server-Snapshot den lokalen Fortschritt neu
      * auf (Server ist autoritativ) und schreibt ihn (inkl. Benachrichtigung).
      * Universum = aktueller Katalog; effektive Zielanzahl =
-     * `taskStatus.zielanzahl ?? task.zielanzahlDefault`; Tombstones zählen nicht.
+     * `max(task.zielanzahlDefault, taskStatus.zielanzahl)`; Tombstones zählen nicht.
      */
     snapshotAnwenden(
       snapshot: ProgressSnapshot,
@@ -403,7 +403,7 @@ export function personenSpeicher(besitzer: string) {
       const fortschritt: FortschrittMap = {};
       for (const t of katalog) {
         const st = statusByTask.get(t.id);
-        const ziel = Math.max(1, st?.zielanzahl ?? t.zielanzahlDefault);
+        const ziel = Math.max(1, t.zielanzahlDefault, st?.zielanzahl ?? 0); // IDA-389: nie unter dem Katalogziel
         const durchfuehrungen = (execByTask.get(t.id) ?? []).map((e) => ({
           id: e.id,
           datum: e.datum,

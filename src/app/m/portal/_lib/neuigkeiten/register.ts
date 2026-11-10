@@ -171,6 +171,7 @@ import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/u
 import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-fortschritt-zaehlt-durchfuehrungen";
 import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
 import trainingsansichtOhneSuiteLeiste from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-trainingsansicht-ohne-suite-leiste";
+import angemeldetUndAbmelden from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-11-10-angemeldet-und-abmelden";
 
 /**
  * DAS VERZEICHNIS ALLER NOTIZEN — eine Zeile je Datei, und das ist die einzige
@@ -346,6 +347,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   drohnentrainingInDerSuite,
   katalogOhneCodeAnsehen,
   trainingsansichtOhneSuiteLeiste,
+  angemeldetUndAbmelden,
   fortschrittZaehltDurchfuehrungen,
   dankeSeiteNurDanke,
   einsatzdateienImReader,

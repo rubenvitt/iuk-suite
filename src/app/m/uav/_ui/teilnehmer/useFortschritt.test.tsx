@@ -20,7 +20,7 @@ const KATALOG: TaskDTO[] = [
 ];
 
 function Harness({ besitzer }: { besitzer: string }) {
-  const { durchfuehrungHinzufuegen, zielanzahlSetzen, fortschritt } = useFortschritt(KATALOG, besitzer);
+  const { durchfuehrungHinzufuegen, nichtAnwendbarSetzen, fortschritt } = useFortschritt(KATALOG, besitzer);
   return (
     <div>
       <output>{fortschritt["1-1"]?.durchfuehrungen.map((d) => d.drohnensteuerer).join(",")}</output>
@@ -32,8 +32,8 @@ function Harness({ besitzer }: { besitzer: string }) {
       >
         add
       </button>
-      <button type="button" onClick={() => zielanzahlSetzen("1-1", 5)}>
-        ziel
+      <button type="button" onClick={() => nichtAnwendbarSetzen("1-1", true)}>
+        na
       </button>
     </div>
   );
@@ -58,7 +58,7 @@ describe("useFortschritt — Queue unabhängig von der Identität", () => {
     await click('button:nth-of-type(2)');
     const queue = personenSpeicher(ANONYM).queueLesen();
     expect(queue).toHaveLength(1);
-    expect(queue[0]).toMatchObject({ art: "taskStatus", daten: { taskId: "1-1", zielanzahl: 5 } });
+    expect(queue[0]).toMatchObject({ art: "taskStatus", daten: { taskId: "1-1", zielanzahl: 2, nichtAnwendbar: true } });
   });
 });
 

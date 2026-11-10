@@ -22,14 +22,15 @@ describe("localStore — persönlicher Speicher je Besitzer", () => {
     expect(q.find((e) => e.art === "execution")?.daten).toMatchObject({ datum: "2026-08-02" });
     expect(q.find((e) => e.art === "taskStatus")?.daten).toMatchObject({ zielanzahl: 2 });
   });
-  it("snapshotAnwenden: Tombstones löschen, pending gewinnt, Ziel mindestens 1", () => {
+  it("snapshotAnwenden: Tombstones löschen, pending gewinnt, Ziel nie unter dem Katalogziel", () => {
     localStore.tasksSchreiben([{ id: "1-1", teil: 1, nummer: "1.1", titel: "t", lernziel: "", schritte: [], durchfuehrungshinweise: [], sicherheitshinweise: [], zielanzahlDefault: 2, sortOrder: 0, aktiv: true }]);
     const state = P.snapshotAnwenden(
       { executions: [{ id: "a", taskId: "1-1", datum: "2026-08-01", drohnensteuerer: "", luftraumbeobachter: "" }, { id: "b", taskId: "1-1", datum: "2026-08-02", drohnensteuerer: "", luftraumbeobachter: "", deletedAt: "2026-08-03T00:00:00.000Z" }], taskStatus: [], serverTime: "2026-08-28T00:00:00.000Z" },
       { executions: [], taskStatus: [{ taskId: "1-1", zielanzahl: 0, nichtAnwendbar: false, updatedAt: "x" }] },
     );
     expect(state.fortschritt["1-1"].durchfuehrungen.map((d) => d.id)).toEqual(["a"]);
-    expect(state.fortschritt["1-1"].zielanzahl).toBe(1);
+    // IDA-389: ein gesenktes Ziel (hier 0) zählt nicht, es gilt das Katalogziel 2.
+    expect(state.fortschritt["1-1"].zielanzahl).toBe(2);
   });
 
   it("ein lokal-only Eintrag (weder Snapshot noch Queue) übersteht snapshotAnwenden und landet in der Queue", () => {

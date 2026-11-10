@@ -107,6 +107,15 @@ export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintra
   if (treffer) return { schluessel: treffer.key, genau: true };
   const wurzel = nav.find((e) => e.href === "/");
   if (!wurzel) return null;
+  // NUR STATT DES WURZEL-FALLBACKS: eine Unterseite eines Eintrags
+  // (`/admin/teilnehmer/7` unter `/admin`) gehört diesem Eintrag, nicht der
+  // Wurzel — markiert, aber nicht als die aufgerufene Seite (IDA-389: in `uav`
+  // leuchtete dort „Trainingsansicht"). Ohne Wurzeleintrag bleibt es bei
+  // „keine Markierung" (`lagerbuch/_lib/nav.ts` will das so).
+  const elternteil = nav
+    .filter((e) => e.href !== "/" && pfad.includes(`${e.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  if (elternteil) return { schluessel: elternteil.key, genau: false };
   return { schluessel: wurzel.key, genau: pfad === wurzel.href };
 }
 
