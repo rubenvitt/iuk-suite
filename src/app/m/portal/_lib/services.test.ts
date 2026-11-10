@@ -27,3 +27,45 @@ it("create + list visible", async () => {
   const visible = await getVisibleServicesForUser([]);
   expect(visible.map((s) => s.slug)).toContain("wiki");
 });
+
+/** DIE KENNUNG KOMMT AUS DEM NAMEN (IDA-391). */
+it("leitet die Kennung aus dem Namen ab: Umlaute ausgeschrieben, klein, Bindestriche", async () => {
+  const { kennungAusName } = await import("@/app/m/portal/_lib/services");
+  expect(kennungAusName("Größe & Übersicht")).toBe("groesse-uebersicht");
+  expect(kennungAusName("  Ärzte-Wiki (intern) ")).toBe("aerzte-wiki-intern");
+  expect(kennungAusName("Café")).toBe("cafe");
+  expect(kennungAusName("!!!")).toBe("dienst");
+});
+
+it("hängt bei einer vergebenen Kennung einen Zähler an", async () => {
+  const { freieKennung } = await import("@/app/m/portal/_lib/services");
+  expect(freieKennung("wiki", new Set())).toBe("wiki");
+  expect(freieKennung("wiki", new Set(["wiki", "wiki-2"]))).toBe("wiki-3");
+});
+
+it("legt zwei gleichnamige Dienste mit verschiedenen Kennungen an", async () => {
+  mkdirSync(TEST_DATA_DIR, { recursive: true });
+  const db = drizzle(registerAuditFunctions(new Database(`${TEST_DATA_DIR}/portal.db`)), { schema });
+  migrate(db, { migrationsFolder: "./src/app/m/portal/_db/migrations" });
+  const { legeDienstAn, getAllServices } = await import("@/app/m/portal/_lib/services");
+  // Eigener Name: `getDb()` hält die Verbindung über die Tests dieser Datei, „wiki" steht schon.
+  await legeDienstAn({ name: "Ärzte Liste", url: "https://a.example", isPublic: true });
+  await legeDienstAn({ name: "Ärzte Liste", url: "https://b.example", isPublic: true });
+  const kennungen = (await getAllServices()).map((s) => s.slug).filter((k) => k.startsWith("aerzte"));
+  expect(kennungen.sort()).toEqual(["aerzte-liste", "aerzte-liste-2"]);
+});
+
+it("liest das Dienstformular und lehnt fehlende oder fremde Adressen ab", async () => {
+  const { dienstFelderAusFormular } = await import("@/app/m/portal/_lib/services");
+  const fd = (e: Record<string, string>) => {
+    const d = new FormData();
+    for (const [k, v] of Object.entries(e)) d.set(k, v);
+    return d;
+  };
+  expect(
+    dienstFelderAusFormular(fd({ name: "A", url: "https://a.example", category: " ", openInNewTab: "on", iconUrl: "https://a.example/i.png" })),
+  ).toEqual({ name: "A", url: "https://a.example", description: "", category: null, iconUrl: "https://a.example/i.png", openInNewTab: true });
+  expect(() => dienstFelderAusFormular(fd({ name: "", url: "https://a.example" }))).toThrow(/Name/);
+  expect(() => dienstFelderAusFormular(fd({ name: "A", url: "ftp://a.example" }))).toThrow(/http/);
+  expect(() => dienstFelderAusFormular(fd({ name: "A", url: "https://a.example", iconUrl: "data:x" }))).toThrow(/Bildadresse/);
+});

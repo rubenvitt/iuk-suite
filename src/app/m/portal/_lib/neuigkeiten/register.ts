@@ -16,6 +16,10 @@ import modulversionen from "./notizen/portal/2026-11-02-modulversionen";
 import appsAnheften from "./notizen/portal/2026-11-03-apps-anheften";
 import einMenue from "./notizen/portal/2026-11-04-ein-menue";
 import eingabenBleibenErhalten from "./notizen/portal/2026-11-05-eingaben-bleiben-erhalten";
+import diensteBearbeiten from "./notizen/portal/2026-11-10-dienste-bearbeiten";
+import eineSuche from "./notizen/portal/2026-11-10-eine-suche";
+import neuigkeitenMarkiert from "./notizen/portal/2026-11-10-neuigkeiten-markiert";
+import wasStehtAnFiltern from "./notizen/portal/2026-11-10-was-steht-an-filtern";
 import sucheUeberAlleModule from "./notizen/portal/2026-10-31-suche-ueber-alle-module";
 import springenMitStrgK from "./notizen/portal/2026-10-31-springen-mit-strg-k";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
@@ -333,6 +337,10 @@ const NOTIZEN: readonly Releasenotiz[] = [
   appsAnheften,
   einMenue,
   eingabenBleibenErhalten,
+  diensteBearbeiten,
+  eineSuche,
+  neuigkeitenMarkiert,
+  wasStehtAnFiltern,
   sucheUeberAlleModule,
   springenMitStrgK,
   funkInDerSuite,

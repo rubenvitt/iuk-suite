@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Faelligkeit } from "@/core/faelligkeiten";
-import { sortiereFaelligkeiten, woAnzeige } from "./anzeige";
+import { ALLE_FAELLIGKEITEN, filtereGruppen, sortiereFaelligkeiten, woAnzeige } from "./anzeige";
+import type { FaelligkeitsGruppe } from "./sammeln";
 
 const f = (id: string, dringlichkeit: Faelligkeit["dringlichkeit"], sortierung: string): Faelligkeit => ({
   id, art: "Verfall", titel: id, wo: null, zustand: "", dringlichkeit, sortierung, pfad: "/",
@@ -19,5 +20,31 @@ describe("woAnzeige", () => {
     expect(woAnzeige({ titel: "Accu-Chek Guide (KTW 1)", wo: "KTW 1" })).toBeNull();
     expect(woAnzeige({ titel: "NaCl", wo: "RTW 1" })).toBe("RTW 1");
     expect(woAnzeige({ titel: "NaCl", wo: null })).toBeNull();
+  });
+});
+
+describe("filtereGruppen (IDA-391)", () => {
+  const gruppe = (modul: string, eintraege: Faelligkeit[], fehler = false): FaelligkeitsGruppe => ({
+    modul, titel: modul, basisUrl: null, eintraege, fehler,
+  });
+  const GRUPPEN = [
+    gruppe("lagerbuch", [f("u1", "ueberfaellig", ""), f("b1", "bald", "2026-12")]),
+    gruppe("radio", [f("b2", "bald", "2026-12")]),
+    gruppe("wartung", [], true),
+  ];
+  const ALLE = ALLE_FAELLIGKEITEN;
+
+  it("ohne Filter bleibt alles, wie es ist", () => {
+    expect(filtereGruppen(GRUPPEN, { modul: ALLE, dringlichkeit: ALLE })).toEqual(GRUPPEN);
+  });
+
+  it("filtert nach Modul", () => {
+    expect(filtereGruppen(GRUPPEN, { modul: "radio", dringlichkeit: ALLE }).map((g) => g.modul)).toEqual(["radio"]);
+  });
+
+  it("filtert nach Dringlichkeit, lässt dadurch leere Gruppen weg und behält ausgefallene", () => {
+    const ueber = filtereGruppen(GRUPPEN, { modul: ALLE, dringlichkeit: "ueberfaellig" });
+    expect(ueber.map((g) => [g.modul, g.eintraege.map((e) => e.id)])).toEqual([["lagerbuch", ["u1"]], ["wartung", []]]);
+    expect(filtereGruppen(GRUPPEN, { modul: "radio", dringlichkeit: "ueberfaellig" })).toEqual([]);
   });
 });

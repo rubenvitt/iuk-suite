@@ -1000,9 +1000,21 @@
       "reference": "\"vehicle_checklists\""
     }
   },
+  "src/app/m/portal/neuigkeiten/actions.ts#ladeNeuigkeitenAction": {
+    "kind": "excluded",
+    "reason": "Lädt Release Notes seitenweise nach (IDA-391), Auswahl aus den Gruppen der Sitzung; liest nur, kein fachlicher Datensatz."
+  },
+  "src/app/m/portal/neuigkeiten/actions.ts#merkeNeuigkeitenGesehenAction": {
+    "kind": "excluded",
+    "reason": "Merkt den eigenen Neuigkeiten-Stand der Person aus der Sitzung (IDA-391); Bedienvorliebe, kein fachlicher Datensatz."
+  },
   "src/app/m/portal/actions.ts#createServiceAction": {
     "kind": "context",
     "via": "createServiceAction"
+  },
+  "src/app/m/portal/actions.ts#bearbeiteServiceAction": {
+    "kind": "context",
+    "via": "bearbeiteServiceAction"
   },
   "src/app/m/portal/actions.ts#deleteServiceAction": {
     "kind": "context",

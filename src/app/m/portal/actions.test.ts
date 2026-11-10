@@ -6,11 +6,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // (services) and next/cache are mocked too so a rejection can be proven
 // purely by "was the writer called", independent of the sqlite layer.
 vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/app/m/portal/_lib/services", () => ({
-  createService: vi.fn().mockResolvedValue({ id: "svc-1" }),
-  deleteService: vi.fn().mockResolvedValue(undefined),
-  updateService: vi.fn().mockResolvedValue({ id: "svc-1" }),
-}));
+vi.mock("@/app/m/portal/_lib/services", async (original) => {
+  // Die Formularlesung (`dienstFelderAusFormular`) bleibt echt — sie ist die Grenze, die hier zählt.
+  const echt = await original<typeof import("@/app/m/portal/_lib/services")>();
+  return {
+    DienstEingabeFehler: echt.DienstEingabeFehler,
+    dienstFelderAusFormular: echt.dienstFelderAusFormular,
+    legeDienstAn: vi.fn().mockResolvedValue({ id: "svc-1" }),
+    deleteService: vi.fn().mockResolvedValue(undefined),
+    updateService: vi.fn().mockResolvedValue({ id: "svc-1" }),
+  };
+});
 vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
   setzeAnsprechpartner: vi.fn(),
   setzeZeitzone: vi.fn().mockResolvedValue(undefined),
@@ -18,10 +24,11 @@ vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { auth } from "@/core/auth";
-import { createService, deleteService, updateService } from "@/app/m/portal/_lib/services";
+import { legeDienstAn, deleteService, updateService } from "@/app/m/portal/_lib/services";
 import { setzeZeitzone } from "@/app/m/portal/_lib/einstellungen";
 import { revalidatePath } from "next/cache";
 import {
+  bearbeiteServiceAction,
   createServiceAction,
   deleteServiceAction,
   setzeSichtbarkeitAction,
@@ -29,7 +36,7 @@ import {
 } from "@/app/m/portal/actions";
 
 const authMock = vi.mocked(auth);
-const createServiceMock = vi.mocked(createService);
+const createServiceMock = vi.mocked(legeDienstAn);
 const deleteServiceMock = vi.mocked(deleteService);
 
 function formData(entries: Record<string, string>): FormData {
@@ -48,7 +55,7 @@ describe("portal admin actions: authorization boundary", () => {
   it("non-admin session cannot create a service", async () => {
     authMock.mockResolvedValue({ user: { groups: [] } } as never);
     await expect(
-      createServiceAction(formData({ slug: "x", name: "X", url: "https://x.example" }))
+      createServiceAction(formData({ name: "X", url: "https://x.example" }))
     ).rejects.toThrow("Forbidden");
     expect(createServiceMock).not.toHaveBeenCalled();
   });
@@ -61,13 +68,14 @@ describe("portal admin actions: authorization boundary", () => {
 
   it("admin session (admin) is allowed to create a service", async () => {
     authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
-    await createServiceAction(formData({ slug: "x", name: "X", url: "https://x.example", isPublic: "on" }));
+    await createServiceAction(formData({ name: "X", url: "https://x.example", isPublic: "on" }));
     expect(createServiceMock).toHaveBeenCalledTimes(1);
+    expect(createServiceMock.mock.calls[0][0]).not.toHaveProperty("slug");
   });
 
   it("speichert einen nicht oeffentlichen Dienst mit den gewaehlten Gruppen (IDA-227)", async () => {
     authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
-    const fd = formData({ slug: "x", name: "X", url: "https://x.example" });
+    const fd = formData({ name: "X", url: "https://x.example" });
     fd.append("requiredGroups", "iuk");
     fd.append("requiredGroups", "sanitaet");
     await createServiceAction(fd);
@@ -79,8 +87,8 @@ describe("portal admin actions: authorization boundary", () => {
   it("legt keinen nicht oeffentlichen Dienst ohne Gruppe an — den saehe niemand", async () => {
     authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
     await expect(
-      createServiceAction(formData({ slug: "x", name: "X", url: "https://x.example" })),
-    ).rejects.toThrow(/mindestens eine Gruppe/);
+      createServiceAction(formData({ name: "X", url: "https://x.example" })),
+    ).resolves.toEqual({ ok: false, fehler: expect.stringMatching(/mindestens eine Gruppe/) });
     expect(createServiceMock).not.toHaveBeenCalled();
   });
 
@@ -102,6 +110,53 @@ describe("portal admin actions: authorization boundary", () => {
       requiredGroups: ["iuk"],
     });
     expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith("/m/portal");
+  });
+
+  it("lehnt eine Adresse ohne http(s) ab, bevor etwas geschrieben ist (IDA-391)", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
+    const ergebnis = await createServiceAction(formData({ name: "X", url: "javascript:alert(1)", isPublic: "on" }));
+    expect(ergebnis).toEqual({ ok: false, fehler: expect.stringMatching(/http/) });
+    expect(createServiceMock).not.toHaveBeenCalled();
+  });
+
+  it("non-admin session cannot edit a service", async () => {
+    authMock.mockResolvedValue({ user: { groups: [] } } as never);
+    await expect(
+      bearbeiteServiceAction(formData({ id: "svc-1", name: "X", url: "https://x.example", isPublic: "on" })),
+    ).rejects.toThrow("Forbidden");
+    expect(vi.mocked(updateService)).not.toHaveBeenCalledWith("svc-1", expect.objectContaining({ name: "X" }));
+  });
+
+  it("admin session edits everything the tile shows, the Kennung stays (IDA-391)", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
+    vi.mocked(updateService).mockClear();
+    const fd = formData({
+      id: "svc-1",
+      name: " Wiki ",
+      url: "https://wiki.example",
+      description: "Handbuch",
+      category: "Doku",
+      iconUrl: "",
+      isPublic: "on",
+    });
+    await expect(bearbeiteServiceAction(fd)).resolves.toEqual({ ok: true });
+    expect(vi.mocked(updateService)).toHaveBeenCalledWith("svc-1", {
+      name: "Wiki",
+      url: "https://wiki.example",
+      description: "Handbuch",
+      category: "Doku",
+      iconUrl: null,
+      openInNewTab: false,
+      isPublic: true,
+      requiredGroups: [],
+    });
+  });
+
+  it("meldet einen inzwischen geloeschten Dienst, statt still nichts zu tun", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
+    vi.mocked(updateService).mockResolvedValueOnce(undefined);
+    const ergebnis = await bearbeiteServiceAction(formData({ id: "weg", name: "X", url: "https://x.example", isPublic: "on" }));
+    expect(ergebnis).toEqual({ ok: false, fehler: expect.any(String) });
   });
 
   it("non-admin session cannot change the suite time zone", async () => {

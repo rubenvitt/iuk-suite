@@ -484,8 +484,9 @@ test.describe("390x844 — das Telefon", () => {
      *
      * `/groups/1/trend` traegt die acht Fragen-Schalter aus `TrendDiagramm.tsx`
      * (gemessen VOR Aufgabe 5: acht Knoepfe mit `h:42`, von 207 bis 279px breit),
-     * `portal/admin` die „Löschen"-Knoepfe aus `service-table.tsx` (gemessen
-     * VORHER: zweimal 70x42, aus dem Seed zwei Dienste).
+     * `portal/admin` die Zeilenknoepfe aus `service-table.tsx` (gemessen
+     * VORHER: zweimal 70x42, aus dem Seed zwei Dienste; seit IDA-391 je ein
+     * Menueknopf statt „Sichtbarkeit"/„Löschen").
      */
     for (const ziel of [
       `http://feedback.localtest.me:${E2E_PORT}/groups/1/trend`,

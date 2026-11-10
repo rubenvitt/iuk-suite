@@ -384,6 +384,45 @@
   text-align: center;
 }
 
+/* Ein Inhaltstreffer darf umbrechen: Kennzeichen und Seriennummern sind lang, und abgeschnitten
+   ließen sich zwei ähnliche Treffer nicht unterscheiden (IDA-391). */
+.fund {
+  padding-block: 6px;
+}
+
+.fund .eintragText {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* Laden und Ausfall der Inhaltssuche unter den Treffern (IDA-391): eine gedämpfte Zeile. */
+.status {
+  padding: 10px;
+  color: var(--iuk-gedaempft);
+  font-size: 13px;
+}
+
+/*
+ * Strg+K / ⌘K im Feld „Springen zu“ — nur, wo eine Tastatur zu erwarten ist. `hover` und `pointer`
+ * statt einer Breite: ein Tablet im Querformat ist breit und hat trotzdem keine (IDA-391).
+ */
+.kuerzel {
+  display: none;
+  padding: 0 5px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 4px;
+  color: var(--iuk-gedaempft);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kuerzel {
+    display: inline-block;
+  }
+}
+
 /* Hover blendet kurz über, statt umzuspringen (Haarlinie: 140ms wie im Entwurf). */
 .eintrag,
 .zurueck,
