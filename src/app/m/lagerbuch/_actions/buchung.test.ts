@@ -1760,6 +1760,89 @@ describe("bucheAuffuellung (DRK-313)", () => {
     expect(geschrieben()).toEqual([]);
   });
 
+  /*
+   * IDA-378 — MATERIAL OHNE NUMMER UND OHNE VERFALL. Bis dahin war die Nummer
+   * Pflicht, und „ohne Verfall" gab es nur in Demodaten.
+   */
+  it("IDA-378 — bucht eine neue Charge OHNE Nummer als „ohne Nummer“, zweimal in denselben Topf", async () => {
+    const eingabe = {
+      artikelId: "art-1", menge: 2, zielLagerortId: "schrank-1",
+      charge: { art: "neu", chargenNr: "  ", verfall: "2028-01" },
+    };
+    const erste = await bucheAuffuellung(eingabe, t.db);
+    const zweite = await bucheAuffuellung(eingabe, t.db);
+    expect(erste).toMatchObject({ ok: true, wert: { gebucht: 2 } });
+    const id = (erste as { ok: true; wert: { chargeId: string } }).wert.chargeId;
+    expect(zweite).toMatchObject({ ok: true, wert: { chargeId: id } });
+    expect(t.db.select().from(chargen).where(eq(chargen.id, id)).get())
+      .toMatchObject({ chargenNr: "ohne Nummer", verfall: "2028-01" });
+    expect(t.db.select().from(chargen).all()).toHaveLength(2);
+  });
+
+  it("IDA-378 — bucht eine neue Charge OHNE Verfall als „ohne Verfall“", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "", verfall: "2099-12" },
+      },
+      t.db,
+    );
+    const id = (erg as { ok: true; wert: { chargeId: string } }).wert.chargeId;
+    expect(t.db.select().from(chargen).where(eq(chargen.id, id)).get())
+      .toMatchObject({ chargenNr: "ohne Verfall", verfall: "2099-12" });
+  });
+
+  it("IDA-378 — weist eine NEUE abgelaufene Charge ohne Bestaetigung mit einem Satz ab", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-ALT", verfall: "2020-01" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(helferFehler(erg).text).toContain("Verfall 01/20 ist abgelaufen");
+    expect(geschrieben()).toEqual([]);
+    expect(t.db.select().from(chargen).all(), "keine halbe Charge").toHaveLength(1);
+  });
+
+  it("IDA-378 — weist eine VORHANDENE abgelaufene Charge ohne Bestaetigung ab", async () => {
+    t.db.insert(chargen).values([
+      { id: "ch-alt", artikelId: "art-1", chargenNr: "ALT", verfall: "2020-01", createdAt: JETZT },
+    ]).run();
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-alt" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("IDA-378 — bucht eine abgelaufene Charge MIT Bestaetigung", async () => {
+    const neu = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-ALT", verfall: "2020-01" },
+        abgelaufenBestaetigt: true,
+      },
+      t.db,
+    );
+    expect(neu).toMatchObject({ ok: true, wert: { gebucht: 1 } });
+    const id = (neu as { ok: true; wert: { chargeId: string } }).wert.chargeId;
+    const vorhanden = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 2, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: id }, abgelaufenBestaetigt: true,
+      },
+      t.db,
+    );
+    expect(vorhanden).toMatchObject({ ok: true, wert: { gebucht: 2, chargeId: id } });
+    expect(geschrieben()).toHaveLength(2);
+  });
+
   it("OHNE Zielort wird NICHT gebucht — anders als beim Zugang gibt es keine Vorgabe", async () => {
     const erg = await bucheAuffuellung(
       { artikelId: "art-1", menge: 1, charge: { art: "vorhanden", chargeId: "ch-1" } },

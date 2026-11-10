@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { getDb, type DB } from "../_db/client";
 import { artikel, chargen } from "../_db/schema";
 import { HANDLAGER_ID, MONAT_REGEX } from "../_lib/konstanten";
+import { istAbgelaufen } from "../_lib/domain/verfall";
+import { fmtVerfall } from "../_lib/format";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { bereichsAbweisung } from "../_lib/helferBereich";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
@@ -777,10 +779,21 @@ const AuffuellSchema = z.object({
     z.object({ art: z.literal("vorhanden"), chargeId: z.string().min(1) }),
     z.object({
       art: z.literal("neu"),
-      chargenNr: z.string().trim().min(1),
+      /**
+       * IDA-378 — DARF LEER SEIN: Material ohne aufgedruckte Nummer. Aus dem
+       * Leerwert macht `zugangBuchen` den Hinweis „ohne Nummer" (bzw. „ohne
+       * Verfall" bei `PSEUDO_VERFALL`) und nimmt dafuer je Verfall EINEN Topf.
+       */
+      chargenNr: z.string().trim(),
       verfall: z.string().regex(MONAT_REGEX),
     }),
   ]),
+  /**
+   * IDA-378 — die Insel hat „Verfall … ist abgelaufen" gezeigt und die Person
+   * hat „Trotzdem buchen" getippt. Ohne das Feld weist die Action eine
+   * abgelaufene Charge ab (s. `istAbgelaufen` unten).
+   */
+  abgelaufenBestaetigt: z.literal(true).optional(),
   /** IDA-358: Wiederholungsschutz (`_lib/schreibpfade/sendung.ts`). */
   sendungId: z.string().uuid().optional(),
 });
@@ -902,6 +915,7 @@ export async function bucheAuffuellung(
         };
       }
 
+      let verfall = v.charge.art === "neu" ? v.charge.verfall : "";
       if (v.charge.art === "vorhanden") {
         const zeile = db.select().from(chargen).where(eq(chargen.id, v.charge.chargeId)).get();
         if (!zeile || zeile.artikelId !== v.artikelId) {
@@ -913,6 +927,20 @@ export async function bucheAuffuellung(
               "neu laden und die Charge erneut wählen.",
           };
         }
+        verfall = zeile.verfall;
+      }
+
+      /*
+       * IDA-378 — ABGELAUFENES MATERIAL NUR NACH RUECKFRAGE. Die Insel fragt
+       * selbst; diese Pruefung faengt eine Seite, die vor dem Monatswechsel
+       * geladen wurde, und jeden Aufruf ohne die Insel davor.
+       */
+      if (!v.abgelaufenBestaetigt && istAbgelaufen(verfall, new Date())) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text: `Verfall ${fmtVerfall(verfall)} ist abgelaufen — bestätige das Auffüllen mit „Trotzdem buchen“.`,
+        };
       }
 
       /*
