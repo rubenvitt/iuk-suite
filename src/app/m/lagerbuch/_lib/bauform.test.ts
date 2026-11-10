@@ -549,6 +549,16 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
     expect(existsSync(HELFER_CSS)).toBe(true);
   });
 
+  it("kein Knopf traegt Rot als Flaeche (Falle 3, IDA-395)", () => {
+    const css = lies();
+    expect(css).not.toMatch(/\.knopfRot\b/);
+    for (const klasse of ["knopf", "knopfTinte", "knopfGeist", "abschlussGo"]) {
+      const koerper = regelKoerper(css, new RegExp(`(?:^|\\})\\s*\\.${klasse}\\s*\\{`, "m"));
+      expect(koerper, `.${klasse} fehlt`).not.toBe("");
+      expect(koerper, `.${klasse} ist rot`).not.toMatch(/background[^;]*--lb-rot/);
+    }
+  });
+
   it("`.rahmen` traegt alle fuenfzehn Neutralen UND die acht Ampelwerte", () => {
     // Nicht „irgendwo in der Hell-Haelfte", sondern IM KOERPER von `.rahmen`:
     // eine Variable, die nach `:root` wandert, waere sonst gruen — und genau
