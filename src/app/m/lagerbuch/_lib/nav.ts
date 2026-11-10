@@ -179,6 +179,6 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
    * „Fahrzeuge & Taschen" (DRK-309): die Beschriftung ist das, was jemand liest,
    * `key` und Pfad sind das, worauf etwas zeigt. */
   { key: "etiketten", title: "Artikeletiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung", stichworte: ["Barcode", "Aufkleber"] },
-  { key: "tokens", title: "Zugangs-Codes", href: "/verwaltung/tokens", ikon: "tokens", abschnitt: "Einrichtung", stichworte: ["Kärtchen", "Token"] },
+  { key: "tokens", title: "Zugangscodes", href: "/verwaltung/tokens", ikon: "tokens", abschnitt: "Einrichtung", stichworte: ["Kärtchen", "Token"] },
   { key: "import", title: "Import", href: "/verwaltung/import", ikon: "import", abschnitt: "Einrichtung", stichworte: ["CSV", "Excel", "hochladen"] },
 ];

@@ -12,6 +12,7 @@ import {
   click,
   clickElement,
   fill,
+  fillElement,
 } from "@/app/m/qr/_lib/test-dom";
 
 const abschluss = vi.fn();
@@ -159,6 +160,24 @@ const alleBestaetigen = async () => {
 };
 
 /**
+ * IDA-377: Geraete starten UNBEANTWORTET und sperren den Schritt. Fuer jeden
+ * Test, der nur durch den Geraeteschritt will: ein Tipp auf „Alle in Ordnung"
+ * — derselbe bewusste Tipp wie bei der Helferin.
+ */
+const alleGeraeteOk = () => click("[data-rolle='geraete-alle-ok']");
+
+/** IDA-377: der Druck startet LEER — jede Flasche der Liste wird abgelesen. */
+const druckAblesen = async (wert: number) => {
+  for (const el of queryAll<HTMLInputElement>("[data-rolle='o2-liste'] input[type='text']")) {
+    await fillElement(el, String(wert));
+  }
+};
+
+/** IDA-377: das „geholt"-Feld ist tippbar; die Menge steht im `input`, nicht mehr in `stepanzeige`. */
+const NF_FELD = "[data-rolle='nf-liste'] input[type='text']";
+const geholt = () => queryAll<HTMLInputElement>(NF_FELD).map((e) => e.value);
+
+/**
  * Die Zahlenfelder der Zaehlliste — seit IDA-233 tippbar. `type='text'` und
  * NICHT `inputmode`: das Verfallsfeld traegt ebenfalls `inputMode="numeric"`
  * (Rueckfall fuer Browser ohne Monatsauswahl) und liegt im selben Teilbaum.
@@ -199,6 +218,8 @@ const WERT_NULL = {
   inBox: 0,
   offen: 0,
   geraeteAuffaellig: 0,
+  // IDA-377: wie viele davon der Check selbst als Mangel angelegt hat.
+  geraeteGemeldet: 0,
   flaschenAuffaellig: 0,
   flaschenNichtBewertbar: 0,
   verfallAuffaellig: 0,
@@ -351,6 +372,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
     // Geraete ist hier NICHT der letzte Schritt.
     expect(exists(ABSCHLIESSEN)).toBe(false);
     expect(exists(WEITER)).toBe(true);
+    await alleGeraeteOk(); // IDA-377: unbeantwortet sperrt „Weiter"
     await click(WEITER);
     // Sauerstoff IST der letzte.
     expect(exists(ABSCHLIESSEN)).toBe(true);
@@ -1099,8 +1121,10 @@ describe("CheckFlow — die Art der Einheit (DRK-309)", () => {
 });
 
 describe("CheckFlow — Nachfuellen", () => {
-  it("schlaegt greedy vor, gedeckelt an der Handlager-Verfuegbarkeit", async () => {
-    // Der Vorschlag verspricht nie mehr, als der Handlager hergibt (:222-238).
+  it("startet bei 0 — der greedy Vorschlag gilt erst mit „Alles geholt“, gedeckelt am Handlager (IDA-377)", async () => {
+    // IDA-377: bis hier stand der Vorschlag als Vorbelegung da, und die
+    // Nachfuellung war bestaetigt, bevor jemand im Handlager war. Der Vorschlag
+    // verspricht weiterhin nie mehr, als der Handlager hergibt (lagerbuch/src/app/helfer/check/CheckFlow.tsx:222-238).
     // Luecke 5, Handlager 2 → Vorschlag 2.
     await mount(
       <CheckFlow
@@ -1119,7 +1143,66 @@ describe("CheckFlow — Nachfuellen", () => {
     // den Riegel; die weiteren klemmen bei `min` und aendern nichts.
     for (let i = 0; i < 5; i++) await minus(0); // Ist = 0
     await click(WEITER);
-    expect(query("[data-rolle='nf-liste'] [data-rolle='stepanzeige']").textContent).toBe("2");
+    expect(geholt()).toEqual(["0"]);
+    expect(query("[data-rolle='nf-alles']").textContent).toBe("Alles geholt");
+    await click("[data-rolle='nf-alles']");
+    expect(geholt()).toEqual(["2"]);
+    // Steht alles auf dem Vorschlag, gibt es nichts mehr zu uebernehmen.
+    expect(exists("[data-rolle='nf-alles']")).toBe(false);
+  });
+
+  it("das „geholt“-Feld ist TIPPBAR (IDA-377)", async () => {
+    // Der Vorschlag ist keine Vorbelegung mehr; wer 12 geholt hat, tippt 12
+    // statt zwoelfmal „+".
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[POS({ soll: 20, handlagerBestand: 20 })]}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    await minus(0); // Ist = 0, Luecke 20
+    await click(WEITER);
+    expect(query<HTMLInputElement>("input[aria-label='geholt Kompresse']").value).toBe("0");
+    await fill("input[aria-label='geholt Kompresse']", "12");
+    expect(geholt()).toEqual(["12"]);
+    await click(ABSCHLIESSEN);
+    expect(abschluss.mock.calls[0][0].positionen).toEqual([
+      { sollPositionId: "sp-1", ist: 0, nachfuellMenge: 12, boxMenge: 0 },
+    ]);
+  });
+
+  it("ein eingetragenes „geholt“ uebersteht Zurueck und Weiter — gekappt an der neuen Luecke (IDA-377)", async () => {
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[POS({ soll: 5, handlagerBestand: 20 })]}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    await minus(0); // Ist = 0, Luecke 5
+    await click(WEITER);
+    await fill(NF_FELD, "4");
+    await click(ZURUECK);
+    await click(WEITER);
+    // Kein Rueckfall auf 0 und kein Sprung auf den Vorschlag.
+    expect(geholt()).toEqual(["4"]);
+    await click(ZURUECK);
+    for (let i = 0; i < 3; i++) await plus(0); // Ist = 3, Luecke 2
+    await click(WEITER);
+    expect(geholt()).toEqual(["2"]);
   });
 
   it("der Helfer kann nicht MEHR eintragen, als die Luecke gross ist (`max={luecke}`)", async () => {
@@ -1140,10 +1223,12 @@ describe("CheckFlow — Nachfuellen", () => {
     );
     for (let i = 0; i < 3; i++) await plus(0); // Ist = 3, Luecke = 2
     await click(WEITER);
-    const anzeige = () => query("[data-rolle='nf-liste'] [data-rolle='stepanzeige']").textContent;
-    expect(anzeige()).toBe("2");
-    await clickElement(queryAll("[data-rolle='nf-liste'] button[aria-label$='erhöhen']")[0]);
-    expect(anzeige()).toBe("2");
+    const hoch = () => clickElement(queryAll("[data-rolle='nf-liste'] button[aria-label$='erhöhen']")[0]);
+    for (let i = 0; i < 3; i++) await hoch();
+    expect(geholt()).toEqual(["2"]);
+    // IDA-377: das Feld ist tippbar — auch getippt klemmt es an der Luecke.
+    await fill(NF_FELD, "9");
+    expect(geholt()).toEqual(["2"]);
   });
 
   it("warnt erst, wenn MEHR verlangt wird, als der Handlager hergibt", async () => {
@@ -1171,9 +1256,10 @@ describe("CheckFlow — Nachfuellen", () => {
       for (let i = 0; i < 5; i++) await clickElement(el);
     }
     await click(WEITER);
+    // IDA-377: der Vorschlag erst mit „Alles geholt".
+    await click("[data-rolle='nf-alles']");
     // Greedy: nf[sp-1] = 2, nf[sp-2] = 0 — zusammen genau die verfuegbaren 2.
-    const anzeigen = () =>
-      queryAll("[data-rolle='nf-liste'] [data-rolle='stepanzeige']").map((e) => e.textContent);
+    const anzeigen = geholt;
     expect(anzeigen()).toEqual(["2", "0"]);
     expect(exists("[data-rolle='nf-knappheit']")).toBe(false);
 
@@ -1286,6 +1372,7 @@ describe("CheckFlow — Ziel-Fach und Einraeumliste (IDA-226)", () => {
     await alleBestaetigen();
     await plus(2); // Mullbinde gezaehlt 1 = Soll, fehlt nicht
     await click(WEITER);
+    await click("[data-rolle='nf-alles']"); // IDA-377: geholt startet bei 0
   }
 
   const faecherMitText = (rolle: string) =>
@@ -1330,9 +1417,10 @@ describe("CheckFlow — Ziel-Fach und Einraeumliste (IDA-226)", () => {
 describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
   it("sendet genau das Gezaehlte — Ist, Nachfuellmenge, Geraet und Druck", async () => {
     // ⚠️ Ohne diese Zusicherung ist KEINE der acht 1:1-Zeilen der Brief-Tabelle
-    // gedeckt: `?? p.soll`, das greedy Ergebnis, `GERAET_VORBELEGUNG` und der
-    // Nennfuelldruck-Default erreichen die Leitung nur ueber `zaehlung()`, und
-    // die Rueckmeldung ist gemockt.
+    // gedeckt: `?? p.soll`, das greedy Ergebnis, die Geraeteantwort und der
+    // Druck erreichen die Leitung nur ueber `zaehlung()`, und die Rueckmeldung
+    // ist gemockt. IDA-377: Geraet und Druck haben keine Vorbelegung mehr, und
+    // der Vorschlag kommt erst mit „Alles geholt".
     //
     // `toStrictEqual` und nicht `toEqual` (N-4, empirisch belegt): `bemerkung`
     // wird in `checkNutzlast` BEDINGT gespreizt — `toEqual` behandelte einen
@@ -1356,11 +1444,12 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     await verfallAufklappen();
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2026-09");
-    await click(WEITER); // greedy: Luecke 2, Handlager 20 → 2
+    await click(WEITER);
+    await click("[data-rolle='nf-alles']"); // greedy: Luecke 2, Handlager 20 → 2
     await click(WEITER);
     await click("[data-rolle='geraet-fehlt']");
     await click(WEITER);
-    await minus(0); // Druck 200 → 199
+    await druckAblesen(199);
     await click(ABSCHLIESSEN);
 
     expect(abschluss).toHaveBeenCalledTimes(1);
@@ -1369,7 +1458,8 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
       // IDA-358: die Sendungs-ID des Geraets — der Server erkennt daran eine Wiederholung.
       sendungId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       positionen: [{ sollPositionId: "sp-1", ist: 3, nachfuellMenge: 2, boxMenge: 0 }],
-      geraete: [{ geraetId: "g-1", vorhanden: false, zustand: "In Ordnung" }],
+      // IDA-377: ein fehlendes Geraet traegt KEINEN Zustand mehr.
+      geraete: [{ geraetId: "g-1", vorhanden: false }],
       flaschen: [{ flascheId: "o-1", druckBar: 199 }],
       verfaelle: [],
       // IDA-222: ein Vollcheck ohne Plomben sendet keine
@@ -1455,6 +1545,20 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
     );
     const gedrueckt = (rolle: string) =>
       query(`[data-rolle='${rolle}']`).getAttribute("aria-pressed");
+    const haken = (rolle: string) => queryAll(`[data-rolle='${rolle}'] svg`).length;
+    const zustaende = () =>
+      queryAll("[data-rolle='geraet-zustand']").map((e) => e.getAttribute("aria-pressed"));
+
+    // IDA-377: KEINE VORBELEGUNG — nichts gedrueckt, kein Haken. Offen ist ein
+    // Geraet daran, dass keiner seiner Chips gedrueckt ist, und an der Leiste
+    // („Noch n von m offen", Test unten).
+    expect(gedrueckt("geraet-vorhanden")).toBe("false");
+    expect(gedrueckt("geraet-fehlt")).toBe("false");
+    expect(zustaende()).toEqual(["false", "false", "false"]);
+    expect(queryAll("[data-rolle='geraet'] svg").length).toBe(0);
+
+    // Ein Zustand sagt zugleich „vorhanden" — ein Tipp statt zwei (IDA-377).
+    await clickElement(queryAll("[data-rolle='geraet-zustand']")[0]);
     expect(gedrueckt("geraet-vorhanden")).toBe("true");
     expect(gedrueckt("geraet-fehlt")).toBe("false");
 
@@ -1463,14 +1567,10 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
     // durch die Farbe — der Chiptext ist in beiden Faellen derselbe, und ein
     // `<svg>` traegt keinen Text, faellt also durch jede `textContent`-Zusicherung
     // hindurch. `aria-pressed` allein deckt nur die Bildschirmleserin ab.
-    const haken = (rolle: string) => queryAll(`[data-rolle='${rolle}'] svg`).length;
     expect(haken("geraet-vorhanden")).toBe(1);
     expect(haken("geraet-fehlt")).toBe(0);
 
-    // Vorbelegung „vorhanden · In Ordnung" (:325, :132).
-    const zustaende = queryAll("[data-rolle='geraet-zustand']");
-    expect(zustaende.length).toBe(3);
-    expect(zustaende.map((e) => e.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"]);
+    expect(zustaende()).toEqual(["true", "false", "false"]);
     // Genau EINER der drei traegt den Haken — der gewaehlte.
     expect(haken("geraet-zustand")).toBe(1);
 
@@ -1534,6 +1634,127 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
       expect(chipKnopf.get("align-items")).toBe("center");
     }
   });
+
+  /*
+   * IDA-377 — GERAETE STARTEN UNBEANTWORTET. Bis hier stand jedes Geraet auf
+   * „vorhanden, In Ordnung", und ein durchgetippter Check bezeugte Geraete, die
+   * niemand angesehen hatte. Jetzt sperrt ein offenes Geraet den Schritt — in
+   * beiden Lagen, als Zwischen- und als letzter Schritt.
+   */
+  const ZWEI_GERAETE: CheckGeraet[] = [GERAET, { id: "g-2", typ: "medizin", name: "AED" }];
+  const geraeteFlow = (flaschen: CheckFlasche[] = []) => mount(
+    <CheckFlow
+      kontoZugang={false} {...VOLL}
+      fahrzeug={FZ}
+      soll={[]}
+      geraete={ZWEI_GERAETE}
+      flaschen={flaschen}
+      verfall={{}}
+      warn={WARN}
+      andereEinheitErreichbar
+      letzterCheckText={null}
+    />,
+  );
+  const zeile = (i: number) => queryAll("[data-rolle='geraet']")[i]!;
+  const tippe = (i: number, text: string) => clickElement(
+    [...zeile(i).querySelectorAll<HTMLElement>("button")].find((b) => b.textContent === text)!,
+  );
+  const zustandVon = (i: number) =>
+    [...zeile(i).querySelectorAll("[data-rolle='geraet-zustand'][aria-pressed='true']")]
+      .map((b) => b.textContent);
+
+  it("ein unbeantwortetes Geraet sperrt „Abschließen“ — und sendet nichts (IDA-377)", async () => {
+    await geraeteFlow();
+    expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(true);
+    expect(query("[data-rolle='abschlussleiste']").textContent).toContain("Noch 2 von 2 offen");
+    await click(ABSCHLIESSEN);
+    expect(abschluss).not.toHaveBeenCalled();
+
+    await tippe(0, "In Ordnung");
+    expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(true);
+    expect(query("[data-rolle='abschlussleiste']").textContent).toContain("Noch 1 von 2 offen");
+    await tippe(1, "fehlt");
+    expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(false);
+    expect(query("[data-rolle='abschlussleiste']").textContent).toContain("2 Gerät(e) geprüft");
+    await click(ABSCHLIESSEN);
+    expect(abschluss.mock.calls[0][0].geraete).toStrictEqual([
+      { geraetId: "g-1", vorhanden: true, zustand: "In Ordnung" },
+      { geraetId: "g-2", vorhanden: false },
+    ]);
+  });
+
+  it("ein unbeantwortetes Geraet sperrt auch „Weiter“ (IDA-377)", async () => {
+    await geraeteFlow([FLASCHE]);
+    expect(query<HTMLButtonElement>(WEITER).disabled).toBe(true);
+    await click(WEITER);
+    expect(exists("[data-rolle='o2-liste']")).toBe(false);
+    await alleGeraeteOk();
+    expect(query<HTMLButtonElement>(WEITER).disabled).toBe(false);
+    await click(WEITER);
+    expect(exists("[data-rolle='o2-liste']")).toBe(true);
+  });
+
+  it("„Alle in Ordnung“ setzt nur die OFFENEN — eine gegebene Antwort bleibt stehen (IDA-377)", async () => {
+    await geraeteFlow();
+    expect(query("[data-rolle='geraete-alle-ok']").textContent).toBe("Alle in Ordnung");
+    await tippe(0, "Defekt");
+    // Mit einer Antwort heisst der Knopf, was er tut.
+    expect(query("[data-rolle='geraete-alle-ok']").textContent).toBe("Übrige in Ordnung");
+    await alleGeraeteOk();
+    expect(zustandVon(0)).toEqual(["Defekt"]);
+    expect(zustandVon(1)).toEqual(["In Ordnung"]);
+    // Nichts mehr offen, nichts mehr zu uebernehmen.
+    expect(exists("[data-rolle='geraete-alle-ok']")).toBe(false);
+    await click(ABSCHLIESSEN);
+    expect(abschluss.mock.calls[0][0].geraete).toStrictEqual([
+      { geraetId: "g-1", vorhanden: true, zustand: "Defekt" },
+      { geraetId: "g-2", vorhanden: true, zustand: "In Ordnung" },
+    ]);
+  });
+
+  it("„Alle in Ordnung“ laesst auch ein FEHLENDES Geraet stehen (IDA-377)", async () => {
+    await geraeteFlow();
+    await tippe(1, "fehlt");
+    await alleGeraeteOk();
+    expect(zeile(1).querySelector("[data-rolle='geraet-fehlt']")!.getAttribute("aria-pressed")).toBe("true");
+    expect(zustandVon(0)).toEqual(["In Ordnung"]);
+  });
+
+  it("der Riegel steht in `abschliessen` SELBST, nicht nur am Knopf (IDA-377)", async () => {
+    /*
+     * Wie `zurNachfuellung` (DRK-304): ein wiederhergestellter Entwurf kann auf
+     * einem spaeteren Schritt stehen als dem, der noch offen ist. Nachgestellt
+     * ueber das Neuladen (IDA-358) mit einem inzwischen ZWEITEN Geraet — der
+     * Entwurf steht auf „Sauerstoff", das neue Geraet ist unbeantwortet, und
+     * dort sperrt nur der Druck den Knopf.
+     */
+    const mitGeraeten = (geraete: CheckGeraet[]) => (
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        soll={[]}
+        geraete={geraete}
+        flaschen={[FLASCHE]}
+        verfall={{}}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />
+    );
+    await mount(mitGeraeten([GERAET]));
+    await alleGeraeteOk();
+    await click(WEITER);
+    await druckAblesen(180);
+    await unmount();
+
+    await mount(mitGeraeten(ZWEI_GERAETE));
+    expect(exists("[data-rolle='o2-liste']")).toBe(true);
+    await click(ABSCHLIESSEN);
+    expect(abschluss).not.toHaveBeenCalled();
+    // Der Tipp fuehrt dorthin, wo noch etwas offen ist.
+    expect(exists("[data-rolle='geraete-alle-ok']")).toBe(true);
+    expect(query("[data-rolle='geraete-alle-ok']").textContent).toBe("Übrige in Ordnung");
+  });
 });
 
 describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)", () => {
@@ -1564,6 +1785,10 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         letzterCheckText={null}
       />,
     );
+    // IDA-377: erst abgelesen gibt es etwas zu bewerten. Und ohne Nennfuelldruck
+    // gibt es keine Obergrenze — auch ein hoher Wert sperrt nicht.
+    await druckAblesen(250);
+    expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(false);
     const t = query("[data-rolle='o2-liste']").textContent ?? "";
     expect(t).toContain("Nennfülldruck nicht hinterlegt");
     expect(t).toContain("nicht bewertbar");
@@ -1600,6 +1825,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         letzterCheckText={null}
       />,
     );
+    await druckAblesen(200); // IDA-377: abgelesen, nicht vorbelegt
     const t = query("[data-rolle='o2-liste']").textContent ?? "";
     expect(t).toContain("100%");
     expect(t).not.toContain("nicht bewertbar");
@@ -1637,10 +1863,12 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
     expect(t).toContain("noch nicht gemessen");
   });
 
-  it("die Vorbelegung ist der NENNFUELLDRUCK, nicht der letzte Messwert", async () => {
-    // „voll annehmen, Abgelesenes runterstellen" (:136-137, :384). Der letzte
-    // Messwert (190) wird ANGEZEIGT, aber er ist kein Default: sonst
-    // schriebe ein Check den vorigen Wert fort, ohne dass jemand hinsieht.
+  it("der Druck startet LEER — der letzte Messwert ist nur ein Hinweis (IDA-377)", async () => {
+    // Bis IDA-377 stand hier der Nennfuelldruck („voll annehmen, Abgelesenes
+    // runterstellen", lagerbuch/src/app/helfer/check/CheckFlow.tsx:136-137) — gruen, 100 %, direkt neben „zuletzt gemessen:
+    // 40 bar", und ein Tipp auf „Abschliessen" buchte eine volle Flasche, die
+    // niemand abgelesen hatte. Der letzte Messwert (190) wird weiterhin nur
+    // ANGEZEIGT: sonst schriebe ein Check den vorigen Wert fort.
     await mount(
       <CheckFlow
     kontoZugang={false} {...VOLL}
@@ -1654,7 +1882,107 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         letzterCheckText={null}
       />,
     );
-    expect(query<HTMLInputElement>("input[aria-label='Druck O2 klein']").value).toBe("200");
+    const feld = query<HTMLInputElement>("input[aria-label='Druck O2 klein']");
+    expect(feld.value).toBe("");
+    expect(feld.placeholder).toBe("–");
+    const t = query("[data-rolle='o2-liste']").textContent ?? "";
+    expect(t).toContain("nicht abgelesen");
+    expect(t).toContain("zuletzt gemessen: 190 bar");
+    expect(t).not.toContain("%");
+    // Unabgelesen ist weder gruen noch rot.
+    expect(kreis().className).not.toMatch(/pruefKreisOk/);
+    expect(kreis().className).not.toMatch(/pruefKreisFehl/);
+  });
+
+  it("ein fehlender Druck sperrt „Abschließen“ und „Weiter“ (IDA-377)", async () => {
+    // Letzter Schritt: „Abschließen".
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        soll={[]}
+        geraete={[]}
+        flaschen={[
+          O2({ id: "o-1", name: "O2 klein" }),
+          O2({ id: "o-2", name: "O2 groß" }),
+        ]}
+        verfall={{}}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(true);
+    expect(query("[data-rolle='abschlussleiste']").textContent).toContain("Noch 2 von 2 abzulesen");
+    await fill("input[aria-label='Druck O2 klein']", "150");
+    expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(true);
+    expect(query("[data-rolle='abschlussleiste']").textContent).toContain("Noch 1 von 2 abzulesen");
+    await click(ABSCHLIESSEN);
+    expect(abschluss).not.toHaveBeenCalled();
+    await fill("input[aria-label='Druck O2 groß']", "180");
+    expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(false);
+    await click(ABSCHLIESSEN);
+    expect(abschluss.mock.calls[0][0].flaschen).toStrictEqual([
+      { flascheId: "o-1", druckBar: 150 },
+      { flascheId: "o-2", druckBar: 180 },
+    ]);
+    await unmount();
+
+    // Zwischenschritt: „Weiter". Im Vollcheck MIT Plomben folgen sie dem
+    // Sauerstoff (IDA-222) — der einzige Fall, in dem er nicht der letzte ist.
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        plomben={[{ id: "pl-1", bezeichnung: "Medizinkoffer", fachLabel: "Medizinkoffer", erwartet: "12345" }]}
+        fahrzeug={FZ}
+        soll={[]}
+        geraete={[]}
+        flaschen={[O2({})]}
+        verfall={{}}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    expect(exists("[data-rolle='o2-liste']")).toBe(true);
+    expect(query<HTMLButtonElement>(WEITER).disabled).toBe(true);
+    await click(WEITER);
+    expect(exists("[data-rolle='o2-liste']")).toBe(true);
+    await druckAblesen(150);
+    expect(query<HTMLButtonElement>(WEITER).disabled).toBe(false);
+    await click(WEITER);
+    expect(exists("[data-rolle='o2-liste']")).toBe(false);
+  });
+
+  it("ein Druck ueber 110 % des Nennfuelldrucks sperrt und sagt es (IDA-377)", async () => {
+    // 950 statt 195 — ein Tippfehler, der sonst als „voll" gebucht wuerde.
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        soll={[]}
+        geraete={[]}
+        flaschen={[O2({ nennfuelldruckBar: 200 })]}
+        verfall={{}}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    await druckAblesen(950);
+    const t = query("[data-rolle='o2-liste']").textContent ?? "";
+    expect(t).toContain("über 220 bar – bitte prüfen");
+    expect(t).not.toContain("%");
+    expect(kreis().className).toMatch(/pruefKreisFehl/);
+    expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(true);
+    expect(query("[data-rolle='abschlussleiste']").textContent).toContain("1 Druck zu hoch");
+    await click(ABSCHLIESSEN);
+    expect(abschluss).not.toHaveBeenCalled();
+
+    // Die Grenze selbst ist erlaubt: 220 bar = 110 %.
+    await druckAblesen(220);
+    expect(query("[data-rolle='o2-liste']").textContent).not.toContain("bitte prüfen");
+    expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(false);
   });
 });
 
@@ -1672,6 +2000,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         nachfuellBestaetigt: 3,
         offen: 2,
         geraeteAuffaellig: 1,
+        geraeteGemeldet: 0,
         flaschenAuffaellig: 1,
         flaschenNichtBewertbar: 0,
         verfallAuffaellig: 2,
@@ -1693,6 +2022,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     await alleBestaetigen();
     await click(WEITER);
     await click(WEITER);
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     const t = query("[data-rolle='check-ergebnis']").textContent ?? "";
     expect(t).toContain("3 aus Handlager geholt");
@@ -1731,6 +2061,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         nachfuellBestaetigt: 1,
         offen: 2,
         geraeteAuffaellig: 0,
+        geraeteGemeldet: 0,
         flaschenAuffaellig: 0,
         flaschenNichtBewertbar: 0,
         verfallAuffaellig: 0,
@@ -1740,7 +2071,8 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
       <CheckFlow
         kontoZugang={false} {...VOLL}
         fahrzeug={FZ}
-        soll={[POS()]}
+        // IDA-377: das Handlager ist LEER — nur dann ist es der Grund.
+        soll={[POS({ handlagerBestand: 0 })]}
         geraete={[GERAET]}
         flaschen={[]}
         verfall={{}}
@@ -1752,13 +2084,113 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     await alleBestaetigen();
     await click(WEITER);
     await click(WEITER);
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
 
     const t = query("[data-rolle='check-ergebnis']").textContent ?? "";
     expect(t).toContain("Das Handlager hatte nicht genug.");
     expect(t).toContain("bitte der Verwaltung melden");
+    expect(query("[data-rolle='offen-grund']").textContent).toBe(
+      "Das Handlager hatte nicht genug. 2 Teile fehlen weiterhin im Fahrzeug – bitte der Verwaltung melden.",
+    );
     // Die Nachbarfussnote gehoert einem anderen Vorgang und darf hier nicht stehen.
     expect(t).not.toContain("zwischenzeitlich leer");
+  });
+
+  /*
+   * IDA-377 — DER GRUND STIMMT. Bis hier hiess es immer „Das Handlager hatte
+   * nicht genug", auch wenn bewusst nichts geholt wurde und das Handlager voll
+   * war — eine Meldung, der die Verwaltung vergeblich nachgeht.
+   */
+  const offenGrund = async (pos: CheckPos, holen: "nichts" | "alles", offen: number) => {
+    abschluss.mockResolvedValue({ ok: true, wert: { ...WERT_NULL, offen } });
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        soll={[pos]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    await alleBestaetigen();
+    await click(WEITER);
+    if (holen === "alles") await click("[data-rolle='nf-alles']");
+    await click(ABSCHLIESSEN);
+    return query("[data-rolle='offen-grund']").textContent ?? "";
+  };
+
+  it("nichts geholt bei vollem Handlager heisst „nicht nachgefüllt“, nicht „Handlager“ (IDA-377)", async () => {
+    const t = await offenGrund(POS({ soll: 5, handlagerBestand: 20 }), "nichts", 5);
+    expect(t).toBe("5 Teile fehlen weiterhin im Fahrzeug – sie wurden nicht nachgefüllt.");
+    expect(t).not.toContain("Handlager");
+  });
+
+  it("nennt beide Gruende getrennt, wenn beide zutreffen (IDA-377)", async () => {
+    // Luecke 5, Handlager 2, nichts geholt: 2 haetten gehen koennen, 3 nicht.
+    const t = await offenGrund(POS({ soll: 5, handlagerBestand: 2 }), "nichts", 5);
+    expect(t).toBe(
+      "5 Teile fehlen weiterhin im Fahrzeug: 2 nicht nachgefüllt, für 3 hatte das Handlager nicht genug.",
+    );
+  });
+
+  it("alles geholt, was das Handlager hatte: nur der Handlager-Grund (IDA-377)", async () => {
+    const t = await offenGrund(POS({ soll: 5, handlagerBestand: 2 }), "alles", 3);
+    expect(t).toBe(
+      "Das Handlager hatte nicht genug. 3 Teile fehlen weiterhin im Fahrzeug – bitte der Verwaltung melden.",
+    );
+  });
+
+  /*
+   * IDA-377 — DER CHECK MELDET SELBST. Ein fehlendes oder defektes Geraet legt
+   * serverseitig einen Mangel an; die Fussnote sagt dann, WAS gemeldet wurde,
+   * statt die Helferin zur Verwaltung zu schicken.
+   */
+  const geraeteMelden = async (geraeteGemeldet: number) => {
+    abschluss.mockResolvedValue({
+      ok: true, wert: { ...WERT_NULL, geraeteAuffaellig: 2, geraeteGemeldet },
+    });
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        soll={[]}
+        geraete={[
+          GERAET,
+          { id: "g-2", typ: "medizin", name: "AED" },
+          { id: "g-3", typ: "medizin", name: "Trage" },
+        ]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    const zeilen = queryAll("[data-rolle='geraet']");
+    const tippe = (i: number, text: string) => clickElement(
+      [...zeilen[i]!.querySelectorAll<HTMLElement>("button")].find((b) => b.textContent === text)!,
+    );
+    await tippe(0, "Defekt");
+    await tippe(1, "fehlt");
+    // Gebrauchsspuren sind kein Mangel und stehen nicht in der Meldung.
+    await tippe(2, "Gebrauchsspuren");
+    await click(ABSCHLIESSEN);
+    return query("[data-rolle='geraete-gemeldet']").textContent ?? "";
+  };
+
+  it("nennt, was an die Verwaltung GEMELDET wurde — Geraet und Befund (IDA-377)", async () => {
+    expect(await geraeteMelden(2)).toBe("An die Verwaltung gemeldet: Absaugpumpe (defekt), AED (fehlt).");
+  });
+
+  it("hat der Server nicht alles gemeldet, bleibt es beim Auftrag an die Helferin (IDA-377)", async () => {
+    // Gegenprobe: ein Server, der nichts anlegt (vor IDA-377: 0), darf keine
+    // Meldung behaupten, die es nicht gibt.
+    expect(await geraeteMelden(0)).toBe("Fehlende oder defekte Geräte bitte der Verwaltung melden.");
   });
 
   it("und schweigt, wenn nichts offen bleibt", async () => {
@@ -1776,6 +2208,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         nachfuellBestaetigt: 1,
         offen: 0,
         geraeteAuffaellig: 0,
+        geraeteGemeldet: 0,
         flaschenAuffaellig: 0,
         flaschenNichtBewertbar: 0,
         verfallAuffaellig: 0,
@@ -1797,6 +2230,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     await alleBestaetigen();
     await click(WEITER);
     await click(WEITER);
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
 
     const t = query("[data-rolle='check-ergebnis']").textContent ?? "";
@@ -1820,6 +2254,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     const t = query("[data-rolle='check-ergebnis']").textContent ?? "";
     expect(t).not.toContain("aus Handlager geholt");
@@ -1838,6 +2273,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         nachfuellBestaetigt: 5,
         offen: 3,
         geraeteAuffaellig: 0,
+        geraeteGemeldet: 0,
         flaschenAuffaellig: 0,
         flaschenNichtBewertbar: 0,
         verfallAuffaellig: 0,
@@ -1856,6 +2292,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     expect(query("[data-rolle='check-ergebnis']").textContent).toContain(
       "Von 5 bestätigten Teilen konnten nur 2 gebucht werden.",
@@ -1880,6 +2317,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     const t = query("[data-rolle='check-ergebnis']").textContent ?? "";
     expect(t).toContain("2 Flasche(n) nicht bewertbar");
@@ -1901,6 +2339,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     expect(query<HTMLAnchorElement>("[data-rolle='nochmal']").getAttribute("href")).toBe(
       "/helfer/check?fz=fz-1",
@@ -1937,6 +2376,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     expect(query<HTMLAnchorElement>("[data-rolle='nochmal']").getAttribute("href")).toBe(
       "/helfer/check?fz=fz-1",
@@ -1962,6 +2402,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     // Literal ausgeschrieben, NICHT aus `encodeURIComponent` gebaut: eine
     // Zusicherung gegen die eigene Rechnung kann konstruktiv nie fehlschlagen.
@@ -2015,11 +2456,12 @@ async function alleSechsSetzen(flaeche = VOLLES_FAHRZEUG): Promise<void> {
   for (let i = 0; i < 3; i++) await plus(0); // 1 `ist` = 3
   await verfallAufklappen();
   await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03"); // 2 `verfallState`
-  await click(WEITER); // 3 `nachfuell` = 2 (greedy)
+  await click(WEITER);
+  await click("[data-rolle='nf-alles']"); // 3 `nachfuell` = 2 (greedy, IDA-377: per Tipp)
   await click(WEITER);
   await click("[data-rolle='geraet-fehlt']"); // 4 `geraeteState`
   await click(WEITER);
-  await minus(0); // 5 `druck` = 199
+  await druckAblesen(199); // 5 `druck` = 199 (IDA-377: abgelesen statt vom Nennfuelldruck herunter)
   // 6 `phase` steht auf „sauerstoff".
 }
 
@@ -2034,7 +2476,7 @@ async function pruefeAlleSechs(neuGeladen = false): Promise<void> {
   expect(query("[data-rolle='geraet-fehlt']").getAttribute("aria-pressed")).toBe("true");
   await click(ZURUECK);
   // 3 — die geholte Menge.
-  expect(query("[data-rolle='nf-liste'] [data-rolle='stepanzeige']").textContent).toBe("2");
+  expect(geholt()).toEqual(["2"]);
   await click(ZURUECK);
   // 1 — die gezaehlte Menge.
   expect(zahlfelder()[0].value).toBe("3");
@@ -2132,6 +2574,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     expect(exists("[data-rolle='erneuern']")).toBe(false);
     expect(query("[data-rolle='check-fehler']").textContent).toContain("gesperrt");
@@ -2161,6 +2604,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     expect(query("[data-rolle='check-fehler']").textContent).toContain("unvollständig");
     expect(exists("[data-rolle='erneuern']")).toBe(false);
@@ -2182,6 +2626,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     await fill("[data-rolle='erneuern-code']", "482-137");
     await click("[data-rolle='erneuern-weiter']");
@@ -2210,6 +2655,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     await fill("[data-rolle='erneuern-code']", "000-000");
     await click("[data-rolle='erneuern-weiter']");
@@ -2233,6 +2679,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     await fill("[data-rolle='erneuern-code']", "482-137");
     await click("[data-rolle='erneuern-weiter']");
@@ -2260,6 +2707,7 @@ describe("CheckFlow — Netz (Falle 62, Falle 66)", () => {
         letzterCheckText={null}
       />,
     );
+    await alleGeraeteOk(); // IDA-377
     await click(ABSCHLIESSEN);
     const t = query("[data-rolle='check-fehler']").textContent ?? "";
     // IDA-358: die Statuszeile aus `core/entwurf` — die Sendung liegt auf dem

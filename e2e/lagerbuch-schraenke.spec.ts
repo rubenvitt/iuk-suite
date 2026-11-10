@@ -255,7 +255,7 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     // Test still in der Verwaltungsansicht landen, die "Schrank: Menge" ohne
     // Zugangshinweis-Zeile ebenfalls zeigt — ein falscher Zweig, der wie ein
     // bestandener Test aussaehe.
-    await expect(page.getByText(/^Zugang: Token/)).toBeVisible();
+    await expect(page.getByText(/^Zugangscode · /)).toBeVisible();
 
     // ── 6) Zugangshinweis im Klartext ──────────────────────────────────────
     const hinweisZeile = page.locator('[data-rolle="charge-zugangshinweis"]');

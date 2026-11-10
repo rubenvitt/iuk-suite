@@ -76,15 +76,15 @@ export async function seedLokalVerpflegung(db: VerpflegungDb, jetzt = Date.now()
   }).run();
   const tagZeit = (tage: number, std: number) => { const d = new Date(jetzt - tage * 86_400_000); d.setUTCHours(std, 0, 0, 0); return d.getTime(); };
   const B: [tage: number, std: number, art: "eingang" | "ausgabe" | "aussonderung", a: string, o: string, mhd: number, menge: number, wer: string, rest: { grund?: string; ziel?: string }][] = [
-    [6, 9, "ausgabe", "a10", "o4", 1, 30, "Helfer-Link Stadtfest", { ziel: "Sanitätsdienst" }],
-    [4, 18, "aussonderung", "a12", "o1", -2, 1, "Helfer-Link Küche", { grund: "verdorben" }],
+    [6, 9, "ausgabe", "a10", "o4", 1, 30, "Zugangscode · Stadtfest", { ziel: "Sanitätsdienst" }],
+    [4, 18, "aussonderung", "a12", "o1", -2, 1, "Zugangscode · Küche", { grund: "verdorben" }],
     [2, 10, "eingang", "a13", "o3", 4, 12, "Leitung Verpflegung", {}],
     [2, 10, "eingang", "a14", "o3", 6, 4, "Leitung Verpflegung", {}],
-    [1, 19, "ausgabe", "a1", "o1", 9, 12, "Helfer-Link Übung", { ziel: "Übung" }],
-    [1, 19, "ausgabe", "a5", "o2", 23, 6, "Helfer-Link Übung", { ziel: "Übung" }],
+    [1, 19, "ausgabe", "a1", "o1", 9, 12, "Zugangscode · Übung", { ziel: "Übung" }],
+    [1, 19, "ausgabe", "a5", "o2", 23, 6, "Zugangscode · Übung", { ziel: "Übung" }],
   ];
   for (const [tage, std, a, k, o, mhd, menge, wer, rest] of B) {
     db.insert(buchung).values({ id: neueId(), zeit: tagZeit(tage, std), art: a, artikelId: art[k], ortId: ort[o], mhd: plusTage(heute, mhd), menge, wer, linkId: null, grund: rest.grund ?? null, ziel: rest.ziel ?? null }).run();
   }
-  return [`verpflegung: ${orte.length} Lagerorte, ${ARTIKEL.length} Artikel, ${ROH.length} Chargen, ${B.length} Buchungen, Helfer-Link /t/${code}`];
+  return [`verpflegung: ${orte.length} Lagerorte, ${ARTIKEL.length} Artikel, ${ROH.length} Chargen, ${B.length} Buchungen, Zugangscode /t/${code}`];
 }

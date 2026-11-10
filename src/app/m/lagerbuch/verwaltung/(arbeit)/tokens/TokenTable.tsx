@@ -27,7 +27,7 @@ import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 
-const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
+const STATUS_FEHLER = "Zustand des Zugangscodes konnte nicht geändert werden.";
 
 export type ZielFilter = "fahrzeug" | "artikel" | "liste";
 
@@ -300,6 +300,11 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
 
   const spalten: NonNullable<TableProps<TokenAnzeigeZeile>["columns"]> = [
     {
+      title: "Bezeichnung",
+      dataIndex: "label",
+      sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.label),
+    },
+    {
       title: "Code",
       dataIndex: "code",
       sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.code),
@@ -361,11 +366,6 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
         ),
     },
     {
-      title: "Bezeichnung",
-      dataIndex: "label",
-      sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.label),
-    },
-    {
       title: "Ziel",
       dataIndex: "zielTyp",
       // Die Zielart ist fachlich fest (drei Werte) und stammt deshalb
@@ -403,7 +403,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       },
     },
     {
-      title: "Status",
+      title: "Zustand",
       dataIndex: "aktiv",
       sorter: nachJaNein<TokenAnzeigeZeile>((zeile) => zeile.aktiv),
       filters: STATUS_FILTER.filters,
@@ -421,7 +421,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
     },
     {
-      title: "",
+      title: "Aktionen",
       key: "aktionen",
       render: (_wert: unknown, zeile) => (
         <Flex gap={SPACE.sm} wrap align="center">
@@ -511,7 +511,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
           ) : kannReaktivieren(zeile) ? (
             // Reaktivieren braucht keine Rueckfrage: es macht nichts unbrauchbar.
             <Button disabled={laeuft} onClick={() => statusAendern(zeile)}>
-              Reaktivieren
+              Entsperren
             </Button>
           ) : (
             <span style={SCHRIFT.neben}>
@@ -560,7 +560,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
 
       <Kartentabelle<TokenAnzeigeZeile>
         rowKey="id"
-        aria-label="Zugangs-Codes"
+        aria-label="Zugangscodes"
         dataSource={gefiltert}
         filter={spaltenFilter}
         onFilter={setSpaltenFilter}

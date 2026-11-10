@@ -1339,7 +1339,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       `KTW +${syncKtw.hinzugefuegt}/~${syncKtw.aktualisiert}, MTW ${spListe.length} manuell neu.`,
     `Ausstattung: ${geraeteListe.length} Geräte, ${bzListe.length} BZ-Geräte, ` +
       `${bzkListe.length} BZ-Kontrollen, ${flaschenListe.length} O₂-Flaschen, ` +
-      `${messungenListe.length} O₂-Messungen, ${tokenListe.length} Zugangs-Codes und ` +
+      `${messungenListe.length} O₂-Messungen, ${tokenListe.length} Zugangscodes und ` +
       `${ortCodeListe.length} Ortscodes neu.`,
     "",
     "Verfallsampel — belegte Stufen:",
@@ -1370,7 +1370,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     "  Sauerstoffmaske, Charge O2M-2024-310 (abgelaufen): 3 Stk. in Schrank 1, " +
       "5 Stk. im GF-Schrank — die Verfallsliste fragt dort beim Aussondern den Ort ab.",
     "",
-    `Feste Zugangs-Codes (Gate-Eingabe UND QR-Nutzlast):`,
+    `Feste Zugangscodes (Gate-Eingabe UND QR-Nutzlast):`,
     `  ${CODE_HELFER}  Helfer allgemein → Artikel-Liste`,
     `  ${CODE_RTW}  RTW 1 → Fahrzeug-Check, vorausgewählt`,
     `  ${CODE_ARTIKEL}  Regaletikett Kompressen → Artikel-Detail`,
@@ -1414,7 +1414,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  ${BASIS_URL}/g/4015630000018               Geraete-Barcode → BZ-Detail`,
     "",
     "⚠️ /g/<barcode> und /t/<code> sind ZWEI Namensraeume und nicht austauschbar: " +
-      "/t/ nimmt den sechsstelligen Zugangs-Code (denselben, den das Gate auf der " +
+      "/t/ nimmt den sechsstelligen Zugangscode (denselben, den das Gate auf der " +
       "Modulwurzel entgegennimmt), /g/ den Barcode vom Typenschild eines Geraets. " +
       "Ein unbekannter Barcode antwortet mit 200 und nennt den gescannten Code, " +
       "nicht mit 404 (Entscheidung 8-C2).",

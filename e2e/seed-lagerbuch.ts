@@ -1048,7 +1048,7 @@ function lastFixtures(): void {
 function fahrzeugKaertchenFixtures(): void {
   getDb().insert(tokens).values({
     // ⚠️ DAS LABEL TRAEGT DEN FAHRZEUGNAMEN BEWUSST NICHT. Es landet im
-    // Sitzungsetikett des Helfer-Rahmens („Zugang: Token … · <label>"), und ein
+    // Sitzungsetikett des Helfer-Rahmens („Zugangscode · <label>"), und ein
     // „E2E RTW Kärtchen" machte jede Zusicherung auf den Fahrzeugnamen im Spec
     // zahnlos: sie waere auch dann gruen, wenn die Ueberschrift ueber dem
     // Check-Schritt ganz fehlte.

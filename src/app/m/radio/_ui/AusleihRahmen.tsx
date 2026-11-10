@@ -132,7 +132,7 @@ export async function AusleihRahmen({
    * gehoert.
    */
   const etikett =
-    zugang.weg === "code" ? `Zugang: Code ${zugang.bezeichnung}` : (zugang.name ?? "Angemeldet über die Suite");
+    zugang.weg === "code" ? `Zugangscode · ${zugang.bezeichnung}` : (zugang.name ?? "Angemeldet über die Suite");
 
   /*
    * ⛔ DER RUECKWEG IN DIE SUITE NUR MIT SITZUNG (Spec:3387-3391, Gegenprobe

@@ -272,7 +272,7 @@ import { mount, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
 
 const TOKEN_ID = "tk1";
 /** Ausgeschrieben, NICHT aus denselben Feldern zusammengesetzt (Regel 2). */
-const ETIKETT = "Zugang: Token 482-137 · RTW 1";
+const ETIKETT = "Zugangscode · RTW 1";
 
 let t: TestDb;
 

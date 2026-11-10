@@ -7,6 +7,8 @@ import {
   O2_WECHSEL_MIN_PROZENT,
   O2_WECHSEL_MAX_PROZENT,
   O2_AMPEL_GELB_PROZENT,
+  druckZuHoch,
+  druckHoechstBar,
 } from "./o2";
 
 describe("fuellstandProzent", () => {
@@ -197,5 +199,20 @@ describe("o2Status — `niedrig` und `wechseln` sind genau `ampel === 'rot'`", (
       wechselAbProzent: 25, wechselAbBar: 0,
     });
     expect(o2Status(150, 0, 40).ampel).toBe("rot");
+  });
+});
+
+describe("druckZuHoch — IDA-377", () => {
+  it("nimmt den Nennfülldruck und warm etwas darüber an, einen Vertipper nicht", () => {
+    expect(druckZuHoch(200, 200)).toBe(false);
+    expect(druckZuHoch(220, 200)).toBe(false);
+    expect(druckZuHoch(221, 200)).toBe(true);
+    expect(druckZuHoch(950, 200)).toBe(true);
+    expect(druckHoechstBar(200)).toBe(220);
+  });
+
+  it("ohne Nennfülldruck gibt es keine Grenze", () => {
+    expect(druckZuHoch(950, 0)).toBe(false);
+    expect(druckHoechstBar(0)).toBeNull();
   });
 });

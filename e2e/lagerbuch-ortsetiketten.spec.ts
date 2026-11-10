@@ -248,7 +248,7 @@ test.describe("Ortsetiketten (Bogen)", () => {
     const ctx = await browser.newContext();
     const helfer = await ctx.newPage();
     await helfer.goto(lagerbuchUrl("/"));
-    await helfer.getByRole("textbox", { name: "Zugangs-Code" })
+    await helfer.getByRole("textbox", { name: "Zugangscode" })
       .fill(code.toLowerCase().replaceAll("-", " "));
     await helfer.getByRole("button", { name: "Weiter" }).click();
     await helfer.waitForURL((url) => url.pathname.endsWith("/helfer/check")

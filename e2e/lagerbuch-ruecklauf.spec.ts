@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -28,6 +28,8 @@ test.describe("Rücklauf vom Fahrzeug", () => {
   test("bucht die Menge in das Handlager und senkt den Ist-Bestand", async ({ page }) => {
     const antwort = await page.goto(lagerbuchUrl(BLATT));
     expect(antwort!.status()).toBe(200);
+    // Falle 22, `CLAUDE.md`: kurz nach `load` steht die Zeile doppelt im DOM (strict-Greifer).
+    await warteAufGestreamteInhalte(page);
 
     // IDA-232: die Zeile der Bestandsliste, geschluesselt nach Artikel.
     const istZelle = page.locator("[data-row-key='e2e-ruecklauf-artikel'] [data-rolle='ist']");

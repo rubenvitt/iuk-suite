@@ -117,8 +117,8 @@ export function GateFormular({
         name="code"
         autoComplete="off"
         spellCheck={false}
-        placeholder="Code vom Aufsteller"
-        aria-label="Zugangs-Code"
+        placeholder="Zugangscode"
+        aria-label="Zugangscode"
         data-rolle="gate-code"
       />
       {/*

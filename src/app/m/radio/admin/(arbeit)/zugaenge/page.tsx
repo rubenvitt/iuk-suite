@@ -85,13 +85,13 @@ import { CodeTabelle } from "./CodeTabelle";
  * erfundene waere genau die Klasse, gegen die die eiserne Regel steht.
  */
 const SEITEN_TEXTE = {
-  titel: "Zugänge",
+  titel: "Zugangscodes",
   /**
    * ⛔ ER NENNT, WAS AUF DEM BOGEN STEHT, und nicht bloss „Drucken": das Blatt zeigt nur die
    * AKTIVEN Zugaenge (`admin/(druck)/zugaenge/blatt/page.tsx`, der Filter mit seiner
    * Begruendung). Wer eine gesperrte Zeile darauf sucht, soll es hier schon lesen.
    */
-  blattLink: "Druckblatt mit den QR-Codes der aktiven Zugänge",
+  blattLink: "Druckblatt mit den aktiven Zugangscodes",
 } as const;
 
 export default async function RadioZugaengeSeite() {
@@ -100,8 +100,7 @@ export default async function RadioZugaengeSeite() {
   const zeilen = codesListe(getDb());
 
   return (
-    <>
-      <h1 className={s.titel}>{SEITEN_TEXTE.titel}</h1>
+    <CodeTabelle zeilen={zeilen} titel={SEITEN_TEXTE.titel}>
       {/*
         ✅ DER LINK AUF DAS DRUCKBLATT — eingetragen in **V21**, im SELBEN Commit wie
         `admin/(druck)/zugaenge/blatt/page.tsx` (`.superpowers/sdd/planteil4/briefs/V21.md:26-27`).
@@ -124,8 +123,7 @@ export default async function RadioZugaengeSeite() {
       <p className={s.abstand}>
         <Link href="/admin/zugaenge/blatt">{SEITEN_TEXTE.blattLink}</Link>
       </p>
-      <CodeTabelle zeilen={zeilen} />
-    </>
+    </CodeTabelle>
   );
 }
 

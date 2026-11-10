@@ -23,7 +23,9 @@ import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/uml
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { setzeVerfall, verfallFolgtDemMaterial } from "../_lib/schreibpfade/lagerortVerfall";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
-import { o2Status } from "../_lib/domain/o2";
+import { druckZuHoch, o2Status } from "../_lib/domain/o2";
+import { ortsartAus, punktFuerGeraet } from "../_lib/maengel/checkliste";
+import { legeMangelAn, offenerMangelZuGeraet } from "../_lib/maengel/daten";
 import { offenJeArtikel } from "../_lib/domain/check";
 import { ueberschuss } from "../_lib/domain/sollBereich";
 import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
@@ -133,6 +135,11 @@ export type CheckAbschlussWert = {
   plombenOffen: number;
   /** IDA-222: im Vollcheck neu gesetzte Plomben. */
   plombenGesetzt: number;
+  /**
+   * IDA-377: auffällige Geräte, zu denen nach diesem Check ein offener Mangel steht. Ein Check von
+   * vor IDA-377 hat das Feld nicht und meldet 0 — er hat auch nichts gemeldet.
+   */
+  geraeteGemeldet: number;
 };
 
 export async function checkAbschluss(
@@ -298,6 +305,23 @@ export async function checkAbschluss(
       }
     }
 
+    /*
+     * IDA-377 — EIN DRUCK ÜBER DEM GLAUBHAFTEN HÖCHSTWERT WIRD NICHT GEBUCHT. Die Oberfläche lässt ihn
+     * gar nicht erst abschließen; hier steht die Absage für jeden anderen Weg, als Rückgabewert und vor
+     * der Transaktion, damit die Helferin ihn am Feld korrigieren kann.
+     */
+    if (v.flaschen.length > 0) {
+      const nenn = new Map(db.select({ id: o2Flaschen.id, nenn: o2Flaschen.nennfuelldruckBar })
+        .from(o2Flaschen).where(eq(o2Flaschen.lagerortId, v.fahrzeugId)).all().map((f) => [f.id, f.nenn]));
+      if (v.flaschen.some((f) => druckZuHoch(f.druckBar, nenn.get(f.flascheId) ?? 0))) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text: "Ein Druck liegt über dem Nennfülldruck der Flasche. Bitte am Manometer nachsehen und korrigieren.",
+        };
+      }
+    }
+
     const quelle = journalQuelle(riegel.zugang);
     const checkId = v.sendungId ?? newId();
     let nachgefuellt = 0;              // TATSAECHLICH umgelagert, nach Handlager-Kappung
@@ -310,6 +334,7 @@ export async function checkAbschluss(
     let verfallAuffaellig = 0;
     let plombenOffen = 0;
     let plombenGesetzt = 0;
+    let geraeteGemeldet = 0;
 
     db.transaction((tx) => {
       // Grabsteine (`entfernt`) sind kein Soll → aus der gueltigen Positionsmenge
@@ -466,9 +491,32 @@ export async function checkAbschluss(
         tx.select({ id: geraete.id }).from(geraete)
           .where(eq(geraete.lagerortId, v.fahrzeugId)).all().map((g) => g.id),
       );
+      const ortsart = ortsartAus(fz);
       const geraeteErgebnis = v.geraete.map((e) => {
         if (!geraeteHier.has(e.geraetId)) throw new Error("Gerät gehört nicht zu diesem Fahrzeug");   // WURF 2
-        if (!e.vorhanden || e.zustand === ZUSTAND_DEFEKT) geraeteAuffaellig++;
+        if (!e.vorhanden || e.zustand === ZUSTAND_DEFEKT) {
+          geraeteAuffaellig++;
+          /*
+           * IDA-377 — „fehlt" UND „Defekt" WERDEN EIN MANGEL, ohne weiteren Handgriff. Bis hier sagte
+           * der Schlussschirm „bitte der Verwaltung melden", und in der Verwaltung stand davon nichts
+           * unter Mängel. Jetzt steht er dort, am Gerät und im Sofort-Push wie jede andere Meldung.
+           * Ist zu diesem Gerät schon einer offen, bleibt es bei dem einen.
+           */
+          if (!offenerMangelZuGeraet(tx, e.geraetId)) {
+            legeMangelAn(tx, {
+              lagerortId: v.fahrzeugId,
+              punkte: [punktFuerGeraet(ortsart, !e.vorhanden)],
+              beschreibung: e.bemerkung || null,
+              melderName: null,
+              quelle,
+              fotos: 0,
+              jetzt: new Date(),
+              geraetId: e.geraetId,
+              checkId,
+            });
+          }
+          geraeteGemeldet++;
+        }
         return {
           geraetId: e.geraetId, vorhanden: e.vorhanden,
           zustand: e.zustand ?? null, bemerkung: e.bemerkung ?? null,
@@ -594,7 +642,7 @@ export async function checkAbschluss(
           abschluss: {
             nachgefuellt, nachfuellBestaetigt, inBox, offen,
             geraeteAuffaellig, flaschenAuffaellig, flaschenNichtBewertbar, verfallAuffaellig,
-            plombenOffen, plombenGesetzt,
+            plombenOffen, plombenGesetzt, geraeteGemeldet,
           },
         }),
       }).run();
@@ -620,13 +668,18 @@ export async function checkAbschluss(
     revalidiereBestand();
     revalidatePath("/m/lagerbuch/verwaltung/checks");
     revalidatePath("/m/lagerbuch/verwaltung/sauerstoff");
+    // IDA-377: ein gemeldetes Gerät steht danach unter „Mängel" und an seiner Seite.
+    if (geraeteGemeldet > 0) {
+      revalidatePath("/m/lagerbuch/verwaltung/maengel");
+      revalidatePath("/m/lagerbuch/verwaltung/geraete", "layout");
+    }
 
     return {
       ok: true,
       wert: {
         checkId, nachgefuellt, nachfuellBestaetigt, inBox, offen,
         geraeteAuffaellig, flaschenAuffaellig, flaschenNichtBewertbar, verfallAuffaellig,
-        plombenOffen, plombenGesetzt,
+        plombenOffen, plombenGesetzt, geraeteGemeldet,
       },
     };
   });
@@ -650,6 +703,7 @@ function frueherAbschluss(checkId: string, ergebnis: string | null): CheckAbschl
       verfallAuffaellig: zahl("verfallAuffaellig"),
       plombenOffen: zahl("plombenOffen"),
       plombenGesetzt: zahl("plombenGesetzt"),
+      geraeteGemeldet: zahl("geraeteGemeldet"),
     };
   } catch {
     return null;
