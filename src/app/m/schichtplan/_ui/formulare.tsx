@@ -117,7 +117,7 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
   return (
     <div>
       <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
-      <Feld titel="Name" fehler={fehler.name}><Input value={name} status={fehler.name ? "error" : undefined} aria-invalid={!!fehler.name} onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setFehler((f) => (f.name === NAME_FEHLT ? ohne(f, "name") : f)); }} placeholder="z. B. Stadtfest Uelzen" maxLength={120} /></Feld>
+      <Feld titel="Name" fehler={fehler.name}><Input value={name} aria-required status={fehler.name ? "error" : undefined} aria-invalid={!!fehler.name} onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setFehler((f) => (f.name === NAME_FEHLT ? ohne(f, "name") : f)); }} placeholder="z. B. Stadtfest Uelzen" maxLength={120} /></Feld>
       <Feld titel="Art">
         <Radio.Group value={art} onChange={(e) => setArt(e.target.value as PlanungArt)} options={[{ value: "veranstaltung", label: "Veranstaltung" }, { value: "lage", label: "Lage" }]} />
       </Feld>
@@ -125,7 +125,7 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
       <div className={s.feld} role="group" aria-label="Zeitraum">
         <span className={s.feldTitel}>Zeitraum</span>
         {/* Nur die eigene „fehlt“-Meldung verschwindet beim Ausfüllen; eine Serverablehnung (z. B. zu lang) bleibt bis zum nächsten Speichern. */}
-        <Zeitfelder wert={zeitraum} fehlerId={fehler.bis ?? fehler.von ? "planung-zeitraum-fehler" : undefined}
+        <Zeitfelder wert={zeitraum} pflicht fehlerId={fehler.bis ?? fehler.von ? "planung-zeitraum-fehler" : undefined}
           onChange={(z) => { setZeitraum(z); if (z.von !== null && z.bis !== null) setFehler((f) => (f.bis === ZEIT_FEHLT ? ohne(f, "bis") : f)); }} />
         {fehler.bis ?? fehler.von ? <span id="planung-zeitraum-fehler" className={s.feldFehler} role="alert">{fehler.bis ?? fehler.von}</span> : <span className={s.neben}>{planung ? "Bestehende Schichten müssen im neuen Zeitraum liegen." : "Höchstens 14 Tage."}</span>}
       </div>

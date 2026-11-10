@@ -35,9 +35,9 @@ function verbinde(tag: Dayjs, uhr: Dayjs): number {
  * Zeitspalten: der passt auf dem Telefon nicht in die Breite (Ruben, 01.11.2026). Wer den Beginn
  * verschiebt, verschiebt das Ende mit, die Dauer bleibt.
  */
-export function Zeitfelder({ wert, onChange, ohneLeeren, fehlerId }: {
+export function Zeitfelder({ wert, onChange, ohneLeeren, fehlerId, pflicht }: {
   /** `fehlerId`: Kennung der Fehlermeldung zum Zeitraum; gesetzt, gelten die Eingaben als ungültig. */
-  wert: Zeitraum; onChange: (w: Zeitraum) => void; ohneLeeren?: boolean; fehlerId?: string;
+  wert: Zeitraum; onChange: (w: Zeitraum) => void; ohneLeeren?: boolean; fehlerId?: string; pflicht?: boolean;
 }) {
   const beruehrung = useBeruehrung();
   const von = wert.von === null ? null : alsDayjs(wert.von);
@@ -68,12 +68,12 @@ export function Zeitfelder({ wert, onChange, ohneLeeren, fehlerId }: {
   return (
     <div className={s.zeitfelder}>
       <span className={s.zeitfeldTitel}>Beginn</span>
-      <DatePicker {...gemeinsam} popupAlign={WAEHLER_IM_BILD} aria-label="Beginn Datum" placeholder="Datum" format={["DD.MM.YYYY", "D.M.YYYY"]}
+      <DatePicker {...gemeinsam} popupAlign={WAEHLER_IM_BILD} aria-label="Beginn Datum" aria-required={pflicht || undefined} placeholder="Datum" format={["DD.MM.YYYY", "D.M.YYYY"]}
         value={von} onChange={(t: Dayjs | null) => setzeBeginn(t, von)} />
       <TimePicker {...gemeinsam} {...uhrzeit} popupAlign={WAEHLER_IM_BILD} aria-label="Beginn Uhrzeit" placeholder="Uhrzeit"
         value={von} disabled={!von} onChange={(u: Dayjs | null) => { if (von && u) setzeBeginn(von, u); }} />
       <span className={s.zeitfeldTitel}>Ende</span>
-      <DatePicker {...gemeinsam} popupAlign={WAEHLER_IM_BILD} aria-label="Ende Datum" placeholder="Datum" format={["DD.MM.YYYY", "D.M.YYYY"]}
+      <DatePicker {...gemeinsam} popupAlign={WAEHLER_IM_BILD} aria-label="Ende Datum" aria-required={pflicht || undefined} placeholder="Datum" format={["DD.MM.YYYY", "D.M.YYYY"]}
         value={bis} onChange={(t: Dayjs | null) => setzeEnde(t, bis)} />
       <TimePicker {...gemeinsam} {...uhrzeit} popupAlign={WAEHLER_IM_BILD} aria-label="Ende Uhrzeit" placeholder="Uhrzeit"
         value={bis} disabled={!bis} onChange={(u: Dayjs | null) => { if (bis && u) setzeEnde(bis, u); }} />
