@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import {
   lagerorte, artikel, chargen, buchungen, sollPositionen, geraete,
-  o2Flaschen, o2Messungen, checks, lagerortVerfall,
+  o2Flaschen, o2Messungen, checks, lagerortVerfall, maengel,
 } from "../_db/schema";
 import {
   CHECK_ABGLEICH, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, HANDLAGER_ID,
@@ -578,7 +578,80 @@ describe("checkAbschluss — Geraete", () => {
   });
 });
 
+describe("checkAbschluss — IDA-377: ein auffaelliges Geraet wird ein Mangel", () => {
+  it("legt fuer „fehlt“ und „Defekt“ je einen Mangel an — am Ort, am Geraet, mit Check und Bemerkung", async () => {
+    t.db.insert(geraete).values({
+      id: "g-2", typ: "medizin", name: "AED", lagerortId: "fz-1", aktiv: true, createdAt: new Date(),
+    }).run();
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      geraete: [
+        { geraetId: "g-1", vorhanden: true, zustand: "Defekt", bemerkung: "Schlauch gerissen" },
+        { geraetId: "g-2", vorhanden: false },
+      ],
+    }, t.db);
+    expect(r.ok && r.wert.geraeteAuffaellig).toBe(2);
+    expect(r.ok && r.wert.geraeteGemeldet).toBe(2);
+    const m = t.db.select().from(maengel).all().sort((a, b) => a.geraetId!.localeCompare(b.geraetId!));
+    expect(m.map((x) => ({
+      ort: x.lagerortId, geraet: x.geraetId, punkte: x.punkte, text: x.beschreibung,
+      check: x.checkId, quelle: x.quelleId, offen: x.erledigtAt === null,
+    }))).toEqual([
+      { ort: "fz-1", geraet: "g-1", punkte: ["Gerät im Fahrzeug defekt"], text: "Schlauch gerissen",
+        check: r.ok ? r.wert.checkId : "", quelle: "482-137", offen: true },
+      { ort: "fz-1", geraet: "g-2", punkte: ["Ausrüstung fehlt"], text: null,
+        check: r.ok ? r.wert.checkId : "", quelle: "482-137", offen: true },
+    ]);
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/maengel");
+  });
+
+  it("legt keinen zweiten an, solange zum Geraet einer offen ist — und meldet es trotzdem als gemeldet", async () => {
+    const nutzlast = {
+      fahrzeugId: "fz-1", ...leer, geraete: [{ geraetId: "g-1", vorhanden: false }],
+    };
+    await checkAbschluss(nutzlast, t.db);
+    const r = await checkAbschluss(nutzlast, t.db);
+    expect(r.ok && r.wert.geraeteGemeldet).toBe(1);
+    expect(t.db.select().from(maengel).all()).toHaveLength(1);
+  });
+
+  it("ein Geraet in Ordnung oder mit Gebrauchsspuren wird KEIN Mangel", async () => {
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      geraete: [{ geraetId: "g-1", vorhanden: true, zustand: "Gebrauchsspuren" }],
+    }, t.db);
+    expect(r.ok && r.wert.geraeteGemeldet).toBe(0);
+    expect(t.db.select().from(maengel).all()).toHaveLength(0);
+    expect(revalidiert).not.toContain("/m/lagerbuch/verwaltung/maengel");
+  });
+
+  it("an einer TASCHE heisst der Punkt nach der Tasche", async () => {
+    t.db.insert(geraete).values({
+      id: "g-t", typ: "objekt", name: "Blutdruckgeraet", lagerortId: "tasche-1", aktiv: true, createdAt: new Date(),
+    }).run();
+    await checkAbschluss({
+      fahrzeugId: "tasche-1", ...leer, geraete: [{ geraetId: "g-t", vorhanden: true, zustand: "Defekt" }],
+    }, t.db);
+    expect(t.db.select().from(maengel).all()[0].punkte).toEqual(["Gerät in der Tasche defekt"]);
+  });
+});
+
 describe("checkAbschluss — Flaschen", () => {
+  it("IDA-377: weist einen Druck ueber 110 % des Nennfuelldrucks ab — als Rueckgabewert, ohne zu schreiben", async () => {
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer, flaschen: [{ flascheId: "o-1", druckBar: 950 }],
+    }, t.db);
+    expect(!r.ok && r.grund).toBe("eingabe");
+    expect(t.db.select().from(o2Messungen).all()).toHaveLength(0);
+    expect(t.db.select().from(checks).all()).toHaveLength(0);
+    // 220 bar auf einer 200-bar-Flasche ist warm gefuellt und geht durch; ohne Nennfuelldruck keine Grenze.
+    const ok = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      flaschen: [{ flascheId: "o-1", druckBar: 220 }, { flascheId: "o-null", druckBar: 950 }],
+    }, t.db);
+    expect(ok.ok).toBe(true);
+  });
+
   it("schreibt je Flasche eine append-only Messung mit dem CODE als Quelle", async () => {
     await checkAbschluss({
       fahrzeugId: "fz-1", ...leer, flaschen: [{ flascheId: "o-1", druckBar: 180 }],

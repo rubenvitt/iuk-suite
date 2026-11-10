@@ -674,7 +674,16 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
 
     await weiter.click(); // Zaehlen → Nachfuellen
     await page.getByRole("button", { name: "Weiter" }).click(); // Nachfuellen → Sauerstoff
-    await page.getByRole("button", { name: "Abschließen" }).click();
+    /*
+     * IDA-377: der Druck startet LEER, „Abschließen" ist bis zur Ablesung gesperrt — der
+     * Nennfuelldruck war eine Vorbelegung, die eine nie abgelesene Flasche als voll buchte.
+     */
+    const abschliessen = page.getByRole("button", { name: "Abschließen" });
+    await expect(abschliessen, "ohne abgelesenen Druck kein Abschluss").toBeDisabled();
+    const druck = page.locator("[data-rolle='o2-liste'] input[type='text']");
+    await druck.fill("180");
+    await expect(abschliessen).toBeEnabled();
+    await abschliessen.click();
 
     await expect(page.getByText("Check abgeschlossen")).toBeVisible();
 
@@ -921,11 +930,12 @@ test.describe("DRK-378 — die Nebennavigation gehoert derselben Bediendichte", 
     await page.waitForURL(/\/helfer$/);
   });
 
-  test("„Beenden“ und „Zurueck“ messen 56px, nicht 44", async ({ page }) => {
-    const beenden = page.getByRole("button", { name: "Beenden" });
+  test("„Abmelden“ und „Zurueck“ messen 56px, nicht 44", async ({ page }) => {
+    // IDA-377: „Abmelden" statt „Beenden".
+    const beenden = page.getByRole("button", { name: "Abmelden" });
     await expect(beenden).toBeVisible();
     const beendenKasten = await beenden.boundingBox();
-    expect(beendenKasten, "„Beenden“ muss eine Flaeche im Bild haben").not.toBeNull();
+    expect(beendenKasten, "„Abmelden“ muss eine Flaeche im Bild haben").not.toBeNull();
     expect(
       beendenKasten!.height,
       "Bediendichte des Helferwegs: 56, nicht 44 (DRK-378)",

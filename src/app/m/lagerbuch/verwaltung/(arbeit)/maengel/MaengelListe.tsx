@@ -6,12 +6,13 @@
  * Bekommt nur serialisierbare Props (Falle 9); die Zeiten formatiert der Server in der Suite-Zone.
  */
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { App, Button, Card, Flex, Image, Input, Modal, Tag, Typography } from "antd";
 import { Ruhezustand } from "@/core/ruhe";
 import { SPACE } from "@/core/theme/tokens";
 import { mangelErledigen, mangelWiederOeffnen } from "../../../_actions/maengel";
 import { VERMERK_MAX } from "../../../_lib/maengel/meldung";
-import { mangelFotoPfad } from "../../../_lib/verwaltungPfad";
+import { mangelFotoPfad, verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 export interface MangelKarte {
   id: string;
@@ -24,6 +25,10 @@ export interface MangelKarte {
   gemeldet: string;
   erledigt: string | null;
   erledigtVermerk: string | null;
+  /** IDA-377: das betroffene Gerät; die Karte verlinkt auf seine Seite. */
+  geraet: { id: string; name: string } | null;
+  /** IDA-377: vom Fahrzeug-Check angelegt, nicht von Hand gemeldet. */
+  ausCheck: boolean;
 }
 
 function Fotos({ m }: { m: MangelKarte }) {
@@ -49,6 +54,11 @@ function Fotos({ m }: { m: MangelKarte }) {
 function Inhalt({ m }: { m: MangelKarte }) {
   return (
     <Flex vertical gap={SPACE.sm}>
+      {m.geraet && (
+        <Link href={verwaltungDetailPfad("geraete", m.geraet.id)} data-rolle="mangel-geraet">
+          {m.geraet.name}
+        </Link>
+      )}
       {m.punkte.length > 0 && (
         <Flex gap={SPACE.xs} wrap>
           {m.punkte.map((p) => <Tag key={p}>{p}</Tag>)}
@@ -57,7 +67,7 @@ function Inhalt({ m }: { m: MangelKarte }) {
       {m.beschreibung && <Typography.Paragraph style={{ marginBlockEnd: 0, whiteSpace: "pre-wrap" }}>{m.beschreibung}</Typography.Paragraph>}
       <Fotos m={m} />
       <Typography.Text type="secondary">
-        Gemeldet {m.gemeldet}{m.melderName ? ` von ${m.melderName}` : ""}
+        Gemeldet {m.gemeldet}{m.ausCheck ? " beim Check" : ""}{m.melderName ? ` von ${m.melderName}` : ""}
         {m.ortAktiv ? "" : " · Ort ist stillgelegt"}
       </Typography.Text>
     </Flex>

@@ -228,6 +228,26 @@
   min-height: 56px; flex: none; white-space: nowrap;
 }
 .inhalt { flex: 1; overflow-y: auto; padding: 14px 14px 18px; -webkit-overflow-scrolling: touch }
+/*
+ * IDA-377 — DER SCHMALE KOPF beim Scrollen (`KopfVerdichter.tsx`). Sitzungskennung und ruhige Restzeit
+ * treten zurück, die Warnung bleibt; der Ausstieg behält seine 56px.
+ */
+.rahmen[data-kompakt] .kopf { padding-block: 0 }
+.rahmen[data-kompakt] .marke { font-size: 16px }
+.rahmen[data-kompakt] .etikett { display: none }
+.rahmen[data-kompakt] .restzeit:not(.restzeitWarnt) { display: none }
+
+/* IDA-377 — die Rückfrage vor „Abmelden" bei offenem Check (`AbmeldenKnopf.tsx`). */
+.rueckfrageGrund {
+  position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center;
+  padding: 16px; background: rgba(12, 18, 24, .45);
+}
+.rueckfrage {
+  width: 100%; max-width: 420px; background: var(--lb-karte); color: var(--lb-tinte);
+  border-radius: 14px; padding: 16px; box-shadow: 0 10px 26px rgba(12, 18, 24, .32);
+}
+.rueckfrageKnoepfe { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px }
+.rueckfrageKnoepfe > button { flex: 1 1 140px }
 .tableiste { flex: none; display: flex; background: var(--lb-karte); border-top: 1px solid var(--lb-linie) }
 .tab {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
