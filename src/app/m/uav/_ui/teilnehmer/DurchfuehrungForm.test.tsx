@@ -94,4 +94,13 @@ describe("DurchfuehrungForm", () => {
     expect(onAdd).toHaveBeenCalledWith({ datum: "2026-06-02", drohnensteuerer: "Ada Muster", luftraumbeobachter: "" });
     expect(exists("[role='alert']")).toBe(false);
   });
+
+  it("speichert ohne gültiges Datum nichts", async () => {
+    const onAdd = vi.fn();
+    await mount(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" besitzer="p1" eigenerName="Ada" />);
+    await fill("#df-datum", "");
+    await submitForm();
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(query("[role='alert']").textContent).toContain("Datum fehlt");
+  });
 });

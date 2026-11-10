@@ -28,6 +28,7 @@ export function DurchfuehrungForm({ onAdd, heute, besitzer, eigenerName = "" }: 
   const [drohnensteuerer, setDrohnensteuerer] = useState(letztesTeam.drohnensteuerer || eigenerName);
   const [luftraumbeobachter, setLuftraumbeobachter] = useState(letztesTeam.luftraumbeobachter);
   const [steuererFehlt, setSteuererFehlt] = useState(false);
+  const [datumFehlt, setDatumFehlt] = useState(false);
   const steuererFeld = useRef<HTMLInputElement>(null);
 
   function absenden(e: FormEvent) {
@@ -36,6 +37,11 @@ export function DurchfuehrungForm({ onAdd, heute, besitzer, eigenerName = "" }: 
     // Zielanzahl („10.11.2026 · — / —"). Ohne Namen wird nichts gespeichert.
     const steuerer = drohnensteuerer.trim();
     const beobachter = luftraumbeobachter.trim();
+    // Ein geleertes oder halb getipptes Datumsfeld liefert "" — der Server
+    // lehnt das ab, und der Eintrag bliebe für immer in der Sync-Warteschlange.
+    const datumOk = /^\d{4}-\d{2}-\d{2}$/.test(datum);
+    setDatumFehlt(!datumOk);
+    if (!datumOk) return;
     if (!steuerer) {
       setSteuererFehlt(true);
       steuererFeld.current?.focus();
@@ -70,9 +76,19 @@ export function DurchfuehrungForm({ onAdd, heute, besitzer, eigenerName = "" }: 
           id="df-datum"
           type="date"
           value={datum}
-          onChange={(e) => setDatum(e.target.value)}
+          onChange={(e) => {
+            setDatum(e.target.value);
+            if (e.target.value) setDatumFehlt(false);
+          }}
+          aria-invalid={datumFehlt || undefined}
+          aria-describedby={datumFehlt ? "df-datum-fehler" : undefined}
         />
       </label>
+      {datumFehlt && (
+        <p id="df-datum-fehler" className={styles["feld-fehler"]} role="alert">
+          Datum fehlt.
+        </p>
+      )}
       <label className={styles.feld} htmlFor="df-drohnensteuerer">
         <span className={styles["feld-label"]}>Drohnensteuerer</span>
         <input
