@@ -572,7 +572,7 @@ describe("Auffuellen — der Zugangshinweis und die Bauform", () => {
    * Zeichenkette liefert — `className` enthielte `knopfRot` auch dann, wenn es
    * die Klasse gar nicht gaebe (gemessen in `HelferChip.test.tsx`).
    */
-  it("traegt den Tinte-Knopf, nicht den roten der Entnahme", () => {
+  it("traegt den Tinte-Knopf", () => {
     const quelle = readFileSync(QUELLE, "utf8");
     expect(quelle).toContain("s.knopfTinte");
     expect(quelle).not.toContain("s.knopfRot");

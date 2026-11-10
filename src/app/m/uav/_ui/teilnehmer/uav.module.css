@@ -789,7 +789,8 @@
   border-color: var(--uav-aktion);
 }
 
-/* Primäraktionen (Erfassen/Anmelden) — Handschuh-Bedienung, ≥ 56px Ziel. */
+/* Primäraktionen (Erfassen/Anmelden) — Handschuh-Bedienung, ≥ 56px Ziel.
+   Tinte, nicht Rot: Rot ist nie Primäraktion (Falle 3, IDA-395). */
 .btn-primaer {
   min-height: 56px;
   display: inline-flex;
