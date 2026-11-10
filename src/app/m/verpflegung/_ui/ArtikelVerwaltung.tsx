@@ -145,7 +145,12 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
             render: (_: unknown, a: ArtikelDTO) => {
               const b = bestand[a.id] ?? 0;
               const knapp = a.mindest !== null && b < a.mindest;
-              return <span className={`${s.ziffern} ${knapp ? s.textGelb : ""}`}>{a.mindest !== null ? `${zahlText(b)} / ${mengeText(a.mindest, a.einheit)}` : mengeText(b, a.einheit)}</span>;
+              // IDA-382: der Mindestbestand trägt sein Wort, statt als „18 / 12“ unbeschriftet daneben zu stehen.
+              return (
+                <span className={`${s.ziffern} ${knapp ? s.textGelb : ""}`}>
+                  {mengeText(b, a.einheit)}{a.mindest !== null && <span className={s.neben}> · Mindestbestand {zahlText(a.mindest)}</span>}
+                </span>
+              );
             },
           },
           {

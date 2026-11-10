@@ -11,11 +11,12 @@ import {
 } from "../../_actions/telefon";
 import {
   AUSGABE_ZIELE, AUSSONDER_GRUENDE, datumLang, EINHEITEN, einheitText, fefo, MHD_ART_TEXT, mengeText, restKurz,
-  tageBis, vorschlag as fefoVorschlag, zahlText, type AussonderGrund,
+  runde, tageBis, vorschlag as fefoVorschlag, zahlText, type AussonderGrund,
 } from "../../_lib/mhd";
+import { zustandAus } from "../../_lib/bestand";
 import type { ArtikelDTO, ChargeSicht, Ergebnis, OrtDTO } from "../../_lib/typen";
 import { Kamera } from "./Kamera";
-import { Ampel, ArtikelListe, Fehler, Menge, Stepper, Zurueck, type ListenZeile, type Treffer } from "./teile";
+import { Ampel, ArtikelListe, Fehler, Menge, Stepper, Zurueck, ZustandChips, type ListenZeile, type Treffer } from "./teile";
 import s from "./telefon.module.css";
 
 /**
@@ -109,8 +110,9 @@ function Karte({ titel, children, pad = true, ...rest }: { titel: string; childr
 
 /** Kopf jeder Artikelseite: Zurück, Name mit Kategorie, Bestand im gewählten Umfang. */
 function ArtikelKopf({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; chargen: ChargeSicht[]; ort: OrtDTO | null; onZurueck: () => void }) {
-  const summe = chargen.reduce((n, c) => n + c.menge, 0);
-  const naechste = fefo(chargen)[0];
+  const summe = runde(chargen.reduce((n, c) => n + c.menge, 0));
+  const naechste = fefo(chargen).find((c) => !c.status.abgelaufen);
+  const zustand = zustandAus(chargen);
   return (
     <>
       <Zurueck onClick={onZurueck} />
@@ -125,6 +127,7 @@ function ArtikelKopf({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; charge
           <div className={s.bestandszahl} data-rolle="bestand-zahl">{zahlText(summe)}<small>{einheitText(summe, art.einheit)}</small></div>
           {naechste && <div className={s.meta} style={{ marginTop: 0 }}><span className={s.mhd} style={{ fontSize: 13 }}>{datumLang(naechste.mhd)}</span><Ampel status={naechste.status} /></div>}
         </div>
+        {zustand.gesperrt + zustand.abgelaufen > 0 && <div className={s.meta}><ZustandChips zustand={zustand} /></div>}
         {(art.ean || art.vorlaeufig) && (
           <div className={s.meta}>{art.ean && <span className={s.mono}>{art.ean}</span>}{art.vorlaeufig && <span className={`${s.chip} ${s.gelb}`}>vorläufig</span>}</div>
         )}
@@ -213,7 +216,7 @@ function Ausgeben({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; chargen: 
             {status}
             <button
               type="button"
-              className={`${s.knopf} ${s.knopfRot} ${s.breit} ${s.block}`}
+              className={`${s.knopf} ${s.knopfTinte} ${s.breit} ${s.block}`}
               disabled={laeuft}
               onClick={() => buche({ chargeId: gewaehlt.id, menge: m, ziel })}
             >
@@ -249,6 +252,8 @@ function Einbuchen({ art, chargen, ort, orte, heute, onZurueck }: {
   });
   const tage = mhd ? tageBis(mhd, heute) : null;
   const vorhanden = mhd && wohin ? chargen.find((c) => c.ortId === wohin && c.mhd === mhd) : undefined;
+  // IDA-382: ein gesperrter Knopf sagt, was fehlt.
+  const fehlt = !mhd && !wohin ? "Datum und Ort wählen" : !mhd ? "Datum wählen" : !wohin ? "Ort wählen" : null;
   return (
     <div className={s.lesebahn}>
       <ArtikelKopf art={art} chargen={chargen} ort={ort} onZurueck={onZurueck} />
@@ -275,13 +280,13 @@ function Einbuchen({ art, chargen, ort, orte, heute, onZurueck }: {
         {status}
         <button
           type="button"
-          className={`${s.knopf} ${s.knopfRot} ${s.breit} ${s.block}`}
-          disabled={!mhd || !wohin || (tage !== null && tage < 0) || laeuft}
+          className={`${s.knopf} ${s.knopfTinte} ${s.breit} ${s.block}`}
+          disabled={fehlt !== null || (tage !== null && tage < 0) || laeuft}
           onClick={() => {
             if (wohin) buche({ artikelId: art.id, ortId: wohin, mhd, menge });
           }}
         >
-          {mengeText(menge, art.einheit)} einbuchen
+          {fehlt ?? `${mengeText(menge, art.einheit)} einbuchen`}
         </button>
         <Erfolg text={erfolg} />
       </Karte>
@@ -327,7 +332,7 @@ function Aussondern({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; chargen
             {status}
             <button
               type="button"
-              className={`${s.knopf} ${s.knopfRot} ${s.breit} ${s.block}`}
+              className={`${s.knopf} ${s.knopfTinte} ${s.breit} ${s.block}`}
               disabled={(grund === "Sonstiges" && !freitext.trim()) || laeuft}
               onClick={() => buche({ chargeId: gewaehlt.id, menge: m, grund, freitext })}
             >
@@ -411,7 +416,7 @@ function VorlaeufigAnlegen({ ean, onZurueck, onAngelegt }: { ean: string; onZuru
         <Fehler text={fehler} />
         <button
           type="button"
-          className={`${s.knopf} ${s.knopfRot} ${s.breit}`}
+          className={`${s.knopf} ${s.knopfTinte} ${s.breit}`}
           disabled={!name.trim() || laeuft}
           onClick={() => starte(async () => {
             setFehler(null);
@@ -501,11 +506,12 @@ function ReiterInhalt({ tab, d, ort, onOrt, ansicht, setAnsicht }: {
   const zeilen: ListenZeile[] = d.artikel
     .map((a) => {
       const cs = chargenVon(a.id);
-      const naechste = fefo(cs)[0];
-      return { artikel: a, bestand: cs.reduce((n, c) => n + c.menge, 0), ampel: naechste?.status ?? null, abgelaufen: cs.some((c) => c.status.abgelaufen) };
+      const naechste = fefo(cs).find((c) => !c.status.abgelaufen);
+      const zustand = zustandAus(cs);
+      return { artikel: a, bestand: runde(cs.reduce((n, c) => n + c.menge, 0)), ampel: naechste?.status ?? null, zustand };
     })
     .filter((z) => !mitBestand || z.bestand > 0)
-    .sort((x, y) => (tab === "aussondern" ? Number(y.abgelaufen) - Number(x.abgelaufen) : 0));
+    .sort((x, y) => (tab === "aussondern" ? Number(y.zustand.gesperrt + y.zustand.abgelaufen > 0) - Number(x.zustand.gesperrt + x.zustand.abgelaufen > 0) : 0));
   const kopf = TABS.find((t) => t.key === tab)!.kopf;
   return (
     <>

@@ -1509,6 +1509,8 @@
   "src/app/m/verpflegung/_actions/verwaltung.ts#artikelAendernAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#artikelAktivAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#aussondernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#eingangAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#ausgabeAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#ortAnlegenAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#ortAendernAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#ortAktivAction": { "kind": "context", "via": "schreibe" },

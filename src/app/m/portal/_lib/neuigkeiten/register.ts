@@ -57,6 +57,7 @@ import wartungPruefarten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2
 import wartungEntnehmen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-08-entnehmen";
 import wartungVorUndNachDemEinsatz from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-vor-und-nach-dem-einsatz";
 import verpflegungVerpflegungslager from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-04-verpflegungslager";
+import verpflegungBestandJeArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-10-bestand-je-artikel";
 import unterkunftUndZelteBerechnen from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-01-unterkunft-und-zelte-berechnen";
 import unterkunftBerechnungDrucken from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-03-berechnung-drucken";
 import lagemonitorEinstellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-27-lagemonitor-einstellen";
@@ -213,6 +214,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   wartungEntnehmen,
   wartungVorUndNachDemEinsatz,
   verpflegungVerpflegungslager,
+  verpflegungBestandJeArtikel,
   unterkunftUndZelteBerechnen,
   unterkunftBerechnungDrucken,
   lagemonitorEinstellen,

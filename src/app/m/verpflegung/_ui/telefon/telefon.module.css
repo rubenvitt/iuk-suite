@@ -117,7 +117,6 @@
   font-weight: 700; font-size: 15px; min-height: 56px; border: 1.5px solid transparent; text-align: center;
 }
 .rahmen .knopf[disabled] { opacity: .45; cursor: default }
-.rahmen .knopfRot { background: var(--vt-rot); color: #fff }
 .rahmen .knopfTinte { background: var(--vt-tinte); color: var(--vt-papier) }
 .rahmen .knopfGeist { background: var(--vt-karte); color: var(--vt-tinte); border-color: var(--vt-linie) }
 .breit { width: 100% }
