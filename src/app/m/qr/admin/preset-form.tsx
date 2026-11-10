@@ -9,7 +9,8 @@ import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 import { exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
 import { RAHMEN } from "@/app/m/qr/_lib/style";
-import { SPACE, TAP_ROW, TAP_XL } from "@/core/theme/tokens";
+import { ergaenzeSchema, istWebAdresse, KEINE_WEB_ADRESSE } from "@/app/m/qr/_lib/url";
+import { SPACE, TAP, TAP_ROW, TAP_XL } from "@/core/theme/tokens";
 import type { Preset, QrKind, QrPayload } from "@/app/m/qr/_lib/types";
 
 const KINDS: { value: QrKind; label: string }[] = [
@@ -18,6 +19,22 @@ const KINDS: { value: QrKind; label: string }[] = [
   { value: "tel", label: "Telefon" },
   { value: "wifi", label: "WLAN" },
   { value: "vcard", label: "Kontakt" },
+];
+
+/**
+ * Vorschläge für das Feld „Symbol" (IDA-390): ein Emoji tippt am Rechner kaum jemand. Das Feld
+ * bleibt frei — wer ein anderes Zeichen will, tippt es. Der Name ist der zugängliche Name des
+ * Knopfs; ein Screenreader liest „📶" sonst als „Antennenbalken".
+ */
+const SYMBOLE: { zeichen: string; name: string }[] = [
+  { zeichen: "📶", name: "WLAN" },
+  { zeichen: "🌐", name: "Web" },
+  { zeichen: "📞", name: "Telefon" },
+  { zeichen: "👤", name: "Kontakt" },
+  { zeichen: "📍", name: "Ort" },
+  { zeichen: "🚑", name: "Rettungsdienst" },
+  { zeichen: "📋", name: "Liste" },
+  { zeichen: "ℹ️", name: "Info" },
 ];
 
 const ENCRYPTIONS = [
@@ -90,6 +107,8 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
   const [icon, setIcon] = useState(preset?.icon ?? "");
   const [kind, setKind] = useState<QrKind>(preset?.kind ?? "url");
   const [value, setValue] = useState(plain);
+  // Die Meldung „keine Web-Adresse" erst nach dem Verlassen des Felds, nicht bei jedem Buchstaben.
+  const [adresseGeprueft, setAdresseGeprueft] = useState(false);
 
   const [ssid, setSsid] = useState(wifi?.ssid ?? "");
   const [password, setPassword] = useState(wifi?.password ?? "");
@@ -122,6 +141,12 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
   });
   async function absenden(daten: FormData): Promise<void> {
     setGesichert(false);
+    if (keineAdresse) {
+      setAdresseGeprueft(true);
+      return;
+    }
+    // Dieselbe Ergänzung wie beim Verlassen des Felds — wer mit Enter absendet, verlässt es nie.
+    if (kind === "url") daten.set("value", ergaenzeSchema(String(daten.get("value") ?? "")));
     await (preset ? updatePresetAction : createPresetAction)(daten);
     if (preset) {
       loescheEntwurf(schluessel);
@@ -160,6 +185,8 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
   // Gemessen am fertigen QR-Text und in Bytes, nicht in Zeichen: Umlaute
   // zaehlen doppelt, Emoji vierfach.
   const tooLong = exceedsQrCapacity(payloadToQrString(payload()));
+  // Dieselbe Prüfung wie im Validator (`_lib/url.ts`): ohne sie meldete erst der Server den Fehler.
+  const keineAdresse = kind === "url" && value.trim() !== "" && !istWebAdresse(ergaenzeSchema(value));
 
   return (
     <form
@@ -177,10 +204,28 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
         <Input name="label" size="large" required maxLength={80} value={label} onChange={(e) => setLabel(e.target.value)} />
       </label>
 
-      <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
-        <span style={{ fontWeight: 600 }}>Symbol</span>
-        <Input name="icon" size="large" placeholder="z. B. 📶" value={icon} onChange={(e) => setIcon(e.target.value)} />
-      </label>
+      <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+          <span style={{ fontWeight: 600 }}>Symbol</span>
+          <Input name="icon" size="large" value={icon} onChange={(e) => setIcon(e.target.value)} />
+        </label>
+        {/* `flexWrap`: acht Knöpfe zu 56px passen nicht in 320px. Kein `size` (Falle 4). */}
+        <div role="group" aria-label="Symbol wählen" style={{ display: "flex", flexWrap: "wrap", gap: SPACE.xs }}>
+          {SYMBOLE.map((s) => (
+            <Button
+              key={s.zeichen}
+              type={icon === s.zeichen ? "primary" : "default"}
+              aria-label={s.name}
+              aria-pressed={icon === s.zeichen}
+              data-testid="symbol-vorschlag"
+              onClick={() => setIcon(s.zeichen)}
+              style={{ minWidth: TAP, fontSize: 20 }}
+            >
+              <span aria-hidden="true">{s.zeichen}</span>
+            </Button>
+          ))}
+        </div>
+      </div>
 
       <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
         <span style={{ fontWeight: 600 }}>Art</span>
@@ -209,14 +254,29 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
       {kind === "url" && (
         <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
           <span style={{ fontWeight: 600 }}>Web-Adresse</span>
+          {/* Kein `type="url"`: der verlangt ein Schema und lehnte „drk.de" mit der Blase des
+              Browsers ab (IDA-390). `inputMode` hält die URL-Tastatur am Telefon. */}
           <Input
             name="value"
-            type="url"
+            inputMode="url"
+            autoComplete="off"
             size="large"
             required
             value={value}
+            status={adresseGeprueft && keineAdresse ? "error" : undefined}
+            aria-invalid={adresseGeprueft && keineAdresse}
+            aria-describedby={adresseGeprueft && keineAdresse ? "preset-keine-adresse" : undefined}
             onChange={(e) => setValue(e.target.value)}
+            onBlur={() => {
+              setAdresseGeprueft(true);
+              if (value.trim() !== "") setValue(ergaenzeSchema(value));
+            }}
           />
+          {adresseGeprueft && keineAdresse ? (
+            <Typography.Text type="danger" id="preset-keine-adresse" data-testid="preset-keine-adresse">
+              {KEINE_WEB_ADRESSE}
+            </Typography.Text>
+          ) : null}
         </label>
       )}
 

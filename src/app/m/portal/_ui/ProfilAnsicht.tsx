@@ -5,6 +5,7 @@ import { Avatar, Button, Card, Modal, Space, Tag, Typography } from "antd";
 import { signOut } from "next-auth/react";
 
 import { initialen } from "@/core/shell/initialen";
+import { AVATAR_FARBEN } from "@/core/shell/profil";
 import { SPACE } from "@/core/theme/tokens";
 import { zeitzone } from "@/core/zeit";
 import { alleSitzungenAbmelden } from "@/app/m/portal/profil/actions";
@@ -98,7 +99,7 @@ export function ProfilAnsicht({
         {/* Laedt das Bild nicht, faellt `Avatar` selbst auf die Initialen zurueck.
             `alt=""`: der Name steht direkt daneben. */}
         <div style={{ display: "flex", alignItems: "center", gap: SPACE.md }}>
-          <Avatar size={64} src={bild ?? undefined} alt="" data-testid="profil-bild">
+          <Avatar size={64} src={bild ?? undefined} alt="" data-testid="profil-bild" style={AVATAR_FARBEN}>
             {initialen(name)}
           </Avatar>
           <Zeile titel="Name">{name ?? "Unbekannt"}</Zeile>

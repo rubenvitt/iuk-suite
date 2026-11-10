@@ -15,7 +15,7 @@ import { devLogin, E2E_PORT } from "./fixtures";
  *    beiden fuehrt Absenden zur Danke-Seite.
  *
  * 2. ADMIN (Entwurf 2.1/2.3, die Beanstandung des Auftraggebers): der
- *    Hauptablauf geht in ZWEI KLICKS — Gruppe oeffnen, „Feedback starten" — und
+ *    Hauptablauf geht in ZWEI KLICKS — Gruppe oeffnen, „Umfrage starten" — und
  *    danach stehen QR und Teilnahme-Link auf derselben Seite. Vorher waren es
  *    fuenf Klicks ueber drei Seiten, und danach gab es keinen Weg, die Umfrage
  *    zu verteilen. Der Beleg ist `Hauptablauf in zwei Klicks` unten: zwischen
@@ -26,7 +26,7 @@ import { devLogin, E2E_PORT } from "./fixtures";
  * „Aktivieren"/„Schließen"/„Archivieren", samt der Abend-Detailseite, die sie
  * trug — heute nur noch ein Redirect auf die Auswertung),
  * dem Abend-Link der Gruppenliste und dem Einstiegsformular ohne Modal. Sie sind
- * auf die neue Oberflaeche umgestellt: „Feedback starten"/„Feedback jetzt
+ * auf die neue Oberflaeche umgestellt: „Umfrage starten"/„Feedback jetzt
  * beenden" mit Popconfirm, Lagekarte statt Abend-Detailseite, „+ Neue Gruppe"
  * vor dem Formular. ZWEI HOOKS BLEIBEN UNVERAENDERT, weil andere Tests an ihnen
  * haengen: `data-testid="group-row"` samt `href="/m/feedback/groups/{id}"` am
@@ -259,12 +259,12 @@ async function abgabeAuf(page: Page, token: string, stufe: number): Promise<void
 }
 
 /**
- * „Feedback jetzt beenden" samt Bestaetigung. Der okText des Popconfirm
+ * „Umfrage beenden" samt Bestaetigung. Der okText des Popconfirm
  * („Beenden") ist ein TEILWORT des Ausloesers — ohne `exact` traefe der zweite
  * Klick wieder den Knopf darunter.
  */
 async function feedbackBeenden(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Feedback jetzt beenden" }).click();
+  await page.getByRole("button", { name: "Umfrage beenden" }).click();
   await page.getByRole("button", { name: "Beenden", exact: true }).click();
 }
 
@@ -340,7 +340,7 @@ test("geschlossene Umfrage: Zustand D — zwischen zwei Abenden dagegen Zustand 
   // "Demo Jugend", damit der Zettel der anderen Szenarien ("demo") offen
   // bleibt. SEIT TEIL 3 (§4.16) geschieht das im Cockpit: es gibt keine
   // Abend-Detailseite mehr, auf die man erst navigieren muesste, und der Knopf
-  // heisst „Feedback jetzt beenden" mit Popconfirm statt „Schließen".
+  // heisst „Umfrage beenden" mit Popconfirm statt „Schließen".
   await alsAdmin(page);
   // Der Hook `group-row` sitzt seit Teil 3 auf dem `<Link>`, in den die ganze
   // Karte gewickelt ist (§3.1) — er IST also der Link, und ein Link DARIN gibt es
@@ -356,7 +356,7 @@ test("geschlossene Umfrage: Zustand D — zwischen zwei Abenden dagegen Zustand 
   // Lagekarte laeuft nicht mehr, und der Abend ist mit seinen zwei Seed-
   // Rueckmeldungen zu „LETZTER ABEND" geworden (§2.7).
   await expect(page.getByText("LETZTER ABEND")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Feedback jetzt beenden" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Umfrage beenden" })).toHaveCount(0);
 
   await page.goto(`${FEEDBACK}/f/${JUGEND_TOKEN}`);
   await expect(
@@ -547,7 +547,7 @@ test("IDOR-Guard: groupleader ohne Zuordnung bekommt auf einer fremden Gruppen-S
  * DIE KERNZUSAGE DES UMBAUS, als Klickzahl gemessen.
  *
  * Zwischen dem Einstieg und der sichtbaren Teilnahme-Adresse liegen GENAU ZWEI
- * `click()`: die Gruppenkarte und „Feedback starten". Kein Datum tippen (das
+ * `click()`: die Gruppenkarte und „Umfrage starten". Kein Datum tippen (das
  * Feld ist mit heute vorbelegt), keine Zwischenseite, kein zweiter Knopf
  * „Aktivieren". Der Zaehler ist der Test: kaeme ein dritter Klick dazu, muesste
  * hier eine Zeile stehen, und diese Zeile ist die Beanstandung.
@@ -555,7 +555,7 @@ test("IDOR-Guard: groupleader ohne Zuordnung bekommt auf einer fremden Gruppen-S
  * Die Gruppe wird VORHER angelegt — das ist Vorbereitung, nicht der Ablauf: im
  * Betrieb stehen die Gruppen schon da.
  */
-test("Hauptablauf in zwei Klicks: Gruppe öffnen, „Feedback starten“ — danach sind QR und Link sichtbar", async ({
+test("Hauptablauf in zwei Klicks: Gruppe öffnen, „Umfrage starten“ — danach sind QR und Link sichtbar", async ({
   page,
 }) => {
   await alsAdmin(page);
@@ -566,14 +566,14 @@ test("Hauptablauf in zwei Klicks: Gruppe öffnen, „Feedback starten“ — dan
   // Belegung A: eine Gruppe ohne jeden Dienstabend zeigt die Schrittzeile und
   // genau einen Primaerknopf.
   await expect(
-    page.getByRole("heading", { name: "Ersten Dienstabend anlegen und Feedback starten" }),
+    page.getByRole("heading", { name: "Ersten Dienstabend anlegen und Umfrage starten" }),
   ).toBeVisible();
 
   // KLICK 2.
-  await page.getByRole("button", { name: "Feedback starten", exact: true }).click();
+  await page.getByRole("button", { name: "Umfrage starten", exact: true }).click();
 
   // Danach laeuft die Umfrage …
-  await expect(page.getByRole("button", { name: "Feedback jetzt beenden" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Umfrage beenden" })).toBeVisible();
   await expect(
     page.getByText("Noch keine Rückmeldung."),
   ).toBeVisible();
@@ -595,7 +595,7 @@ test("Hauptablauf in zwei Klicks: Gruppe öffnen, „Feedback starten“ — dan
  * geschlossener Abend ohne Abgabe hat keinen Weg zur Auswertung — und soll ihn
  * nicht haben.
  */
-test("Rücklauf erscheint im Cockpit, ohne dass jemand schließt — „Feedback jetzt beenden“ führt in die Auswertung", async ({
+test("Rücklauf erscheint im Cockpit, ohne dass jemand schließt — „Umfrage beenden“ führt in die Auswertung", async ({
   page,
 }) => {
   await alsAdmin(page);
@@ -605,8 +605,8 @@ test("Rücklauf erscheint im Cockpit, ohne dass jemand schließt — „Feedback
   // Die Teilnehmerzahl gleich im Startformular: sie ist der Nenner des Zaehlers
   // „1 von 4" und der Rücklaufquote.
   await page.locator('input[name="participantCount"]').fill("4");
-  await page.getByRole("button", { name: "Feedback starten", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Feedback jetzt beenden" })).toBeVisible();
+  await page.getByRole("button", { name: "Umfrage starten", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Umfrage beenden" })).toBeVisible();
 
   const token = await teilnahmeToken(page);
   expect(token).toMatch(/^e2e-ruecklauf-/);
@@ -623,7 +623,7 @@ test("Rücklauf erscheint im Cockpit, ohne dass jemand schließt — „Feedback
     page.getByText("Erst 1 Rückmeldung"),
   ).toBeVisible();
   // Sie laeuft weiter: der Zwischenstand kostet kein Schliessen.
-  await expect(page.getByRole("button", { name: "Feedback jetzt beenden" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Umfrage beenden" })).toBeVisible();
 
   await feedbackBeenden(page);
 
@@ -668,7 +668,7 @@ test("Einstellungen: Teilnehmerzahl nachtragen, Zugang neu vergeben — nur nach
   await cockpitOeffnen(page, "E2E Einstellungen");
 
   // OHNE Teilnehmerzahl starten — genau der Fall, fuer den es den Nachtrag gibt.
-  await page.getByRole("button", { name: "Feedback starten", exact: true }).click();
+  await page.getByRole("button", { name: "Umfrage starten", exact: true }).click();
   const nachtragen = page.getByRole("button", { name: "Teilnehmerzahl nachtragen" });
   await expect(nachtragen).toBeVisible();
   await nachtragen.click();
@@ -802,16 +802,16 @@ test.describe("mobil (390×844) — das Cockpit", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   /**
-   * Auf 390px bleibt das Cockpit bedienbar: „Feedback starten" ist ohne
+   * Auf 390px bleibt das Cockpit bedienbar: „Umfrage starten" ist ohne
    * Querscrollen erreichbar und nimmt die volle Breite (`fb-block-mobil`), und
    * die Teilnahme-Zone rutscht unter die Lagekarte, statt zu verschwinden.
    */
-  test("bleibt bedienbar, „Feedback starten“ ist erreichbar", async ({ page }) => {
+  test("bleibt bedienbar, „Umfrage starten“ ist erreichbar", async ({ page }) => {
     await alsAdmin(page);
     await neueGruppe(page, "E2E Mobil", "e2e-mobil");
     await cockpitOeffnen(page, "E2E Mobil");
 
-    const knopf = page.getByRole("button", { name: "Feedback starten", exact: true });
+    const knopf = page.getByRole("button", { name: "Umfrage starten", exact: true });
     await expect(knopf).toBeVisible();
     const kasten = await knopf.boundingBox();
     // Volle Breite heisst hier: breiter als die Beschriftung ihn machen wuerde.
@@ -820,7 +820,7 @@ test.describe("mobil (390×844) — das Cockpit", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
     await knopf.click();
-    await expect(page.getByRole("button", { name: "Feedback jetzt beenden" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Umfrage beenden" })).toBeVisible();
     await expect(page.locator('[data-fb="teilnahme-url"]')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   });

@@ -265,6 +265,8 @@ interface WahlFeldProps extends FeldProps {
    * liest den DOM, nicht den React-Zustand, deshalb wird der Wert vorher von Hand geschrieben.
    */
   beiWahl?: (wert: string, feld: HTMLInputElement) => void;
+  /** Steht im Feld, solange nichts gewaehlt ist (leerer Wert) — z. B. die Dauerwahl einer neuen Aufgabe. */
+  platzhalter?: string;
 }
 
 export function WahlFeld({ stand, ...rest }: WahlFeldProps): React.ReactElement {
@@ -282,6 +284,7 @@ function WahlFeldInnen({
   beschriebenVon,
   imPortal = false,
   beiWahl,
+  platzhalter,
 }: Omit<WahlFeldProps, "stand">): React.ReactElement {
   const [gewaehlt, setGewaehlt] = useState(wert);
   const entwurf = useContext(WahlEntwurfKontext);
@@ -306,14 +309,15 @@ function WahlFeldInnen({
       <input ref={versteckt} type="hidden" name={name} value={gewaehlt} />
       <Select
         id={id}
-        value={gewaehlt}
+        value={platzhalter !== undefined && gewaehlt === "" ? undefined : gewaehlt}
+        placeholder={platzhalter}
         onChange={waehlen}
         options={optionen.map((o) => ({ value: o.wert, label: o.text }))}
         /*
          * jsdom kennt keine Elementhoehen; mit Virtualisierung rendert die Liste in Tests NIE —
          * ein Test, der eine Option anklicken will, faende sie strukturell nicht. Woertlich
          * dieselbe Zeile und derselbe Grund wie an `PersonenFormular.tsx`s `AutoComplete`. Der
-         * Verzicht kostet nichts: die laengste Liste dieses Moduls hat vier Eintraege.
+         * Verzicht kostet nichts: die laengste Liste dieses Moduls (Dauerwahl) hat bis zu elf.
          */
         virtual={false}
         style={{ width: "100%" }}

@@ -59,8 +59,8 @@ export function EchterRechner({ rechner }: { rechner: EchterRechnerStatus | null
               <dd>{rechner.letzteSicherung ?? "Noch keine Sicherung"}</dd>
             </div>
             <div>
-              <dt>Anker</dt>
-              <dd>{rechner.ankerBis !== null ? `Anker bis Block ${rechner.ankerBis}` : "Noch kein Anker"}</dd>
+              <dt>Gemeldet bis</dt>
+              <dd>{rechner.ankerBis !== null ? `Block ${rechner.ankerBis}` : "Noch nichts gemeldet"}</dd>
             </div>
             <div>
               <dt>Schlüssel</dt>
@@ -70,11 +70,11 @@ export function EchterRechner({ rechner }: { rechner: EchterRechnerStatus | null
 
           {rechner.abweichungen.length > 0 && (
             <div>
-              <p style={{ margin: `0 0 ${SPACE.xs}px`, fontWeight: 600 }}>Anker-Abweichungen</p>
+              <p style={{ margin: `0 0 ${SPACE.xs}px`, fontWeight: 600 }}>Widersprüchliche Meldungen</p>
               <ul className={styles.abweichungenListe}>
                 {rechner.abweichungen.map((a) => (
-                  <li key={`${a.block}-${a.zeitpunkt}`} className={styles.abweichungenZeile}>
-                    Block {a.block}: erwartet {a.erwartet}, gemeldet {a.gemeldet} — {a.zeitpunkt}
+                  <li key={`${a.block}-${a.zeitpunkt}`} className={styles.abweichungenZeile} title={`erwartet ${a.erwartet}, gemeldet ${a.gemeldet}`}>
+                    {a.zeitpunkt}: Block {a.block} anders gemeldet als zuvor
                   </li>
                 ))}
               </ul>

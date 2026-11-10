@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { ladeUebersicht, type UebersichtZeile } from "../_db/queries";
 import { entschaerfeTitel } from "../_lib/zip";
 import { zeitpunktInZone } from "../_lib/zeit";
-import type { Rolle } from "../_lib/hostRolle";
+import { headers } from "next/headers";
+import { oeffentlicheUrl, type Rolle } from "../_lib/hostRolle";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { AblageKachel } from "./AblageKachel";
 import { SharesTabelle, SharesTabelleSkelett, type ShareZeile } from "./SharesTabelle";
@@ -229,7 +230,10 @@ async function Zeilen() {
 
   // EINE Uhr fuer alle Zeilen — Begruendung an `zuZeile`.
   const jetzt = new Date();
-  return <SharesTabelle zeilen={rohe.map((roh) => zuZeile(roh, jetzt))} />;
+  // IDA-388: „Link kopieren" als Zeilenaktion. Die Adresse traegt den Host der
+  // ROLLE, nicht den des Requests — dieselbe Stelle wie auf der Detailseite.
+  const linkBasis = oeffentlicheUrl("verwaltung", "/s/", await headers());
+  return <SharesTabelle zeilen={rohe.map((roh) => zuZeile(roh, jetzt))} linkBasis={linkBasis} />;
 }
 
 function Leerzustand() {

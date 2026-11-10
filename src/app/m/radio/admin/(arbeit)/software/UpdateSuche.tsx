@@ -129,9 +129,9 @@ const UPDATE_TEXTE = {
   zielPlatzhalter: "Zielversion wählen",
   /** ⛔ Woertlich `UpdateMode.tsx:37`. */
   titel: "Update-Modus",
-  /** Die Fahrzeuguebersicht und die Ansicht eines Fahrzeugs (Lagerorts). */
-  fahrzeuge: "Fahrzeuge",
-  alleFahrzeuge: "Alle Fahrzeuge",
+  /** Die Uebersicht je Lagerort und die Ansicht eines Lagerorts — Standorte, nicht nur Fahrzeuge (IDA-383). */
+  fahrzeuge: "Standorte",
+  alleFahrzeuge: "Alle Standorte",
   ohneOrt: "Ohne Lagerort",
   leerOrt: "Kein Gerät an diesem Lagerort",
   /** Der Fehlerweg: „Nicht aktualisiert" mit Grund. */

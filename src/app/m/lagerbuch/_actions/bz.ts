@@ -1,7 +1,7 @@
 "use server";
 import { withAuditContext, auditActor, auditEvent } from "@/core/audit/server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { pruefeBarcodeFrei } from "../_db/barcode";
@@ -16,7 +16,13 @@ import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { normalisiereBarcode } from "../_lib/barcode";
 import { istEntnahmebox, MONAT_REGEX } from "../_lib/konstanten";
 import { BEACHTUNG_HINWEIS_MAX } from "../_lib/grenzen";
-import { beachtungsFelder, bewerteKontrolle, bzBeachtung } from "../_lib/domain/bz";
+import {
+  beachtungsFelder,
+  bewerteKontrolle,
+  bzBeachtung,
+  bzKontrollPflicht,
+  fehlendeKontrollwerte,
+} from "../_lib/domain/bz";
 import { bzGeraetByBarcode } from "../_lib/lesepfade/bz";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
@@ -45,10 +51,21 @@ const AktivSchema = z.object({
   aktiv: z.boolean(),
 });
 
+/**
+ * IDA-379: ein geleertes Zahlenfeld kommt als `null` (oder `""`) an, und
+ * `z.coerce.number()` machte daraus still eine 0 — die Pflichtpruefung saehe
+ * dann einen Messwert, wo keiner war. Leer wird deshalb vorher `undefined`;
+ * eine eingegebene 0 bleibt 0.
+ */
+const messwert = z.preprocess(
+  (wert) => (wert === null || wert === "" ? undefined : wert),
+  z.coerce.number().int().optional(),
+);
+
 const KontrolleSchema = z.object({
   geraetId: z.string().min(1),
-  level1Wert: z.coerce.number().int().optional(),
-  level2Wert: z.coerce.number().int().optional(),
+  level1Wert: messwert,
+  level2Wert: messwert,
   kompresseVerfall: z.string()
     .regex(MONAT_REGEX, "Verfall muss YYYY-MM sein")
     .optional(),
@@ -87,6 +104,10 @@ const HINWEIS_ZU_LANG =
  * Weg zurueck: die Spalte traegt Zustand UND Begruendung in einem Feld
  * (`_db/schema.ts`), also heisst „kein Text" genau „keine Beachtung mehr".
  */
+const StornoSchema = z.object({
+  kontrolleId: z.string().min(1),
+});
+
 const BeachtungSchema = z.object({
   geraetId: z.string().min(1),
   hinweis: z.string().trim().max(BEACHTUNG_HINWEIS_MAX, HINWEIS_ZU_LANG).optional(),
@@ -379,6 +400,26 @@ export async function kontrolleErfassen(
 
       const level1Wert = v.level1Wert ?? null;
       const level2Wert = v.level2Wert ?? null;
+
+      /**
+       * IDA-379: DIE PFLICHTWERTE, AUCH HIER UND NICHT NUR IM FORMULAR. Ein
+       * leer abgeschicktes Formular wurde vorher als „NICHT bestanden"
+       * gespeichert — eine append-only Zeile, die niemand mehr loswurde. Was
+       * Pflicht ist, haengt an den Referenzbereichen des Geraets und steht
+       * deshalb nach dem Laden, nicht im Schema (`bzKontrollPflicht`).
+       */
+      const fehlend = fehlendeKontrollwerte(bzKontrollPflicht(geraet), {
+        level1Wert,
+        level2Wert,
+        kompresseVerfall: v.kompresseVerfall ?? null,
+      });
+      if (Object.keys(fehlend).length > 0) {
+        return {
+          ok: false,
+          fehler: "Bitte die markierten Felder prüfen.",
+          feldFehler: fehlend,
+        };
+      }
       const bewertung = bewerteKontrolle({
         level1Wert,
         level1Min: geraet.level1Min,
@@ -499,6 +540,57 @@ export async function kontrolleErfassen(
 
     revalidate(v.geraetId);
     return { ok: true, wert: { id, bestanden } };
+  });
+}
+
+/**
+ * IDA-379 — EINE KONTROLLE STORNIEREN.
+ *
+ * ⚠️ KEIN LOESCHEN: `bz_kontrollen` ist append-only (0002). Der Storno setzt
+ * einmalig `storniertAt`/`storniertVon`; alles andere an der Zeile bleibt, und
+ * der Riegel aus 0025 laesst genau dieses eine Update zu. Danach zaehlt die
+ * Zeile nirgends mehr (Faelligkeit, letzte Kontrolle, Akku), steht aber
+ * weiter im Logbuch. Das Protokoll fuehrt der UPDATE-Trigger (0025).
+ *
+ * Ein zweiter Storno derselben Zeile ist ein fester Fehler, kein stilles Ok:
+ * zwei Personen auf demselben veralteten Stand sollen sehen, dass schon
+ * jemand anders storniert hat.
+ */
+export async function kontrolleStornieren(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<ActionErgebnis> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis> => {
+
+    const geparst = StornoSchema.safeParse(eingabe);
+    if (!geparst.success) return festerFehler("Ungültige Eingabe.");
+
+    let geraetId: string;
+    try {
+      const kontrolle = db.select({
+        geraetId: bzKontrollen.geraetId,
+        storniertAt: bzKontrollen.storniertAt,
+      }).from(bzKontrollen)
+        .where(eq(bzKontrollen.id, geparst.data.kontrolleId))
+        .get();
+      if (!kontrolle) return festerFehler("Kontrolle nicht gefunden.");
+      if (kontrolle.storniertAt !== null) return festerFehler("Kontrolle ist bereits storniert.");
+      geraetId = kontrolle.geraetId;
+
+      db.update(bzKontrollen)
+        .set({ storniertAt: new Date(), storniertVon: viewer.sub })
+        .where(and(
+          eq(bzKontrollen.id, geparst.data.kontrolleId),
+          isNull(bzKontrollen.storniertAt),
+        ))
+        .run();
+    } catch {
+      return festerFehler("Kontrolle konnte nicht storniert werden.");
+    }
+
+    revalidate(geraetId);
+    return { ok: true };
   });
 }
 

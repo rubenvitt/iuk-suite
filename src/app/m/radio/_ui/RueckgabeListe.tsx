@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Input } from "antd";
 import { filtereAusleihen } from "../_lib/filter";
+import { Ikone } from "./ikonen";
 import { RueckgabeDialog } from "./RueckgabeDialog";
 import s from "./ausleihe.module.css";
 
@@ -180,16 +181,26 @@ export function RueckgabeListe({ ausleihen }: { readonly ausleihen: readonly Lis
             <button
               type="button"
               className={s.leihkarte}
-              aria-label={`${ausleihe.rufname} zurückgeben`}
+              aria-label={`${ausleihe.rufname} zurückgeben, ausgeliehen von ${ausleihe.entleiher}`}
               onClick={() => oeffnen(ausleihe)}
               data-rolle="radio-leihkarte"
               data-id={ausleihe.id}
               data-rufname={ausleihe.rufname}
             >
-              <span className={s.leihkarteRufname} data-rolle="radio-leihkarte-rufname">
-                {ausleihe.rufname}
+              <span className={s.leihkarteText}>
+                <span className={s.leihkarteRufname} data-rolle="radio-leihkarte-rufname">
+                  {ausleihe.rufname}
+                </span>
+                <span className={s.leihkarteWer} data-rolle="radio-leihkarte-wer">
+                  Ausgeliehen von {ausleihe.entleiher}
+                </span>
+                <span className={s.leihkarteZeit}>am {ausleihe.seitText} Uhr</span>
               </span>
-              <span className={s.leihkarteZeit}>Ausgeliehen am {ausleihe.seitText} Uhr</span>
+              {/* IDA-383: die Karte sagt, was ein Antippen tut — wie die Gerätezeile der Ausleihe. */}
+              <span className={s.leihkarteAktion} aria-hidden="true">
+                <Ikone name="zuruecksetzen" groesse={18} />
+                Zurückgeben
+              </span>
             </button>
           </div>
         ))}

@@ -1,20 +1,29 @@
 "use client";
 
-import { Button } from "antd";
-import { SPACE } from "@/core/theme/tokens";
+import { useRef, useState } from "react";
+import { Alert, Button, Dropdown, Modal } from "antd";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Kartentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 import { deleteServiceAction } from "@/app/m/portal/actions";
 import type { GruppenOption } from "@/app/m/portal/_lib/gruppen";
 import { SichtbarkeitAendern } from "@/app/m/portal/admin/sichtbarkeit-aendern";
+import { DienstFlyin } from "@/app/m/portal/admin/dienst-flyin";
 
+/** Was Tabelle und Formular von einem Dienst brauchen. Die Kennung (`slug`) fehlt mit Absicht: sie
+ *  wird beim Anlegen aus dem Namen vergeben und nirgends gezeigt (IDA-391). */
 export interface ServiceRow {
   id: string;
   name: string;
-  slug: string;
   url: string;
+  description: string;
+  category: string | null;
+  iconUrl: string | null;
+  openInNewTab: boolean;
   isPublic: boolean;
   requiredGroups: string[];
 }
+
+type Aktion = "bearbeiten" | "sichtbarkeit" | "loeschen";
 
 /**
  * „Sichtbar für" haengt an einem WAHRHEITSWERT und ist deshalb kein
@@ -37,18 +46,54 @@ export function sichtbarFuer(zeile: ServiceRow, gruppen: readonly GruppenOption[
 }
 
 /**
- * Die Loesch-Action wird DIREKT importiert, nicht als Prop durchgereicht
- * (Falle 9, `CLAUDE.md`; DRK-398). Die Tabelle hat genau einen Aufrufer und
- * zeigt genau diese Dienste — eine allgemeine Tabelle, die an eine Action
- * gebunden wuerde, ist sie nicht. Dieselbe Form wie `service-form.tsx`.
+ * DIE ZEILENAKTIONEN STEHEN IN EINEM MENÜ (IDA-391). Vorher stand „Löschen" als roter Knopf 8 px
+ * neben „Sichtbarkeit" und löschte beim ersten Klick, ohne Rückfrage und ohne Rückgängig. Jetzt:
+ * ein 44-px-Knopf „Aktionen" je Zeile, darin Bearbeiten, Sichtbarkeit und Löschen — und Löschen
+ * fragt nach, mit dem Namen des Dienstes. Kein Dienst verschwindet durch einen einzelnen Klick.
+ *
+ * Schublade und Dialoge gibt es EINMAL für die Tabelle, nicht je Zeile: die Zeile setzt nur, welche
+ * Aktion an welchem Dienst offen ist.
+ *
+ * Die Actions werden DIREKT importiert, nicht als Prop durchgereicht (Falle 9, `CLAUDE.md`; DRK-398).
  */
 export function ServiceTable({
   services,
   gruppen,
+  kategorien = [],
+  gruppenNichtAbrufbar = false,
 }: {
   services: ServiceRow[];
   gruppen: GruppenOption[];
+  kategorien?: string[];
+  gruppenNichtAbrufbar?: boolean;
 }) {
+  const [zeile, setZeile] = useState<ServiceRow | null>(null);
+  const [aktion, setAktion] = useState<Aktion | null>(null);
+  const [oeffnung, setOeffnung] = useState(0);
+  const [loescht, setLoescht] = useState(false);
+  const [loeschFehler, setLoeschFehler] = useState(false);
+  const ausloeser = useRef<HTMLElement | null>(null);
+  const schliessen = () => {
+    setLoeschFehler(false);
+    setAktion(null);
+  };
+
+  async function loeschen(dienst: ServiceRow) {
+    setLoescht(true);
+    setLoeschFehler(false);
+    try {
+      const daten = new FormData();
+      daten.set("id", dienst.id);
+      await deleteServiceAction(daten);
+      schliessen();
+    } catch {
+      // Datenbankfehler oder abgelaufene Sitzung: der Dialog bleibt offen und sagt es.
+      setLoeschFehler(true);
+    } finally {
+      setLoescht(false);
+    }
+  }
+
   // Das data-testid sitzt am umschließenden div, NICHT an <Table>: antds Table
   // reicht unbekannte DOM-Attribute nicht zuverlässig durch, und ein still
   // verschwindendes Testid wäre erst im nächsten Testlauf aufgefallen.
@@ -59,8 +104,6 @@ export function ServiceTable({
       aria-label="Dienste"
       dataSource={services}
       size="small"
-      // Kein Diagramm, keine Karte darunter — der Leerzustand nennt den
-      // naechsten Schritt direkt (Formular steht im selben Abschnitt darunter).
       leer={{ nichts: "Noch keine Dienste", figur: "portal" }}
       onRow={() => ({ "data-testid": "service-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={[
@@ -72,20 +115,22 @@ export function ServiceTable({
           sorter: nachText<ServiceRow>((zeile) => zeile.name),
         },
         {
-          title: "Slug",
-          dataIndex: "slug",
-          sorter: nachText<ServiceRow>((zeile) => zeile.slug),
-        },
-        {
           // Nach Adresse zu sortieren gruppiert die Dienste nach Host — das ist
           // die Frage, die man an eine URL-Spalte stellt („was laeuft auf X?").
-          title: "URL",
+          title: "Adresse",
           dataIndex: "url",
           sorter: nachText<ServiceRow>((zeile) => zeile.url),
         },
         {
-          // Ersetzt die Spalte „Öffentlich" (IDA-227) statt eine sechste
-          // anzuhaengen: `e2e/mobil-admin.spec.ts` misst genau fuenf Spalten.
+          // Ersetzt die Spalte „Slug" (IDA-391): die Kategorie entscheidet, unter
+          // welcher Überschrift die Kachel steht; die Kennung sieht niemand.
+          // `e2e/mobil-admin.spec.ts` misst weiter fünf Spalten.
+          title: "Kategorie",
+          key: "kategorie",
+          sorter: nachText<ServiceRow>((zeile) => zeile.category ?? ""),
+          render: (_, zeile) => zeile.category ?? "",
+        },
+        {
           title: "Sichtbar für",
           key: "sichtbarFuer",
           sorter: nachJaNein<ServiceRow>((zeile) => zeile.isPublic),
@@ -96,23 +141,72 @@ export function ServiceTable({
           title: "",
           key: "aktionen",
           align: "right",
-          // Natives <form> mit der Server Action, kein onClick-Handler: so
-          // funktioniert das Löschen auch ohne JavaScript und bleibt genau das
-          // Muster, das die Seite vorher hatte.
           render: (_, row) => (
-            <div style={{ display: "inline-flex", gap: SPACE.sm, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <SichtbarkeitAendern dienst={row} gruppen={gruppen} />
-              <form action={deleteServiceAction}>
-                <input type="hidden" name="id" value={row.id} />
-                <Button htmlType="submit" danger>
-                  Löschen
-                </Button>
-              </form>
-            </div>
+            <Dropdown
+              trigger={["click"]}
+              menu={{
+                items: [
+                  { key: "bearbeiten", label: "Bearbeiten", icon: <Icons8Ikone name="pencil" groesse={16} /> },
+                  { key: "sichtbarkeit", label: "Sichtbarkeit", icon: <Icons8Ikone name="people" groesse={16} /> },
+                  { type: "divider" },
+                  { key: "loeschen", label: "Löschen", danger: true, icon: <Icons8Ikone name="trash" groesse={16} /> },
+                ],
+                onClick: ({ key }) => {
+                  setZeile(row);
+                  setOeffnung((n) => n + 1);
+                  setAktion(key as Aktion);
+                },
+              }}
+            >
+              {/* KEIN `size` (Falle 4) — 44 px aus der Arbeitsdichte. */}
+              <Button
+                data-testid="dienst-aktionen"
+                aria-label={`Aktionen für ${row.name}`}
+                icon={<Icons8Ikone name="more" groesse={18} />}
+                onClick={(e) => {
+                  ausloeser.current = e.currentTarget;
+                }}
+              />
+            </Dropdown>
           ),
         },
       ]}
     />
+    <DienstFlyin
+      offen={aktion === "bearbeiten"}
+      dienst={zeile ?? undefined}
+      gruppen={gruppen}
+      kategorien={kategorien}
+      gruppenNichtAbrufbar={gruppenNichtAbrufbar}
+      ausloeser={ausloeser}
+      onSchliessen={schliessen}
+    />
+    {zeile ? (
+      <SichtbarkeitAendern
+        key={`${zeile.id}-${oeffnung}`}
+        dienst={zeile}
+        gruppen={gruppen}
+        offen={aktion === "sichtbarkeit"}
+        onSchliessen={schliessen}
+      />
+    ) : null}
+    <Modal
+      open={aktion === "loeschen" && zeile !== null}
+      title={zeile ? `„${zeile.name}“ löschen?` : undefined}
+      okText="Löschen"
+      cancelText="Abbrechen"
+      okButtonProps={{ danger: true }}
+      confirmLoading={loescht}
+      onOk={() => {
+        if (zeile) void loeschen(zeile);
+      }}
+      onCancel={schliessen}
+    >
+      <p style={{ marginBlock: 0 }}>Die Kachel verschwindet für alle. Das lässt sich nicht rückgängig machen.</p>
+      {loeschFehler ? (
+        <Alert type="error" showIcon title="Der Dienst ließ sich nicht löschen." data-testid="dienst-loeschen-fehler" style={{ marginBlockStart: 12 }} />
+      ) : null}
+    </Modal>
     </div>
   );
 }

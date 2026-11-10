@@ -6,8 +6,8 @@ import { SPACE } from "@/core/theme/tokens";
 import type { ModulErgebnis } from "@/app/m/portal/_lib/suche";
 
 /**
- * Die Treffer der suiteweiten Suche, je Modul ein Abschnitt (IDA-301). Zwei Leser: die Suchseite
- * (Server Component) und das Suchfeld der Startseite (`DiensteRaster`, Client-Insel). Deshalb OHNE
+ * Die Treffer der suiteweiten Suche, je Modul ein Abschnitt (IDA-301). Leser ist die Suchseite
+ * (Server Component); „Springen zu“ im Menü zeigt dieselben Treffer als Zeilen. Trotzdem OHNE
  * Direktive und nur mit Bausteinen, die auf beiden Seiten gehen (`Card`, `Tag`, `Icons8Ikone`; Falle 1).
  */
 export function SuchErgebnisse({ ergebnisse }: { ergebnisse: ModulErgebnis[] }) {
@@ -45,7 +45,7 @@ function ModulAbschnitt({ ergebnis }: { ergebnis: ModulErgebnis }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))",
               gap: SPACE.md,
             }}
           >

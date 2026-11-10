@@ -602,6 +602,22 @@ describe("radio-Geraetakte: das Notizfeld", () => {
     );
   });
 
+  it("die Seite zeigt die Anmerkungskarte nur der Updater-Stufe (IDA-383)", () => {
+    /*
+     * Die Anmerkung steht an EINER Stelle: für die Admin-Stufe im Formularfeld, für die
+     * Updater-Stufe in dieser Karte. Bis IDA-383 stand die Karte auch für Admins da.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
+    expect(quelle.match(/<NotizFeld\b/g) ?? [], "das Notizfeld steht nicht genau einmal").toHaveLength(1);
+    const abBedingung = quelle.slice(quelle.indexOf('rolle === "updater" && ('));
+    expect(
+      abBedingung.slice(0, abBedingung.indexOf("<NotizFeld")),
+      "das Notizfeld hängt nicht an der Updater-Stufe",
+    ).toMatch(/^rolle === "updater" && \(\s*(?:<(?:div|Card)\b[^>]*>\s*)*$/);
+    expect(gesperrtFuer("updater")("updateNote"), "dieselbe Bedingung wie im Formular").toBe(true);
+    expect(gesperrtFuer("admin")("updateNote")).toBe(false);
+  });
+
   it("zeigt den Leertext, wenn keine Anmerkung gespeichert ist", async () => {
     /* `UpdateNotePanel.tsx:35`, woertlich. */
     await mount(<NotizFeld geraetId="g-1" anmerkung={null} rolle="updater" />);
@@ -926,7 +942,13 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
      * Spalte auf die LEERE Zeichenkette (`_lib/lesepfade/geraete.ts`, `status: d.status ?? ""`),
      * und eine leere Marke waere ein farbiger Fleck ohne Aussage.
      */
-    expect(quelle, "der Status steht auch ohne gesetzten Wert").toMatch(/akte\.status !== ""/);
+    // Seit IDA-383 steht der Status immer, mit Etikett; leer heißt einsatzbereit (`statusText`).
+    expect(quelle, "der Status trägt kein Etikett").toMatch(/`Status: \$\{statusText\(akte\.status\)\}`/);
+    expect(quelle, "der Status ist nicht nach Einsatzbereitschaft gefärbt").toMatch(
+      /BEREITSCHAFT_TON\[einsatzbereitschaftAus\(akte\.status\)\]/,
+    );
+    expect(quelle, "die Leihe heißt nicht „ausgeliehen von“").toMatch(/`ausgeliehen von \$\{/);
+    expect(quelle, "der Rückweg zur Liste fehlt").toMatch(/<Rueckweg titel="Geräte" href="\/admin\/geraete" \/>/);
 
     /*
      * ⛔ DIE ABWEICHUNGSMARKE HAENGT WEITER AN `updateAnmerkung` (`DeviceDetailDrawer.tsx:95-101`)

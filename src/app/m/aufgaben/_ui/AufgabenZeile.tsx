@@ -129,9 +129,9 @@ export function AufgabenZeile({
       </span>
       {/*
        * DIE AKTIONSSPALTE STEHT AUCH DANN DA, WENN SIE LEER IST — sie ist die rechte Spur, an der
-       * sich alle Zeilen ausrichten. Sichtbar wird sie erst bei Zuwendung (`:hover`/`:focus-within`
-       * an der Zeile, s. `.zeilenAktion`); unterhalb von 768px bleibt sie dauerhaft offen, weil
-       * Touch kein Hover kennt.
+       * sich alle Zeilen ausrichten. Seit IDA-386 ist sie dauerhaft sichtbar, auch am Desktop
+       * (s. `.zeilenAktion`): erst bei Hover sah niemand auf `/verteilen`, wie man verteilt, und
+       * ein Touch-Tablet sah die Aktion erst nach Antippen der Zeile.
        */}
       <span className={s.zeilenAktion}>{aktionen}</span>
       {/* s. die Prop `band` oben — nur gerendert, wenn ein Aufrufer eines reicht. */}

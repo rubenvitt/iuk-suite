@@ -485,7 +485,7 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
 
     const wirt = await zeichne();
     const knopf = [...wirt.querySelectorAll("button")].find(
-      (b) => (b.textContent ?? "").trim() === "Feedback freigeben",
+      (b) => (b.textContent ?? "").trim() === "Umfrage starten",
     )!;
 
     expect(knopf.hasAttribute("disabled")).toBe(false);

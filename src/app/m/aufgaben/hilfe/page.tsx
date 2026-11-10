@@ -96,7 +96,7 @@ export function hilfeInhalt(akteur: Akteur, heute: string) {
         </h2>
         <div className={s.hilfeGitter}>
           {sichten.map((sicht) => (
-            <Kapitelkarte key={sicht.schluessel} sicht={sicht} akteur={akteur} />
+            <Kapitelkarte key={sicht.schluessel} sicht={sicht} akteur={akteur} heute={heute} />
           ))}
         </div>
       </section>
@@ -116,8 +116,8 @@ export function hilfeInhalt(akteur: Akteur, heute: string) {
   );
 }
 
-function Kapitelkarte({ sicht, akteur }: { sicht: HilfeSicht; akteur: Akteur }) {
-  const ziel = zielHref(sicht, akteur);
+function Kapitelkarte({ sicht, akteur, heute }: { sicht: HilfeSicht; akteur: Akteur; heute: string }) {
+  const ziel = zielHref(sicht, akteur, heute);
   return (
     <article className={s.hilfeKarte}>
       <h3 style={{ ...SCHRIFT.unterTitel, margin: 0 }}>

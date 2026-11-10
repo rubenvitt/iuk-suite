@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { App, Button, InputNumber } from "antd";
+import { App, Button } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
@@ -12,6 +12,7 @@ import type { OffeneEntnahme as Offene } from "../../_lib/unterwegs";
 import { seitText } from "../../_lib/unterwegsText";
 import { Kicker } from "../teile";
 import s from "../wartung.module.css";
+import { Zaehler } from "./Zaehler";
 
 /** Ohne `nutzer`: die Kennung des Anmelders gehört nicht ins Telefon. */
 type OffeneEntnahme = Omit<Offene, "nutzer">;
@@ -52,6 +53,8 @@ function EineEntnahme({ geraetId, e }: { geraetId: string; e: OffeneEntnahme }) 
     },
   });
   const laeuft = entwurf.zustand === "sendet";
+  // Mehr „wieder da“ getippt, als unterwegs ist (IDA-381): die Meldung steht am Feld.
+  const zuViel = offene.some((p) => zurueckVon(p.id, p.offen) > p.offen);
 
   return (
     <section className={s.karte} data-rolle="rueckgabe">
@@ -62,16 +65,14 @@ function EineEntnahme({ geraetId, e }: { geraetId: string; e: OffeneEntnahme }) 
           <div key={p.id} style={{ padding: "6px 0" }} data-rolle="rueckgabe-posten">
             <div className={s.quer}>
               <strong><span className={s.ziffern}>{p.offen} ×</span> {p.text}</strong>
-              <InputNumber
-                aria-label={`Wieder da ${p.text}`}
-                value={zurueck}
-                onChange={(v) => setStand((a) => ({ ...a, zurueck: { ...a.zurueck, [p.id]: v ?? 0 } }))}
-                min={0}
+              <Zaehler
+                label={`Wieder da ${p.text}`}
+                wert={zurueck}
+                setWert={(v) => setStand((a) => ({ ...a, zurueck: { ...a.zurueck, [p.id]: v } }))}
                 max={p.offen}
-                precision={0}
-                inputMode="numeric"
               />
             </div>
+            {zurueck > p.offen && <div className={`${s.textRot} ${s.klein}`} role="alert" data-rolle="zu-viel">Nur {p.offen} unterwegs.</div>}
             {zurueck < p.offen && (
               <div className={s.wahl} role="radiogroup" aria-label={`Rest ${p.text}`}>
                 {([false, true] as const).map((fehlt) => (
@@ -94,7 +95,7 @@ function EineEntnahme({ geraetId, e }: { geraetId: string; e: OffeneEntnahme }) 
       {fehler && <div className={`${s.neben} ${s.klein}`} style={{ margin: "8px 0" }} role="alert">{fehler}</div>}
       <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
       <div className={s.knopfstapel} style={{ marginTop: 12 }}>
-        <Button type="primary" block loading={laeuft} onClick={() => { if (!laeuft) { setFehler(null); entwurf.sende(null); } }} data-rolle="zuruecklegen-senden">
+        <Button type="primary" block disabled={zuViel} loading={laeuft} onClick={() => { if (!laeuft && !zuViel) { setFehler(null); entwurf.sende(null); } }} data-rolle="zuruecklegen-senden">
           Zurücklegen
         </Button>
         <Button block href={`/g/${geraetId}/mangel`} icon={<Icons8Ikone name="warning" groesse={20} />} data-rolle="zuruecklegen-mangel">

@@ -154,7 +154,7 @@ function BearbeitenFormular({
         <span style={T.meta}>
           {lage === "held"
             ? "Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit."
-            : "Das Feedback gibst du weiterhin am Abend selbst frei."}
+            : "Die Umfrage startest du weiterhin am Abend selbst."}
         </span>
       </label>
       <label style={FELD}>

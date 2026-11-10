@@ -215,7 +215,7 @@ export const wartungMcp: McpModul = {
 
     server.registerTool("wartung_pruefung_abschliessen", {
       title: "Prüfung am Gerät abschließen",
-      description: "Schließt eine Prüfung am Gerät ab (bei einer Materialkiste das Durchzählen). Vorher wartung_geraet lesen: pruefart_id wählt unter pruefungen (ohne Angabe die fällige, sonst die nach Frist); jeder ihrer Punkte braucht eine Antwort; ein Punkt mit Mangel braucht einen Text und wird ein Mangel. Ergebnis: ok (in Ordnung), mangel (mit Mangel einsatzbereit) oder defekt (nicht einsatzbereit). Ohne Fotos.",
+      description: "Schließt eine Prüfung am Gerät ab (bei einer Materialkiste das Durchzählen). Vorher wartung_geraet lesen: pruefart_id wählt unter pruefungen (ohne Angabe die fällige, sonst die nach Frist); jeder ihrer Punkte braucht eine Antwort; ein Punkt mit Mangel braucht einen Text und wird ein Mangel. Ergebnis: ok (in Ordnung), mangel (einsatzbereit mit Mangel) oder defekt (nicht einsatzbereit). Ohne Fotos.",
       inputSchema: {
         geraet_id: geraetId,
         pruefart_id: idSchema.optional().describe("Welche Prüfung (pruefungen[].pruefartId aus wartung_geraet)"),

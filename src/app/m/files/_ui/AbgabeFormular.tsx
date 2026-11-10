@@ -212,6 +212,9 @@ export function AbgabeFormular({ token }: { token: string }) {
   const [hinweis, setHinweis] = useState("");
   const [kategorie, setKategorie] = useState("");
   const [hinweisFehler, setHinweisFehler] = useState<string | null>(null);
+  /** IDA-388: „Abgeben" ohne offene Datei sagt, was fehlt, statt still nichts zu tun. */
+  const [auswahlFehler, setAuswahlFehler] = useState<string | null>(null);
+  const dateiFeldRef = useRef<HTMLInputElement>(null);
   const [laeuft, setLaeuft] = useState(false);
 
   /**
@@ -270,6 +273,7 @@ export function AbgabeFormular({ token }: { token: string }) {
 
   function beiAuswahl(dateien: FileList | null): void {
     const gewaehlt = Array.from(dateien ?? []);
+    setAuswahlFehler(null);
     dateienRef.current = new Map();
     standRef.current = new Map();
     setEintraege(
@@ -440,6 +444,13 @@ export function AbgabeFormular({ token }: { token: string }) {
 
   function beiAbgabe(ereignis: React.FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
+    if (offen.length === 0) {
+      setAuswahlFehler(
+        eintraege.length === 0 ? "Bitte zuerst Dateien auswählen." : "Bitte andere Dateien auswählen.",
+      );
+      dateiFeldRef.current?.focus();
+      return;
+    }
     void starte(
       offen.map((e) => e.schluessel),
       hinweis,
@@ -610,26 +621,40 @@ export function AbgabeFormular({ token }: { token: string }) {
               `_lib/mime.ts` — die Entscheidung über den Typ trifft der Server
               anhand der Bytes (§8.5). KEIN `webkitdirectory` (§8.2). */}
           <input
+            ref={dateiFeldRef}
             id="abgabe-dateien"
             className="fp-feld"
             type="file"
             multiple
+            aria-invalid={auswahlFehler !== null ? true : undefined}
+            aria-describedby={auswahlFehler !== null ? "abgabe-dateien-fehler" : undefined}
             onChange={(e) => beiAuswahl(e.target.files)}
           />
+          {auswahlFehler !== null && (
+            <p
+              id="abgabe-dateien-fehler"
+              className="fp-fehler"
+              data-testid="auswahl-fehler"
+              role="alert"
+            >
+              {auswahlFehler}
+            </p>
+          )}
         </div>
 
         {liste}
 
         <div className="fp-knopfzeile">
-          {/* Deaktiviert, sobald nichts mehr offen ist: ein aktiver Knopf, der in
-              `starte` still zurückkehrt, ist auf einem fremden Handy von „hat
-              nicht reagiert" nicht zu unterscheiden. Der Weg nach vorn bleibt die
-              Dateiauswahl darüber — `beiAuswahl` setzt den Vorgang zurück. */}
+          {/* Gesperrt nur WÄHREND der Übertragung (dann sichtbar gesperrt,
+              `files-public.css`). Ohne offene Datei bleibt er aktiv und sagt am
+              Dateifeld, was fehlt (IDA-388): ein gesperrter Knopf, der aussieht
+              wie ein aktiver, ist auf einem fremden Handy von „hat nicht
+              reagiert" nicht zu unterscheiden. */}
           <button
             type="submit"
             className="fp-knopf"
             data-testid="abgabe-absenden"
-            disabled={laeuft || offen.length === 0}
+            disabled={laeuft}
           >
             {laeuft ? "Wird übertragen …" : "Abgeben"}
           </button>

@@ -67,7 +67,8 @@ export const erledigtEingabe = z.object({
 export type ErledigtEingabe = z.infer<typeof erledigtEingabe>;
 
 /** `sendung` (IDA-358): die Sendungs-ID des Telefons, wird die ID des Eintrags — optional für offene alte Seiten. */
-export const stundenEingabe = z.object({ stunden: z.number().int().min(0).max(STUNDEN_MAX), sendung: idSchema.optional() });
+/** `korrektur` (IDA-381): ein kleinerer Stand als der letzte, nur für Verwaltende der Gruppe des Geräts. */
+export const stundenEingabe = z.object({ stunden: z.number().int().min(0).max(STUNDEN_MAX), sendung: idSchema.optional(), korrektur: z.boolean().optional() });
 
 const monate = z.number().int("Bitte ganze Monate.").min(1, "Mindestens 1.").max(120, "Höchstens 120.").nullable();
 const intervallStunden = z.number().int("Bitte ganze Stunden.").min(1, "Mindestens 1.").max(100_000).nullable();

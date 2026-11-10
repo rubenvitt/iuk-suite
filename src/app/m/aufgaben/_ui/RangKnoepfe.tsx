@@ -82,8 +82,8 @@ export function RangKnoepfe({
      *    DER BEFUND WAR DIE TAGESSPALTE: bei drei Eintraegen standen sechs vollflaechige
      *    Schaltflaechen in einer 166px breiten Spalte, dauerhaft sichtbar, und sie waren das
      *    Auffaelligste an der ganzen Woche — lauter als die Aufgabentitel, die sie ordnen.
-     *    `.planAktion` blendet sie jetzt erst bei Zuwendung ein; damit sie in dieser Rolle nicht
-     *    trotzdem wie eine Knopfleiste aussehen, tragen sie die stille Form.
+     *    Sie stehen in `.planAktion` (seit IDA-386 dauerhaft sichtbar); damit sie nicht wie eine
+     *    Knopfleiste aussehen, tragen sie die stille Form.
      *
      *    WAS UNVERAENDERT BLEIBT, UND ZWAR VOLLSTAENDIG: zwei `<button type="submit">` in eigenen
      *    `<form>`s (keine Maus-only-Geste), der sichtbare Text „Auf"/„Ab", das `aria-label` mit dem

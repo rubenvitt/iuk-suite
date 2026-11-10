@@ -45,6 +45,22 @@
   background: #ffffff;
   color: #000000;
   font-family: var(--font-body);
+  color-scheme: light;
+}
+
+/*
+ * IDA-383: FEST HELL AUCH AM BILDSCHIRM. Aus einer dunklen Sitzung stand der Bogen sonst als
+ * weisser Streifen auf dunklem Grund, und der Ruecklink erbte die helle Linkfarbe des
+ * Dunkelmodus — weiss auf weiss. Die Seite selbst wird hell, der Link bekommt ein Literal.
+ */
+html:has(.rd-bogen),
+body:has(.rd-bogen) {
+  background: #ffffff;
+  color-scheme: light;
+}
+
+.rd-bogen a {
+  color: #0b57d0;
 }
 
 .rd-titel {

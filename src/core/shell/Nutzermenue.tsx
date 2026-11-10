@@ -9,6 +9,7 @@ import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { oeffneRueckmeldung } from "@/core/rueckmeldung/flyinZustand";
 import type { Rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import { initialen } from "@/core/shell/initialen";
+import { AVATAR_FARBEN, PROFIL_PFAD } from "@/core/shell/profil";
 import { SCHRIFT } from "@/core/theme/schrift";
 import s from "./menue.module.css";
 
@@ -79,7 +80,7 @@ export function Nutzermenue({
         {
           key: "profil",
           label: (
-            <a data-testid="profil-link" href={`${profilHref}/profil`}>
+            <a data-testid="profil-link" href={`${profilHref}${PROFIL_PFAD}`}>
               Profil
             </a>
           ),
@@ -151,7 +152,7 @@ export function Nutzermenue({
 
   // `alt=""`: der Name steht schon im `aria-label` des Knopfes.
   const avatar = (
-    <Avatar size="small" src={userBild ?? undefined} alt="">
+    <Avatar size="small" src={userBild ?? undefined} alt="" style={AVATAR_FARBEN}>
       {initialen(userName)}
     </Avatar>
   );

@@ -238,3 +238,46 @@
   font-weight: 400;
   color: var(--iuk-gedaempft);
 }
+
+/*
+ * DIE KACHELN (IDA-391). Ein Raster statt antds `Row`/`Col xs={12}`: am Telefon (390px) standen
+ * zwei Spalten, und Namen wie „Unterkunftsrechner“ passten nur noch getrennt hinein. Die Spalte
+ * ist mindestens so breit, dass ein App-Name ganz passt; darunter steht eine einzige.
+ */
+.portal-kacheln {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+}
+
+/* Titel und Version teilen sich den Platz neben dem Zeichen; reicht er nicht, rutscht die Version
+   in die nächste Zeile, statt den Titel zu verengen. */
+.portal-kachel-kopf {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+/* Kein `hyphens: auto` und kein `overflow-wrap: anywhere`: beides trennte mitten im Wort. Nur ein
+   Wort, das breiter ist als die ganze Kachel, bricht (`break-word` verengt die Spalte nicht). */
+.portal-kachel-titel {
+  min-inline-size: 0;
+  hyphens: manual;
+  overflow-wrap: break-word;
+}
+
+.portal-kachel-version {
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+
+.portal-ohne-angeheftet {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--iuk-gedaempft);
+}

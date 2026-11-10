@@ -49,10 +49,13 @@ afterEach(() => t.schliessen());
 function lauf(args: {
   id: string; ts: string; quelleTyp: "system" | "oidc"; quelleId: string;
   kommentar: string; umfang: string | null; positionen: [erwartet: number, gezaehlt: number][];
+  /** IDA-379 — fehlt bei Laeufen vor 0024. */
+  abdeckung?: { erfasst: number; gesamt: number };
 }): void {
   t.db.insert(inventuren).values({
     id: args.id, ts: new Date(args.ts), quelleTyp: args.quelleTyp, quelleId: args.quelleId,
     kommentar: args.kommentar, umfang: args.umfang,
+    erfasst: args.abdeckung?.erfasst ?? null, gesamt: args.abdeckung?.gesamt ?? null,
   }).run();
   args.positionen.forEach(([erwartet, gezaehlt], i) => {
     t.db.insert(inventurPositionen).values({
@@ -76,6 +79,7 @@ describe("Inventur-Verlauf als RSC", () => {
     lauf({
       id: "lauf-neu", ts: "2026-07-16T08:30:00Z", quelleTyp: "oidc", quelleId: "u-unbekannt",
       kommentar: "Nachzählung", umfang: null, positionen: [[5, 4], [2, 2]],
+      abdeckung: { erfasst: 2, gesamt: 14 },
     });
 
     const inhalt = verlaufSeitenInhalt(t.db);
@@ -83,7 +87,8 @@ describe("Inventur-Verlauf als RSC", () => {
     expect(tabelle!.props).toEqual({ zeilen: [
       {
         id: "lauf-neu", zeitText: "16.07.2026, 10:30", person: "u-unbekannt", kommentar: "Nachzählung",
-        umfangText: "vollständig", positionen: 2, abweichungen: 1,
+        // IDA-379 — nicht „vollständig": 12 der 14 Artikel blieben ungezaehlt.
+        umfangText: "2 von 14", positionen: 2, abweichungen: 1,
         detailHref: "/verwaltung/inventur/verlauf/lauf-neu",
       },
       {

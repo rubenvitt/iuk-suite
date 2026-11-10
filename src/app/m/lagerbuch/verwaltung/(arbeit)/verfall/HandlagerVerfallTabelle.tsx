@@ -16,18 +16,28 @@
  *  - DIE LIEGEPLAETZE IN DER ZEILE (DRK-339), samt Zugangshinweis.
  *  - DER EINZELKNOPF MIT ORTSWAHL (`AussondernRow`). Nur er kann EINEN Schrank
  *    ausraeumen; die Sammelaktion raeumt je Charge alle gezeigten Liegeplaetze.
- *    ⚠️ DESHALB STEHT ER NUR NOCH AN CHARGEN MIT MEHR ALS EINEM LIEGEPLATZ.
- *    Liegt eine Charge an einem Ort, kann er nichts, was „ankreuzen →
- *    Ausgewählte aussondern" nicht auch kann — und zwoelf gleiche Knoepfe
- *    untereinander waren genau die Wand, die IDA-238 abbaut. Am Tablet
- *    (1024 px, Seitenleiste offen) schob die Spalte die Tabelle zudem ueber
- *    den Rand.
+ *    ⚠️ ER STEHT AN JEDER ABGELAUFENEN CHARGE MIT HANDLAGER-REST (IDA-379),
+ *    nicht mehr nur an denen mit mehr als einem Liegeplatz. Die Begruendung
+ *    dafuer war: bei einem Ort kann er nichts, was „ankreuzen → Ausgewählte
+ *    aussondern" nicht auch kann, und zwoelf gleiche Knoepfe waren die Wand,
+ *    die IDA-238 abbaut. Getragen hat sie nicht: der Grund, warum „Sauerstoff-
+ *    maske" einen Knopf hatte und „Kompressen" darueber keinen, stand nirgends
+ *    auf dem Schirm, und wer ihn nicht kannte, hielt die zweite Zeile fuer
+ *    nicht aussonderbar. Die Wand ist seit IDA-238 ohnehin keine rote mehr
+ *    (kein `danger`), und die Spalte stand schon da, sobald EINE Zeile zwei
+ *    Orte hatte.
+ *  - KEIN KNOPF UND KEIN KAESTCHEN OHNE HANDLAGER-REST (IDA-379). Eine
+ *    abgelaufene Charge, die nur noch draussen liegt, steht trotzdem in der
+ *    Liste — mit „liegt in: KTW 1 (6 Stk)" und einem Sprung zur Einheit. Dort,
+ *    nicht hier, wird sie ausgesondert: `aussondern` bucht ausschliesslich den
+ *    Handlager-Rest und wiese die Zeile reproduzierbar ab.
  *
  * ⚠️ DIE AMPEL STEHT EINMAL, ALS CHIP MIT TEXT. Die Plakette daneben trug
  * dieselbe Farbe ein zweites Mal und ohne eigenen Text; die Tabelle darunter
  * („An Einheiten … gemeldet") zeigt ihren Status genauso.
  *
- * ⚠️ AUSWAEHLBAR IST NUR, WAS SICH AUSSONDERN LAESST: abgelaufene Chargen. Die
+ * ⚠️ AUSWAEHLBAR IST NUR, WAS SICH AUSSONDERN LAESST: abgelaufene Chargen mit
+ * Handlager-Rest (`aussonderbar`). Die
  * Sammelaktion schickt je Charge die Orte, die auf dem Schirm stehen, nie eine
  * Menge — dieselbe Regel wie der Einzelknopf (Begruendung bei `gemeinterOrt`
  * in `AussondernRow.tsx`).
@@ -54,6 +64,7 @@ import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import s from "../../../_ui/verwaltung.module.css";
+import { AussenOrte, type AussenOrtLink } from "./AussenOrte";
 import { AussondernRow } from "./AussondernRow";
 
 /**
@@ -70,10 +81,23 @@ export type HandlagerVerfallZeile = {
   statusTon: AmpelTon;
   statusText: string;
   abgelaufen: boolean;
+  /** Rest IM HANDLAGER — 0 bei einer Charge, die nur noch draussen liegt. */
   rest: number;
   einheit: string;
+  /** Liegeplaetze im Handlager; seit IDA-379 auch leer (siehe `draussen`). */
   orte: VerfallOrt[];
+  /** IDA-379 — Einheiten und Entnahmebox, in denen die Charge ausserdem liegt. */
+  draussen: AussenOrtLink[];
 };
+
+/**
+ * IDA-379 — Laesst sich diese Zeile hier aussondern? Abgelaufen UND ein
+ * Handlager-Rest. Knopf, Kaestchen und Sammelauswahl fragen DIESE Funktion;
+ * drei eigene Bedingungen liefen auseinander.
+ */
+export function aussonderbar(zeile: Pick<HandlagerVerfallZeile, "abgelaufen" | "orte">): boolean {
+  return zeile.abgelaufen && zeile.orte.length > 0;
+}
 
 export function bezeichnung(zeile: Pick<HandlagerVerfallZeile, "chargenNr" | "artikelName">): string {
   return `${zeile.chargenNr} · ${zeile.artikelName}`;
@@ -82,8 +106,12 @@ export function bezeichnung(zeile: Pick<HandlagerVerfallZeile, "chargenNr" | "ar
 export function sucheTrifft(zeile: HandlagerVerfallZeile, begriff: string): boolean {
   const suche = falte(begriff.trim());
   return suche === ""
-    || falte([zeile.artikelName, zeile.chargenNr, ...zeile.orte.map((ort) => ort.name)].join(" "))
-      .includes(suche);
+    || falte([
+      zeile.artikelName,
+      zeile.chargenNr,
+      ...zeile.orte.map((ort) => ort.name),
+      ...zeile.draussen.map((ort) => ort.name),
+    ].join(" ")).includes(suche);
 }
 
 const STATUS_FILTER = zustandsFilter<HandlagerVerfallZeile>([
@@ -167,17 +195,24 @@ const SPALTEN: NonNullable<TableProps<HandlagerVerfallZeile>["columns"]> = [
         {orte.length > 1 ? (
           <span style={SCHRIFT.neben}>Rest {zeile.rest} {zeile.einheit}</span>
         ) : null}
+        {/* IDA-379 — „ausserdem" nur, wo davor ein Liegeplatz steht. */}
+        <AussenOrte
+          orte={zeile.draussen}
+          einheit={zeile.einheit}
+          auftakt={orte.length > 0 ? "liegt außerdem in" : "liegt in"}
+        />
       </span>
     ),
   },
   {
     title: "",
     key: "aktion",
-    render: (_wert: unknown, zeile) => (zeile.abgelaufen && zeile.orte.length > 1 ? (
+    render: (_wert: unknown, zeile) => (aussonderbar(zeile) ? (
       <AussondernRow
         chargeId={zeile.chargeId}
         bezeichnung={bezeichnung(zeile)}
         orte={zeile.orte}
+        draussen={zeile.draussen}
         einheit={zeile.einheit}
       />
     ) : null),
@@ -211,7 +246,7 @@ export function HandlagerVerfallTabelle({ zeilen }: { zeilen: HandlagerVerfallZe
    */
   const ausgewaehlt = useMemo(() => {
     const menge = new Set(auswahl);
-    return zeilen.filter((zeile) => zeile.abgelaufen && menge.has(zeile.chargeId));
+    return zeilen.filter((zeile) => aussonderbar(zeile) && menge.has(zeile.chargeId));
   }, [zeilen, auswahl]);
 
   function sammelBestaetigen(): void {
@@ -299,7 +334,7 @@ export function HandlagerVerfallTabelle({ zeilen }: { zeilen: HandlagerVerfallZe
 
       <Kartentabelle<HandlagerVerfallZeile>
         rowKey="chargeId"
-        aria-label="Chargen im Handlager"
+        aria-label="Chargen"
         dataSource={gefiltert}
         columns={SPALTEN}
         filter={spaltenFilter}
@@ -308,7 +343,7 @@ export function HandlagerVerfallTabelle({ zeilen }: { zeilen: HandlagerVerfallZe
         // nahm er dem Namen die halbe Breite, und der brach Silbe fuer Silbe um.
         karte={{ titel: "artikel", aktionen: "aktion" }}
         leer={{
-          nichts: "Keine auffällige Charge im Handlager.",
+          nichts: "Keine auffällige Charge.",
           gefiltert: "Keine Charge passt zu Suche und Filter.",
           aktiv: sucheNachlauf.trim() !== "" || Object.values(spaltenFilter).some((w) => w?.length),
         }}
@@ -320,7 +355,7 @@ export function HandlagerVerfallTabelle({ zeilen }: { zeilen: HandlagerVerfallZe
             setMeldung(null);
           },
           getCheckboxProps: (zeile) => ({
-            disabled: !zeile.abgelaufen,
+            disabled: !aussonderbar(zeile),
             "aria-label": `${bezeichnung(zeile)} auswählen`,
           }),
         }}
@@ -343,6 +378,12 @@ export function HandlagerVerfallTabelle({ zeilen }: { zeilen: HandlagerVerfallZe
             <li key={zeile.chargeId}>
               <strong>{bezeichnung(zeile)}</strong>
               <span style={SCHRIFT.neben}> — {liegeplaetze(zeile)}</span>
+              {zeile.draussen.length > 0 ? (
+                <>
+                  {" · "}
+                  <AussenOrte orte={zeile.draussen} einheit={zeile.einheit} auftakt="liegt außerdem in" />
+                </>
+              ) : null}
             </li>
           ))}
         </ul>

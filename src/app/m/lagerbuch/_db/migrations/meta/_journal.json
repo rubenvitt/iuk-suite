@@ -173,8 +173,22 @@
     {
       "idx": 24,
       "version": "6",
-      "when": 1794297600000,
-      "tag": "0024_maengel_geraet",
+      "when": 1794787200000,
+      "tag": "0024_inventur_abdeckung",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1794790800000,
+      "tag": "0025_bz_kontrolle_storno",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1794794400000,
+      "tag": "0026_maengel_geraet",
       "breakpoints": true
     }
   ]

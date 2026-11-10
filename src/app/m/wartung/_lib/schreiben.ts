@@ -42,6 +42,8 @@ export function aktivesGeraet(db: WartungSchreiber, id: string) {
   return g;
 }
 
+export const STUNDEN_KORRIGIERT = "Betriebsstunden korrigiert";
+
 function pruefeStunden(neu: number | null, alt: number | null): void {
   if (neu !== null && alt !== null && neu < alt) {
     throw new Abgelehnt(`Kleiner als der letzte Stand (${alt} h). Bitte noch einmal ablesen.`, "stunden");
@@ -438,7 +440,12 @@ export function erledigtEintragen(db: WartungDb, geraetId: string, e: ErledigtEi
   });
 }
 
-export function stundenEintragen(db: WartungDb, geraetId: string, stunden: number, k: Kontext, sendung?: string): void {
+/**
+ * Den abgelesenen Stand eintragen. `korrektur` (IDA-381) lässt einen kleineren Stand zu — nur für Verwaltende der
+ * Gruppe, das prüft `stundenEintragenVorgang`; der Eintrag heißt dann „Betriebsstunden korrigiert“ und nennt den
+ * alten Stand in der Notiz.
+ */
+export function stundenEintragen(db: WartungDb, geraetId: string, stunden: number, k: Kontext, sendung?: string, korrektur = false): void {
   db.transaction((tx) => {
     // IDA-358: dieselbe Sendung schon gebucht (nur die Antwort ging verloren) — VOR `pruefeStunden`, das sonst
     // nichts sähe, was die Wiederholung abweist; eine fremde ID ist ein Eingabefehler.
@@ -450,10 +457,12 @@ export function stundenEintragen(db: WartungDb, geraetId: string, stunden: numbe
       }
     }
     const g = aktivesGeraet(tx, geraetId);
-    pruefeStunden(stunden, g.stunden);
+    const nachUnten = g.stunden !== null && stunden < g.stunden;
+    if (!korrektur) pruefeStunden(stunden, g.stunden);
     tx.update(geraet).set({ stunden, aktualisiertAm: k.jetzt }).where(eq(geraet.id, geraetId)).run();
     tx.insert(eintrag).values({
-      id: sendung ?? neueId(), geraetId, typ: "stunden", titel: "Betriebsstunden abgelesen", am: k.heute, stunden, wer: k.wer, angelegtAm: k.jetzt,
+      id: sendung ?? neueId(), geraetId, typ: "stunden", titel: nachUnten ? STUNDEN_KORRIGIERT : "Betriebsstunden abgelesen", am: k.heute, stunden,
+      wer: k.wer, notiz: nachUnten ? `Vorher ${g.stunden} h` : "", angelegtAm: k.jetzt,
     }).run();
   });
 }

@@ -227,6 +227,13 @@ export interface HilfeSicht {
   /** Kapitel, die als naechstes helfen. */
   verweise: readonly SichtSchluessel[];
   /**
+   * DER SATZ STATT „Sicht öffnen", wo `sichtbar` fuer die lesende Person `false` sagt (IDA-386):
+   * das Kapitel bleibt lesbar (s. `hilfe/[sicht]/page.tsx`), der Verweis darauf fiele aber auf
+   * 404 bzw. auf einen anderen Einstieg unter `/`. Pflicht fuer jede Sicht mit Rollen-Gate —
+   * `hilfe.test.ts` prueft das gegen alle Rollen.
+   */
+  nurFuer?: string;
+  /**
    * WER DAS KAPITEL IN SEINER UEBERSICHT SIEHT — aus den Praedikaten von `_lib/zugang.ts`,
    * nie aus einer eigenen Rollenabfrage (s. Kopfkommentar).
    */
@@ -362,6 +369,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["zeitplan", "routinen", "aufgabe", "einstellen"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "meine-woche",
+    nurFuer: "Diese Sicht haben nur BuFDis.",
   },
 
   verteilung: {
@@ -458,6 +466,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["verteilen", "freigaben", "personen", "aufgabe"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "verteilung",
+    nurFuer: "Diese Sicht hat nur die Koordination.",
   },
 
   "meine-auftraege": {
@@ -534,6 +543,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["einstellen", "freigaben", "aufgabe", "archiv"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "meine-auftraege",
+    nurFuer: "Diese Sicht haben nur Auftraggeber.",
   },
 
   // ─── Die adressierbaren Sichten ───────────────────────────────────────────────────────────────
@@ -598,7 +608,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         titel: "Dauer schätzen",
         text:
-          "In Minuten, und lieber ehrlich als sportlich: mit dieser Zahl rechnet das Budget, nicht " +
+          "Aus der Liste gewählt, und lieber ehrlich als sportlich: damit rechnet das Budget, nicht " +
           "mit der tatsächlichen Arbeitszeit. Zu knapp geschätzt wirkt die Woche freier, als sie " +
           "ist — und der nächste Auftrag kommt trotzdem.",
       },
@@ -696,6 +706,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["verteilung", "aufgabe", "personen"],
     sichtbar: darfVerteilen,
+    nurFuer: "Diese Sicht hat nur die Koordination.",
   },
 
   freigaben: {
@@ -767,6 +778,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["aufgabe", "verteilung", "meine-auftraege"],
     sichtbar: darfFreigabenSehen,
+    nurFuer: "Diese Sicht haben nur Auftraggeber und die Koordination.",
   },
 
   routinen: {
@@ -789,7 +801,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         form: "formular",
         titel: "Neue Routine anlegen",
         erklaerung:
-          "Titel, Wochentage, optionale Uhrzeit und Dauer in Minuten. Dieselbe Maske ändert später " +
+          "Titel, Wochentage, optionale Uhrzeit und Dauer. Dieselbe Maske ändert später " +
           "eine bestehende Routine.",
       },
       {
@@ -828,6 +840,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["meine-woche", "zeitplan"],
     sichtbar: darfRoutinenVerwalten,
+    nurFuer: "Diese Sicht haben nur BuFDis.",
   },
 
   personen: {
@@ -837,28 +850,31 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     wofuer: "Wer macht mit, in welcher Rolle, ab wann — und mit wie viel Zeit am Tag?",
     szene:
       "Ein neuer Jahrgang fängt an, zwei Leute hören auf. Zehn Minuten Arbeit — wenn man weiß, " +
-      "welches Feld was auslöst. Drei davon sind es, die zählen: die Kennung, die Rolle und das " +
-      "Tagessoll.",
+      "welches Feld was auslöst. Drei davon sind es, die zählen: die Kennung, die Rolle und die " +
+      "Zeit pro Tag.",
     ziel: { art: "fest", href: "/personen" },
     skizze: [
       {
         form: "kopf",
         titel: "Aufgaben › Personenverwaltung",
-        erklaerung: "Die Kontextzeile nennt die Zahl der Personen und wie viele davon heute aktiv sind.",
-      },
-      {
-        form: "formular",
-        titel: "Neue Person anlegen",
         erklaerung:
-          "Name, Initialen, Kennung aus Pocket ID, Rolle, Tagessoll in Minuten sowie aktiv von und " +
-          "bis. Hängt das Verzeichnis dran, füllt die Suche die Felder für dich.",
+          "Die Kontextzeile nennt die Zahl der Personen und wie viele davon heute aktiv sind; " +
+          "rechts daneben „Person anlegen“.",
       },
       {
         form: "liste",
         titel: "Personen",
         erklaerung:
-          "Je Zeile Rolle, Zeitraum, Tagessoll und ob die Person heute aktiv ist — dazu „Beenden“ " +
-          "mit Rückfrage.",
+          "Je Zeile Rolle, Zeitraum, Zeit pro Tag und ob die Person heute aktiv ist — dazu " +
+          "„Ändern“ und „Beenden“ mit Rückfrage.",
+      },
+      {
+        form: "formular",
+        titel: "Person anlegen",
+        erklaerung:
+          "Öffnet sich als Schublade: Name, Initialen, Konto-Kennung, Rolle, Zeit pro Tag in " +
+          "Stunden sowie aktiv von und bis. Hängt das Verzeichnis dran, füllt die Suche die Felder " +
+          "für dich.",
       },
     ],
     bilder: ["rollen"],
@@ -866,7 +882,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         titel: "Zuerst die Kennung",
         text:
-          "Die Kennung aus Pocket ID verbindet die Anmeldung mit dieser Zeile. Ohne sie sieht die " +
+          "Die Konto-Kennung verbindet die Anmeldung mit dieser Zeile. Ohne sie sieht die " +
           "Person zwar das Modul, findet sich aber nicht darin wieder — sie landet auf der " +
           "Hinweisseite „noch nicht eingetragen“. Genau dort steht ihre Kennung; sie kann sie dir " +
           "einfach durchgeben.",
@@ -879,9 +895,9 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
           "Pocket ID — sonst gäbe es zwei Register für dieselbe Frage, und die laufen auseinander.",
       },
       {
-        titel: "Tagessoll setzen",
+        titel: "Zeit pro Tag setzen",
         text:
-          "Die Minuten pro Arbeitstag sind die Bezugsgröße jedes Budgetbalkens. Steht hier eine " +
+          "Die Stunden pro Arbeitstag sind die Bezugsgröße jedes Budgetbalkens. Steht hier eine " +
           "falsche Zahl, ist jede Auslastungsangabe falsch — für die Person und für dich.",
       },
       {
@@ -899,6 +915,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["verteilung", "verteilen"],
     sichtbar: darfPersonenVerwalten,
+    nurFuer: "Diese Sicht hat nur die Koordination.",
   },
 
   zeitplan: {
@@ -1145,11 +1162,17 @@ export function sichtFuerSchluessel(wert: string | undefined): HilfeSicht | null
 /**
  * DIE ADRESSE, AUF DIE EIN KAPITEL VERWEIST — oder `null`, wenn es keine gibt.
  *
+ * `null` AUCH, WO DIE SICHT DIESER PERSON NICHT OFFENSTEHT (IDA-386): dasselbe `sichtbar` wie fuer
+ * das Verzeichnis, also dieselben Praedikate aus `_lib/zugang.ts` wie das Gate der Route — vorher
+ * stand „Sicht öffnen" auf jedem Kapitel und fuehrte z. B. die Koordination auf `/routinen` (404).
+ * Das Kapitel zeigt dann `nurFuer` statt des Verweises.
+ *
  * `eigenerPlan` LOEST AUF DIE LESENDE PERSON AUF und nie auf eine andere: eine Anleitung, die auf
  * einen fremden Zeitplan zeigt, zeigt auf eine Seite, auf der die lesende Person nichts tun kann
  * (`darfPlanAendern` misst die eigene Id) — richtig waere sie, nuetzlich nicht.
  */
-export function zielHref(sicht: HilfeSicht, akteur: Akteur): string | null {
+export function zielHref(sicht: HilfeSicht, akteur: Akteur, heute: string): string | null {
+  if (!sicht.sichtbar(akteur, heute)) return null;
   switch (sicht.ziel.art) {
     case "fest":
       return sicht.ziel.href;

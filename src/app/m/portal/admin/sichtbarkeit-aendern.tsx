@@ -16,35 +16,32 @@ import {
  * Gruppen die Kachel sehen. Ein `Modal`, keine `Drawer` — zwei Felder brauchen
  * keine Seitenfläche, und Falle 13/24 (`CLAUDE.md`) betreffen die Schublade.
  *
- * Der Zustand startet bei jedem Öffnen neu aus der Zeile: ein abgebrochener
+ * Seit IDA-391 öffnet es das Zeilenmenü der Tabelle; der Knopf je Zeile ist
+ * entfallen. Der Zustand startet bei jedem Öffnen neu aus der Zeile (der Inhalt
+ * ist je Dienst gekeyt und wird beim Schließen verworfen): ein abgebrochener
  * Entwurf soll beim nächsten Öffnen nicht als gespeicherter Stand erscheinen.
  * Die Action wird DIREKT importiert (Falle 9, `CLAUDE.md`).
  */
 export function SichtbarkeitAendern({
   dienst,
   gruppen,
+  offen,
+  onSchliessen,
 }: {
   dienst: { id: string; name: string } & Sichtbarkeit;
   gruppen: GruppenOption[];
+  offen: boolean;
+  onSchliessen: () => void;
 }) {
-  const [offen, setOffen] = useState(false);
-  const [wert, setWert] = useState<Sichtbarkeit>(dienst);
+  const [wert, setWert] = useState<Sichtbarkeit>({ isPublic: dienst.isPublic, requiredGroups: dienst.requiredGroups });
   const [speichert, setSpeichert] = useState(false);
 
   return (
     <>
-      <Button
-        onClick={() => {
-          setWert({ isPublic: dienst.isPublic, requiredGroups: dienst.requiredGroups });
-          setOffen(true);
-        }}
-      >
-        Sichtbarkeit
-      </Button>
       <Modal
         open={offen}
         title={`Wer sieht „${dienst.name}“?`}
-        onCancel={() => setOffen(false)}
+        onCancel={() => onSchliessen()}
         footer={null}
         destroyOnHidden
       >
@@ -54,7 +51,7 @@ export function SichtbarkeitAendern({
             setSpeichert(true);
             try {
               await setzeSichtbarkeitAction(formData);
-              setOffen(false);
+              onSchliessen();
             } finally {
               setSpeichert(false);
             }
@@ -69,7 +66,7 @@ export function SichtbarkeitAendern({
             onChange={setWert}
           />
           <div style={{ display: "flex", gap: SPACE.sm, justifyContent: "flex-end" }}>
-            <Button onClick={() => setOffen(false)}>Abbrechen</Button>
+            <Button onClick={() => onSchliessen()}>Abbrechen</Button>
             <Button
               htmlType="submit"
               type="primary"

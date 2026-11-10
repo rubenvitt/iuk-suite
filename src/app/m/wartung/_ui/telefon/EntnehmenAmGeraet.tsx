@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { App, Button, Input, InputNumber } from "antd";
+import { App, Button, Input } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
@@ -11,6 +11,7 @@ import { entnehmenAction } from "../../_actions/telefon";
 import { KURZ_MAX } from "../../_lib/eingabe";
 import { Kicker } from "../teile";
 import s from "../wartung.module.css";
+import { Zaehler } from "./Zaehler";
 
 type Nutzlast = { ganz: boolean; zweck: string; positionen: { inhaltId: string; menge: number }[] };
 
@@ -55,9 +56,11 @@ export function EntnehmenAmGeraet({
   });
   const laeuft = entwurf.zustand === "sendet";
   const gewaehlt = positionen.filter((p) => (mengen[p.id] ?? 0) > 0);
+  // Mehr getippt, als da ist (IDA-381): die Meldung steht am Feld, „Mitnehmen“ wartet.
+  const zuViel = positionen.some((p) => (mengen[p.id] ?? 0) > p.frei);
 
   const sende = (ganz: boolean) => {
-    if (laeuft) return;
+    if (laeuft || (!ganz && zuViel)) return;
     setFehler(null);
     entwurf.sende({ ganz, zweck: zweck.trim(), positionen: ganz ? [] : gewaehlt.map((p) => ({ inhaltId: p.id, menge: mengen[p.id] })) });
   };
@@ -74,18 +77,17 @@ export function EntnehmenAmGeraet({
         <section key={p.id} className={s.karte} data-rolle="entnahme-posten">
           <div className={s.quer}>
             <strong><span className={s.ziffern}>{p.soll} ×</span> {p.text}</strong>
-            <InputNumber
-              aria-label={`Menge ${p.text}`}
-              value={mengen[p.id] ?? 0}
-              onChange={(v) => setMengen((m) => ({ ...m, [p.id]: v ?? 0 }))}
-              min={0}
+            <Zaehler
+              label={`Menge ${p.text}`}
+              wert={mengen[p.id] ?? 0}
+              setWert={(v) => setMengen((m) => ({ ...m, [p.id]: v }))}
               max={p.frei}
-              precision={0}
               disabled={p.frei === 0}
-              inputMode="numeric"
             />
           </div>
-          {p.frei < p.soll && <div className={`${s.neben} ${s.klein}`}>{p.frei === 0 ? "Alles unterwegs." : `Noch ${p.frei} da.`}</div>}
+          {(mengen[p.id] ?? 0) > p.frei ? (
+            <div className={`${s.textRot} ${s.klein}`} role="alert" data-rolle="zu-viel">Nur {p.frei} da.</div>
+          ) : p.frei < p.soll && <div className={`${s.neben} ${s.klein}`}>{p.frei === 0 ? "Alles unterwegs." : `Noch ${p.frei} da.`}</div>}
         </section>
       ))}
 
@@ -104,7 +106,7 @@ export function EntnehmenAmGeraet({
         <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
         {fehler && <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} role="alert">{fehler}</div>}
         <div className={s.knopfstapel}>
-          <Button type="primary" block disabled={gewaehlt.length === 0} loading={laeuft} onClick={() => sende(false)}>Mitnehmen</Button>
+          <Button type="primary" block disabled={gewaehlt.length === 0 || zuViel} loading={laeuft} onClick={() => sende(false)}>Mitnehmen</Button>
           <Button block disabled={etwasUnterwegs || !ganzMoeglich} loading={laeuft} onClick={() => sende(true)} data-rolle="ganz-mitnehmen">Ganze Kiste mitnehmen</Button>
           {!ganzMoeglich && (
             <div className={`${s.neben} ${s.klein}`} data-rolle="ganz-hinweis">

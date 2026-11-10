@@ -221,3 +221,89 @@ describe("PresetForm — Entwurf auf dem Geraet (IDA-358)", () => {
     expect(query<HTMLInputElement>('input[name="label"]').value).toBe("");
   });
 });
+
+/*
+ * IDA-390: „drk.de" lehnte das Feld mit der Blase des Browsers ab (`type="url"` verlangt ein
+ * Schema). Jetzt ergänzt das Formular `https://` selbst, und eine echte Fehleingabe meldet es mit
+ * eigenem Text statt mit der Blase.
+ */
+describe("PresetForm: Web-Adresse ohne Schema (IDA-390)", () => {
+  async function absenden(): Promise<void> {
+    await act(async () => {
+      query<HTMLFormElement>('[data-testid="preset-form"]').requestSubmit();
+    });
+    await act(async () => {});
+  }
+
+  it("hat kein type=url mehr, aber die URL-Tastatur", async () => {
+    await mount(<PresetForm />);
+    const feld = query<HTMLInputElement>('input[name="value"]');
+    expect(feld.getAttribute("type")).not.toBe("url");
+    expect(feld.getAttribute("inputmode")).toBe("url");
+  });
+
+  it("schickt „drk.de“ als https://drk.de", async () => {
+    vi.mocked(createPresetAction).mockClear().mockResolvedValueOnce(undefined);
+    await mount(<PresetForm />);
+    await fill('input[name="label"]', "DRK");
+    await fill('input[name="value"]', "drk.de");
+    await absenden();
+
+    expect(createPresetAction).toHaveBeenCalledTimes(1);
+    const daten = vi.mocked(createPresetAction).mock.calls[0][0] as FormData;
+    expect(daten.get("value")).toBe("https://drk.de");
+  });
+
+  it("ergänzt das Schema beim Verlassen des Felds sichtbar", async () => {
+    await mount(<PresetForm />);
+    const feld = query<HTMLInputElement>('input[name="value"]');
+    await fill('input[name="value"]', "www.drk.de/kurse");
+    await act(async () => {
+      feld.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+    expect(feld.value).toBe("https://www.drk.de/kurse");
+  });
+
+  it("lässt eine Adresse mit Schema unverändert", async () => {
+    vi.mocked(createPresetAction).mockClear().mockResolvedValueOnce(undefined);
+    await mount(<PresetForm />);
+    await fill('input[name="label"]', "Intern");
+    await fill('input[name="value"]', "http://intern.example/lage");
+    await absenden();
+
+    const daten = vi.mocked(createPresetAction).mock.calls[0][0] as FormData;
+    expect(daten.get("value")).toBe("http://intern.example/lage");
+  });
+
+  it("meldet eine Fehleingabe mit eigenem Text und schickt nichts ab", async () => {
+    vi.mocked(createPresetAction).mockClear();
+    await mount(<PresetForm />);
+    await fill('input[name="label"]', "Kaputt");
+    await fill('input[name="value"]', "drk de");
+    expect(exists('[data-testid="preset-keine-adresse"]')).toBe(false);
+    await absenden();
+
+    expect(createPresetAction).not.toHaveBeenCalled();
+    expect(query('[data-testid="preset-keine-adresse"]').textContent).toBe(
+      "Das ist keine gültige Web-Adresse.",
+    );
+  });
+});
+
+describe("PresetForm: Symbol-Vorschläge (IDA-390)", () => {
+  it("übernimmt ein vorgeschlagenes Emoji ins Feld, das freie Feld bleibt", async () => {
+    await mount(<PresetForm />);
+    const wlan = queryAll<HTMLButtonElement>('[data-testid="symbol-vorschlag"]').find(
+      (b) => b.getAttribute("aria-label") === "WLAN",
+    )!;
+    expect(wlan.getAttribute("type")).toBe("button");
+    await act(async () => {
+      wlan.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(query<HTMLInputElement>('input[name="icon"]').value).toBe("📶");
+    expect(wlan.getAttribute("aria-pressed")).toBe("true");
+
+    await fill('input[name="icon"]', "🔥");
+    expect(query<HTMLInputElement>('input[name="icon"]').value).toBe("🔥");
+  });
+});

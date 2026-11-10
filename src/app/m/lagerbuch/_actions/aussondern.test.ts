@@ -596,6 +596,25 @@ describe("aussondernSammel", () => {
     expect(aussonderungen().map((b) => b.chargeId)).toEqual(["ch-a"]);
   });
 
+  /**
+   * IDA-379 — DIE RUECKFRAGE SAGT „liegt außerdem in: RTW 1 (4)", und genau
+   * das bleibt stehen. Ausgesondert wird draussen an der Einheit, nicht hier.
+   */
+  it("laesst den Bestand derselben Charge in einer Einheit stehen", async () => {
+    buchen({ id: "seed-a-fz", chargeId: "ch-a", lagerortId: "fz-1", menge: 4 });
+
+    const erg = await aussondernSammel({
+      chargen: [{ chargeId: "ch-a", lagerortIds: [HANDLAGER_ID] }],
+    }, t.db);
+
+    expect(erg).toEqual({ ok: true, wert: { ausgesondert: ["ch-a"], uebersprungen: [] } });
+    expect(aussonderungen().map((b) => [b.lagerortId, b.menge])).toEqual([[HANDLAGER_ID, -3]]);
+    const imFahrzeug = alleBuchungen()
+      .filter((b) => b.chargeId === "ch-a" && b.lagerortId === "fz-1")
+      .reduce((summe, b) => summe + b.menge, 0);
+    expect(imFahrzeug).toBe(4);
+  });
+
   it("revalidiert nicht, wenn keine Charge gebucht wurde", async () => {
     const erg = await aussondernSammel({
       chargen: [{ chargeId: "gibt-es-nicht", lagerortIds: [HANDLAGER_ID] }],

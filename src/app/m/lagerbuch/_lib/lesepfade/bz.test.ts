@@ -569,3 +569,82 @@ describe("Leser — die vier quelleAufloeser-freien Leser laufen INNERHALB einer
     });
   });
 });
+
+/**
+ * IDA-379 — EINE NICHT BESTANDENE KONTROLLE ERFUELLT DIE FRIST NICHT, und eine
+ * stornierte zaehlt nirgends mehr. Beide stehen weiter im Logbuch.
+ */
+describe("IDA-379 — Frist nur aus bestandenen, nicht stornierten Kontrollen", () => {
+  function kontrolle(id: string, tage: number, bestanden: boolean,
+    zusatz: Partial<typeof bzKontrollen.$inferInsert> = {}) {
+    t.db.insert(bzKontrollen).values({
+      id, geraetId: "bz-1", ts: vorTagen(tage), quelleTyp: "oidc", quelleId: "sub-1",
+      level1Wert: bestanden ? 50 : 99, level1ImBereich: bestanden, level2Wert: 300,
+      level2ImBereich: true, kompresseVerfall: "2027-01", sticks: 1, lanzetten: 1,
+      batterieGewechselt: false, kommentar: null, bestanden, refSnapshot: null, ...zusatz,
+    }).run();
+  }
+  function storniere(id: string) {
+    t.db.update(bzKontrollen).set({ storniertAt: vorTagen(0), storniertVon: "sub-1" })
+      .where(eq(bzKontrollen.id, id)).run();
+  }
+
+  it("eine juengere NICHT bestandene Kontrolle verschiebt die Frist nicht", () => {
+    kontrolle("k3", 1, false);
+    const z = bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-1")!;
+    expect(z.letzteKontrolle?.getTime()).toBe(vorTagen(1).getTime());
+    expect(z.letztesBestanden).toBe(false);
+    // Frist laeuft weiter von k2 (vor 10 Tagen): faellig in 21 Tagen.
+    expect(z.faelligkeit.faelligAm?.getTime()).toBe(vorTagen(10 - 31).getTime());
+    const d = bzGeraetDetail(t.db, "bz-1", NOW)!;
+    expect(d.faelligkeit).toEqual(z.faelligkeit);
+    expect(d.letzteKontrolle).toEqual({ ts: vorTagen(1), bestanden: false });
+  });
+
+  it("nur nicht bestandene Kontrollen: rot, nieGeprueft UND nieBestanden", () => {
+    t.db.insert(bzKontrollen).values({
+      id: "nb", geraetId: "bz-nie", ts: vorTagen(1), quelleTyp: "oidc", quelleId: "sub-1",
+      sticks: 0, lanzetten: 0, batterieGewechselt: false, bestanden: false,
+    }).run();
+    const z = bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-nie")!;
+    expect(z.faelligkeit).toMatchObject({ ampel: "rot", nieGeprueft: true, nieBestanden: true });
+    expect(bzGeraetDetail(t.db, "bz-nie", NOW)!.faelligkeit.nieBestanden).toBe(true);
+  });
+
+  it("eine stornierte Kontrolle zaehlt nicht fuer Frist, letzte Kontrolle, Bemerkung und Akku", () => {
+    kontrolle("k3", 1, true, { kommentar: "Fehleingabe", batterieGewechselt: true });
+    storniere("k3");
+    const z = bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-1")!;
+    expect(z.letzteKontrolle?.getTime()).toBe(vorTagen(10).getTime());
+    expect(z.letzteBemerkung).toBe("ok");
+    expect(z.faelligkeit.faelligAm?.getTime()).toBe(vorTagen(10 - 31).getTime());
+
+    const d = bzGeraetDetail(t.db, "bz-1", NOW)!;
+    expect(d.letzteKontrolle?.ts.getTime()).toBe(vorTagen(10).getTime());
+    expect(d.akku).toEqual({ tageDurchschnitt: 30, anzahlWechsel: 2, anzahlIntervalle: 1 });
+    expect(bzAkkuKennzahlGesamt(t.db))
+      .toEqual({ tageDurchschnitt: 30, anzahlWechsel: 2, anzahlIntervalle: 1 });
+  });
+
+  it("die stornierte Zeile bleibt im Logbuch, mit Vermerk und aufgeloester Person", () => {
+    kontrolle("k3", 1, true);
+    storniere("k3");
+    const d = bzGeraetDetail(t.db, "bz-1", NOW)!;
+    expect(d.logbuch.map((z) => z.id)).toEqual(["k3", "k2", "k1"]);
+    expect(d.logbuch[0].storniert).toEqual({ am: vorTagen(0), wer: "Anna Beispiel" });
+    expect(d.logbuch[1].storniert).toBeNull();
+    expect(bzLogbuchGesamt(t.db).zeilen[0].storniert?.wer).toBe("Anna Beispiel");
+  });
+
+  it("nur stornierte Kontrollen: nie geprueft, nicht nie bestanden", () => {
+    t.db.insert(bzKontrollen).values({
+      id: "st", geraetId: "bz-nie", ts: vorTagen(1), quelleTyp: "oidc", quelleId: "sub-1",
+      sticks: 0, lanzetten: 0, batterieGewechselt: false, bestanden: true,
+    }).run();
+    t.db.update(bzKontrollen).set({ storniertAt: NOW, storniertVon: "sub-1" })
+      .where(eq(bzKontrollen.id, "st")).run();
+    const z = bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-nie")!;
+    expect(z.letzteKontrolle).toBeNull();
+    expect(z.faelligkeit).toMatchObject({ nieGeprueft: true, nieBestanden: false });
+  });
+});

@@ -269,26 +269,34 @@ describe("KommendeAbende — die Marken der Zeile", () => {
 
     expect(gestern.querySelectorAll("[data-testid='abend-ueberfaellig']")).toHaveLength(0);
     const knopf = [...gestern.querySelectorAll("button")].find(
-      (b) => (b.textContent ?? "").trim() === "Feedback freigeben",
+      (b) => (b.textContent ?? "").trim() === "Umfrage starten",
     )!;
     expect(knopf.hasAttribute("disabled")).toBe(false);
   });
 
-  it("SCHALTET DEN KNOPF AB, wo die Action werfen würde — mit Grund", () => {
+  it("SCHALTET DEN KNOPF AB, wo die Action werfen würde — mit sichtbarem Grund", () => {
     // Ein Knopf, der wirft, ist schlimmer als keiner: die Bestätigung verspricht
     // „ab sofort kann geantwortet werden", und die Action lehnt danach ab.
+    // Der Grund steht als Zeile da, nicht im Maus-Tooltip (IDA-390).
     for (const [datum, grund] of [
-      ["2026-08-05", "Freigabe erst am Tag des Dienstabends"],
-      ["2026-07-18", "Die Frist dieses Abends ist abgelaufen"],
+      ["2026-08-05", "ab Mi., 05.08. startbar"],
+      ["2026-07-18", "Frist abgelaufen"],
     ] as const) {
       const zeile = zeilen(zeichne([abend({ datum })]))[0];
       const knopf = [...zeile.querySelectorAll("button")].find(
-        (b) => (b.textContent ?? "").trim() === "Feedback freigeben",
+        (b) => (b.textContent ?? "").trim() === "Umfrage starten",
       )!;
 
       expect(knopf.hasAttribute("disabled")).toBe(true);
-      expect(knopf.getAttribute("title")).toContain(grund);
+      expect(knopf.hasAttribute("title")).toBe(false);
+      expect(zeile.textContent).toContain(grund);
     }
+  });
+
+  it("nennt „startbar ab“ nur vor dem Abendtag, nicht am Tag selbst", () => {
+    const heute = zeilen(zeichne([abend({ datum: HEUTE })]))[0];
+
+    expect(heute.querySelectorAll("[data-testid='abend-startbar-ab']")).toHaveLength(0);
   });
 
   it("lässt einen künftigen Abend ohne jede Marke — sie ist ein Hinweis, kein Schmuck", () => {
@@ -339,7 +347,7 @@ describe("KommendeAbende — ein Abend ohne Thema", () => {
  * eine Warnung vor einer Folge, die es nicht gibt, kostet die Glaubwürdigkeit
  * der Warnung im Fall, in dem es sie gibt.
  */
-describe("KommendeAbende — Feedback freigeben (§4.6)", () => {
+describe("KommendeAbende — Umfrage starten (§4.6)", () => {
   /*
    * ⚠️ DER ABEND MUSS HEUTE SEIN. Freigegeben wird erst ab dem Tag des
    * Dienstes — vorher ist der Knopf abgeschaltet, weil die Freigabe den Abend
@@ -349,7 +357,7 @@ describe("KommendeAbende — Feedback freigeben (§4.6)", () => {
    */
   async function bestaetigung(laufendesThema: string | null): Promise<HTMLElement> {
     await mount(zone([abend({ eveningId: 42, datum: HEUTE })], { laufendesThema }));
-    await clickElement(knopf("Feedback freigeben"));
+    await clickElement(knopf("Umfrage starten"));
     const dialog = document.querySelector<HTMLElement>(".ant-popconfirm");
     if (!dialog) throw new Error("Keine Bestätigung");
     return dialog;
@@ -374,7 +382,7 @@ describe("KommendeAbende — Feedback freigeben (§4.6)", () => {
     const dialog = await bestaetigung("Kartenkunde");
     expect(freigebenActionMock).not.toHaveBeenCalled();
 
-    await clickElement(knopf("Freigeben", dialog));
+    await clickElement(knopf("Starten", dialog));
 
     expect(freigebenActionMock).toHaveBeenCalledTimes(1);
     const daten = freigebenActionMock.mock.calls[0][0] as FormData;
@@ -389,13 +397,13 @@ describe("KommendeAbende — Feedback freigeben (§4.6)", () => {
       zone([abend({ eveningId: 11, datum: "2026-07-24" }), abend({ eveningId: 22, datum: HEUTE })]),
     );
     const knoepfe = [...document.querySelectorAll<HTMLElement>("button")].filter(
-      (b) => (b.textContent ?? "").trim() === "Feedback freigeben",
+      (b) => (b.textContent ?? "").trim() === "Umfrage starten",
     );
     expect(knoepfe).toHaveLength(2);
 
     await clickElement(knoepfe[1]);
     const dialog = document.querySelector<HTMLElement>(".ant-popconfirm")!;
-    await clickElement(knopf("Freigeben", dialog));
+    await clickElement(knopf("Starten", dialog));
 
     expect((freigebenActionMock.mock.calls[0][0] as FormData).get("eveningId")).toBe("22");
   });

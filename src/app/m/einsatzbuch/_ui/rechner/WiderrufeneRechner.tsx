@@ -38,18 +38,18 @@ export function WiderrufeneRechner({ liste }: { liste: WiderrufenerRechnerStatus
                 <dd>{r.widerrufenAm}</dd>
               </div>
               <div>
-                <dt>Anker</dt>
-                <dd>{r.ankerBis !== null ? `Anker bis Block ${r.ankerBis}` : "Kein Anker"}</dd>
+                <dt>Gemeldet bis</dt>
+                <dd>{r.ankerBis !== null ? `Block ${r.ankerBis}` : "Nichts gemeldet"}</dd>
               </div>
             </dl>
 
             {r.abweichungen.length > 0 && (
               <div style={{ marginTop: SPACE.sm }}>
-                <p style={{ margin: `0 0 ${SPACE.xs}px`, fontWeight: 600 }}>Anker-Abweichungen</p>
+                <p style={{ margin: `0 0 ${SPACE.xs}px`, fontWeight: 600 }}>Widersprüchliche Meldungen</p>
                 <ul className={styles.abweichungenListe}>
                   {r.abweichungen.map((a) => (
-                    <li key={`${a.block}-${a.zeitpunkt}`} className={styles.abweichungenZeile}>
-                      Block {a.block}: erwartet {a.erwartet}, gemeldet {a.gemeldet} — {a.zeitpunkt}
+                    <li key={`${a.block}-${a.zeitpunkt}`} className={styles.abweichungenZeile} title={`erwartet ${a.erwartet}, gemeldet ${a.gemeldet}`}>
+                      {a.zeitpunkt}: Block {a.block} anders gemeldet als zuvor
                     </li>
                   ))}
                 </ul>

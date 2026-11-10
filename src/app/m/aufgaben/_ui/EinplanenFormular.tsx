@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState, useRef } from "react";
-import { Button, Input } from "antd";
+import { Button } from "antd";
 import { einplanenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import type { AufgabeRow } from "../_db/schema";
-import { DatumFeld, ZeitFeld } from "./Felder";
+import { dauerOptionen } from "../_lib/anzeige";
+import { DatumFeld, WahlFeld, ZeitFeld } from "./Felder";
 import { useFormularEntwurf, useVerwerfenBeiErfolg, WahlEntwurfKontext } from "./entwurf";
 import { fingerabdruck } from "@/core/entwurf/ablage";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
@@ -82,6 +83,7 @@ export function EinplanenFormular({
   const idPlanDatum = `${idPrefix}-planDatum`;
   const idPlanUhrzeit = `${idPrefix}-planUhrzeit`;
   const idDauerMinuten = `${idPrefix}-dauerMinuten`;
+  const vorgabeDauer = feldWert(state, "dauerMinuten", task.dauerMinuten.toString());
 
   return (
     <WahlEntwurfKontext.Provider value={entwurf.wahl}>
@@ -131,17 +133,16 @@ export function EinplanenFormular({
 
       <div>
         <label htmlFor={idDauerMinuten} style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Dauerschätzung in Minuten
+          Dauerschätzung
         </label>
-        <Input
+        {/* IDA-386: gewaehlt statt in Minuten getippt, s. `dauerOptionen` (`_lib/anzeige.ts`). */}
+        <WahlFeld
           id={idDauerMinuten}
           name="dauerMinuten"
-          type="number"
-          min={1}
-          defaultValue={feldWert(state, "dauerMinuten", task.dauerMinuten.toString())}
-          status={dauerFehler ? "error" : undefined}
-          aria-invalid={dauerFehler ? true : undefined}
-          aria-describedby={dauerFehler ? `${idDauerMinuten}-err` : undefined}
+          wert={vorgabeDauer}
+          optionen={dauerOptionen(vorgabeDauer)}
+          fehler={dauerFehler}
+          beschriebenVon={dauerFehler ? `${idDauerMinuten}-err` : undefined}
         />
         {dauerFehler ? (
           <p id={`${idDauerMinuten}-err`} style={{ margin: `${SPACE.xs}px 0 0` }}>

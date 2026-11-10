@@ -436,6 +436,40 @@ describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", 
     expect(aktiverEintrag("/m/feedback/groups/17", verschachtelt)?.schluessel).toBe("lang");
   });
 
+  it("bei `unterseiten` gewinnt der laengste Eintrag, mit Segmentgrenze (IDA-381)", () => {
+    const mit: SuiteNavItem[] = [
+      { key: "start", title: "Uebersicht", href: "/" },
+      { key: "geraete", title: "Geraete", href: "/geraete", unterseiten: true },
+      { key: "arten", title: "Arten", href: "/geraete/arten", unterseiten: true },
+    ];
+    expect(aktiverEintrag("/geraete/7", mit)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/m/wartung/geraete/7", mit)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/geraete", mit)).toEqual({ schluessel: "geraete", genau: true });
+    // Der laengste Praefix gewinnt, und der echte Treffer vor dem Praefix.
+    expect(aktiverEintrag("/geraete/arten/3", mit)?.schluessel).toBe("arten");
+    expect(aktiverEintrag("/geraete/arten", mit)).toEqual({ schluessel: "arten", genau: true });
+    // Segmentgrenze: `/geraetearten` liegt nicht unter `/geraete`.
+    expect(aktiverEintrag("/geraetearten", mit)).toEqual({ schluessel: "start", genau: false });
+  });
+
+  it("markiert mit `unterseiten` den Eintrag auch auf seinen Unterseiten, aber nicht genau", () => {
+    const liste = [
+      { key: "uebersicht", title: "Übersicht", href: "/admin" },
+      { key: "geraete", title: "Geräte", href: "/admin/geraete", unterseiten: true },
+      { key: "ausleihen", title: "Ausleihen", href: "/admin/ausleihen" },
+    ];
+    expect(aktiverEintrag("/admin/geraete", liste)).toEqual({ schluessel: "geraete", genau: true });
+    expect(aktiverEintrag("/admin/geraete/g-1", liste)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/m/radio/admin/geraete/g-1/ereignisse", liste)).toEqual({
+      schluessel: "geraete",
+      genau: false,
+    });
+    // ohne Opt-in bleibt es beim Suffix-Vergleich
+    expect(aktiverEintrag("/admin/ausleihen/7", liste)).toBeNull();
+    // ein bloßer Namensanfang ist keine Unterseite
+    expect(aktiverEintrag("/admin/geraetegruppen", liste)).toBeNull();
+  });
+
   it("gibt null, wenn nichts passt und es keine Wurzel gibt", () => {
     expect(aktiverEintrag("/irgendwo", [{ key: "a", title: "A", href: "/anders" }])).toBeNull();
   });

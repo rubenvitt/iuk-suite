@@ -35,16 +35,18 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
-import { Alert, Button, Flex, Input } from "antd";
+import { Alert, Button, Flex, Input, Popconfirm } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { inventurKorrektur, type InventurNutzlast } from "../../../_actions/inventur";
 import { filterIstLeer, type InventurFilter } from "../../../_lib/inventurFilter";
 import { INVENTUR_ABWEISUNGEN, INVENTUR_TEXTE } from "../../../_lib/inventurTexte";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
 import {
+  abschlussFolge,
   abweichungenIn,
   ausgeblendetGezaehlt,
   fortschritt,
+  korrekturenIn,
   positionenAus,
   type ZaehlStand,
 } from "./inventurZustand";
@@ -97,6 +99,8 @@ export function Abschlussleiste({
   const stand = useZaehlstand(speicher);
   const [kommentar, setKommentar] = useState("");
   const [ergebnis, setErgebnis] = useState<Ergebnis | null>(null);
+  /** IDA-379 — die Rueckfrage vor dem Buchen ist offen. */
+  const [frage, setFrage] = useState(false);
 
   /*
    * IDA-358 — DIE ZAEHLUNG LIEGT AUF DEM GERAET, NICHT NUR IM SPEICHER NEBEN
@@ -196,6 +200,13 @@ export function Abschlussleiste({
   const { erfasst, gesamt } = fortschritt(zeilen, stand, filter);
   const laeuft = sendungLiegt || gesperrt;
   const meldung = gilt(ergebnis, stand, kommentar);
+  const knopfGesperrt = laeuft || !kommentar.trim() || positionen.length === 0;
+  /*
+   * IDA-379 — DIE FOLGE WIRD NUR BEI OFFENER RUECKFRAGE GERECHNET. Die Leiste
+   * rendert bei jeder Zaehlaenderung mit (Kopf); die Namensliste der
+   * Korrekturen braucht dort niemand, solange niemand abschliessen will.
+   */
+  const folge = frage ? abschlussFolge(gesamt - erfasst, korrekturenIn(zeilen, stand)) : [];
 
   function abschliessen(): void {
     // `gesperrt` steht hier noch einmal, nicht nur am Knopf: ein Absenden
@@ -214,6 +225,8 @@ export function Abschlussleiste({
             kategorien: filter.kategorien.map((k) => kategorieLabels.get(k) ?? k),
             faecher: [...filter.faecher],
           },
+      // IDA-379 — damit der Verlauf „2 von 14" sagen kann statt „vollständig".
+      abdeckung: { erfasst, gesamt },
       positionen,
     };
     // Einen Wurf (Netz, Rollout) faengt `useEntwurf`; die Statuszeile ueber der
@@ -259,15 +272,33 @@ export function Abschlussleiste({
           />
         </div>
         <div className={k.knopf}>
-          <Button
-            type="primary"
-            data-rolle="abschluss"
-            loading={absendetGerade}
-            disabled={laeuft || !kommentar.trim() || positionen.length === 0}
-            onClick={abschliessen}
+          {/* IDA-379 — ERST FRAGEN, DANN BUCHEN, und die Frage nennt die Folge:
+              was ungezaehlt bleibt und welche Bestaende sich aendern. Vorher
+              buchte ein Tipp auf den Knopf sofort, auch bei 2 von 14 Artikeln. */}
+          <Popconfirm
+            title="Inventur buchen?"
+            description={
+              <Flex vertical gap={SPACE.xs} className={k.folge} data-rolle="abschluss-folge">
+                {folge.map((zeile) => <span key={zeile}>{zeile}</span>)}
+              </Flex>
+            }
+            okText="Buchen"
+            cancelText="Abbrechen"
+            placement="topRight"
+            disabled={knopfGesperrt}
+            open={frage && !knopfGesperrt}
+            onOpenChange={setFrage}
+            onConfirm={() => { setFrage(false); abschliessen(); }}
           >
-            Inventur abschließen
-          </Button>
+            <Button
+              type="primary"
+              data-rolle="abschluss"
+              loading={absendetGerade}
+              disabled={knopfGesperrt}
+            >
+              Inventur abschließen
+            </Button>
+          </Popconfirm>
         </div>
       </div>
     </div>

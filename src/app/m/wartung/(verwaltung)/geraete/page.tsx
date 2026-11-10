@@ -3,6 +3,7 @@ import { getDb } from "../../_db/client";
 import { gruppenAuswahl } from "../../_lib/ansicht";
 import { bekannteOrte, ladeArten, ladeGeraete, ladeGruppen } from "../../_lib/daten";
 import { fahrzeugWahl } from "../../_lib/fahrzeugbezug";
+import { geraeteFilterAus } from "../../_lib/geraeteFilter";
 import { heute } from "../../_lib/heute";
 import { istVerwalter, requireZugang } from "../../_lib/zugang";
 import { GeraeteListe } from "../../_ui/GeraeteListe";
@@ -18,10 +19,15 @@ export default async function GeraeteSeite({ searchParams }: { searchParams: Pro
   const db = getDb();
   const verwalter = istVerwalter(rechte);
   const alleGruppen = ladeGruppen(db);
-  const auswahl = gruppenAuswahl(rechte, alleGruppen, (await searchParams).gruppe);
+  const params = await searchParams;
+  const auswahl = gruppenAuswahl(rechte, alleGruppen, params.gruppe);
+  const filter = geraeteFilterAus(params);
   const zeilen = ladeGeraete(db, { gruppen: verwalter ? auswahl.gruppen : null, heute: heute() });
   return (
     <GeraeteListe
+      // Ein anderer Filter aus der Adresse (Kennzahl, Zurück) setzt die Liste neu auf.
+      key={`${filter.frist}|${filter.zustand}`}
+      filter={filter}
       zeilen={zeilen}
       arten={ladeArten(db).map((a) => ({ id: a.id, name: a.name, einzahl: a.einzahl }))}
       gruppen={alleGruppen.filter((g) => rechte.gruppen.includes(g.id)).map((g) => ({ id: g.id, name: g.name }))}

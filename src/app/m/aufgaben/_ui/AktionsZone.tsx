@@ -1,9 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { Button, Input } from "antd";
+import { Button } from "antd";
 import {
-  fertigMeldenAction,
   startenAction,
   wiederaufnehmenAction,
   zuruecksetzenAction,
@@ -11,12 +9,10 @@ import {
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import type { AktionsOptionen } from "../_lib/aktionsOptionen";
-import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
-import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { FreigabeAktionen } from "./FreigabeZone";
 import { NachweisFormular } from "./NachweisFormular";
-import { UmverteilenKnopf } from "./VerteilenDialog";
+import { UmverteilenKnopf, VerteilenKnopf } from "./VerteilenDialog";
 
 /*
  * DIE AKTIONSZONE VON `/a/<id>` (Spec §8.4, Aufgabe 16) — trägt NUR, was diese Person mit dieser
@@ -59,7 +55,7 @@ export function AktionsZone({
   aufgabe: AufgabeRow;
   optionen: AktionsOptionen;
   /**
-   * DIE ZIELE FUER „ANDERS ZUWEISEN" (§7 Nr. 3) — `null` fuer jede Person, die nicht verteilen
+   * DIE ZIELE FUER „VERTEILEN" UND „ANDERS ZUWEISEN" (§7 Nr. 3) — `null` fuer jede Person, die nicht verteilen
    * darf, und dann erscheint der Knopf gar nicht. Die Liste kommt aus `verteilDaten(db, heute)`
    * und damit aus `bufdis()`: eine ausgeschiedene Person ist kein Verteilziel, und dieser Riegel
    * bleibt woertlich (§11.3). Diese Insel baut sie NICHT selbst nach — sie nimmt nur entgegen.
@@ -98,16 +94,20 @@ export function AktionsZone({
       {optionen.freigeben ? (
         <FreigabeAktionen aufgabe={aufgabe} primaer={primaerAktion === "freigeben"} />
       ) : null}
-      {optionen.nachweisHochladen ? (
+      {/*
+       * IDA-386: EIN Formular fuer Nachweis und Fertigmeldung — Foto (wenn `nachweisHochladen`),
+       * optionaler Text, „Fertig melden". `nachweisHochladen` setzt `fertig` voraus (dieselbe
+       * `wer`-Formel, `_lib/aktionsOptionen.ts`), das Formular haengt deshalb an `fertig`.
+       */}
+      {optionen.fertig ? (
         <NachweisFormular
           aufgabeId={aufgabe.id}
           nachweisArt={aufgabe.nachweisArt}
+          nachweisPflicht={aufgabe.nachweisPflicht}
+          bildMoeglich={optionen.nachweisHochladen}
           maxBytes={nachweisMaxBytes}
-          primaer={primaerAktion === "nachweisHochladen"}
+          primaer={primaerAktion === "nachweisHochladen" || primaerAktion === "fertig"}
         />
-      ) : null}
-      {optionen.fertig ? (
-        <FertigMeldenFormular aufgabe={aufgabe} primaer={primaerAktion === "fertig"} />
       ) : null}
       {optionen.starten ? (
         <EinfacheAktion
@@ -143,6 +143,20 @@ export function AktionsZone({
         />
       ) : null}
       {/*
+       * VERTEILEN AUS `eingegangen` (IDA-386) — derselbe Dialog wie auf der Fuehrungskarte
+       * (`VerteilenKnopf`), also dieselbe `verteilenAction` mit ihrer eigenen Serverpruefung. Vorher
+       * stand hier fuer die Koordination nur „kein Arbeitsschritt", obwohl genau das der Schritt ist.
+       */}
+      {optionen.verteilen && verteilen !== null ? (
+        <VerteilenKnopf
+          aufgabe={aufgabe}
+          bufdis={verteilen.bufdis}
+          auslastung={verteilen.auslastung}
+          tage={verteilen.tage}
+          primaer={primaerAktion === "verteilen"}
+        />
+      ) : null}
+      {/*
        * ÄNDERN UND ZURUECKZIEHEN STEHEN NICHT HIER, SONDERN IM SEITENKOPF (`a/[id]/page.tsx`,
        * DRK-487): sie verwalten den Auftrag, sie bringen die Arbeit nicht voran. Hier unter
        * „Bearbeitung starten" las sich „Bearbeiten" wie derselbe Schritt.
@@ -157,19 +171,19 @@ export function AktionsZone({
  * ZWEI EINTRAEGE STEHEN ANDERS, ALS MAN SIE ZUERST SCHREIBEN WUERDE, UND BEIDE GRUENDE SIND
  * NACHGELESEN:
  *
- *  1. `nachweisHochladen` STEHT VOR `fertig`. `uebergang()` erlaubt `in_arbeit`x`fertig`
- *     UNABHAENGIG von der Nachweispflicht (`_lib/lebenszyklus.ts`); die Ablehnung entsteht erst in
- *     `fertigMeldenAction` als FELDFEHLER (`actions.ts`). Ohne diese Reihenfolge waere fuer eine
- *     nachweispflichtige `in_arbeit`-Aufgabe „Fertig melden" der Primaerknopf, waehrend der
- *     tatsaechlich noetige erste Schritt daneben als Standardknopf staende — die Seite riete dann
- *     falsch, und der Server korrigierte sie erst nach dem Klick.
+ *  1. `nachweisHochladen` UND `fertig` STEHEN NEBENEINANDER und meinen seit IDA-386 DASSELBE
+ *     Formular (`NachweisFormular`: Foto, Text, „Fertig melden"). Bis dahin waren es zwei, und
+ *     „Nachweis speichern" musste vor „Fertig melden" stehen, weil `uebergang()` `in_arbeit`x
+ *     `fertig` unabhaengig von der Nachweispflicht erlaubt. Heute traegt der eine Knopf beides;
+ *     ist einer der beiden Eintraege der erste erlaubte, ist „Fertig melden" primaer.
+ *
  *  2. `zurueckziehen` IST GAR NICHT IN DER LISTE. Es ist grundsaetzlich sekundaer mit
  *     `Popconfirm` — dieselbe Begruendung, die §4.2 fuer den Auftraggeber Rang 3 fuehrt („ein
  *     destruktiver Knopf als Primaeraktion laedt zum Wegdruecken einer Aufgabe ein, die nur auf
  *     Verteilung wartet"). STUENDE ES IN DER LISTE, WAERE ES FUER EINE `eingegangen`-AUFGABE DER
- *     EINZIGE ERLAUBTE EINTRAG — keine der uebrigen Aktionen hat in `TABELLE` eine Zeile aus
- *     `eingegangen` — und damit ausgerechnet die LOESCHENDE Aktion der Primaerknopf. So traegt eine
- *     `eingegangen`-Aufgabe auf `/a/<id>` KEINEN Primaerknopf, was Regel P ausdruecklich zulaesst.
+ *     EINZIGE ERLAUBTE EINTRAG — ausser `verteilen` (nur Koordination) hat keine Aktion in `TABELLE`
+ *     eine Zeile aus `eingegangen` — und damit die LOESCHENDE Aktion der Primaerknopf. Seit IDA-386
+ *     traegt eine `eingegangen`-Aufgabe fuer die Koordination „Verteilen" als Primaerknopf, sonst keinen.
  *
  * DIE RENDERREIHENFOLGE OBEN FOLGT DIESER LISTE. Das ist keine Kosmetik: stuende der Primaerknopf
  * unter zwei Standardknoepfen, waere „der erste erlaubte Eintrag" eine Behauptung ueber eine
@@ -183,6 +197,7 @@ const VORRANG: readonly (keyof AktionsOptionen)[] = [
   "wiederaufnehmen",
   "zuruecksetzen",
   "umverteilen",
+  "verteilen",
 ];
 
 /**
@@ -208,82 +223,6 @@ function EinfacheAktion({
       <input type="hidden" name="aufgabeId" value={aufgabeId} />
       <Button type={primaer ? "primary" : undefined} htmlType="submit">
         {beschriftung}
-      </Button>
-    </form>
-  );
-}
-
-/**
- * „FERTIG MELDEN" (Spec §5.3, §8.4) — DIE PFLICHT IST EINE UNTERGRENZE: `nachweisArt === "bild"`
- * verlangt eine Datei, die seit Aufgabe 19 ueber `NachweisFormular` (oben in `AktionsZone`, sobald
- * `optionen.nachweisHochladen` gilt) hochgeladen wird — NICHT ueber dieses Formular hier, das nur
- * Text entgegennimmt. Die Server-Action lehnt ohne ein `sauber`es Bild MIT FELDFEHLER `nachweis` ab
- * (`actions.ts`s `fertigMeldenAction`-Kopfkommentar) — NICHT `nachweisText`. BEIDE SCHLUESSEL WERDEN
- * GERENDERT: wuerde nur `nachweisText` gelesen, verschwaende der Bild-Fehler nach dem Absenden
- * spurlos — genau die stille Fehlerklasse, die dieses Modul immer wieder gefangen hat.
- *
- * DER HINWEISTEXT FUER `bild` NENNT DIE SICHERHEITSPRUEFUNG, NICHT „folgt spaeter" (Aufgabe 19 hat
- * den Upload gebaut): eine Person, die GERADE ein Bild hochgeladen hat und sofort auf „Fertig
- * melden" klickt, sieht `scan_status: "offen"` — der Feldfehler sagt dann „wird noch geprueft",
- * nicht „fehlt" (Brief, wortgleich verlangt).
- */
-function FertigMeldenFormular({
-  aufgabe,
-  primaer = true,
-}: {
-  aufgabe: AufgabeRow;
-  primaer?: boolean;
-}) {
-  const [state, formAction, isPending] = useActionState(fertigMeldenAction, FORM_START);
-  const nachweisTextFehler = feldFehler(state, "nachweisText");
-  const nachweisFehler = feldFehler(state, "nachweis");
-
-  return (
-    <form
-      action={formAction}
-      style={{ display: "flex", flexDirection: "column", gap: SPACE.sm, maxWidth: 480 }}
-    >
-      <input type="hidden" name="aufgabeId" value={feldWert(state, "aufgabeId", aufgabe.id)} />
-
-      {aufgabe.nachweisPflicht ? (
-        <p style={{ margin: 0, fontSize: 12 }}>
-          Nachweispflicht: {NACHWEIS_ART_TEXT[aufgabe.nachweisArt]}
-          {aufgabe.nachweisArt === "bild"
-            ? " — der Bildnachweis muss die Sicherheitsprüfung bestanden haben (Status „sauber“), bevor diese Aufgabe fertig gemeldet werden kann."
-            : ""}
-        </p>
-      ) : null}
-
-      <div>
-        <label htmlFor="az-nachweistext" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Nachweis (Text)
-        </label>
-        <Input.TextArea
-          id="az-nachweistext"
-          name="nachweisText"
-          autoSize={{ minRows: 3, maxRows: 8 }}
-          defaultValue={feldWert(state, "nachweisText", "")}
-          status={nachweisTextFehler ? "error" : undefined}
-          aria-invalid={nachweisTextFehler ? true : undefined}
-          aria-describedby={nachweisTextFehler ? "az-nachweistext-err" : undefined}
-        />
-        {nachweisTextFehler ? (
-          <p id="az-nachweistext-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
-            {nachweisTextFehler}
-          </p>
-        ) : null}
-      </div>
-
-      {nachweisFehler ? <p style={{ margin: 0 }}>{nachweisFehler}</p> : null}
-
-      <Button
-        type={primaer ? "primary" : undefined}
-        htmlType="submit"
-        loading={isPending}
-        disabled={isPending}
-        style={{ alignSelf: "flex-start" }}
-      >
-        Fertig melden
       </Button>
     </form>
   );
