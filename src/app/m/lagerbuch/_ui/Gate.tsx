@@ -236,7 +236,7 @@ export function Gate({
                 {fehler}
               </div>
             )}
-            <button className={`${s.knopf} ${s.knopfRot}`} type="submit" disabled={laeuft}>
+            <button className={`${s.knopf} ${s.knopfTinte}`} type="submit" disabled={laeuft}>
               Weiter
             </button>
           </form>

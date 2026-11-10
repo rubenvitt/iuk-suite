@@ -491,7 +491,7 @@ export function BoxAbgabe({
                   </div>
 
                   <button
-                    className={`${s.knopf} ${s.knopfRot} ${s.knopfBreit}`}
+                    className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit}`}
                     type="button"
                     disabled={laeuft}
                     onClick={() => absenden(p)}

@@ -552,7 +552,7 @@ export function Entnahme({
           )}
 
           <button
-            className={`${s.knopf} ${s.knopfRot} ${s.knopfBreit}`}
+            className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit}`}
             type="button"
             disabled={ziel === null || verwendbarSumme === 0 || laeuft || nimmtZurueck}
             onClick={absenden}
