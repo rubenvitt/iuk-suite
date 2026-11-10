@@ -391,7 +391,7 @@ export async function pruefeBildVorFertigmeldung(
     const frist = warte(ende - Date.now());
     try {
       await Promise.race([
-        bearbeiteOffeneDateien(db, konfig).catch((fehler) => {
+        withAuditContext({ actor: { kind: "system" } }, () => bearbeiteOffeneDateien(db, konfig)).catch((fehler) => {
           console.error("[aufgaben][scan] Durchlauf vor der Fertigmeldung gescheitert:", fehler);
         }),
         frist.fertig,

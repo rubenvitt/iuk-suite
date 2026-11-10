@@ -403,6 +403,25 @@ describe("pruefeBildVorFertigmeldung — „Fertig melden“ prüft in einem Sch
     }
   });
 
+  it("der Durchlauf aus der Fertigmeldung schreibt sein Ergebnis unter dem Systemakteur", async () => {
+    const { withAuditContext } = await import("@/core/audit/context");
+    const person = legePerson("dev:fertig@b");
+    const datei = legeDatei(legeAufgabeFuer(person.id), "offen");
+    t.sqlite.exec("DELETE FROM audit_outbox");
+    const server = await lausche((befehl) => `${pfadAusBefehl(befehl)}: OK`);
+    try {
+      const status = await withAuditContext({ actor: { kind: "user", id: person.sub } }, () =>
+        pruefeBildVorFertigmeldung(t.db, datei.id, 5000, konfigFuer(server.port)),
+      );
+      expect(status).toBe("sauber");
+      const rows = t.sqlite.prepare("SELECT actor FROM audit_outbox WHERE object_type = 'dateien'").all() as { actor: string }[];
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) expect(JSON.parse(row.actor)).toEqual({ kind: "system" });
+    } finally {
+      await server.stoppe();
+    }
+  });
+
   it("`fehler` (Scanner war weg) wird mit DEMSELBEN Bild neu geprüft — kein neues Bild nötig", async () => {
     const aufgabeId = legeAufgabeFuer(legePerson("dev:a@b").id);
     const datei = legeDatei(aufgabeId, "fehler");

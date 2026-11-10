@@ -317,7 +317,7 @@ function WahlFeldInnen({
          * jsdom kennt keine Elementhoehen; mit Virtualisierung rendert die Liste in Tests NIE —
          * ein Test, der eine Option anklicken will, faende sie strukturell nicht. Woertlich
          * dieselbe Zeile und derselbe Grund wie an `PersonenFormular.tsx`s `AutoComplete`. Der
-         * Verzicht kostet nichts: die laengste Liste dieses Moduls (Dauerwahl) hat elf.
+         * Verzicht kostet nichts: die laengste Liste dieses Moduls (Dauerwahl) hat bis zu elf.
          */
         virtual={false}
         style={{ width: "100%" }}
