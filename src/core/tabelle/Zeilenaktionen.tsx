@@ -56,7 +56,8 @@ function fokusVerloren(): boolean {
 }
 
 function Ziel({ aktion }: { aktion: Zeilenaktion }) {
-  if (!aktion.href) return <>{aktion.label}</>;
+  // Gesperrt heißt auch: keine Adresse. Ein Anker bliebe per Mittelklick oder Tastatur erreichbar.
+  if (!aktion.href || aktion.disabled) return <>{aktion.label}</>;
   return (
     <a href={aktion.href} {...(aktion.neuesFenster ? { target: "_blank", rel: "noreferrer" } : {})}>
       {aktion.label}
