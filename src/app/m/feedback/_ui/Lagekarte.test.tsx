@@ -14,7 +14,7 @@ import { renderToStaticMarkup } from "react-dom/server";
  * 1. Die Karte hat in JEDER Belegung Inhalt. Ein leerer Zweig auf der einzigen
  *    Arbeitsseite waere ein Ehrenamtlicher, der einmal pro Woche zwei Minuten
  *    hat und nicht weiss, was er tun soll.
- * 2. „Feedback jetzt beenden" ist KEINE Gefahr (§2.3): es ist der geplante
+ * 2. „Umfrage beenden" ist KEINE Gefahr (§2.3): es ist der geplante
  *    Schluss-Schritt. `danger` faerbt in diesem Projekt mit `colorError ===
  *    colorPrimary === #c8000f` — Rot auf einer Datenflaeche (Farb-Klausel §4.9).
  * 3. Der Ruecklaufbalken ist NIE rot: antds Vorgabe ist `colorPrimary`, also
@@ -221,9 +221,9 @@ describe("Lagekarte — Belegung A (Erststart)", () => {
   it("nennt den ersten Schritt", () => {
     const t = text(karte(z));
     expect(t).toContain("ERSTER SCHRITT");
-    expect(t).toContain("Ersten Dienstabend anlegen und Feedback starten");
+    expect(t).toContain("Ersten Dienstabend anlegen und Umfrage starten");
     expect(t).not.toContain("Schritt 1");
-    expect(t).toContain("Gerade läuft kein Feedback.");
+    expect(t).toContain("Gerade läuft keine Umfrage.");
   });
 
   it("traegt das Startformular mit drei Feldern und dem Primaerknopf", () => {
@@ -232,14 +232,14 @@ describe("Lagekarte — Belegung A (Erststart)", () => {
     expect(wirt.querySelector('input[name="topic"]')).not.toBeNull();
     expect(wirt.querySelector('input[name="participantCount"]')).not.toBeNull();
     expect(wirt.querySelector('input[name="groupId"]')?.getAttribute("value")).toBe("7");
-    expect(wirt.textContent).toContain("Feedback starten");
+    expect(wirt.textContent).toContain("Umfrage starten");
     // `notes` ist weg (§2.3): viertes Feld ohne Leser.
     expect(wirt.querySelector('[name="notes"]')).toBeNull();
   });
 
   it("zeigt keinen Zaehler und keinen Beenden-Knopf", () => {
     const t = text(karte(z));
-    expect(t).not.toContain("Feedback jetzt beenden");
+    expect(t).not.toContain("Umfrage beenden");
     expect(zeichne(karte(z)).querySelector(".ant-progress")).toBeNull();
   });
 });
@@ -255,9 +255,9 @@ describe("Lagekarte — Belegung B (ruhend)", () => {
   it("nennt den naechsten Schritt statt des ersten", () => {
     const t = text(karte(z));
     expect(t).toContain("NÄCHSTER SCHRITT");
-    expect(t).toContain("Feedback für heute starten");
+    expect(t).toContain("Umfrage für heute starten");
     expect(t).not.toContain("Schritt 1");
-    expect(t).toContain("Gerade läuft kein Feedback.");
+    expect(t).toContain("Gerade läuft keine Umfrage.");
   });
 
   it("belegt die Teilnehmerzahl mit der des letzten Abends vor", () => {
@@ -291,11 +291,11 @@ describe("Lagekarte — Belegung C (laeuft, 0 Antworten)", () => {
     expect(t).toContain(`Stand: ${formatUhrzeit(JETZT)}`);
   });
 
-  it("zeigt „Feedback jetzt beenden“ — und NICHT als Gefahr", () => {
+  it("zeigt „Umfrage beenden“ — und NICHT als Gefahr", () => {
     const wirt = zeichne(karte(z));
-    expect(wirt.textContent).toContain("Feedback jetzt beenden");
+    expect(wirt.textContent).toContain("Umfrage beenden");
     const knopf = [...wirt.querySelectorAll("button")].find((b) =>
-      (b.textContent ?? "").includes("Feedback jetzt beenden"),
+      (b.textContent ?? "").includes("Umfrage beenden"),
     );
     expect(knopf).toBeDefined();
     // antd 6 kennzeichnet `danger` mit `ant-btn-dangerous`/`ant-btn-color-dangerous`.
@@ -306,7 +306,7 @@ describe("Lagekarte — Belegung C (laeuft, 0 Antworten)", () => {
 
   it("bietet das Startformular nur noch als eingeklappten Slot an", () => {
     const t = text(karte(z));
-    expect(t).toContain("Nächsten Dienstabend starten");
+    expect(t).toContain("Nächste Umfrage starten");
     expect(t).toContain("beendet die laufende Umfrage");
     // Zu — der Slot darf die laufende Umfrage nicht ueberdecken.
     expect(zeichne(karte(z)).querySelector(".ant-collapse-item-active")).toBeNull();
@@ -682,12 +682,12 @@ describe("StartFormular — Fehler am Feld statt technischer Fehlerseite (§4.4)
     useActionStateMock.mockImplementation(() => [{ ok: true } satisfies FormState, () => {}, true]);
     const wirt = zeichne(formular);
     const knopf = [...wirt.querySelectorAll("button")].find((b) =>
-      (b.textContent ?? "").includes("Feedback starten"),
+      (b.textContent ?? "").includes("Umfrage starten"),
     )!;
 
     expect(knopf.hasAttribute("disabled")).toBe(true);
     expect(knopf.className).toContain("ant-btn-loading");
-    expect(knopf.textContent).toContain("Feedback starten");
+    expect(knopf.textContent).toContain("Umfrage starten");
   });
 
   it("rechnet die Frist aus dem gewaehlten Datum, nicht aus „jetzt + Stunden“", () => {
@@ -709,7 +709,7 @@ describe("BeendenKnopf", () => {
     const wirt = zeichne(<BeendenKnopf surveyId={11} />);
     const knopf = wirt.querySelector("button")!;
 
-    expect(knopf.textContent).toContain("Feedback jetzt beenden");
+    expect(knopf.textContent).toContain("Umfrage beenden");
     expect(knopf.className).not.toContain("dangerous");
     const code = ohneKommentare(quelle("BeendenKnopf.tsx"));
     expect(code).not.toMatch(/\bdanger\b/);
@@ -750,16 +750,16 @@ describe("Zeitangaben in Europe/Berlin", () => {
  *
  * Die ROLLE wird mitgeprüft, nicht nur die Anwesenheit: es gibt genau EINEN
  * Primärknopf pro Seite (§2.6). In C/D ist das dieser Knopf, in A/B ist es
- * „Feedback starten" — dort darf er es nicht auch sein.
+ * „Umfrage starten" — dort darf er es nicht auch sein.
  */
 describe("Lagekarte — „QR-Code groß zeigen“ ist in jeder Belegung erreichbar", () => {
-  it("Belegung A: Sekundäraktion nach „Feedback starten“, nicht der Primärknopf", () => {
+  it("Belegung A: Sekundäraktion nach „Umfrage starten“, nicht der Primärknopf", () => {
     const z = zustand({ belegung: "A", modus: "einrichtung" });
 
     const qr = knopfMit(z, QR_KNOPF);
     expect(qr.className).not.toContain("ant-btn-primary");
-    expect(knopfMit(z, "Feedback starten").className).toContain("ant-btn-primary");
-    expect(stelle(z, QR_KNOPF)).toBeGreaterThan(stelle(z, "Feedback starten"));
+    expect(knopfMit(z, "Umfrage starten").className).toContain("ant-btn-primary");
+    expect(stelle(z, QR_KNOPF)).toBeGreaterThan(stelle(z, "Umfrage starten"));
     /*
      * Der Knopf steht IM `<form>` des Startformulars (dort gehoert die
      * Sekundaeraktion neben den Primaerknopf). Waere er `type="submit"`, wuerde
@@ -771,7 +771,7 @@ describe("Lagekarte — „QR-Code groß zeigen“ ist in jeder Belegung erreich
     expect(qr.closest("form")).not.toBeNull();
   });
 
-  it("Belegung B: Sekundäraktion nach „Feedback starten“, nicht der Primärknopf", () => {
+  it("Belegung B: Sekundäraktion nach „Umfrage starten“, nicht der Primärknopf", () => {
     const z = zustand({
       belegung: "B",
       modus: "betrieb",
@@ -779,18 +779,18 @@ describe("Lagekarte — „QR-Code groß zeigen“ ist in jeder Belegung erreich
     });
 
     expect(knopfMit(z, QR_KNOPF).className).not.toContain("ant-btn-primary");
-    expect(stelle(z, QR_KNOPF)).toBeGreaterThan(stelle(z, "Feedback starten"));
+    expect(stelle(z, QR_KNOPF)).toBeGreaterThan(stelle(z, "Umfrage starten"));
   });
 
-  it("Belegung C: Primäraktion VOR „Feedback jetzt beenden“", () => {
+  it("Belegung C: Primäraktion VOR „Umfrage beenden“", () => {
     const z = zustand({ belegung: "C", modus: "betrieb", laufend: laufendeLage({ antworten: 0 }) });
 
     expect(knopfMit(z, QR_KNOPF).className).toContain("ant-btn-primary");
-    expect(knopfMit(z, "Feedback jetzt beenden").className).not.toContain("ant-btn-primary");
-    expect(stelle(z, QR_KNOPF)).toBeLessThan(stelle(z, "Feedback jetzt beenden"));
+    expect(knopfMit(z, "Umfrage beenden").className).not.toContain("ant-btn-primary");
+    expect(stelle(z, QR_KNOPF)).toBeLessThan(stelle(z, "Umfrage beenden"));
   });
 
-  it("Belegung D: Primäraktion VOR „Feedback jetzt beenden“", () => {
+  it("Belegung D: Primäraktion VOR „Umfrage beenden“", () => {
     const z = zustand({
       belegung: "D",
       modus: "betrieb",
@@ -798,7 +798,7 @@ describe("Lagekarte — „QR-Code groß zeigen“ ist in jeder Belegung erreich
     });
 
     expect(knopfMit(z, QR_KNOPF).className).toContain("ant-btn-primary");
-    expect(stelle(z, QR_KNOPF)).toBeLessThan(stelle(z, "Feedback jetzt beenden"));
+    expect(stelle(z, QR_KNOPF)).toBeLessThan(stelle(z, "Umfrage beenden"));
   });
 
   it("gibt dem Modal die vollständige Adresse — nicht den Rohtoken", () => {

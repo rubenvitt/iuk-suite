@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { devLogin, E2E_PORT, oeffneAlleApps, warteAufGestreamteInhalte } from "./fixtures";
+import { test, expect, type Page } from "@playwright/test";
+import { devLogin, E2E_PORT, klickeWennRuhig, oeffneAlleApps, warteAufGestreamteInhalte } from "./fixtures";
 
 test("portal und App-Umschalter blenden Apps ohne passende Pocket-ID-Gruppe aus", async ({
   page,
@@ -29,10 +29,7 @@ test("portal zeigt eine geschuetzte App bei passender Pocket-ID-Gruppe", async (
 
 test("admin can create a service", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "admin", callbackPath: "/admin" });
-  await page.getByLabel("slug").fill("neu");
-  await page.getByLabel("name").fill("Neuer Dienst");
-  await page.getByLabel("url").fill("https://neu.iuk-ue.de");
-  await page.getByRole("button", { name: /anlegen|create/i }).click();
+  await legeDienstAn(page, "Neuer Dienst", "https://neu.iuk-ue.de");
   await page.goto(`http://portal.localtest.me:${E2E_PORT}/`);
   await expect(page.getByRole("main").getByText("Neuer Dienst")).toBeVisible();
 });
@@ -45,14 +42,14 @@ test("admin can create a service", async ({ page }) => {
  */
 test("admin legt einen Dienst nur fuer eine Gruppe an", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "admin", callbackPath: "/admin" });
-  await page.getByLabel("slug").fill("funk-intern");
-  await page.getByLabel("name").fill("Funk intern");
-  await page.getByLabel("url").fill("https://funk.iuk-ue.de");
-  await page.getByText("Öffentlich sichtbar").click();
+  const formular = await oeffneAnlegen(page);
+  await formular.getByLabel("Name", { exact: true }).fill("Funk intern");
+  await formular.getByLabel("Adresse", { exact: true }).fill("https://funk.iuk-ue.de");
+  await formular.getByText("Öffentlich sichtbar").click();
 
-  const anlegen = page.getByRole("button", { name: "Anlegen" });
+  const anlegen = formular.getByRole("button", { name: "Anlegen" });
   await expect(anlegen).toBeDisabled();
-  const auswahl = page.getByLabel("Sichtbar für Gruppen");
+  const auswahl = formular.getByLabel("Sichtbar für Gruppen");
   await auswahl.fill("e2e-funk");
   await auswahl.press("Enter");
   await auswahl.press("Escape");
@@ -72,25 +69,48 @@ test("admin legt einen Dienst nur fuer eine Gruppe an", async ({ page }) => {
   await expect(page.getByRole("main").getByText("Funk intern")).toBeVisible();
 });
 
-test("admin can delete a service", async ({ page }) => {
+test("admin can delete a service — nur nach Rückfrage", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "admin", callbackPath: "/admin" });
   // Eigener, eindeutiger Dienst: die Seed-Daten bleiben unangetastet (der erste
   // Test prueft BookStack sichtbar), und ein eigener Name entkoppelt den Test
   // vom Anlege-Test — beide teilen bei `workers:1` dieselbe, einmal gewischte DB.
-  await page.getByLabel("slug").fill("weg");
-  await page.getByLabel("name").fill("Zu loeschender Dienst");
-  await page.getByLabel("url").fill("https://weg.iuk-ue.de");
-  await page.getByRole("button", { name: /anlegen|create/i }).click();
+  await legeDienstAn(page, "Zu loeschender Dienst", "https://weg.iuk-ue.de");
 
   const row = page.getByTestId("service-row").filter({ hasText: "Zu loeschender Dienst" });
   await expect(row).toHaveCount(1);
-  // Auf die Zielzeile gescopt: "Loeschen" gibt es pro Zeile einmal. Der Knopf ist
-  // seit dem antd-Umbau `<Button danger htmlType="submit">` in einem nativen
-  // <form action={deleteServiceAction}> — ohne htmlType waere er ein stiller
-  // No-op (antd-Default type="button"), und kein anderer Test faehrt diesen Pfad.
-  await row.getByRole("button", { name: "Löschen" }).click();
-  // Zusicherung: die Zeile ist wirklich weg, nicht nur der Knopf vorhanden.
+  // IDA-391: „Löschen" steht im Zeilenmenü und fragt nach. Erst Abbrechen — die
+  // Zeile bleibt; dann bestätigen — sie ist wirklich weg.
+  await zeilenaktion(page, "Zu loeschender Dienst", "Löschen");
+  const rueckfrage = page.getByRole("dialog").filter({ hasText: "„Zu loeschender Dienst“ löschen?" });
+  await expect(rueckfrage).toBeVisible();
+  await rueckfrage.getByRole("button", { name: "Abbrechen" }).click();
+  await expect(rueckfrage).toBeHidden();
+  await expect(row).toHaveCount(1);
+
+  await zeilenaktion(page, "Zu loeschender Dienst", "Löschen");
+  await rueckfrage.getByRole("button", { name: "Löschen" }).click();
   await expect(row).toHaveCount(0);
+});
+
+/* IDA-391: alles, was die Kachel zeigt, laesst sich nachtraeglich aendern. */
+test("admin bearbeitet Name, Beschreibung und Kategorie eines Dienstes", async ({ page }) => {
+  await devLogin(page, { host: "portal.localtest.me", groups: "admin", callbackPath: "/admin" });
+  await legeDienstAn(page, "Zu bearbeitender Dienst", "https://bearbeiten.iuk-ue.de");
+
+  await zeilenaktion(page, "Zu bearbeitender Dienst", "Bearbeiten");
+  const formular = page.getByRole("form", { name: "Dienst bearbeiten" });
+  await expect(formular.getByLabel("Name", { exact: true })).toHaveValue("Zu bearbeitender Dienst");
+  await formular.getByLabel("Name", { exact: true }).fill("Bearbeiteter Dienst");
+  await formular.getByLabel("Beschreibung", { exact: true }).fill("Kurzbeschreibung der Kachel");
+  await formular.getByLabel("Kategorie", { exact: true }).fill("Werkzeuge");
+  await formular.getByRole("button", { name: "Speichern" }).click();
+  await expect(formular).toHaveCount(0);
+  await expect(page.getByTestId("service-row").filter({ hasText: "Bearbeiteter Dienst" })).toContainText("Werkzeuge");
+
+  await page.goto(`http://portal.localtest.me:${E2E_PORT}/`);
+  await warteAufGestreamteInhalte(page);
+  const kachel = page.getByTestId("service-tile").filter({ hasText: "Bearbeiteter Dienst" });
+  await expect(kachel).toContainText("Kurzbeschreibung der Kachel");
 });
 
 /*
@@ -161,10 +181,7 @@ test("die Kachelkante steht in Ruhe auf --iuk-linie und im Hover auf --iuk-marke
  */
 test("ein langer Kacheltitel bricht auf dem Telefon innerhalb der Kachel um", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "admin", callbackPath: "/admin" });
-  await page.getByLabel("slug").fill("lang");
-  await page.getByLabel("name").fill("Einsatzkommunikationsplanverwaltung");
-  await page.getByLabel("url").fill("https://lang.iuk-ue.de");
-  await page.getByRole("button", { name: /anlegen|create/i }).click();
+  await legeDienstAn(page, "Einsatzkommunikationsplanverwaltung", "https://lang.iuk-ue.de");
   await expect(page.getByTestId("service-row").filter({ hasText: "Einsatzkommunikationsplanverwaltung" })).toHaveCount(1);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -179,3 +196,29 @@ test("ein langer Kacheltitel bricht auf dem Telefon innerhalb der Kachel um", as
   expect(titel).not.toBeNull();
   expect(titel!.x + titel!.width).toBeLessThanOrEqual(kachel!.x + kachel!.width);
 });
+
+/**
+ * „Dienst anlegen" steht seit IDA-391 im Seitenkopf und öffnet eine Schublade; ein Feld für die
+ * Kennung gibt es nicht mehr (sie kommt aus dem Namen). Gescopt aufs Formular: „Name" steht auch
+ * als Spaltenkopf in der Tabelle.
+ */
+async function oeffneAnlegen(page: Page) {
+  await klickeWennRuhig(page.getByRole("button", { name: "Dienst anlegen" }));
+  const formular = page.getByRole("form", { name: "Dienst anlegen" });
+  await expect(formular).toBeVisible();
+  return formular;
+}
+
+async function legeDienstAn(page: Page, name: string, adresse: string) {
+  const formular = await oeffneAnlegen(page);
+  await formular.getByLabel("Name", { exact: true }).fill(name);
+  await formular.getByLabel("Adresse", { exact: true }).fill(adresse);
+  await formular.getByRole("button", { name: "Anlegen" }).click();
+  await expect(formular).toHaveCount(0);
+}
+
+/** Das Zeilenmenü eines Dienstes (IDA-391), dann den Eintrag. */
+async function zeilenaktion(page: Page, name: string, eintrag: "Bearbeiten" | "Sichtbarkeit" | "Löschen") {
+  await page.getByTestId("service-row").filter({ hasText: name }).getByRole("button", { name: `Aktionen für ${name}` }).click();
+  await page.getByRole("menuitem", { name: eintrag }).click();
+}

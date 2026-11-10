@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { Alert, Button, DatePicker, Form, Input, InputNumber, Radio } from "antd";
+import { useState, type CSSProperties } from "react";
+import { Alert, Button, DatePicker, Form, Input, InputNumber, Radio, type FormRule } from "antd";
 import type { Dayjs } from "dayjs";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { SPACE } from "@/core/theme/tokens";
 import { kontrolleErfassen } from "../../../../../_actions/bz";
+import {
+  bzKontrollPflicht,
+  KOMPRESSE_FEHLT,
+  KONTROLLWERT_EINER_FEHLT,
+  KONTROLLWERT_FEHLT,
+} from "../../../../../_lib/domain/bz";
 import { monatAusPicker } from "../../../../../_ui/monat";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
@@ -45,6 +51,16 @@ const FORM_FELDER = new Set<keyof KontrolleWerte>([
   "kommentar",
   "beachtung",
 ]);
+
+/**
+ * IDA-379 — DIE ZAHLENFELDER SIND SCHMAL. Vorher standen sie auf `width: 100%`
+ * und waren am Schreibtisch 984 px breit fuer eine vierstellige Zahl. `100%`
+ * bleibt als Obergrenze, damit sie auf 320 px nicht ueberstehen; der Monat
+ * daneben bekommt dieselbe Spalte.
+ */
+const SCHMALES_FELD: CSSProperties = { width: "100%", maxWidth: 200 };
+
+const ANZAHL_FEHLT = "Bitte eine Anzahl eingeben.";
 
 function istFormFeld(name: string): name is keyof KontrolleWerte {
   return FORM_FELDER.has(name as keyof KontrolleWerte);
@@ -110,6 +126,28 @@ export function KontrolleForm({
   const laeuft = entwurf.zustand !== "ruhe";
   const level1Text = levelLabel(level1, "Level 1");
   const level2Text = levelLabel(level2, "Level 2");
+  /*
+   * IDA-379: Pflicht ist genau, was `bewerteKontrolle` fuer „bestanden" zaehlt
+   * (`bzKontrollPflicht`) — dieselbe Regel prueft die Action noch einmal.
+   */
+  const pflicht = bzKontrollPflicht({
+    level1Min: level1?.min ?? null, level1Max: level1?.max ?? null,
+    level2Min: level2?.min ?? null, level2Max: level2?.max ?? null,
+  });
+  const level1Regeln: FormRule[] = pflicht.level1
+    ? [{ required: true, message: KONTROLLWERT_FEHLT }]
+    : pflicht.eines
+      ? [({ getFieldValue }) => ({
+        validator: (_regel, wert: number | null | undefined) => (
+          wert != null || getFieldValue("level2Wert") != null
+            ? Promise.resolve()
+            : Promise.reject(new Error(KONTROLLWERT_EINER_FEHLT))
+        ),
+      })]
+      : [];
+  const level2Regeln: FormRule[] = pflicht.level2
+    ? [{ required: true, message: KONTROLLWERT_FEHLT }]
+    : [];
 
   function speichern(werte: KontrolleWerte): void {
     setBestanden(null);
@@ -148,30 +186,41 @@ export function KontrolleForm({
     >
       <EntwurfZeile entwurf={entwurf} />
       {level1 ? (
-        <Form.Item name="level1Wert" label={level1Text}>
+        <Form.Item
+          name="level1Wert"
+          label={level1Text}
+          rules={level1Regeln}
+          // Ohne konfiguriertes Level genuegt einer der beiden Werte: ein Wert
+          // in Level 2 muss den Fehler an Level 1 wieder loeschen.
+          dependencies={pflicht.eines ? ["level2Wert"] : undefined}
+        >
           <InputNumber
             data-rolle="level-wert"
             aria-label={level1Text}
             min={0}
             max={9999}
             precision={0}
-            style={{ width: "100%" }}
+            style={SCHMALES_FELD}
           />
         </Form.Item>
       ) : null}
       {level2 ? (
-        <Form.Item name="level2Wert" label={level2Text}>
+        <Form.Item name="level2Wert" label={level2Text} rules={level2Regeln}>
           <InputNumber
             data-rolle="level-wert"
             aria-label={level2Text}
             min={0}
             max={9999}
             precision={0}
-            style={{ width: "100%" }}
+            style={SCHMALES_FELD}
           />
         </Form.Item>
       ) : null}
-      <Form.Item name="kompresseVerfall" label="Kompressen-Verfall">
+      <Form.Item
+        name="kompresseVerfall"
+        label="Kompressen-Verfall"
+        rules={[{ required: true, message: KOMPRESSE_FEHLT }]}
+      >
         <DatePicker
           data-rolle="kompresse"
           picker="month"
@@ -179,29 +228,39 @@ export function KontrolleForm({
           format="YYYY-MM"
           aria-label="Kompressen-Verfall"
           onKeyDown={enterUebernimmtNurDasFeld}
-          style={{ width: "100%" }}
+          style={SCHMALES_FELD}
         />
       </Form.Item>
       {/* 9999 bleibt absichtlich erlaubt: echter Überbestand muss beim Abgleich
           zählbar sein und darf nicht still auf einen kleineren Wert fallen. */}
-      <Form.Item name="sticks" label="Teststreifen">
+      {/* Vorbelegt mit 0 und kein Teil der Bewertung — Pflicht nur, damit ein
+          geleertes Feld nicht still als 0 gespeichert wird. */}
+      <Form.Item
+        name="sticks"
+        label="Teststreifen"
+        rules={[{ required: true, message: ANZAHL_FEHLT }]}
+      >
         <InputNumber
           data-rolle="sticks"
           aria-label="Teststreifen"
           min={0}
           max={9999}
           precision={0}
-          style={{ width: "100%" }}
+          style={SCHMALES_FELD}
         />
       </Form.Item>
-      <Form.Item name="lanzetten" label="Lanzetten">
+      <Form.Item
+        name="lanzetten"
+        label="Lanzetten"
+        rules={[{ required: true, message: ANZAHL_FEHLT }]}
+      >
         <InputNumber
           data-rolle="lanzetten"
           aria-label="Lanzetten"
           min={0}
           max={9999}
           precision={0}
-          style={{ width: "100%" }}
+          style={SCHMALES_FELD}
         />
       </Form.Item>
       <Form.Item name="batterieGewechselt" label="Akku gewechselt">

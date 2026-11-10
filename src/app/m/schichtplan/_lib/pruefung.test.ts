@@ -99,3 +99,33 @@ describe("pruefe", () => {
     expect(getrennt.konflikte).toEqual([]);
   });
 });
+
+describe("pruefe: Übergabe an Lifeline Hub (IDA-373)", () => {
+  const s = (id: string, einheitId: string, von: number, bis: number) => ({ id, einheitId, von: T0 + von * STUNDE, bis: T0 + bis * STUNDE });
+
+  it("überschneidende Schichten einer Einheit sind ein Konflikt, aneinandergrenzende nicht", () => {
+    const a = pruefe(planung({ einheiten: [einheit("x", 1)], schichten: [s("s1", "x", 0, 4), s("s2", "x", 3, 6), s("s3", "x", 6, 8)] }), []);
+    expect(a.konflikte.map((k) => [k.art, k.schichtIds])).toEqual([["ueberschneidung", ["s1", "s2"]]]);
+    expect(a.jeSchicht.get("s3")).toBeUndefined();
+  });
+
+  it("gleiche Zeiten zählen als Überschneidung", () => {
+    const a = pruefe(planung({ einheiten: [einheit("x", 1)], schichten: [s("s1", "x", 0, 4), s("s2", "x", 0, 4)] }), []);
+    expect(a.konflikte.map((k) => k.art)).toEqual(["ueberschneidung"]);
+  });
+
+  it("zwei Einheiten mit gleichem Namen: gemeldet, und ihre Schichten zählen als ein Posten", () => {
+    const x = { ...einheit("x", 1), name: "RTW 1" };
+    const y = { ...einheit("y", 1), name: " rtw  1 " };
+    const a = pruefe(planung({ einheiten: [x, y], schichten: [s("s1", "x", 0, 4), s("s2", "y", 2, 6)] }), []);
+    expect(a.konflikte.map((k) => k.art).sort()).toEqual(["einheit", "ueberschneidung"]);
+    const getrennt = pruefe(planung({ einheiten: [x, { ...y, name: "RTW 2" }], schichten: [s("s1", "x", 0, 4), s("s2", "y", 2, 6)] }), []);
+    expect(getrennt.konflikte).toEqual([]);
+  });
+
+  it("mehr als 10 Qualifikationsanforderungen sind ein Konflikt", () => {
+    const anf = (n: number) => Array.from({ length: n }, (_, i) => ({ quali: q(`Q${i}`), anzahl: 1 }));
+    expect(pruefe(planung({ einheiten: [einheit("x", 20, anf(10))] }), []).konflikte).toEqual([]);
+    expect(pruefe(planung({ einheiten: [einheit("x", 20, anf(11))] }), []).konflikte.map((k) => k.art)).toEqual(["einheit"]);
+  });
+});

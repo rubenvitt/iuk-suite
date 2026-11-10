@@ -67,6 +67,7 @@ const ALT: HandlagerVerfallZeile = {
     { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 4, zugangshinweis: null },
     { id: "schrank-gf", name: "GF-Schrank", menge: 6, zugangshinweis: "Schlüssel beim GF" },
   ],
+  draussen: [],
 };
 
 const AUCH_ALT: HandlagerVerfallZeile = {
@@ -88,6 +89,34 @@ const WARNEND: HandlagerVerfallZeile = {
   statusTon: "gelb",
   statusText: "fällig 11/26",
   abgelaufen: false,
+};
+
+/**
+ * IDA-379 — abgelaufen, im Handlager NICHTS mehr, draussen an drei Orten. Das
+ * Beispiel aus dem Befund: die Schublade zeigte „abgelaufen: Entnahmebox 6,
+ * KTW 1 6, Sanitätstasche 1 6", die Verfall-Seite gar nichts.
+ */
+const NUR_DRAUSSEN: HandlagerVerfallZeile = {
+  ...ALT,
+  chargeId: "c-draussen",
+  chargenNr: "K-2024-118",
+  artikelName: "Kompressen",
+  rest: 0,
+  orte: [],
+  draussen: [
+    { id: "entnahmebox", name: "Entnahmebox", menge: 6, href: "/verwaltung/entnahmebox" },
+    { id: "ktw-1", name: "KTW 1", menge: 6, href: "/verwaltung/fahrzeuge/ktw-1" },
+    { id: "san-1", name: "Sanitätstasche 1", menge: 6, href: "/verwaltung/fahrzeuge/san-1" },
+  ],
+};
+
+/** Abgelaufen, im Handlager an EINEM Ort, und ausserdem in einer Einheit. */
+const AUCH_DRAUSSEN: HandlagerVerfallZeile = {
+  ...AUCH_ALT,
+  chargeId: "c-auch-draussen",
+  chargenNr: "S3",
+  artikelName: "Sauerstoffmaske",
+  draussen: [{ id: "ktw-1", name: "KTW 1", menge: 1, href: "/verwaltung/fahrzeuge/ktw-1" }],
 };
 
 const ZEILEN = [ALT, AUCH_ALT, WARNEND];
@@ -160,11 +189,69 @@ describe("HandlagerVerfallTabelle", () => {
     expect(kreuz("c-warn").disabled).toBe(true);
     const karte = query(`${SCHMAL} [data-karte-key='c-warn'] input[type='checkbox']`);
     expect((karte as HTMLInputElement).disabled).toBe(true);
-    // Der Einzelknopf mit Ortswahl haengt nur an abgelaufenen Chargen mit MEHR
-    // als einem Liegeplatz — nur dort kann er etwas, was die Auswahl nicht kann.
+  });
+
+  /**
+   * IDA-379, Befund 3: der Knopf stand nur an Chargen mit MEHR als einem
+   * Liegeplatz — „Sauerstoffmaske" hatte ihn, „Kompressen" darueber nicht,
+   * und warum, stand nirgends. Jetzt: jede abgelaufene Zeile mit
+   * Handlager-Rest, egal an wie vielen Orten.
+   */
+  it("setzt den Einzelknopf an JEDE abgelaufene Charge mit Handlager-Rest", async () => {
+    await mount(<HandlagerVerfallTabelle zeilen={[...ZEILEN, NUR_DRAUSSEN]} />);
     expect(queryAll(`${BREIT} button[aria-label$='aussondern']`)
       .map((knopf) => knopf.getAttribute("aria-label")))
-      .toEqual(["L42 · Kompressen aussondern"]);
+      .toEqual(["L42 · Kompressen aussondern", "M7 · Mullbinde aussondern"]);
+    expect(queryAll(`${SCHMAL} button[aria-label$='aussondern']`)).toHaveLength(2);
+  });
+
+  /**
+   * IDA-379, Befund 2: eine abgelaufene Charge ohne Handlager-Rest steht in der
+   * Liste, mit ihren Orten und einem Sprung je Ort — aber ohne Knopf und ohne
+   * Kaestchen: `aussondern` bucht nur den Handlager-Rest und wiese sie ab.
+   */
+  it("fuehrt eine Charge, die nur draussen liegt, mit Orten und ohne Aussondern", async () => {
+    await mount(<HandlagerVerfallTabelle zeilen={[NUR_DRAUSSEN]} />);
+    const zeile = query(`${BREIT} tr[data-row-key='c-draussen']`);
+
+    expect(zeile.querySelector("[data-rolle='aussen-orte']")?.textContent)
+      .toBe("liegt in: Entnahmebox (6 Stk.), KTW 1 (6 Stk.), Sanitätstasche 1 (6 Stk.)");
+    expect([...zeile.querySelectorAll("a")].map((a) => [a.textContent, a.getAttribute("href")]))
+      .toEqual([
+        ["Entnahmebox", "/verwaltung/entnahmebox"],
+        ["KTW 1", "/verwaltung/fahrzeuge/ktw-1"],
+        ["Sanitätstasche 1", "/verwaltung/fahrzeuge/san-1"],
+      ]);
+    expect(zeile.textContent).not.toContain("Rest");
+    expect(zeile.querySelector("button[aria-label$='aussondern']")).toBeNull();
+    expect(kreuz("c-draussen").disabled).toBe(true);
+    const karte = query(`${SCHMAL} [data-karte-key='c-draussen'] input[type='checkbox']`);
+    expect((karte as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("nennt neben den Liegeplaetzen, wo die Charge ausserdem liegt", async () => {
+    await mount(<HandlagerVerfallTabelle zeilen={[AUCH_DRAUSSEN]} />);
+    const zeile = query(`${BREIT} tr[data-row-key='c-auch-draussen']`);
+    expect(zeile.textContent).toContain("Nicht zugeordnet: 2 Stk.");
+    expect(zeile.querySelector("[data-rolle='aussen-orte']")?.textContent)
+      .toBe("liegt außerdem in: KTW 1 (1 Stk.)");
+    expect(zeile.querySelector("a")?.getAttribute("href")).toBe("/verwaltung/fahrzeuge/ktw-1");
+    expect(sucheTrifft(AUCH_DRAUSSEN, "ktw")).toBe(true);
+  });
+
+  it("nennt in der Sammel-Rueckfrage auch, was draussen liegen bleibt", async () => {
+    await mount(<HandlagerVerfallTabelle zeilen={[AUCH_DRAUSSEN, NUR_DRAUSSEN]} />);
+    await clickElement(kreuz("c-auch-draussen"));
+    await rueckfrageOeffnen();
+
+    expect(
+      [...queryPortal("[data-testid='verfall-sammelliste']").querySelectorAll("li")]
+        .map((li) => li.textContent),
+    ).toEqual([
+      "S3 · Sauerstoffmaske — Nicht zugeordnet: 2 Stk. · liegt außerdem in: KTW 1 (1 Stk.)",
+    ]);
+    expect(queryPortal("[data-testid='verfall-sammelliste'] a").getAttribute("href"))
+      .toBe("/verwaltung/fahrzeuge/ktw-1");
   });
 
   it("nennt in EINER Rueckfrage alle gewaehlten Chargen samt Orten", async () => {

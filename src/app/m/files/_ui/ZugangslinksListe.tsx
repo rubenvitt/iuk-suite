@@ -395,12 +395,12 @@ function AnlegenFormular({
           />
         </label>
         <label>
-          Budget Dateien (leer = Vorbelegung)
+          Höchstzahl Dateien (leer = Vorbelegung)
           <Input name="budgetDateien" inputMode="numeric" defaultValue={werte.budgetDateien ?? ""} />
         </label>
         <label>
-          Budget Bytes (leer = Vorbelegung)
-          <Input name="budgetBytes" inputMode="numeric" defaultValue={werte.budgetBytes ?? ""} />
+          Speicherplatz in MiB (leer = Vorbelegung)
+          <Input name="budgetMib" inputMode="numeric" defaultValue={werte.budgetMib ?? ""} />
         </label>
         {fehler !== null && <span className={styles.feldFehler}>{fehler}</span>}
         <div className={styles.knopfzeile}>
@@ -585,10 +585,10 @@ function AufstockenFeld({ zeile }: { zeile: ZugangslinkZeile }) {
             placeholder="+ Dateien"
           />
           <Input
-            name="zusatzBytes"
+            name="zusatzMib"
             inputMode="numeric"
-            aria-label={`Zusätzliche Bytes für ${zeile.name}`}
-            placeholder="+ Bytes"
+            aria-label={`Zusätzlicher Speicherplatz in MiB für ${zeile.name}`}
+            placeholder="+ MiB"
           />
           {/* Waehrend der Vorgang laeuft, ist der Knopf gesperrt — siehe oben:
               ein zweiter Absender addierte ein zweites Mal. Kein `size="small"`

@@ -106,7 +106,13 @@ export type NavIkonName =
   // Haarlinie Etappe 3: die Kommunikationspläne. KEINE geliehenen Namen — `vorlagen` (layout) meint im
   // lagerbuch Checklisten-Vorlagen, `journal` (history) eine Buchungshistorie; ein Plan ist ein Baum aus
   // Stellen (das Zeichen des Moduls), das Archiv die abgelegten Pläne, die Bibliothek die Stammstellen.
-  | "plaene" | "archiv" | "bibliothek";
+  | "plaene" | "archiv" | "bibliothek"
+  // IDA-391: die Portal-Navigation. Geliehen, wo die Bedeutung trägt: Übersicht `uebersicht`,
+  // „Was steht an" `kalender` (kommende Termine), Verwaltung `einstellungen`, Audit-Log `journal`
+  // (Historie). Neu, weil kein Name die Sache trägt: `suche`, `neuigkeiten` (Megafon: Bekanntmachung),
+  // `serverwartung` (der Server, nicht `rechner` — das ist das Gerät der Einsatzstelle) und `rechte`
+  // (Schlüssel: Zugang; `tokens` meint im lagerbuch Zugangscodes und gäbe einen falschen Begriff).
+  | "suche" | "neuigkeiten" | "serverwartung" | "rechte";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.
@@ -169,6 +175,11 @@ export interface SuiteNavItem {
    * übergibt, bekommt genau die Suche von vorher.
    */
   stichworte?: string[];
+  /**
+   * Pfade UNTER diesem Eintrag (`<href>/…`, etwa eine Akte unter ihrer Liste) markieren ihn mit
+   * (`aria-current="true"`). Opt-in, weil es sonst die Markierung jedes Moduls verschöbe.
+   */
+  unterseiten?: boolean;
 }
 
 /**

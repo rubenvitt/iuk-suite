@@ -59,7 +59,8 @@ const NUR_ADMIN: readonly string[] = ["import", "versionen", "zugaenge"];
  */
 const EINTRAEGE: SuiteNavItem[] = [
   { key: "uebersicht", title: "Übersicht", href: "/admin", ikon: "uebersicht" },
-  { key: "geraete", title: "Geräte", href: "/admin/geraete", ikon: "geraete" },
+  // `unterseiten`: Akte und Änderungshistorie (`/admin/geraete/<id>…`) markieren „Geräte" mit.
+  { key: "geraete", title: "Geräte", href: "/admin/geraete", ikon: "geraete", unterseiten: true },
   { key: "ausleihen", title: "Ausleihen", href: "/admin/ausleihen", ikon: "ausleihen" },
   // ⚠️ Titel und Pfad gehen hier AUSEINANDER, und beides ist so gewollt: die Flaeche heisst
   // auf dem Bildschirm „Update-Modus" (Spec:4201), ihr Pfad ist `/admin/software`

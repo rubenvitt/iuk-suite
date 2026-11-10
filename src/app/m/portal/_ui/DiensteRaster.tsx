@@ -1,19 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Card, Col, Collapse, Empty, Input, Row } from "antd";
+import { useMemo, useRef, useState } from "react";
+import { Button, Card, Collapse } from "antd";
 import { Ruhezustand } from "@/core/ruhe";
 
 import { KACHEL_GRUND, TINTE } from "@/core/favicon/zeichen";
 import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
-import { usePalettenKuerzel } from "@/core/shell/Befehlspalette";
 import type { LauncherEintrag } from "@/core/shell/types";
-import { suchbegriff } from "@/core/suche";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
-import type { ModulErgebnis } from "@/app/m/portal/_lib/suche";
-import { SuchErgebnisse } from "@/app/m/portal/_ui/SuchErgebnisse";
-import { sucheAktion } from "@/app/m/portal/sucheAktion";
 import { merkeDienstAufrufAction, setzeAngeheftetAction } from "@/app/m/portal/actions";
 import {
   istViel,
@@ -26,27 +21,16 @@ import {
 
 const OHNE_AUSWAHL: Auswahl = { angeheftet: [], zuletzt: [] };
 
-/** So lange nach dem letzten Tastendruck, bevor die Module gefragt werden. */
-const VERZOEGERUNG_MS = 250;
-
-/** Die Taste im Suchfeld: klein, gedämpft, mit Suite-Variablen (Falle 2). */
-const KBD = {
-  ...SCHRIFT.neben,
-  color: "var(--iuk-gedaempft)",
-  border: "1px solid var(--iuk-linie)",
-  borderRadius: 4,
-  padding: "0 6px",
-  fontFamily: "inherit",
-} as const;
-
 /**
  * DAS PORTAL ALS VOLLFLÄCHIGE ANSICHT DERSELBEN LISTE, die der Umschalter als
  * Popover zeigt. Eine Wahrheit, zwei Darstellungen.
  *
- * Client-Insel, aus zwei Gründen zugleich: die Suche braucht Zustand, und die
- * Icons dürfen nur hier auflösen (`@ant-design/icons` in RSC ist HTTP 500
- * schon beim Import, Falle 7). Die Seite darüber bleibt Server Component und
- * übergibt fertige Daten.
+ * Client-Insel: Anheften und Aufklappen brauchen Zustand. Die Seite darüber
+ * bleibt Server Component und übergibt fertige Daten.
+ *
+ * KEIN EIGENES SUCHFELD MEHR (IDA-391): „Springen zu" im Menü findet dieselben
+ * Apps und Dienste und dazu die Inhalte der Module (`Navigator`). Zwei Felder
+ * mit fast derselben Aufgabe auf einer Seite ließen raten, welches was kann.
  *
  * KEIN `Alert type="error"` im Leerzustand: `colorError === colorPrimary ===
  * #c8000f`, ein fehlender Zugang sähe damit aus wie eine Primäraktion — und
@@ -65,13 +49,6 @@ export function DiensteRaster({
   /** Reihenfolge der App-Bereiche, als Namen über die RSC-Grenze gereicht. */
   bereiche?: readonly string[];
 }) {
-  const [suche, setSuche] = useState("");
-  const [modulSuche, setModulSuche] = useState<{ laedt: boolean; treffer: ModulErgebnis[]; fehler?: boolean }>({ laedt: false, treffer: [] });
-  const kuerzel = usePalettenKuerzel();
-  const wecker = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const anfrage = useRef(0);
-  const begriff = suchbegriff(suche);
-
   // IDA-338: die persönliche Ordnung. `angeheftet` lebt hier, damit ein Klick sofort wirkt; die
   // Aktion schreibt dahinter und meldet den gespeicherten Stand zurück.
   const [angeheftet, setAngeheftet] = useState(auswahl.angeheftet);
@@ -83,9 +60,10 @@ export function DiensteRaster({
   );
   const alle = useMemo(() => ordneAlle(geordnet, bereiche), [geordnet, bereiche]);
   const hatEigene = eigene.angeheftet.length + eigene.zuletzt.length > 0;
-  // Wer noch nichts angeheftet und nichts geöffnet hat, sieht „Alle“ gleich offen. Entschieden
-  // wird einmal beim Laden: das erste Anheften darf die Liste nicht unter der Hand zuklappen.
-  const [alleSichtbar, setAlleOffen] = useState(() => !hatEigene);
+  // Zu steht „Alle“ nur, wenn etwas angeheftet ist (IDA-391): Anheften ist eine bewusste Wahl,
+  // „Zuletzt“ entsteht von selbst und ersetzt die Übersicht nicht. Entschieden wird einmal beim
+  // Laden: das erste Anheften darf die Liste nicht unter der Hand zuklappen.
+  const [alleSichtbar, setAlleOffen] = useState(() => eigene.angeheftet.length === 0);
 
   // Jeder Klick zählt hoch; eine Antwort gilt nur, solange kein neuerer Klick unterwegs ist —
   // sonst setzte der Stand des ersten Klicks den zweiten zurück.
@@ -113,95 +91,86 @@ export function DiensteRaster({
   function kachel(e: LauncherEintrag) {
     const zeichen = e.icon ?? "link";
     return (
-      <Col key={e.key} xs={12} sm={8}>
-        {/* Der Link liegt AUSSEN: antds Card rendert kein <a>, und
-            die Kachel ist die einzige Navigation ins Ziel. */}
-        <a
-          href={e.href}
-          target={e.extern ? "_blank" : undefined}
-          rel={e.extern ? "noopener noreferrer" : undefined}
-          data-testid="service-tile"
-          onClick={() => merkeDienst(e.key)}
-          className="portal-kachel-link"
-          style={{ display: "block", blockSize: "100%" }}
-        >
-          {/* Die beiden Klassen tragen die Kachelkante und den
-              Fokusabgriff aus `portal.css` — `e2e/portal.spec.ts`
-              misst sie in Ruhe und im Hover, und die Kaskade
-              dahinter besitzt kein Quelltext-Scan. Ohne sie fällt
-              der Test, nicht der Build.
+      // Der Link liegt AUSSEN: antds Card rendert kein <a>, und die Kachel ist die einzige
+      // Navigation ins Ziel. Die Spalten stellt `.portal-kacheln` (portal.css).
+      <a
+        key={e.key}
+        href={e.href}
+        target={e.extern ? "_blank" : undefined}
+        rel={e.extern ? "noopener noreferrer" : undefined}
+        data-testid="service-tile"
+        onClick={() => merkeDienst(e.key)}
+        className="portal-kachel-link"
+        style={{ display: "block", blockSize: "100%" }}
+      >
+        {/* Die beiden Klassen tragen die Kachelkante und den
+            Fokusabgriff aus `portal.css` — `e2e/portal.spec.ts`
+            misst sie in Ruhe und im Hover, und die Kaskade
+            dahinter besitzt kein Quelltext-Scan. Ohne sie fällt
+            der Test, nicht der Build.
 
-              KEIN Kicker mit `e.abschnitt` auf der Kachel: die
-              Rubrik steht jetzt als Abschnittsüberschrift darüber,
-              und zweimal dasselbe Wort wäre Dekoration im Gewand
-              von Struktur. */}
-          <Card
-            hoverable
-            size="small"
-            className="portal-kachel"
-            style={{ blockSize: "100%" }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
-              {!e.extern ? (
-                <AppZeichen url={e.appIconUrl} zeichen={zeichen} />
-              ) : e.iconUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={e.iconUrl}
-                  alt=""
-                  width={20}
-                  height={20}
-                  referrerPolicy="no-referrer"
-                  loading="lazy"
-                />
-              ) : (
-                <Icons8Ikone name={zeichen} />
-              )}
-              {/* Ein Flex-Kind schrumpft nie unter sein längstes
-                  Wort: ohne `minInlineSize: 0` lief „Kommunikations-
-                  pläne“ auf dem Telefon aus der Kachel. Getrennt wird
-                  an der Silbe (`lang="de"`), sonst hart. */}
+            KEIN Kicker mit `e.abschnitt` auf der Kachel: die
+            Rubrik steht jetzt als Abschnittsüberschrift darüber,
+            und zweimal dasselbe Wort wäre Dekoration im Gewand
+            von Struktur. */}
+        <Card
+          hoverable
+          size="small"
+          className="portal-kachel"
+          style={{ blockSize: "100%" }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
+            {!e.extern ? (
+              <AppZeichen url={e.appIconUrl} zeichen={zeichen} />
+            ) : e.iconUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={e.iconUrl}
+                alt=""
+                width={20}
+                height={20}
+                referrerPolicy="no-referrer"
+                loading="lazy"
+              />
+            ) : (
+              <Icons8Ikone name={zeichen} />
+            )}
+            {/* Ganze Wörter (IDA-391): `hyphens: auto` trennte am Telefon
+                „Statusmoni-tor“. Die Spalten (`.portal-kacheln`) sind so breit,
+                dass ein App-Name passt; die Version rutscht dafür unter den
+                Titel, statt ihn zu verengen. Die Regeln stehen in portal.css. */}
+            <span className="portal-kachel-kopf">
               <span
                 data-testid="kachel-titel"
-                style={{
-                  ...SCHRIFT.unterTitel,
-                  fontSize: 16,
-                  minInlineSize: 0,
-                  overflowWrap: "anywhere",
-                  hyphens: "auto",
-                }}
+                className="portal-kachel-titel"
+                style={{ ...SCHRIFT.unterTitel, fontSize: 16 }}
               >
                 {e.title}
               </span>
               {e.version ? (
                 <span
                   data-testid="kachel-version"
-                  style={{
-                    ...SCHRIFT.neben,
-                    color: "var(--iuk-gedaempft)",
-                    marginInlineStart: "auto",
-                    alignSelf: "flex-start",
-                    whiteSpace: "nowrap",
-                  }}
+                  className="portal-kachel-version"
+                  style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)" }}
                 >
                   {e.version}
                 </span>
               ) : null}
+            </span>
+          </div>
+          {e.beschreibung ? (
+            <div
+              style={{
+                ...SCHRIFT.neben,
+                color: "var(--iuk-gedaempft)",
+                marginBlockStart: SPACE.xs,
+              }}
+            >
+              {e.beschreibung}
             </div>
-            {e.beschreibung ? (
-              <div
-                style={{
-                  ...SCHRIFT.neben,
-                  color: "var(--iuk-gedaempft)",
-                  marginBlockStart: SPACE.xs,
-                }}
-              >
-                {e.beschreibung}
-              </div>
-            ) : null}
-          </Card>
-        </a>
-      </Col>
+          ) : null}
+        </Card>
+      </a>
     );
   }
 
@@ -269,12 +238,15 @@ export function DiensteRaster({
         {eigene.angeheftet.length > 0 ? (
           <section data-testid="portal-angeheftet">
             {ueberschrift("Angeheftet")}
-            <Row gutter={[SPACE.lg, SPACE.lg]}>{eigene.angeheftet.map(kachel)}</Row>
+            <div className="portal-kacheln">{eigene.angeheftet.map(kachel)}</div>
           </section>
         ) : (
-          // Ruhezustand (IDA-347, Etappe 3): noch nichts angeheftet. Klein, damit „Alle" darunter
-          // im ersten Bild bleibt.
-          <Ruhezustand data-testid="portal-ohne-angeheftet" figur="portal" titel="Noch nichts angeheftet" groesse="klein" />
+          // Eine Zeile statt Figur (IDA-391): die Figur schob „Alle“ aus dem ersten Bild. Das
+          // Zeichen ist das des Knopfs an jeder Zeile — es zeigt, womit man anheftet.
+          <p data-testid="portal-ohne-angeheftet" className="portal-ohne-angeheftet">
+            <Icons8Ikone name="pin" />
+            Noch nichts angeheftet
+          </p>
         )}
         {eigene.zuletzt.length > 0 ? (
           <section data-testid="portal-zuletzt">
@@ -328,57 +300,17 @@ export function DiensteRaster({
     );
   }
 
-  useEffect(() => () => {
-    if (wecker.current) clearTimeout(wecker.current);
-  }, []);
-
-  /**
-   * Die Apps filtert der Browser sofort; die Module fragt er kurz nach dem letzten Tastendruck,
-   * und nur die jüngste Antwort zählt (ein langsamer Rücklauf überschriebe sonst eine neuere).
-   */
-  function eingeben(wert: string) {
-    setSuche(wert);
-    if (wecker.current) clearTimeout(wecker.current);
-    const nummer = ++anfrage.current;
-    if (!suchbegriff(wert)) {
-      setModulSuche({ laedt: false, treffer: [] });
-      return;
-    }
-    setModulSuche({ laedt: true, treffer: [] });
-    wecker.current = setTimeout(() => {
-      // Ein gescheiterter Aufruf ist kein „Nichts gefunden“: die Module sind dann gar nicht gefragt.
-      sucheAktion(wert).then(
-        (treffer) => {
-          if (nummer === anfrage.current) setModulSuche({ laedt: false, treffer });
-        },
-        () => {
-          if (nummer === anfrage.current) setModulSuche({ laedt: false, treffer: [], fehler: true });
-        },
-      );
-    }, VERZOEGERUNG_MS);
-  }
-
   const abschnitte = useMemo(() => {
-    const nadel = suche.trim().toLowerCase();
-    const gefiltert = nadel
-      ? eintraege.filter(
-          (e) =>
-            e.title.toLowerCase().includes(nadel) ||
-            (e.beschreibung?.toLowerCase().includes(nadel) ?? false),
-        )
-      : eintraege;
     const map = new Map<string, LauncherEintrag[]>();
-    for (const e of gefiltert) {
+    for (const e of eintraege) {
       const bisher = map.get(e.abschnitt);
       if (bisher) bisher.push(e);
       else map.set(e.abschnitt, [e]);
     }
     return [...map.entries()];
-  }, [eintraege, suche]);
+  }, [eintraege]);
 
-  // Nichts freigeschaltet — nicht dasselbe wie „Suche ohne Treffer". Deshalb
-  // steht dieser Zweig VOR dem Suchfeld: ein Suchfeld über einer leeren Liste
-  // lädt zu einer Suche ein, die nichts finden kann.
+  // Nichts freigeschaltet: kein leeres Raster, sondern eine Auskunft.
   if (eintraege.length === 0) {
     return (
       <div data-testid="portal-leer">
@@ -397,29 +329,8 @@ export function DiensteRaster({
       data-testid="portal-grid"
       style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
     >
-      <Input
-        data-testid="portal-suche"
-        type="search"
-        value={suche}
-        placeholder="Apps, Geräte, Kennzeichen, Artikel …"
-        aria-label="Apps, Dienste und alle Module durchsuchen"
-        onChange={(e) => eingeben(e.target.value)}
-        // Der Hinweis auf die Befehlspalette: dasselbe Suchen geht auf jeder Seite mit diesem Kürzel.
-        suffix={
-          <kbd data-testid="portal-suche-kuerzel" title="Auf jeder Seite: Befehlspalette öffnen" style={KBD}>
-            {kuerzel}
-          </kbd>
-        }
-        style={{ maxInlineSize: 480 }}
-      />
-
-      {viel && !suche.trim() ? (
+      {viel ? (
         persoenlicheAnsicht()
-      ) : abschnitte.length === 0 ? (
-        // Leer erst, wenn auch die Module nichts liefern (oder noch gar nicht gefragt sind).
-        modulSuche.laedt || modulSuche.fehler || modulSuche.treffer.length > 0 ? null : (
-          <Empty data-testid="portal-ohne-treffer" description={`Nichts gefunden für „${suche.trim()}“.`} />
-        )
       ) : (
         abschnitte.map(([titel, liste]) => (
           <section key={titel}>
@@ -432,31 +343,10 @@ export function DiensteRaster({
             >
               {titel}
             </h2>
-            <Row gutter={[SPACE.lg, SPACE.lg]}>
-              {liste.map(kachel)}
-            </Row>
+            <div className="portal-kacheln">{liste.map(kachel)}</div>
           </section>
         ))
       )}
-
-      {/* DIE TREFFER AUS DEN MODULEN, unter den Apps (IDA-301): dasselbe Feld, ein zweiter Blick.
-          Was hier steht, hat jedes Modul selbst nach Rechten gefiltert (`sucheAktion`). */}
-      {modulSuche.laedt && modulSuche.treffer.length === 0 ? (
-        <p data-testid="portal-suche-laedt" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
-          Suche in den Modulen …
-        </p>
-      ) : null}
-      {modulSuche.fehler ? (
-        <p data-testid="portal-suche-fehler" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
-          Die Module ließen sich gerade nicht durchsuchen. Tipp weiter oder öffne die Suchseite.
-        </p>
-      ) : null}
-      <SuchErgebnisse ergebnisse={modulSuche.treffer} />
-      {begriff ? (
-        <a data-testid="portal-suche-ueberall" href={`/suche?q=${encodeURIComponent(begriff)}`} style={SCHRIFT.neben}>
-          Auf der Suchseite öffnen
-        </a>
-      ) : null}
     </div>
   );
 }

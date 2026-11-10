@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { click, fill, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
-import { feldWertImDom, listenOptionen, oeffneListe, waehleDatum } from "./testFelder";
+import { feldWertImDom, listenOptionen, oeffneListe, waehleAusListe, waehleDatum } from "./testFelder";
 import { FORM_START, type FormState } from "../_lib/formState";
 import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
@@ -108,7 +108,7 @@ describe("AufgabeFormular — sendet alle Felder, auch Schalter und Formwahl (Le
     await fill("#af-titel", "Verbandskästen prüfen");
     await fill("#af-beschreibung", "Bestand kontrollieren.");
     await waehleDatum("#af-faelligAm", "2026-09-01");
-    await fill("#af-dauerMinuten", "45");
+    await waehleAusListe("#af-dauerMinuten", "45 Min.");
     await click("#af-fuerSichSelbst");
     await click("#af-nachweispflicht");
     await submitForm();
@@ -136,7 +136,7 @@ describe("AufgabeFormular — sendet alle Felder, auch Schalter und Formwahl (Le
     await fill("#af-titel", "T");
     await fill("#af-beschreibung", "B");
     await waehleDatum("#af-faelligAm", "2026-09-01");
-    await fill("#af-dauerMinuten", "30");
+    await waehleAusListe("#af-dauerMinuten", "30 Min.");
     await submitForm();
 
     const formData = absendenMock.mock.calls[0]![0] as FormData;
@@ -156,7 +156,7 @@ describe("AufgabeFormular — sendet alle Felder, auch Schalter und Formwahl (Le
     await fill("#af-titel", "T");
     await fill("#af-beschreibung", "B");
     await waehleDatum("#af-faelligAm", "2026-09-01");
-    await fill("#af-dauerMinuten", "30");
+    await waehleAusListe("#af-dauerMinuten", "30 Min.");
     await submitForm();
 
     const formData = absendenMock.mock.calls[0]![0] as FormData;
@@ -205,7 +205,7 @@ describe("AufgabeFormular — Feldfehler tragen die Eingaben mit, einschliesslic
   it("die Prioritaet aus dem Feldfehler-Zustand gewinnt, nicht der Vorgabewert „mittel“", async () => {
     stelleZustandEin({
       ok: false,
-      fieldErrors: { dauerMinuten: "Dauerschaetzung muss eine ganze Zahl groesser 0 sein." },
+      fieldErrors: { dauerMinuten: "Dauerschätzung muss eine ganze Zahl größer 0 sein." },
       values: {
         titel: "T", beschreibung: "B", prioritaet: "niedrig", faelligAm: "2026-09-01",
         faelligUhrzeit: "", dauerMinuten: "0", nachweisArt: "text", fuerSichSelbst: "",
@@ -230,7 +230,7 @@ describe("AufgabeFormular — Feldfehler tragen die Eingaben mit, einschliesslic
       ["niedrig", true],
     ]);
     expect(query("#af-dauerMinuten-err").textContent).toBe(
-      "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.",
+      "Dauerschätzung muss eine ganze Zahl größer 0 sein.",
     );
   });
 });
@@ -274,10 +274,27 @@ describe("AufgabeFormular — Bearbeiten (DRK-487)", () => {
     expect(query<HTMLInputElement>("input[type='hidden'][name='aufgabeId']").value).toBe("a-7");
     expect(query<HTMLInputElement>("#af-titel").value).toBe("Funkgeräte laden");
     expect(query<HTMLTextAreaElement>("#af-beschreibung").value).toBe("Alle zwölf, danach Liste abhaken.");
-    expect(query<HTMLInputElement>("#af-dauerMinuten").value).toBe("45");
+    expect(feldWertImDom("dauerMinuten")).toBe("45");
+    expect(query("#af-dauerMinuten").closest(".ant-select")?.textContent).toContain("45 Min.");
     expect(query<HTMLInputElement>("input[name='prioritaet'][value='hoch']").checked).toBe(true);
     expect(query<HTMLInputElement>("#af-nachweispflicht").checked).toBe(true);
     expect(document.body.textContent).toContain("Änderungen speichern");
+  });
+
+  /*
+   * IDA-386: die Dauer ist eine Auswahl in Stufen. Ein gespeicherter Wert ausserhalb der Stufen
+   * (hier 20 Min.) bleibt als eigene Option erhalten — sonst setzte das blosse Speichern des
+   * Bearbeiten-Formulars die Dauer still um.
+   */
+  it("behaelt eine Dauer ausserhalb der Stufen als eigene Option", async () => {
+    await mount(<AufgabeFormular darfFuerAndere bestand={{ ...BESTAND, dauerMinuten: 20 }} />);
+    expect(feldWertImDom("dauerMinuten")).toBe("20");
+    await oeffneListe("#af-dauerMinuten");
+    const texte = listenOptionen().map((o) => o.textContent);
+    expect(texte).toContain("20 Min.");
+    expect(texte.indexOf("20 Min.")).toBe(texte.indexOf("15 Min.") + 1);
+    await submitForm();
+    expect((absendenMock.mock.calls[0]![0] as FormData).get("dauerMinuten")).toBe("20");
   });
 
   it("bietet „fuer mich selbst“ nicht an und sendet es auch nicht — die Zuweisung bleibt", async () => {

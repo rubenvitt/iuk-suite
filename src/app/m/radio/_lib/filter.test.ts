@@ -281,8 +281,8 @@ describe("radio-filter: die vier Statusfilter", () => {
      */
     expect(STATUS_FILTER).toEqual(["ALL", "AVAILABLE", "ON_LOAN", "UNAVAILABLE"]);
     expect(STATUS_FILTER_ETIKETT.ALL).toBe("Alle");
-    expect(STATUS_FILTER_ETIKETT.AVAILABLE).toBe("Frei");
-    expect(STATUS_FILTER_ETIKETT.ON_LOAN).toBe("Vergeben");
+    expect(STATUS_FILTER_ETIKETT.AVAILABLE).toBe("Verfügbar");
+    expect(STATUS_FILTER_ETIKETT.ON_LOAN).toBe("Ausgeliehen");
     expect(STATUS_FILTER_ETIKETT.UNAVAILABLE).toBe("Defekt·Wartung");
   });
 });

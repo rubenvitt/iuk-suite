@@ -10,15 +10,15 @@ import { isValidElement, type ReactElement } from "react";
  *    die `canAdminModule("portal")` in `layout.tsx` für den Nav-Eintrag prüft.
  *    Ein abweichender Modul-Key hier wäre ein 404 für jeden Admin.
  * 2. `ServiceTable` bekommt die geladenen Dienste unverändert.
- * 3. KEINE INSEL BEKOMMT EINE FUNKTION ALS PROP (Falle 9, DRK-398): die drei
+ * 3. KEINE INSEL BEKOMMT EINE FUNKTION ALS PROP (Falle 9, DRK-398): die
  *    Formulare importieren ihre Server Action selbst.
+ * 4. „DIENST ANLEGEN" STEHT IM SEITENKOPF (IDA-391), Audit-Log und Rechte nicht
+ *    mehr auf der Seite, sondern in der Navigation.
  *
  * Leichte Bauform wie `qr/page.test.tsx`: der Elementbaum wird verglichen,
  * nichts wird gemountet — `getAllServices`/`leseAnsprechpartner` sind
  * DB-Funktionen, ein DOM-Mount bräuchte eine echte migrierte Datenbank dafür.
  */
-vi.mock("@/core/audit/access", () => ({ canReadAudit: vi.fn().mockResolvedValue(false) }));
-vi.mock("@/app/m/portal/_lib/rechteZugang", () => ({ darfRechteVergeben: vi.fn().mockResolvedValue(false) }));
 vi.mock("@/core/auth/guards", () => ({
   moduleAdminPageOrNotFound: vi.fn(),
   requireModuleAdmin: vi.fn(),
@@ -49,7 +49,7 @@ import { leseAnsprechpartner } from "@/app/m/portal/_lib/einstellungen";
 import PortalAdminPage from "@/app/m/portal/admin/page";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { ServiceTable } from "@/app/m/portal/admin/service-table";
-import { ServiceForm } from "@/app/m/portal/admin/service-form";
+import { DienstAnlegen } from "@/app/m/portal/admin/dienst-anlegen";
 import { ladeWaehlbareGruppen } from "@/app/m/portal/_lib/gruppen";
 import { AnsprechpartnerForm } from "@/app/m/portal/admin/ansprechpartner-form";
 import { ZeitzoneForm } from "@/app/m/portal/admin/zeitzone-form";
@@ -68,7 +68,10 @@ function flatten(node: unknown, out: ReactElement[] = []): ReactElement[] {
   }
   if (isValidElement(node)) {
     out.push(node);
-    flatten((node.props as { children?: unknown }).children, out);
+    const props = node.props as { children?: unknown; aktionen?: unknown };
+    flatten(props.children, out);
+    // Der Seitenkopf trägt „Dienst anlegen" als Prop, nicht als Kind.
+    flatten(props.aktionen, out);
   }
   return out;
 }
@@ -94,6 +97,17 @@ describe("Portal-Verwaltung: Zugriff und Seitenkopf", () => {
     expect(baum.some((el) => el.type === "h1")).toBe(false);
   });
 
+  it("traegt „Dienst anlegen“ im Seitenkopf und keine Abschnitte fuer Audit-Log und Rechte (IDA-391)", async () => {
+    servicesMock.mockResolvedValue([{ id: "s1", category: "Doku" }, { id: "s2", category: null }] as never);
+    const baum = flatten((await PortalAdminPage()) as ReactElement);
+    const kopf = baum.find((el) => el.type === Seitenkopf)!;
+    const aktionen = (kopf.props as { aktionen?: ReactElement }).aktionen;
+    expect(aktionen?.type).toBe(DienstAnlegen);
+    expect((aktionen!.props as { kategorien: string[] }).kategorien).toEqual(["Doku"]);
+    const ueberschriften = baum.filter((el) => el.type === "h2").map((el) => (el.props as { children: unknown }).children);
+    expect(ueberschriften.join(" ")).not.toMatch(/Audit-Log|Rechte|Neuen Dienst/);
+  });
+
   it("reicht die geladenen Dienste unveraendert an ServiceTable durch", async () => {
     const services = [
       { id: "s1", name: "BookStack", slug: "docs", url: "https://docs.example", isPublic: true },
@@ -111,7 +125,7 @@ describe("Portal-Verwaltung: Zugriff und Seitenkopf", () => {
 
     const baum = flatten((await PortalAdminPage()) as ReactElement);
     expect(gruppenMock).toHaveBeenCalledWith(services);
-    for (const insel of [ServiceTable, ServiceForm]) {
+    for (const insel of [ServiceTable, DienstAnlegen]) {
       const element = baum.find((el) => el.type === insel)!;
       expect((element.props as { gruppen: unknown }).gruppen, insel.name).toEqual(GRUPPEN);
     }
@@ -127,7 +141,7 @@ describe("Portal-Verwaltung: Zugriff und Seitenkopf", () => {
 
   it("reicht keiner Insel eine Funktion als Prop (Falle 9, DRK-398)", async () => {
     const baum = flatten((await PortalAdminPage()) as ReactElement);
-    const inseln = [ServiceTable, ServiceForm, AnsprechpartnerForm, ZeitzoneForm];
+    const inseln = [ServiceTable, DienstAnlegen, AnsprechpartnerForm, ZeitzoneForm];
     for (const insel of inseln) {
       const element = baum.find((el) => el.type === insel);
       expect(element, `${insel.name} fehlt im Baum`).toBeDefined();

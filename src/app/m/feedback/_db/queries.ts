@@ -191,7 +191,7 @@ export function setEveningStatus(db: DB, id: number, status: EveningStatus): voi
  *
  * Zwei Zeilen für einen Dienstabend enden als zwei getrennte Auswertungen, die
  * sich nicht mehr zusammenführen lassen. Bis DRK-429 hielt nur die Planung die
- * Regel ein; „Feedback starten", „Abend ohne Feedback nachtragen" und das
+ * Regel ein; „Umfrage starten", „Abend ohne Feedback nachtragen" und das
  * Verschieben in der Zeilenbearbeitung legten den zweiten Abend still an.
  *
  * Jede Lage belegt den Tag, auch `cancelled`: ein abgesagter Abend wird wieder
@@ -576,14 +576,14 @@ function gibAbendFrei(tx: DB, eve: EveningRow, closeAfterHours: number, now: Dat
  * ihre Begründung stehen bei `schliesseAktiveDerGruppe`, nicht hier und nicht
  * ein zweites Mal.
  *
- * Der Abend entsteht auf `held`: „Feedback starten" heißt, dass der Dienstabend
+ * Der Abend entsteht auf `held`: „Umfrage starten" heißt, dass der Dienstabend
  * JETZT läuft. Ein im Voraus angesetzter Abend kommt über `planEvenings`.
  *
  * STEHT AN DEM TAG SCHON EIN ABEND (`abendAmTag`, DRK-429), entsteht keiner:
  *
  * * Ein GEPLANTER wird übernommen und freigegeben (`gibAbendFrei`). Das ist
  *   der Alltagsfall: der Donnerstag steht seit Wochen im Kalender, und am
- *   Donnerstag drückt die Leitung „Feedback für heute starten" statt
+ *   Donnerstag drückt die Leitung „Umfrage für heute starten" statt
  *   „Freigeben". Ein Thema aus dem Formular ersetzt das geplante, ein leeres
  *   lässt es stehen — wer beim Start nichts einträgt, meint das geplante.
  * * Ein GELAUFENER oder ABGESAGTER wirft `TagBelegt`. Zwei Erhebungen für

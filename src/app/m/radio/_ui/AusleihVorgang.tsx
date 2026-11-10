@@ -419,7 +419,7 @@ export function AusleihVorgang({
       </section>
 
       <section className={s.schritt}>
-        <h2 className={s.schrittTitel}>2. Empfänger angeben</h2>
+        <h2 className={s.schrittTitel}>2. Ausgeliehen von</h2>
         {/*
           ⛔ OHNE GEWAEHLTES GERAET IST DAS FELD GESPERRT, 1:1 aus `routes/loan.tsx:87`
           (`disabled={selectedDeviceIds.length === 0}`): ein Name ohne Geraet ist kein

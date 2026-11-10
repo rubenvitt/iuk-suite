@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { AufgabeRow, PersonRow, RoutineRow } from "../_db/schema";
-import { type Budget, fmtStunden, tagesBudget } from "../_lib/anzeige";
+import { type Budget, fmtStunden, nochOffen, tagesBudget } from "../_lib/anzeige";
 import { fmtTagKurz, fmtUhrzeit, wochenTage } from "../_lib/datum";
 import { type TagesEintrag, tagesOrdnung } from "../_lib/tagesplan";
 import { SPACE } from "@/core/theme/tokens";
@@ -192,7 +192,8 @@ function TagSpalte({
                 eintrag={eintrag}
                 heute={heute}
                 aktionen={
-                  zeigeAktionen && eintrag.art === "aufgabe"
+                  // IDA-386: eine abgeschlossene Aufgabe wird nicht mehr umgeplant — keine Auf/Ab-Knoepfe.
+                  zeigeAktionen && eintrag.art === "aufgabe" && eintrag.aufgabe !== undefined && nochOffen(eintrag.aufgabe)
                     ? (rang?.[eintrag.id] ?? { istErste: true, istLetzte: true, index: -1 })
                     : undefined
                 }
@@ -331,6 +332,9 @@ function EintragZeile({
   // unbekannter Index macht die Zeile lieber nicht ziehbar, statt mit einer geratenen Position
   // weiterzurechnen.
   const zeigeZiehgriff = ziehbar === true && aktionen !== undefined && aktionen.index >= 0;
+  // IDA-386: Erledigtes steht abgehakt und ausgegraut im Tag — „erledigt" heisst hier, was das
+  // Modul ueberall so liest: nicht mehr `nochOffen` (`_lib/anzeige.ts`).
+  const erledigt = eintrag.aufgabe !== undefined && !nochOffen(eintrag.aufgabe);
 
   return (
     /*
@@ -347,10 +351,10 @@ function EintragZeile({
      *    Begruendung steht bei `.planListe` im Stylesheet.
      *
      *    KEIN INLINE-`style` MEHR: er schluege jede Regel aus der Medienabfrage, und genau eine
-     *    davon braucht diese Form (die Aktionen bleiben unter 768px sichtbar, Touch hat kein
-     *    Hover).
+     *    davon braucht diese Form (die Aktionen stehen unter 768px linksbuendig, fuer den
+     *    Daumen).
      */
-    <div className={s.planEintrag}>
+    <div className={erledigt ? `${s.planEintrag} ${s.planErledigt}` : s.planEintrag} data-erledigt={erledigt || undefined}>
       {zeit}
       <div className={s.planKopf}>
         {zeigeZiehgriff ? (
@@ -375,6 +379,11 @@ function EintragZeile({
          * bei fuenf Spalten sind das bis zu fuenfzehn Rotstellen auf einem Bildschirm. Rot bleibt
          * echten Signalen — der Ueberfaelligkeitsmarke darunter.
          */}
+        {erledigt ? (
+          <span className={s.erledigtZeichen} role="img" aria-label="Erledigt" title="Erledigt">
+            <Ikone name="haken" />
+          </span>
+        ) : null}
         <Link href={`/a/${eintrag.id}`} draggable={false} className={s.planTitel}>
           {eintrag.titel}
         </Link>
@@ -393,15 +402,15 @@ function EintragZeile({
        */}
       {eintrag.aufgabe ? <Frist aufgabe={eintrag.aufgabe} heute={heute} /> : null}
       {/*
-       * DIE AKTIONEN IN EINER EIGENEN, RECHTSBUENDIGEN ZEILE DES EINTRAGS UND ERST BEI ZUWENDUNG
-       * SICHTBAR (`.planAktion`) — dieselbe Setzung wie die Aktionsspalte der flachen Zeile, aus
-       * demselben Befund: dauerhaft sichtbare Knopfreihen, die im Textfluss herumstehen. Zwei
-       * antd-Knoepfe „Auf"/„Ab" je Eintrag waren bei drei Eintraegen sechs Schaltflaechen in einer
-       * 166px-Spalte.
+       * DIE AKTIONEN IN EINER EIGENEN, RECHTSBUENDIGEN ZEILE DES EINTRAGS (`.planAktion`) —
+       * dieselbe Setzung wie die Aktionsspalte der flachen Zeile. Zwei antd-Knoepfe „Auf"/„Ab" je
+       * Eintrag waren bei drei Eintraegen sechs Schaltflaechen in einer 166px-Spalte; heute sind es
+       * stille Knoepfe (`RangKnoepfe.tsx`).
        *
-       * `opacity` UND NICHT `display`: die Knoepfe bleiben in der Tabreihenfolge, und
-       * `:focus-within` an `.planEintrag` blendet sie ein, sobald der Fokus sie erreicht. Unter
-       * 768px stehen sie dauerhaft offen — Touch hat kein Hover.
+       * DAUERHAFT SICHTBAR SEIT IDA-386, wie `.zeilenAktion`: bis dahin erschienen sie erst bei
+       * Zuwendung (`:hover`/`:focus-within`), und ein Touch-Tablet ab 768px sah sie erst nach
+       * Antippen. Unter 768px stehen sie linksbuendig (Daumen der rechten Hand).
+       *
        */}
       {aktionen ? (
         <div className={s.planAktion}>

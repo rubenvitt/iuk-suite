@@ -85,10 +85,11 @@ export function istSchreibbareKategorie(wert: unknown): wert is SchreibbareKateg
  * Posteingang, deren Datei sehr wohl da ist, und der Betreiber sieht nicht,
  * dass er umbenennen muss.
  *
- * Bekannte Werte werden **nicht** auf ihre Beschriftung abgebildet: sonst
- * stuende in derselben Spalte "Bilder" neben "berichte", und der Unterschied
- * waere eine Eigenschaft dieser Funktion statt der Daten. Beschriftungen
- * gehoeren ins Formular.
+ * Bekannte Werte tragen ihre BESCHRIFTUNG (IDA-388, korrigiert die fruehere
+ * Festlegung „roh"): die Filterleiste daneben sagt „Bilder", und dieselbe
+ * Kategorie stand in der Zelle als „bilder" neben „Ohne Kategorie". Dass ein
+ * Import-Altwert wie „berichte" klein geschrieben daneben steht, ist gewollt —
+ * er ist keine angebotene Kategorie, und genau das soll man sehen.
  *
  * `""` UND REINE LEERZEICHEN GELTEN WIE `null`, und das ist keine Erfindung:
  * `sanitizeCategory` gab fuer jede leere Eingabe `''` zurueck, und
@@ -101,5 +102,5 @@ export function anzeigeKategorie(wert: string | null | undefined): string {
   if (wert === null || wert === undefined || wert.trim() === "") {
     return KATEGORIE_LEER_ANZEIGE;
   }
-  return wert;
+  return SCHREIBBARE_KATEGORIEN.find((k) => k.wert === wert)?.beschriftung ?? wert;
 }

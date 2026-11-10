@@ -158,6 +158,35 @@ describe("aufgabeInhalt — Titel, Chip-Zeile, Erklärung ungekürzt, Metablock"
   });
 });
 
+describe("aufgabeInhalt — Aktionszone (IDA-386)", () => {
+  it("die Aktionszone steht vor dem Metablock", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const alina = legePerson("dev:alina@test", "bufdi");
+    const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, zugewiesenAn: alina.id });
+    await mount(aufgabeInhalt(t.db, akteur(alina), a, HEUTE));
+    const aktion = query("#aktion");
+    const meta = query("dl");
+    expect(aktion.compareDocumentPosition(meta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("die Koordination bekommt bei „Zu verteilen“ den Arbeitsschritt „Verteilen“", async () => {
+    const rike = legePerson("dev:rike@test", "auftrag");
+    const malte = legePerson("dev:malte@test", "auftrag");
+    legePerson("dev:alina@test", "bufdi");
+    const a = legeAufgabe({ erstellerId: malte.id, zugewiesenAn: null, status: "eingegangen" });
+    await mount(aufgabeInhalt(t.db, akteur(rike, true), a, HEUTE));
+    expect(query("#aktion").textContent).not.toContain("kein Arbeitsschritt");
+    expect(queryAll(`#aktion [data-testid='verteilen-${a.id}']`)).toHaveLength(1);
+  });
+
+  it("der Auftraggeber ohne Koordination bekommt bei „Zu verteilen“ kein „Verteilen“", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const a = legeAufgabe({ erstellerId: malte.id, zugewiesenAn: null, status: "eingegangen" });
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
+    expect(queryAll(`[data-testid='verteilen-${a.id}']`)).toHaveLength(0);
+  });
+});
+
 describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", () => {
   it("ein BuFDi, der die Aufgabe sehen darf (Peer-Sichtbarkeit), sieht NICHT ihre Nachweise", async () => {
     const malte = legePerson("dev:malte@test", "auftrag", { name: "Malte" });

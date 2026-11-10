@@ -10,6 +10,8 @@ import {
   ZULETZT_MERKEN,
   istSchluessel,
   merkeAufruf,
+  merkeNeuigkeitenGesehen,
+  neuigkeitenGesehenVon,
   mitAngeheftet,
   nachBesuch,
   setzeAngeheftet,
@@ -71,6 +73,31 @@ describe("Vorlieben im Launcher (IDA-338)", () => {
     merkeAufruf("p1", "helfer", db);
     const vorher = db.select().from(schema.launcherVorlieben).get()!.aktualisiertAm;
     merkeAufruf("p1", "helfer", db);
+    expect(db.select().from(schema.launcherVorlieben).get()!.aktualisiertAm).toEqual(vorher);
+  });
+
+  it("merkt den Neuigkeiten-Stand, ohne die Launcher-Listen anzufassen (IDA-391)", () => {
+    const db = frisch();
+    expect(neuigkeitenGesehenVon("p1", db)).toBeNull();
+    // Neue Zeile: die Listen bleiben leer.
+    merkeNeuigkeitenGesehen("p1", { bis: "2026-11-10", schluessel: ["portal/x"] }, db);
+    expect(neuigkeitenGesehenVon("p1", db)).toEqual({ bis: "2026-11-10", schluessel: ["portal/x"] });
+    expect(vorliebenVon("p1", db)).toEqual({ angeheftet: [], zuletzt: [] });
+
+    // Bestehende Zeile: die Listen bleiben, wie sie sind — und umgekehrt.
+    merkeAufruf("p2", "helfer", db);
+    merkeNeuigkeitenGesehen("p2", { bis: "2026-11-09", schluessel: [] }, db);
+    merkeAufruf("p2", "kommplan", db);
+    expect(vorliebenVon("p2", db)).toEqual({ angeheftet: [], zuletzt: ["kommplan", "helfer"] });
+    expect(neuigkeitenGesehenVon("p2", db)).toEqual({ bis: "2026-11-09", schluessel: [] });
+  });
+
+  it("schreibt den Neuigkeiten-Stand nicht erneut, wenn er gleich bleibt", () => {
+    const db = frisch();
+    const stand = { bis: "2026-11-10", schluessel: ["portal/x"] };
+    merkeNeuigkeitenGesehen("p1", stand, db);
+    const vorher = db.select().from(schema.launcherVorlieben).get()!.aktualisiertAm;
+    merkeNeuigkeitenGesehen("p1", { ...stand }, db);
     expect(db.select().from(schema.launcherVorlieben).get()!.aktualisiertAm).toEqual(vorher);
   });
 });

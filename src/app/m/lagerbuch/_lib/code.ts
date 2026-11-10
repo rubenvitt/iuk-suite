@@ -57,7 +57,7 @@ export function gruppiereCode(zeichen: string): string {
  *
  * Zwei Leser, eine Frage: die Schranke (`gateSchranke.ts`) laesst eine solche
  * Eingabe nie an der modulweiten Sperre scheitern, und die Verwaltung markiert
- * jeden aktiven Code, der sie NICHT hat, als „alte Form" (Neudruck noetig).
+ * jeden aktiven Code, der sie NICHT hat, als „kurzer Code" (Neudruck noetig).
  *
  * ⚠️ SIE PRUEFT DAS ALPHABET, NICHT NUR DIE LAENGE. `normalisiereCode` laesst
  * ein `U` stehen; 28 Zeichen mit einem `U` sind kein Code dieser Form und

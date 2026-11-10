@@ -105,6 +105,11 @@ export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintra
     .filter((e) => e.href !== "/" && (pfad === e.href || pfad.endsWith(e.href)))
     .sort((a, b) => b.href.length - a.href.length)[0];
   if (treffer) return { schluessel: treffer.key, genau: true };
+  // Unterseite eines Eintrags mit `unterseiten` (Opt-in): der längste passende gewinnt, nie genau.
+  const eltern = nav
+    .filter((e) => e.unterseiten && e.href !== "/" && pfad.includes(`${e.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  if (eltern) return { schluessel: eltern.key, genau: false };
   const wurzel = nav.find((e) => e.href === "/");
   if (!wurzel) return null;
   return { schluessel: wurzel.key, genau: pfad === wurzel.href };

@@ -462,6 +462,35 @@ describe("inventurKorrektur — der Lauf wird gespeichert", () => {
     await inventurKorrektur({ kommentar: "Voll", positionen: [{ artikelId: "art-a", ist: 0 }] }, t.db);
     expect(laeufe()[0]!.umfang).toBeNull();
   });
+
+  /*
+   * IDA-379 — wie weit die Zaehlung im Umfang kam, steht am Lauf; sonst kann
+   * der Verlauf „2 von 14" nicht von „vollständig" unterscheiden.
+   */
+  it("speichert erfasst und gesamt, und ohne Angabe beide leer", async () => {
+    legeArtikelAn("art-a");
+    legeArtikelAn("art-b");
+    await inventurKorrektur({
+      kommentar: "Teil", abdeckung: { erfasst: 1, gesamt: 14 }, positionen: [{ artikelId: "art-a", ist: 0 }],
+    }, t.db);
+    await inventurKorrektur({ kommentar: "Alt", positionen: [{ artikelId: "art-b", ist: 0 }] }, t.db);
+    const nachKommentar = new Map(laeufe().map((l) => [l.kommentar, [l.erfasst, l.gesamt]]));
+    expect(nachKommentar.get("Teil")).toEqual([1, 14]);
+    expect(nachKommentar.get("Alt")).toEqual([null, null]);
+  });
+
+  it.each([
+    ["mehr erfasst als vorhanden", { erfasst: 3, gesamt: 2 }],
+    ["mehr erfasst als gesendet", { erfasst: 2, gesamt: 14 }],
+    ["negativ", { erfasst: -1, gesamt: 14 }],
+  ])("weist eine unmoegliche Abdeckung ab: %s", async (_fall, abdeckung) => {
+    legeArtikelAn("art-a");
+    const erg = await inventurKorrektur({
+      kommentar: "Teil", abdeckung, positionen: [{ artikelId: "art-a", ist: 0 }],
+    }, t.db);
+    expect(erg.ok).toBe(false);
+    expect(laeufe()).toEqual([]);
+  });
 });
 
 describe("inventurKorrektur — Zaehlung je Charge", () => {

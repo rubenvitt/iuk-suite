@@ -5,8 +5,8 @@ import { Button, Input } from "antd";
 import { routineAendernAction, routineAnlegenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import type { RoutineRow } from "../_db/schema";
-import { WOCHENTAG_BIT } from "../_lib/anzeige";
-import { ZeitFeld } from "./Felder";
+import { WOCHENTAG_BIT, dauerOptionen } from "../_lib/anzeige";
+import { WahlFeld, ZeitFeld } from "./Felder";
 import { useFormularEntwurf, useVerwerfenBeiErfolg, WahlEntwurfKontext } from "./entwurf";
 import { fingerabdruck } from "@/core/entwurf/ablage";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
@@ -99,6 +99,7 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
   const wochentageFehler = feldFehler(state, "wochentage");
   const uhrzeitFehler = feldFehler(state, "uhrzeit");
   const dauerFehler = feldFehler(state, "dauerMinuten");
+  const vorgabeDauer = feldWert(state, "dauerMinuten", routine?.dauerMinuten?.toString() ?? "");
 
   return (
     <WahlEntwurfKontext.Provider value={entwurf.wahl}>
@@ -180,17 +181,18 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
 
       <div>
         <label htmlFor="rt-dauer" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Dauer in Minuten
+          Dauer
         </label>
-        <Input
+        {/* IDA-386: gewaehlt statt in Minuten getippt, s. `dauerOptionen` (`_lib/anzeige.ts`). */}
+        <WahlFeld
           id="rt-dauer"
           name="dauerMinuten"
-          type="number"
-          min={1}
-          defaultValue={feldWert(state, "dauerMinuten", routine?.dauerMinuten?.toString() ?? "")}
-          status={dauerFehler ? "error" : undefined}
-          aria-invalid={dauerFehler ? true : undefined}
-          aria-describedby={dauerFehler ? "rt-dauer-err" : undefined}
+          wert={vorgabeDauer}
+          stand={absendeZaehler}
+          optionen={dauerOptionen(vorgabeDauer)}
+          platzhalter="Dauer wählen"
+          fehler={dauerFehler}
+          beschriebenVon={dauerFehler ? "rt-dauer-err" : undefined}
         />
         {dauerFehler ? (
           <p id="rt-dauer-err" style={{ margin: `${SPACE.xs}px 0 0` }}>

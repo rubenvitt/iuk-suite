@@ -473,7 +473,7 @@ describe("Verlauf — Leerzustand (§4.3)", () => {
     expect(wirt.textContent).toContain("Noch keine vergangenen Dienstabende");
     expect(tabellenzeilen(wirt)).toHaveLength(0);
     // Kein zweiter Startaufruf — der Knopf steht 24px darueber (§4.3).
-    expect(wirt.textContent).not.toContain("Feedback starten");
+    expect(wirt.textContent).not.toContain("Umfrage starten");
   });
 
   it("zeigt ohne zwei Noten keinen Funken, sondern „—“ (§4.11)", () => {

@@ -140,7 +140,7 @@ interface ZuweisenKnopfProps {
   bufdis: PersonRow[];
   auslastung: AuslastungZeile[];
   tage: readonly string[];
-  /** Nur `UmverteilenKnopf` reicht das durch; „Verteilen" ist immer die Primaeraktion seiner Karte. */
+  /** Vorgabe `true`; die Aktionszone von `/a/<id>` setzt es fuer beide Arten aus ihrer `VORRANG`-Liste. */
   primaer?: boolean;
 }
 

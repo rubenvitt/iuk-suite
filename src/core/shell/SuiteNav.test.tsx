@@ -436,6 +436,24 @@ describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", 
     expect(aktiverEintrag("/m/feedback/groups/17", verschachtelt)?.schluessel).toBe("lang");
   });
 
+  it("markiert mit `unterseiten` den Eintrag auch auf seinen Unterseiten, aber nicht genau", () => {
+    const liste = [
+      { key: "uebersicht", title: "Übersicht", href: "/admin" },
+      { key: "geraete", title: "Geräte", href: "/admin/geraete", unterseiten: true },
+      { key: "ausleihen", title: "Ausleihen", href: "/admin/ausleihen" },
+    ];
+    expect(aktiverEintrag("/admin/geraete", liste)).toEqual({ schluessel: "geraete", genau: true });
+    expect(aktiverEintrag("/admin/geraete/g-1", liste)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/m/radio/admin/geraete/g-1/ereignisse", liste)).toEqual({
+      schluessel: "geraete",
+      genau: false,
+    });
+    // ohne Opt-in bleibt es beim Suffix-Vergleich
+    expect(aktiverEintrag("/admin/ausleihen/7", liste)).toBeNull();
+    // ein bloßer Namensanfang ist keine Unterseite
+    expect(aktiverEintrag("/admin/geraetegruppen", liste)).toBeNull();
+  });
+
   it("gibt null, wenn nichts passt und es keine Wurzel gibt", () => {
     expect(aktiverEintrag("/irgendwo", [{ key: "a", title: "A", href: "/anders" }])).toBeNull();
   });

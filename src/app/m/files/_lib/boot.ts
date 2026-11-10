@@ -338,6 +338,24 @@ export async function fuehreAufraeumLaufAus(
 }
 
 /**
+ * WAS EIN ECHTER LAUF JETZT LOESCHEN WUERDE — fuer die Rueckfrage vor „Jetzt
+ * aufräumen" (IDA-388). Dieselbe Planung wie der Lauf, aber OHNE Protokollzeile:
+ * eine Rueckfrage, die jemand mit „Abbrechen" beantwortet, ist kein Lauf und
+ * gehoert nicht in die Liste, die die Kachel als „letzter Lauf" zeigt.
+ *
+ * `trockenlaufErzwungen` meldet die Sicherung `FILES_AUFRAEUMEN_TROCKENLAUF`:
+ * dann loescht auch der echte Lauf nichts, und die Rueckfrage muss das sagen.
+ */
+export async function planeAufraeumVorschau(): Promise<{
+  zahlen: Aufraeumzahlen;
+  trockenlaufErzwungen: boolean;
+}> {
+  const g = grenzen();
+  const { plan } = await ladeUndPlane(g, new Date(), true);
+  return { zahlen: plan.zahlen, trockenlaufErzwungen: g.aufraeumenTrockenlauf };
+}
+
+/**
  * Laedt die Kandidaten und laesst `planeAufraeumen` entscheiden.
  *
  * JEDE ABFRAGE IST BEWUSST EIN SUPERSET DER REGEL (`<=` statt `<`): die

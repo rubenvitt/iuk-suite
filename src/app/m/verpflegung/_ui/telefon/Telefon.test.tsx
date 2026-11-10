@@ -96,3 +96,30 @@ describe("Telefon — Buchung (IDA-358)", () => {
     expect(ausgeben).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Telefon — Helferliste und Knöpfe (IDA-382)", () => {
+  const gemischt: TelefonDaten = {
+    ...D,
+    artikel: [{ ...DOSE, mhdArt: "verbrauch" }],
+    chargen: [
+      { ...D.chargen[0], id: "ch-alt", mhd: "2026-11-01", menge: 2, status: { ampel: "rot", tage: -3, abgelaufen: true, gesperrt: true } },
+      { ...D.chargen[0], menge: 8 },
+    ],
+  };
+
+  it("nennt bei gemischtem Bestand, wie viel ausgebbar und wie viel gesperrt ist", async () => {
+    await mount(<Telefon d={gemischt} />);
+    const zeile = query("[data-rolle='artikel-zeile']");
+    expect(zeile.querySelector("[data-rolle='bestand']")!.textContent).toBe("8 von 10 Dosen ausgebbar");
+    expect(zeile.querySelector("[data-rolle='gesperrt']")!.textContent).toBe("2 gesperrt");
+  });
+
+  it("der gesperrte Einbuchen-Knopf sagt, was fehlt", async () => {
+    await mount(<Telefon d={D} />);
+    await clickElement(knopf("Einbuchen"));
+    await clickElement(query("[data-rolle='artikel-zeile']"));
+    const b = knopf("Datum wählen");
+    expect(b.disabled).toBe(true);
+    expect(b.className).toContain("knopfTinte");
+  });
+});

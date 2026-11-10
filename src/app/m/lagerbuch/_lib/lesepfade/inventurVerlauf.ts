@@ -28,9 +28,15 @@ export type Umfang = {
    */
   ortId: string | null;
 } | null;
+/**
+ * IDA-379 — wie weit die Zaehlung im Umfang kam, in ARTIKELN (nicht in
+ * Positionen: ein Artikel mit drei gezaehlten Chargen ist eine Zeile auf dem
+ * Schirm, aber drei Positionen). `null` bei Laeufen vor 0024.
+ */
+export type Abdeckung = { erfasst: number; gesamt: number } | null;
 export type LaufKurz = {
   id: string; ts: Date; quelleTyp: string; quelleId: string; kommentar: string;
-  umfang: Umfang; positionen: number; abweichungen: number;
+  umfang: Umfang; abdeckung: Abdeckung; positionen: number; abweichungen: number;
 };
 export type LaufPosition = {
   id: string; artikelId: string; artikelName: string; einheit: string;
@@ -59,20 +65,39 @@ export function umfangAus(roh: string | null): Umfang {
 }
 
 /**
- * Der Umfang als Anzeigetext — „vollständig" oder die Filterwerte. Liegt HIER
- * und nicht in einer der beiden Seiten, weil Liste UND Detail ihn brauchen und
- * eine Seite keine Werte aus der anderen importieren soll.
+ * Der Umfang als Anzeigetext — die Auswahl (Ort, Kategorien, Faecher) und, wo
+ * belegt, wie weit die Zaehlung darin kam. Liegt HIER und nicht in einer der
+ * beiden Seiten, weil Liste UND Detail ihn brauchen und eine Seite keine Werte
+ * aus der anderen importieren soll.
+ *
+ * ⚠️ IDA-379 — „VOLLSTÄNDIG" NUR, WENN ES BELEGT IST. Bis hierher hiess ein Lauf
+ * ohne Auswahl „vollständig", auch wenn 2 von 14 Artikeln gezaehlt waren: das
+ * Wort beschrieb die Auswahl, las sich aber wie eine Aussage ueber die Zaehlung.
+ * Laeufe vor 0024 tragen keine Gesamtzahl; sie heissen deshalb „ganzer
+ * Handlager" — das ist ihre Auswahl, und mehr ist nicht belegt.
  */
-export function umfangText(umfang: Umfang, aufloesung?: ReadonlyMap<string, string | null>): string {
-  if (!umfang) return "vollständig";
+export function umfangText(
+  umfang: Umfang, aufloesung?: ReadonlyMap<string, string | null>, abdeckung: Abdeckung = null,
+): string {
   // Der Ort ZUERST: er begrenzt, was ueberhaupt erwartet wurde, waehrend
   // Kategorie und Fach nur auswaehlen, welche Zeilen auf dem Schirm standen.
-  const teile = [
-    ...(umfang.ort ? [`Ort ${ortText(umfang, aufloesung)}`] : []),
-    ...umfang.kategorien,
-    ...umfang.faecher.map((f) => `Fach ${f}`),
-  ];
-  return teile.length > 0 ? teile.join(", ") : "vollständig";
+  const teile = umfang
+    ? [
+        ...(umfang.ort ? [`Ort ${ortText(umfang, aufloesung)}`] : []),
+        ...umfang.kategorien,
+        ...umfang.faecher.map((f) => `Fach ${f}`),
+      ]
+    : [];
+  const stand = abdeckungText(abdeckung);
+  if (teile.length === 0) return stand ?? "ganzer Handlager";
+  return stand ? `${teile.join(", ")} (${stand})` : teile.join(", ");
+}
+
+/** „vollständig" oder „2 von 14" — `null` ohne gespeicherte Abdeckung. */
+function abdeckungText(abdeckung: Abdeckung): string | null {
+  if (!abdeckung) return null;
+  const { erfasst, gesamt } = abdeckung;
+  return gesamt > 0 && erfasst >= gesamt ? "vollständig" : `${erfasst} von ${gesamt}`;
 }
 
 /**
@@ -142,7 +167,10 @@ function zaehlungen(db: Leser, ids: string[]): Map<string, { positionen: number;
 function kurz(k: typeof inventuren.$inferSelect, z: { positionen: number; abweichungen: number } | undefined): LaufKurz {
   return {
     id: k.id, ts: k.ts, quelleTyp: k.quelleTyp, quelleId: k.quelleId, kommentar: k.kommentar,
-    umfang: umfangAus(k.umfang), positionen: z?.positionen ?? 0, abweichungen: z?.abweichungen ?? 0,
+    umfang: umfangAus(k.umfang),
+    // Beide oder keine: eine halbe Angabe gibt es nur aus einer kaputten Zeile.
+    abdeckung: k.erfasst !== null && k.gesamt !== null ? { erfasst: k.erfasst, gesamt: k.gesamt } : null,
+    positionen: z?.positionen ?? 0, abweichungen: z?.abweichungen ?? 0,
   };
 }
 

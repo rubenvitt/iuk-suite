@@ -36,10 +36,13 @@ async function frageAn(page: Page, tag: string, anlass: string): Promise<string>
   await page.getByLabel("Name", { exact: true }).fill("Erika Sommer");
   await page.getByLabel(/^Telefon oder E-Mail/).fill("05141 12345");
   await klickeWennRuhig(page.getByRole("button", { name: "Anfrage senden" }));
+  // IDA-387: danach steht die Statusadresse in der Adresszeile, ohne `?neu=1`.
+  await page.waitForURL(/\/status\/[A-Za-z0-9_-]{22}$/);
   await expect(page.getByText("Danke.")).toBeVisible();
   const link = (await page.getByTestId("statuslink").textContent()) ?? "";
   const pfad = new URL(link).pathname;
   expect(pfad).toMatch(/^\/status\/[A-Za-z0-9_-]{22}$/);
+  expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(pfad);
   return pfad;
 }
 
@@ -86,6 +89,30 @@ test("Anfrage ohne Login, Zusage und zurückgenommene Zusage auf der Statusseite
   await expect(page.getByTestId("status-stand")).toHaveText("Abgelehnt");
   await expect(page.getByTestId("status-begruendung")).toHaveText("Wasserschaden in der Bar, tut uns leid.");
   await expect(page.getByRole("button", { name: "Anfrage zurückziehen" })).toHaveCount(0);
+});
+
+test("IDA-387: Überschneidung fragt vorher nach; „Rückgängig“ stellt die Zusage ohne Absage zurück", async ({ page, browser }) => {
+  const tag = zukunftsTag(55);
+  const zufall = Date.now() % 100_000;
+  const erste = `Rueckgaengig e2e ${zufall}`;
+  const status = await frageAn(page, tag, erste);
+  const gast2 = await (await browser.newContext()).newPage();
+  await frageAn(gast2, tag, `Zweite e2e ${zufall}`);
+
+  const leitung = await (await browser.newContext()).newPage();
+  await devLogin(leitung, { host: HOST, groups: LEITUNG, callbackPath: "/vermietung/anfragen" });
+  await oeffne(leitung, "/vermietung/anfragen");
+  await klickeWennRuhig(leitung.locator("tr", { hasText: erste }).getByRole("button", { name: "Zusagen" }));
+  const frage = leitung.getByTestId("zusage-rueckfrage");
+  await expect(frage).toContainText(`Zweite e2e ${zufall}`);
+  await klickeWennRuhig(leitung.locator(".ant-modal").getByRole("button", { name: "Zusagen" }));
+  await expect(leitung.getByText(/^Zugesagt\./)).toBeVisible();
+  await klickeWennRuhig(leitung.locator(".ant-message").getByRole("button", { name: "Rückgängig" }));
+  await expect(leitung.getByText("Zusage rückgängig. Die Anfrage ist wieder offen.")).toBeVisible();
+
+  await oeffne(page, status);
+  await expect(page.getByTestId("status-stand")).toHaveText("Angefragt");
+  await expect(page.getByTestId("status-begruendung")).toHaveCount(0);
 });
 
 test("Zurückziehen mit Rückfrage; unbekannter Code ist eine 404 ohne Details", async ({ page }) => {

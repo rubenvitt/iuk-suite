@@ -309,13 +309,25 @@ describe("zugangslinkAnlegenAction — Laufzeit in ganzen Stunden, 1 bis 72 (§8
    * einzige Datei annimmt.
    */
   it.each(
-    ["budgetDateien", "budgetBytes"].flatMap((feld) =>
-      ["0", "-5", "2.5", "abc"].map((wert) => [feld, wert] as [string, string]),
+    ["budgetDateien", "budgetMib"].flatMap((feld) =>
+      ["0", "-5", "2.5", "abc", "9".repeat(400)].map((wert) => [feld, wert] as [string, string]),
     ),
   )("Budget %s=%j wird abgelehnt, und es entsteht KEINE Zeile", async (feld, wert) => {
     const ergebnis = await anlegen({ [feld]: wert });
     expect(ergebnis.ok).toBe(false);
     if (!ergebnis.ok) expect(ergebnis.fieldErrors[feld]).toBeTruthy();
+    expect(rohZeilen()).toHaveLength(0);
+  });
+
+  it("fragt den Speicherplatz in MiB und speichert ihn in Bytes (IDA-388)", async () => {
+    expect((await anlegen({ budgetMib: "50" })).ok).toBe(true);
+    expect(rohZeilen()[0].budget_bytes).toBe(50 * 1024 * 1024);
+  });
+
+  it("lehnt MiB ab, deren Bytezahl keine genaue Zahl mehr wäre", async () => {
+    const ergebnis = await anlegen({ budgetMib: "8589934592" });
+    expect(ergebnis.ok).toBe(false);
+    if (!ergebnis.ok) expect(ergebnis.fieldErrors.budgetMib).toBeTruthy();
     expect(rohZeilen()).toHaveLength(0);
   });
 
@@ -447,13 +459,14 @@ describe("kontingentAufstockenAction — dieselbe Zeile, nur gueltige Links (§8
     const ergebnis = await aufstocken({
       id: "zl00000001",
       zusatzDateien: "50",
-      zusatzBytes: "2000",
+      zusatzMib: "2",
     });
     expect(ergebnis.ok).toBe(true);
 
     const nachher = rohZeile("zl00000001");
     expect(nachher.budget_dateien).toBe(150);
-    expect(nachher.budget_bytes).toBe(3000);
+    // IDA-388: gefragt wird in MiB, gespeichert in Bytes.
+    expect(nachher.budget_bytes).toBe(1000 + 2 * 1024 * 1024);
     // „derselben Zeile": der gedruckte Code bleibt gueltig, der Verbrauch
     // unangetastet. Eine Fassung, die loescht und neu anlegt, faellt hier auf.
     expect(nachher.id).toBe(vorher.id);
@@ -478,19 +491,46 @@ describe("kontingentAufstockenAction — dieselbe Zeile, nur gueltige Links (§8
   });
 
   it.each([
-    ["mit Nullen", { zusatzDateien: "0", zusatzBytes: "0" }],
+    ["mit Nullen", { zusatzDateien: "0", zusatzMib: "0" }],
     // Der Fall, der die eigentliche Falle trifft: BEIDE Felder leer laufen an
     // jeder Feldpruefung vorbei, und `budget + 0` ist fuer SQLite eine
     // GEAENDERTE Zeile — `changes === 1` meldete Erfolg fuer einen Vorgang, der
     // nichts getan hat.
-    ["mit leeren Feldern", { zusatzDateien: "", zusatzBytes: "" }],
+    ["mit leeren Feldern", { zusatzDateien: "", zusatzMib: "" }],
     ["ganz ohne die Felder", {}],
-  ])("ohne jeden Zuwachs wird abgelehnt (%s)", async (_wie, felder) => {
+    ["mit zu vielen MiB", { zusatzMib: "9".repeat(400) }],
+  ])("ohne gueltigen Zuwachs wird abgelehnt (%s)", async (_wie, felder) => {
     await legeLink({ id: "zl00000003", budgetDateien: 10, budgetBytes: 1000 });
     const ergebnis = await aufstocken({ id: "zl00000003", ...felder });
     expect(ergebnis.ok).toBe(false);
     expect(rohZeile("zl00000003").budget_dateien).toBe(10);
     expect(rohZeile("zl00000003").budget_bytes).toBe(1000);
+  });
+
+  it("lehnt einen Zuwachs ab, nach dem die Summe keine genaue Zahl mehr wäre", async () => {
+    await legeLink({ id: "zl00000003", budgetDateien: 10, budgetBytes: 1024 * 1024 + 1 });
+    const ergebnis = await aufstocken({ id: "zl00000003", zusatzMib: String(Math.floor(Number.MAX_SAFE_INTEGER / (1024 * 1024))) });
+    expect(ergebnis.ok).toBe(false);
+    if (!ergebnis.ok) expect(ergebnis.fieldErrors.zusatzMib).toBe("Der Wert ist zu groß.");
+    expect(rohZeile("zl00000003").budget_bytes).toBe(1024 * 1024 + 1);
+
+    expect((await aufstocken({ id: "zl00000003", zusatzDateien: "5" })).ok).toBe(true);
+    expect(rohZeile("zl00000003").budget_dateien).toBe(15);
+  });
+
+  it("ordnet den Überlauf dem Feld zu, das ihn verursacht", async () => {
+    await legeLink({ id: "zl00000003", budgetDateien: 10, budgetBytes: 1024 * 1024 + 1 });
+    const ergebnis = await aufstocken({
+      id: "zl00000003",
+      zusatzDateien: "5",
+      zusatzMib: String(Math.floor(Number.MAX_SAFE_INTEGER / (1024 * 1024))),
+    });
+    expect(ergebnis.ok).toBe(false);
+    if (!ergebnis.ok) {
+      expect(ergebnis.fieldErrors.zusatzMib).toBe("Der Wert ist zu groß.");
+      expect(ergebnis.fieldErrors.zusatzDateien).toBeUndefined();
+    }
+    expect(rohZeile("zl00000003").budget_dateien).toBe(10);
   });
 
   it("ein WIDERRUFENER Link wird abgelehnt, und nichts aendert sich", async () => {
@@ -523,7 +563,7 @@ describe("kontingentAufstockenAction — dieselbe Zeile, nur gueltige Links (§8
     // meldete die Action `changes === 1` — Erfolg, und aufgestockt waere das
     // Budget des FALSCHEN Links.
     await legeLink({ id: "zl00000007", budgetDateien: 10, budgetBytes: 1000 });
-    const ergebnis = await aufstocken({ id: "gibtesnich", zusatzDateien: "5", zusatzBytes: "9" });
+    const ergebnis = await aufstocken({ id: "gibtesnich", zusatzDateien: "5", zusatzMib: "9" });
     expect(ergebnis.ok).toBe(false);
     expect(rohZeile("zl00000007").budget_dateien).toBe(10);
     expect(rohZeile("zl00000007").budget_bytes).toBe(1000);

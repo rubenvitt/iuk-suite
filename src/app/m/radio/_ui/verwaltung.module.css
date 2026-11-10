@@ -119,7 +119,8 @@
 /* `Space.Compact style={{ width: 360, maxWidth: '100%' }}` (`DeviceList.tsx:135`). */
 .suchfeld {
   width: 360px;
-  max-width: 100%;
+  /* `Space wrap` misst sein Element an dessen Eigenbreite; 100 % griff dort nicht, bei 320 px ragte es über (IDA-383). */
+  max-width: calc(100vw - 32px);
 }
 
 /*
@@ -237,6 +238,54 @@
 
 .mobilName {
   font-weight: 600;
+}
+
+/* Die Telefonkarte als Link (IDA-383): Text wie bisher, Fokus sichtbar. */
+.mobilLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.mobilLink:hover {
+  color: inherit;
+}
+
+.mobilLink:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* Der Name behält seine Zeile; umbrechen sollen die Marken daneben (IDA-383). */
+.mobilKopfName {
+  flex: 0 0 auto;
+  max-inline-size: 60%;
+}
+
+/* Status und Softwarestand rechts im Kartenkopf; brechen bei 320 px um, statt zu überlaufen. */
+.mobilKopfMarken {
+  min-inline-size: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* Abstand zwischen den etikettierten Marken der Akte; antd 6 setzt am `Tag` keinen mehr (IDA-383). */
+.akteMarkenAbstand {
+  column-gap: 4px;
+}
+
+/* Der Akten-Link in der ersten Tabellenspalte (IDA-383). */
+.zeilenLink {
+  color: inherit;
+}
+
+.zeilenLink:hover,
+.zeilenLink:focus-visible {
+  color: inherit;
+  text-decoration: underline;
 }
 
 .mobilNeben {

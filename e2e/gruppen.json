@@ -13,7 +13,7 @@
   },
   {
     "name": "eimer-4",
-    "specs": "e2e/keystone.spec.ts e2e/kommplan-teilen.spec.ts e2e/lagerbuch-darstellung.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-ist-bestand.spec.ts e2e/lagerbuch-journal-vorgang.spec.ts e2e/lagerbuch-sammelbearbeitung.spec.ts e2e/mobil-admin.spec.ts e2e/portal-anheften.spec.ts e2e/qr.spec.ts e2e/sitzung-refresh-endgueltig.spec.ts e2e/suche.spec.ts"
+    "specs": "e2e/keystone.spec.ts e2e/kommplan-teilen.spec.ts e2e/lagerbuch-darstellung.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-ist-bestand.spec.ts e2e/lagerbuch-journal-vorgang.spec.ts e2e/lagerbuch-sammelbearbeitung.spec.ts e2e/mobil-admin.spec.ts e2e/portal-anheften.spec.ts e2e/portal-startseite.spec.ts e2e/qr.spec.ts e2e/sitzung-refresh-endgueltig.spec.ts e2e/suche.spec.ts"
   },
   {
     "name": "eimer-5",

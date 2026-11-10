@@ -3,7 +3,7 @@
  * glauben). Zeiten sind Millisekunden in der Suite-Zone, schon auf das Raster (`RASTER_MIN`) gerastet.
  */
 import { z } from "zod";
-import { MIN_SCHICHT_MIN, MINUTE, RASTER_MIN, STUNDE } from "./typen";
+import { MAX_ANFORDERUNGEN, MIN_SCHICHT_MIN, MINUTE, RASTER_MIN, STUNDE } from "./typen";
 
 const text = (max: number, meldung = "Bitte ausfüllen.") => z.string().trim().min(1, meldung).max(max, `Höchstens ${max} Zeichen.`);
 const frei = (max: number) => z.string().trim().max(max, `Höchstens ${max} Zeichen.`);
@@ -37,7 +37,7 @@ export const einheitEingabe = z.object({
   kenner: frei(40).nullable().default(null),
   schichtMin: z.number().int().min(MIN_SCHICHT_MIN, `Mindestens ${MIN_SCHICHT_MIN} Minuten.`).max(24 * 60).refine((m) => m % RASTER_MIN === 0, `Bitte in Schritten von ${RASTER_MIN} Minuten.`),
   soll: z.number().int().min(1, "Mindestens 1.").max(50, "Höchstens 50."),
-  anforderungen: z.array(z.object({ quali: qualiSchema, anzahl: z.number().int().min(1).max(50) })).max(12).default([]),
+  anforderungen: z.array(z.object({ quali: qualiSchema, anzahl: z.number().int().min(1).max(50) })).max(MAX_ANFORDERUNGEN, `Höchstens ${MAX_ANFORDERUNGEN} Qualifikationen.`).default([]),
   /** Beim Ändern: alle Schichten der Einheit nach der neuen Länge neu aufteilen (Einteilungen gehen verloren). */
   neuAufteilen: z.boolean().default(false),
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useMemo, useRef, useState } from "react";
 import { Alert, Button, Popconfirm, Skeleton } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
@@ -26,6 +27,8 @@ import { shareLoeschenAction, type ShareFormZustand } from "../(verwaltung)/acti
  */
 import type { AvSammelwert } from "../_db/queries";
 import { QrDialog } from "./QrDialog";
+import styles from "./sharesTabelle.module.css";
+import { useKopieren } from "./useKopieren";
 
 /**
  * DIE FREIGABEN-TABELLE (Spec §7.3, §10.1, §10.2; Plan T36).
@@ -171,13 +174,28 @@ function fehlerText(zustand: ShareFormZustand): string | null {
  * gepflegte Liste — ein Filtereintrag, den keine Zeile trifft, ist die
  * haeufigste Enttaeuschung an Spaltenfiltern.
  */
-function spalten(zeilen: ShareZeile[], qrOeffnen: (zeile: ShareZeile) => void) {
+function spalten(
+  zeilen: ShareZeile[],
+  qrOeffnen: (zeile: ShareZeile) => void,
+  linkBasis: string,
+) {
   return [
     {
       key: "titel",
       title: "Titel",
       dataIndex: "titel",
       sorter: nachText<ShareZeile>((zeile) => zeile.titel),
+      /* IDA-388: der Titel ist der Weg auf die Detailseite (Zugriffsprotokoll,
+         Prüfung, Aufstocken). Vorher fuehrte nur „Bearbeiten → Abbrechen" dorthin. */
+      render: (_: unknown, zeile: ShareZeile) => (
+        <Link
+          href={`/shares/${zeile.id}`}
+          className={styles.titelLink}
+          data-testid={`files-share-detail-${zeile.id}`}
+        >
+          {zeile.titel}
+        </Link>
+      ),
     },
     {
       key: "typ",
@@ -259,7 +277,7 @@ function spalten(zeilen: ShareZeile[], qrOeffnen: (zeile: ShareZeile) => void) {
       key: "aktionen",
       title: "",
       render: (_: unknown, zeile: ShareZeile) => (
-        <ZeilenAktionen zeile={zeile} qrOeffnen={qrOeffnen} />
+        <ZeilenAktionen zeile={zeile} qrOeffnen={qrOeffnen} adresse={`${linkBasis}${zeile.id}`} />
       ),
     },
   ];
@@ -274,7 +292,7 @@ function spalten(zeilen: ShareZeile[], qrOeffnen: (zeile: ShareZeile) => void) {
  * unten selbst ein. Ohne das saehen die Kopfzeilen des Skeletts anders aus als
  * die der Tabelle, die es ankuendigt.
  */
-const SPALTEN_TITEL: string[] = spalten([], () => undefined).map((spalte) => spalte.title);
+const SPALTEN_TITEL: string[] = spalten([], () => undefined, "").map((spalte) => spalte.title);
 
 function Dateimenge({ zeile }: { zeile: ShareZeile }) {
   return (
@@ -298,7 +316,14 @@ function Ablauf({ zeile }: { zeile: ShareZeile }) {
 
 // ---------------------------------------------------------------------------
 
-export function SharesTabelle({ zeilen }: { zeilen: ShareZeile[] }) {
+export function SharesTabelle({
+  zeilen,
+  linkBasis,
+}: {
+  zeilen: ShareZeile[];
+  /** Öffentliche Adresse ohne Kennung (`…/s/`), serverseitig aus `oeffentlicheUrl`. */
+  linkBasis: string;
+}) {
   /*
    * EIN Dialog fuer beide Darstellungen. Zwei — je einer pro Darstellung —
    * traegen dieselbe `data-testid` doppelt im Dokument und zeigen im
@@ -308,7 +333,7 @@ export function SharesTabelle({ zeilen }: { zeilen: ShareZeile[] }) {
   /* Gemerkt: `Kartentabelle` leitet Karte, Filter und angezeigte Liste aus den
      Spalten ab, und eine bei jedem Render neue Liste risse jede dieser
      Ableitungen mit. `setQrZeile` hat eine feste Identitaet. */
-  const spaltenListe = useMemo(() => spalten(zeilen, setQrZeile), [zeilen]);
+  const spaltenListe = useMemo(() => spalten(zeilen, setQrZeile, linkBasis), [zeilen, linkBasis]);
 
   return (
     <div data-testid="files-shares-tabelle">
@@ -402,7 +427,7 @@ export function SharesTabelleSkelett() {
 // ---------------------------------------------------------------------------
 
 /**
- * DIE DREI EINSTIEGSPUNKTE EINER ZEILE (§10.2). „Bearbeiten" und „Löschen"
+ * DIE EINSTIEGSPUNKTE EINER ZEILE (§10.2, IDA-388). „Bearbeiten" und „Löschen"
  * stehen laut §10.2 in Tabelle UND auf der Detailseite — ohne diese Haelfte
  * haetten `bearbeitenAction` und `shareLoeschenAction` in der Liste gar keinen
  * Weg in der Oberflaeche, und eine Action ohne Aufrufer ist kein Feature.
@@ -423,11 +448,15 @@ export function SharesTabelleSkelett() {
 function ZeilenAktionen({
   zeile,
   qrOeffnen,
+  adresse,
 }: {
   zeile: ShareZeile;
   qrOeffnen: (zeile: ShareZeile) => void;
+  /** Vollständige öffentliche Adresse dieser Freigabe. */
+  adresse: string;
 }) {
   const [zustand, abschicken] = useActionState(shareLoeschenAction, LOESCHEN_START);
+  const { kopiert, kopieren } = useKopieren();
   const formular = useRef<HTMLFormElement>(null);
   const fehler = fehlerText(zustand);
 
@@ -450,6 +479,9 @@ function ZeilenAktionen({
         data-testid={`files-share-bearbeiten-${zeile.id}`}
       >
         Bearbeiten
+      </Button>
+      <Button onClick={() => void kopieren(adresse)} data-testid={`files-share-kopieren-${zeile.id}`}>
+        {kopiert ? "Kopiert ✓" : "Link kopieren"}
       </Button>
       <Button onClick={() => qrOeffnen(zeile)} data-testid={`files-share-qr-${zeile.id}`}>
         QR

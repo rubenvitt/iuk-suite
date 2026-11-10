@@ -1,13 +1,14 @@
 import { statfsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { Alert, Button, Card, Col, Row, Statistic } from "antd";
+import { Alert, Card, Col, Row, Statistic } from "antd";
 import { desc, sql } from "drizzle-orm";
 
-import { aufraeumenAction } from "../(verwaltung)/ablage-actions";
 import { getDb } from "../_db/client";
 import { aufraeumLaeufe, inboxFiles, shareFiles } from "../_db/schema";
+import { byteTextBinaer } from "../_lib/bytetext";
 import { zeitpunktGenauInZone } from "../_lib/zeit";
+import { AufraeumenKnoepfe } from "./AufraeumenKnoepfe";
 
 /**
  * DIE ABLAGE-KACHEL (Spec §7.6, §5.6, §4.4, §4.8; Plan T46 Punkt 5).
@@ -42,29 +43,10 @@ import { zeitpunktGenauInZone } from "../_lib/zeit";
  * Touch-Masz, `size="large"` waeren 72px.
  */
 
-/**
- * BINAERE Praefixe, und das Wort dazu. Beide „500" unterscheiden sich um den
- * Faktor 1,048576 (476,8 MiB gegen 500,0 MB) — dieses Paar ist im Modul `files`
- * schon einmal teuer geworden (§9.1).
- *
- * Vierte Kopie dieser Leiter (`SharesUebersicht.tsx`, `shares/[id]/page.tsx`,
- * `zugangslinks/page.tsx`). Die Doppelung ist bewusst und dort schon benannt:
- * eine gemeinsame Stelle laege in `_lib/`, und die vier Dateien gehoeren
- * verschiedenen Tasks — sie zusammenzulegen ist eine eigene, kleine Aenderung
- * mit vier Bearbeitern, kein Nebenprodukt dieser hier.
- */
-const BYTE_EINHEITEN_BINAER = ["Byte", "KiB", "MiB", "GiB", "TiB"] as const;
-
-function byteTextBinaer(bytes: number): string {
-  let wert = bytes;
-  let stufe = 0;
-  while (wert >= 1024 && stufe < BYTE_EINHEITEN_BINAER.length - 1) {
-    wert /= 1024;
-    stufe += 1;
-  }
-  const zahl = stufe === 0 ? String(Math.round(wert)) : wert.toFixed(1).replace(".", ",");
-  return `${zahl} ${BYTE_EINHEITEN_BINAER[stufe]}`;
-}
+/* Bytes als Text: `_lib/bytetext.ts` (IDA-388), seit die Rueckfrage vor dem
+   Aufraeumen dieselbe Leiter braucht. Die Kopien in `SharesUebersicht.tsx`,
+   `shares/[id]/page.tsx` und `zugangslinks/page.tsx` ziehen nach, wenn diese
+   Dateien ohnehin angefasst werden. */
 
 /** Der zuletzt protokollierte Lauf, so viel wie die Kachel davon zeigt (§4.8). */
 export interface LetzterLauf {
@@ -294,7 +276,7 @@ export async function AblageKachel() {
         <Col xs={12} md={8}>
           <div data-testid="files-ablage-frei">
             <Statistic
-              title="Frei auf dem Volume"
+              title="Freier Speicherplatz"
               value={
                 stand.freieBytesAufVolume === null
                   ? "unbekannt"
@@ -309,14 +291,14 @@ export async function AblageKachel() {
                 als die Zeile daneben: die Summe der vollstaendigen Zeilen, nicht
                 die Belegung der Platte. */}
             <Statistic
-              title="Belegt (laut Datenbank)"
+              title="Belegt durch Dateien"
               value={byteTextBinaer(stand.belegteBytesLautDatenbank)}
             />
           </div>
         </Col>
         <Col xs={12} md={8}>
           <div data-testid="files-ablage-zeilen-ohne-bytes">
-            <Statistic title="Zeilen ohne Bytes" value={stand.zeilenOhneBytes} />
+            <Statistic title="Unvollständige Uploads" value={stand.zeilenOhneBytes} />
           </div>
         </Col>
         <Col xs={12} md={8}>
@@ -339,36 +321,13 @@ export async function AblageKachel() {
       <p data-testid="files-ablage-letzter-lauf">{letzterLaufText(stand.letzterLauf)}</p>
 
       {/*
-       * BEIDE KNOEPFE IN EINEM FORMULAR, unterschieden durch `value` desselben
-       * Feldes: zwei Formulare koennten auseinanderlaufen, und der Trockenlauf
-       * waere dann nicht mehr die Vorschau DESSELBEN Ausloesers.
-       *
-       * `Row`/`Col` mit `xs`/`md` statt eigener CSS-Klassen: unter 768px steht
-       * jeder Knopf mit `xs={24}` und `block` in voller Breite und untereinander,
-       * darueber nebeneinander. Die Umschaltung ist damit CSS (antds Grid) und
-       * nicht JavaScript — `Grid.useBreakpoint` waere in einer Server Component
-       * ohnehin verboten und zeigte beim ersten Render die falsche Variante.
+       * BEIDE KNOEPFE IN EINER CLIENT-INSEL (IDA-388): „Jetzt aufräumen" fragt
+       * mit den Zahlen des Trockenlaufs nach, bevor es loescht — dafuer braucht
+       * es Zustand. Die Vorschau bleibt ein Formular mit `modus=vorschau`, die
+       * Kachel selbst Server Component. Breite und Untereinander unter 768px
+       * gibt antds Grid (`xs={24}`/`block`), nicht JavaScript.
        */}
-      <form action={aufraeumenAction}>
-        <Row gutter={[8, 8]}>
-          <Col xs={24} md={8}>
-            <Button block htmlType="submit" name="modus" value="vorschau">
-              Vorschau (Trockenlauf)
-            </Button>
-          </Col>
-          <Col xs={24} md={8}>
-            {/*
-             * `danger` statt `type="primary"`: die Primaeraktion dieser Seite ist
-             * „Freigabe anlegen", und ein zweiter roter Vollknopf daneben waere
-             * nicht als LOESCHENDE Handlung zu lesen (`colorError ===
-             * colorPrimary`).
-             */}
-            <Button block danger htmlType="submit" name="modus" value="echt">
-              Jetzt aufräumen
-            </Button>
-          </Col>
-        </Row>
-      </form>
+      <AufraeumenKnoepfe />
     </Card>
   );
 }
@@ -387,20 +346,20 @@ export async function AblageKachel() {
  */
 function letzterLaufText(lauf: LetzterLauf | null): string {
   if (lauf === null) {
-    return "Noch kein Lauf protokolliert. Der Timer schreibt je Lauf eine Zeile.";
+    return "Bisher wurde noch nicht aufgeräumt.";
   }
 
   const wann = zeitpunktGenauInZone(lauf.gestartetAt);
   const art = lauf.trockenlauf ? "Trockenlauf" : "Lauf";
 
   if (lauf.beendetAt === null) {
-    return `Letzter ${art} am ${wann}: abgebrochen — der Prozess war mitten im Lauf weg.`;
+    return `Letzter ${art} am ${wann}: abgebrochen, der Lauf wurde nicht beendet.`;
   }
 
   const zahlen =
     `${lauf.sharesGeloescht} Freigaben, ${lauf.dateienGeloescht} Dateien, ` +
     `${byteTextBinaer(lauf.bytesGeloescht)}, ${lauf.verwaisteBlobsGemeldet} verwaiste Ablagen gemeldet`;
-  const geloescht = lauf.trockenlauf ? "haette geloescht" : "geloescht";
+  const geloescht = lauf.trockenlauf ? "hätte gelöscht" : "gelöscht";
   const fehler = lauf.fehler === null ? "" : ` Fehler: ${lauf.fehler}`;
 
   return `Letzter ${art} am ${wann}: ${geloescht} ${zahlen}.${fehler}`;

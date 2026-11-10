@@ -141,26 +141,7 @@ export function Seitenkopf({
 }) {
   return (
     <div style={{ marginBlockEnd: SPACE.lg }}>
-      {zurueck ? (
-        <nav aria-label="Zurück">
-          <WachLink
-            data-testid="seitenkopf-zurueck"
-            href={zurueck.href}
-            style={{
-              ...ohneZiffernstellung(SCHRIFT.neben),
-              display: "inline-flex",
-              alignItems: "center",
-              gap: SPACE.xs,
-              minHeight: 44,
-              marginBlockEnd: SPACE.xs,
-              color: "inherit",
-            }}
-          >
-            <span aria-hidden="true">‹</span>
-            {zurueck.titel}
-          </WachLink>
-        </nav>
-      ) : null}
+      {zurueck ? <Rueckweg {...zurueck} /> : null}
       <div
         style={{
           display: "flex",
@@ -195,5 +176,32 @@ export function Seitenkopf({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * Der Rückweg allein — für Seiten, deren Kopf mehr trägt als `Seitenkopf` erlaubt (etwa ein
+ * Titel mit Nebenangabe). Dieselbe Form wie oben beschrieben.
+ */
+export function Rueckweg({ titel, href }: { titel: string; href: string }) {
+  return (
+    <nav aria-label="Zurück">
+      <WachLink
+        data-testid="seitenkopf-zurueck"
+        href={href}
+        style={{
+          ...ohneZiffernstellung(SCHRIFT.neben),
+          display: "inline-flex",
+          alignItems: "center",
+          gap: SPACE.xs,
+          minHeight: 44,
+          marginBlockEnd: SPACE.xs,
+          color: "inherit",
+        }}
+      >
+        <span aria-hidden="true">‹</span>
+        {titel}
+      </WachLink>
+    </nav>
   );
 }

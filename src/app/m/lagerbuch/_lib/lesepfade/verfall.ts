@@ -6,6 +6,8 @@
  * aufs Fahrzeug umgelagerte abgelaufene Charge erschiene sonst hier, und der
  * Aussondern-Knopf — der ausschliesslich den Handlager-Rest bucht — wuerde
  * REPRODUZIERBAR FEHLSCHLAGEN. Dieselbe Bindung gilt fuer die KPIs (T44).
+ * Die Verfall-SEITE liest seit IDA-379 `verfallSeitenListe`: dieselbe Liste,
+ * dazu abgelaufene Chargen, die nur noch draussen liegen — dort ohne Knopf.
  *
  * LAGERORT-VERFALL (`lagerortVerfallListe`, `verfallFuerLagerort`) traegt je
  * (Lagerort, Artikel) genau EINEN Wert: DAS FRUEHESTE DATUM, DAS IM FAHRZEUG AUF
@@ -26,7 +28,7 @@ import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import type { Einheitenart } from "../konstanten";
 import { chargeText } from "../format";
 import { eindeutigeLabels, zaehlOrtLabel } from "../inventurOrt";
-import { restJeChargeJeOrtImBereich, type Leser } from "./bestand";
+import { restJeChargeJeOrtImBereich, restJeChargeUndOrtAlle, type Leser } from "./bestand";
 import { handlagerOrte, ortStamm } from "./orte";
 
 /**
@@ -132,8 +134,112 @@ export function verfallListe(db: Leser, now: Date = new Date()): VerfallEintrag[
       orte,
     });
   }
-  const rang = (e: VerfallEintrag) => (e.abgelaufen ? 0 : e.ampel === "rot" ? 1 : 2);
-  return eintraege.sort((x, y) => rang(x) - rang(y) || x.verfall.localeCompare(y.verfall));
+  return eintraege.sort(nachDringlichkeit);
+}
+
+function nachDringlichkeit(
+  x: Pick<VerfallEintrag, "abgelaufen" | "ampel" | "verfall">,
+  y: Pick<VerfallEintrag, "abgelaufen" | "ampel" | "verfall">,
+): number {
+  const rang = (e: Pick<VerfallEintrag, "abgelaufen" | "ampel">) =>
+    (e.abgelaufen ? 0 : e.ampel === "rot" ? 1 : 2);
+  return rang(x) - rang(y) || x.verfall.localeCompare(y.verfall);
+}
+
+/**
+ * IDA-379 — EIN ORT AUSSERHALB DES HANDLAGERS, an dem die Charge liegt: eine
+ * Einheit, die Entnahmebox. Fuer „liegt ausserdem in: KTW 1 (6)".
+ *
+ * `typ` traegt der Eintrag, weil der Link daran haengt (`ortHref`, eine
+ * Einheit liegt unter `/verwaltung/fahrzeuge/…`, die Box nicht).
+ */
+export type VerfallAussenOrt = {
+  id: string; name: string; menge: number; typ: "lager" | "fahrzeug";
+};
+
+/**
+ * Ein Eintrag der Verfall-SEITE: der Eintrag von `verfallListe` plus die Orte
+ * ausserhalb des Handlagers.
+ *
+ * ⚠️ `orte` DARF HIER LEER SEIN, anders als in `verfallListe`: eine
+ * abgelaufene Charge, die nur noch draussen liegt, steht mit `rest: 0` und
+ * `orte: []` in der Liste. An ihr gibt es im Handlager nichts auszubuchen.
+ */
+export type VerfallSeitenEintrag = VerfallEintrag & { draussen: VerfallAussenOrt[] };
+
+/**
+ * IDA-379 — DIE CHARGEN DER VERFALL-SEITE: `verfallListe` UND die abgelaufenen
+ * Chargen, die nur noch ausserhalb des Handlagers liegen.
+ *
+ * ⚠️ WARUM NICHT EINFACH `verfallListe` ERWEITERN. Sie ist die Handlager-Liste,
+ * und an ihr haengen die Kachel „abgelaufen — aussondern nötig"
+ * (`kennzahlen`) und die Faelligkeiten des Portals („wo: Handlager"). Beide
+ * meinen Material, das man im Handlager ausbucht; eine Charge mit
+ * Handlager-Rest 0 dort mitzuzaehlen, behauptete Arbeit, die der
+ * Aussondern-Knopf nicht tun kann. Die Kachel zaehlt deshalb weiter genau die
+ * Zeilen mit Knopf.
+ *
+ * ⚠️ UND WARUM UEBERHAUPT. Bis IDA-379 fehlte eine abgelaufene Charge mit
+ * Handlager-Rest 0 auf der Seite ganz, waehrend die Artikel-Schublade zugleich
+ * „abgelaufen: Entnahmebox 6, KTW 1 6" zeigte — fuer den Lagerwart sah das aus
+ * wie „nichts abgelaufen". Die Orte kommen aus DERSELBEN Zahl wie in der
+ * Schublade (`restJeChargeUndOrtAlle`, Schwester von `restJeChargeUndOrt`),
+ * NICHT aus den gemeldeten Verfaellen in `lagerort_verfall`: die tragen je
+ * (Ort, Artikel) ein Datum, keine Charge.
+ *
+ * ⚠️ NUR ABGELAUFENE kommen so dazu. Eine draussen bald faellige Charge ist
+ * eine Sache des naechsten Checks an der Einheit; abgelaufenes Material muss
+ * jemand wegraeumen, egal wo es liegt.
+ *
+ * Die Reihenfolge der Orte draussen: `sortierung`, dann Name — wie in
+ * `verteilungJeCharge`.
+ */
+export function verfallSeitenListe(
+  db: Leser, now: Date = new Date(),
+): VerfallSeitenEintrag[] {
+  const imHandlager = verfallListe(db, now);
+  const bereich = new Set(handlagerOrte(db));
+  const verteilung = restJeChargeUndOrtAlle(db);
+  const stamm = ortStamm(db);
+
+  const draussenVon = (chargeId: string): VerfallAussenOrt[] =>
+    [...(verteilung.get(chargeId) ?? new Map<string, number>()).entries()]
+      .filter(([ortId]) => !bereich.has(ortId))
+      .map(([ortId, menge]): VerfallAussenOrt => {
+        const o = stamm.get(ortId);
+        return {
+          id: ortId, name: o?.name ?? ortId, menge,
+          // Ein unbekannter Ort ist keine Einheit — `lager` gibt ihm keinen
+          // geratenen Link (`ortHref`).
+          typ: o?.typ ?? "lager",
+        };
+      })
+      .sort((a, b) =>
+        (stamm.get(a.id)?.sortierung ?? 0) - (stamm.get(b.id)?.sortierung ?? 0)
+        || a.name.localeCompare(b.name, "de"));
+
+  const eintraege: VerfallSeitenEintrag[] = imHandlager.map((e) => ({
+    ...e, draussen: draussenVon(e.chargeId),
+  }));
+  const gesehen = new Set(imHandlager.map((e) => e.chargeId));
+  const schwellen = verfallSchwellen();
+  const arts = new Map(db.select().from(artikel).all().map((a) => [a.id, a]));
+  for (const c of db.select().from(chargen).all()) {
+    if (gesehen.has(c.id)) continue;
+    const s = verfallStatus(c.verfall, schwellen, now);
+    if (!s.abgelaufen) continue;
+    const draussen = draussenVon(c.id);
+    if (draussen.length === 0) continue;               // aufgebraucht oder ausgesondert
+    const a = arts.get(c.artikelId);
+    if (!a) continue;
+    eintraege.push({
+      chargeId: c.id, chargenNr: c.chargenNr, verfall: c.verfall, rest: 0,
+      ampel: s.ampel, abgelaufen: true, text: chargeText(s, c.verfall),
+      artikelId: a.id, artikelName: a.name, einheit: a.einheit, fach: a.fach,
+      orte: [], draussen,
+    });
+  }
+  return eintraege.sort(nachDringlichkeit);
 }
 
 export type LagerortVerfallZeile = {

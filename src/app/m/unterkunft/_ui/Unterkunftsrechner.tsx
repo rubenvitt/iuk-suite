@@ -6,6 +6,7 @@ import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle } from "@/core/tabelle";
 import { druckHref } from "../_lib/druckLink";
+import { korrektur, markeFuer, type Markierung } from "../_lib/marken";
 import { plaetzeImRaum, nutzflaeche, rechne, type Belegung, type Eingabe, type Ergebnis, type Weg, type Zeltbestand } from "../_lib/rechner";
 import { ABWEICHUNGEN, BEFUND, RICHTWERTE, RICHTWERTE_BASIS, RICHTWERTE_STAND, ZELTTYPEN, richtwertBasis, zeltName, type Herkunft } from "../_lib/richtwerte";
 import s from "./unterkunft.module.css";
@@ -65,12 +66,18 @@ function useTokensAmBody(): void {
   }, []);
 }
 
-function Zahl({ label, wert, einheit, onChange, schritt }: { label: string; wert: number; einheit?: string; onChange: (v: number) => void; schritt?: number }) {
+/**
+ * Zahlenfeld. Am Telefon die Zifferntastatur statt der Buchstaben (IDA-390): Anzahlen ganzzahlig,
+ * Maße und Flächen mit Komma — dann liest das Feld das Komma auch als Dezimaltrenner.
+ */
+function Zahl({ label, wert, einheit, onChange, schritt, dezimal }: { label: string; wert: number; einheit?: string; onChange: (v: number) => void; schritt?: number; dezimal?: boolean }) {
   return (
     <InputNumber
       aria-label={label}
       min={0}
       step={schritt ?? 1}
+      inputMode={dezimal ? "decimal" : "numeric"}
+      decimalSeparator={dezimal ? "," : undefined}
       value={wert}
       onChange={(v) => onChange(typeof v === "number" && Number.isFinite(v) ? v : 0)}
       suffix={einheit}
@@ -90,16 +97,15 @@ function Feld({ titel, children }: { titel: string; children: ReactNode }) {
 
 const HERKUNFT_WORT: Record<Herkunft, string> = { belegt: "belegt", annahme: "Annahme", korrigiert: "korrigiert" };
 
-/** Kennzeichnet Werte ohne Quelle („Annahme“) und behobene Rechenfehler („korrigiert“); belegte bleiben still. */
-function Marke({ herkunft, bezug }: { herkunft: Herkunft; bezug: string }) {
-  if (herkunft === "belegt") return null;
-  return (
-    <span className={`${s.chip} ${herkunft === "annahme" ? s.gelb : s.grau} ${s.marke}`} title={`Befund ${bezug}, siehe Richtwerte`}>
-      {HERKUNFT_WORT[herkunft]}
-    </span>
-  );
+/**
+ * Kennzeichnet Werte ohne Quelle („Annahme“) und behobene Rechenfehler („korrigiert“) mit sichtbarem
+ * Kurztext, auch am Telefon (IDA-390); belegte bleiben still.
+ */
+function Marke({ m }: { m: Markierung | null }) {
+  if (!m) return null;
+  return <span className={`${s.chip} ${m.herkunft === "annahme" ? s.gelb : s.grau} ${s.marke}`}>{m.text}</span>;
 }
-const markeVon = (k: string) => <Marke herkunft={richtwertBasis(k)?.herkunft ?? "belegt"} bezug={BEFUND[k] ?? ""} />;
+const markeVon = (k: string) => <Marke m={markeFuer(k)} />;
 
 function Zeile({ etikett, wert, einheit, marke }: { etikett: string; wert: ReactNode; einheit?: string; marke?: ReactNode }) {
   return (
@@ -132,6 +138,8 @@ function Grundlage({ st, setze }: { st: Zustand; setze: (f: (alt: Zustand) => Zu
         <Segmented<Weg>
           block
           aria-label="Grundlage"
+          // `block` teilt gleich auf und kürzt „Personen" schon bei 390 px; nach Inhalt teilen, schmaler polstern.
+          styles={{ item: { flex: "1 1 auto" }, label: { paddingInline: 4 } }}
           value={st.weg}
           onChange={(weg) => setze((alt) => ({ ...alt, weg }))}
           options={[
@@ -160,11 +168,11 @@ function Grundlage({ st, setze }: { st: Zustand; setze: (f: (alt: Zustand) => Zu
         {st.weg === "flaeche" ? (
           t ? (
             <div className={s.zweiSpalten}>
-              <Feld titel="Männer"><Zahl label="Schlaffläche Männer" wert={st.flaeche.maenner_m2} einheit="m²" schritt={10} onChange={(v) => setze((a) => ({ ...a, flaeche: { ...a.flaeche, maenner_m2: v } }))} /></Feld>
-              <Feld titel="Frauen"><Zahl label="Schlaffläche Frauen" wert={st.flaeche.frauen_m2} einheit="m²" schritt={10} onChange={(v) => setze((a) => ({ ...a, flaeche: { ...a.flaeche, frauen_m2: v } }))} /></Feld>
+              <Feld titel="Männer"><Zahl label="Schlaffläche Männer" wert={st.flaeche.maenner_m2} einheit="m²" schritt={10} dezimal onChange={(v) => setze((a) => ({ ...a, flaeche: { ...a.flaeche, maenner_m2: v } }))} /></Feld>
+              <Feld titel="Frauen"><Zahl label="Schlaffläche Frauen" wert={st.flaeche.frauen_m2} einheit="m²" schritt={10} dezimal onChange={(v) => setze((a) => ({ ...a, flaeche: { ...a.flaeche, frauen_m2: v } }))} /></Feld>
             </div>
           ) : (
-            <Feld titel="Schlaffläche"><Zahl label="Schlaffläche" wert={st.flaeche.gesamt_m2} einheit="m²" schritt={10} onChange={(v) => setze((a) => ({ ...a, flaeche: { ...a.flaeche, gesamt_m2: v } }))} /></Feld>
+            <Feld titel="Schlaffläche"><Zahl label="Schlaffläche" wert={st.flaeche.gesamt_m2} einheit="m²" schritt={10} dezimal onChange={(v) => setze((a) => ({ ...a, flaeche: { ...a.flaeche, gesamt_m2: v } }))} /></Feld>
           )
         ) : null}
 
@@ -193,14 +201,14 @@ function Grundlage({ st, setze }: { st: Zustand; setze: (f: (alt: Zustand) => Zu
                   </div>
                   <div className={s.raumZeile}>
                     <span className={s.neben}>Raum</span>
-                    <Zahl label={`Länge Raum ${nr}`} wert={r.laenge_m} einheit="m" onChange={(v) => raum(i, (x) => ({ ...x, laenge_m: v }))} />
-                    <Zahl label={`Breite Raum ${nr}`} wert={r.breite_m} einheit="m" onChange={(v) => raum(i, (x) => ({ ...x, breite_m: v }))} />
+                    <Zahl label={`Länge Raum ${nr}`} wert={r.laenge_m} einheit="m" dezimal onChange={(v) => raum(i, (x) => ({ ...x, laenge_m: v }))} />
+                    <Zahl label={`Breite Raum ${nr}`} wert={r.breite_m} einheit="m" dezimal onChange={(v) => raum(i, (x) => ({ ...x, breite_m: v }))} />
                   </div>
                   {r.abzuege.map((a, j) => (
                     <div key={j} className={s.raumZeile}>
                       <span className={s.neben}>Abzug {j + 1}</span>
-                      <Zahl label={`Abzug ${j + 1} Länge Raum ${nr}`} wert={a.laenge_m} einheit="m" onChange={(v) => raum(i, (x) => ({ ...x, abzuege: x.abzuege.map((b, k) => (k === j ? { ...b, laenge_m: v } : b)) }))} />
-                      <Zahl label={`Abzug ${j + 1} Breite Raum ${nr}`} wert={a.breite_m} einheit="m" onChange={(v) => raum(i, (x) => ({ ...x, abzuege: x.abzuege.map((b, k) => (k === j ? { ...b, breite_m: v } : b)) }))} />
+                      <Zahl label={`Abzug ${j + 1} Länge Raum ${nr}`} wert={a.laenge_m} einheit="m" dezimal onChange={(v) => raum(i, (x) => ({ ...x, abzuege: x.abzuege.map((b, k) => (k === j ? { ...b, laenge_m: v } : b)) }))} />
+                      <Zahl label={`Abzug ${j + 1} Breite Raum ${nr}`} wert={a.breite_m} einheit="m" dezimal onChange={(v) => raum(i, (x) => ({ ...x, abzuege: x.abzuege.map((b, k) => (k === j ? { ...b, breite_m: v } : b)) }))} />
                     </div>
                   ))}
                   <div className={s.raumFuss}>
@@ -290,7 +298,7 @@ function ErgebnisAnsicht({ er }: { er: Ergebnis }) {
         <Card title="Sanitär" size="small">
           <table className={s.werte}><tbody>
             <Zeile etikett="Toiletten" wert={z(er.sanitaer.toiletten)} marke={markeVon("toilette_je_personen_gemischt")} />
-            <Zeile etikett="Urinale" wert={z(er.sanitaer.urinale)} marke={<Marke herkunft="korrigiert" bezug="W3" />} />
+            <Zeile etikett="Urinale" wert={z(er.sanitaer.urinale)} marke={<Marke m={korrektur("urinale")} />} />
             <Zeile etikett="Waschplätze" wert={z(er.sanitaer.waschplaetze)} marke={markeVon("waschplatz_je_personen")} />
             <Zeile etikett="Duschen" wert={z(er.sanitaer.duschen)} marke={markeVon("dusche_je_personen")} />
           </tbody></table>
@@ -319,7 +327,7 @@ function ErgebnisAnsicht({ er }: { er: Ergebnis }) {
             <Zeile etikett="Sitzplätze" wert={z(er.verpflegung.sitzplaetze)} marke={markeVon("personen_je_sitzplatz")} />
             <Zeile etikett="Biergarnituren" wert={z(er.verpflegung.garnituren)} marke={markeVon("plaetze_je_garnitur")} />
           </tbody></table>
-          <div className={s.unterzeile}>Aufenthaltszelte<Marke herkunft="korrigiert" bezug="W9" /></div>
+          <div className={s.unterzeile}>Aufenthaltszelte<Marke m={korrektur("aufenthaltszelte")} /></div>
           <div className={s.mix}>{mix(er.verpflegung.aufenthaltszelte_je_typ)}</div>
         </Card>
       </div>
