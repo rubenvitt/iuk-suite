@@ -29,6 +29,10 @@ SUITE_HOST_WARTUNG=wartung.iuk-ue.de
 # SUITE_ADMIN_GROUP_WARTUNG=wartung-admin
 ```
 
+Turnstile (IDA-341): sind `TURNSTILE_SITE_KEY` und `TURNSTILE_SECRET` gesetzt, verlangt „Mangel melden" ohne Modulzugang ein
+Turnstile-Token. Der Host muss dann im Cloudflare-Widget als Domain stehen und, falls `TURNSTILE_HOSTNAMES`
+gesetzt ist, auch dort (`wartung.iuk-ue.de`) — sonst scheitert jede Sendung an der Prüfung (`.env.example`).
+
 Reihenfolge wie bei jedem neuen Modul: erst das Image mit dem Modul ausrollen, dann den Host setzen.
 Der Host braucht DNS und die Traefik-Regel (`SUITE_TRAEFIK_RULE`). Die Datenbank `wartung.db` legt der
 Boot-Pfad an (`MODULE_MIGRATIONS`), mit Startbestand: Gruppen Technik und I&K (noch ohne Verwalter) und die

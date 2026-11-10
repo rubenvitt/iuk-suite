@@ -27,5 +27,3 @@ export const LOESCHFRIST_MONATE = 12;
 
 /** Das Honigtopf-Feld des Einwurfs (IDA-340): unsichtbar, ein Mensch lässt es leer. */
 export const HONIGTOPF_FELD = "webseite";
-/** Das Feld, in das das Turnstile-Widget sein Token legt (Name von Cloudflare vorgegeben). */
-export const TURNSTILE_FELD = "cf-turnstile-response";

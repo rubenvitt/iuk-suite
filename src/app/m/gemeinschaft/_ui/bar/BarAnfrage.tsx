@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { useRouter } from "next/navigation";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
+import { TURNSTILE_AKTIONEN } from "@/core/turnstile/aktionen";
+import { Turnstile } from "@/core/turnstile/Turnstile";
 import { anfrageSendenAction } from "../../_actions/anfrage";
 import { tagesstuecke, ueberlappt, vorschlagAmTag, WUNSCHZEIT, type Belegt } from "../../_lib/belegung";
 import { istTestanlass, plusMonate, TEST_FRIST_MONATE } from "../../_lib/testanfrage";
@@ -23,8 +25,10 @@ export type Vorbelegung = { name: string; kontakt: string } | null;
  * übersteht Neuladen und Lesezeichen. Die Kollisionsprüfung macht der Server (`_actions/anfrage.ts`); hier steht
  * nur, was die Person vorher sehen kann: die belegten Zeiten der gewählten Tage direkt unter der Zeitwahl.
  */
-export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
+export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref, turnstile = null }: {
   belegt: readonly Belegt[]; heute: string; vorbelegung: Vorbelegung; anmeldeHref: string;
+  /** Site-Key, wenn Turnstile aktiv ist (IDA-341, `turnstileSiteKey`). */
+  turnstile?: string | null;
 }) {
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
   const [formOffen, setFormOffen] = useState(false);
@@ -35,6 +39,9 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
   const [feldFehler, setFeldFehler] = useState<Record<string, string>>({});
   const [code, setCode] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  // IDA-341: das Token liegt nicht im Entwurf (es gilt nur einmal und fünf Minuten), es wird beim Senden gelesen.
+  const token = useRef<string | null>(null);
+  const [runde, setRunde] = useState(0);
 
   /*
    * IDA-358 — DIE ANFRAGE LIEGT AUF DEM GERÄT, bis der Server sie bestätigt (`core/entwurf`): ein Neuladen oder
@@ -46,11 +53,12 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
     schluessel: "gemeinschaft:bar-anfrage:neu",
     stand: { f, formOffen },
     wiederherstellen: (w) => { setF(w.f); setFormOffen(w.formOffen); },
-    senden: (felder, sendung) => anfrageSendenAction({ ...felder, sendung }),
+    senden: (felder, sendung) => anfrageSendenAction({ ...felder, sendung, turnstile: token.current ?? "" }),
     antwort: (r) => {
       if (r.ok) { setCode(r.wert.code); window.scrollTo(0, 0); return true; }
       setFehler(r.fehler);
       setFeldFehler(r.feldFehler ?? {});
+      setRunde((n) => n + 1);
       return false;
     },
   });
@@ -199,7 +207,11 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
             {!fehler && meldung && meldung.art !== "wiederhergestellt" ? (
               <p className="go-meta" role="status" data-rolle="entwurf-hinweis">{meldung.text}</p>
             ) : null}
-            <button className={`go-knopf ${s.voll}`} type="submit" disabled={sendet}>{sendet ? "Wird gesendet …" : "Anfrage senden"}</button>
+            <div>
+              {/* Ohne Rückfrage von Cloudflare ist das Widget unsichtbar; in einer eigenen Zelle kostet es dann keinen Rasterabstand. */}
+              {turnstile ? <Turnstile siteKey={turnstile} aktion={TURNSTILE_AKTIONEN.bar} runde={runde} beiToken={(t) => { token.current = t; }} /> : null}
+              <button className={`go-knopf ${s.voll}`} type="submit" disabled={sendet}>{sendet ? "Wird gesendet …" : "Anfrage senden"}</button>
+            </div>
           </form>
         </section>
       )}
