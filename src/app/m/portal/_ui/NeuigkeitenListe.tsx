@@ -67,7 +67,9 @@ export function NeuigkeitenListe({
       setEintraege(seite.eintraege);
       ziel.current = slug;
       setWeitere(seite.weitere);
-    }, () => undefined);
+    }, () => {
+      if (nr === anfrage.current) setFehler(true);
+    });
   }, [erste]);
 
   useEffect(() => {

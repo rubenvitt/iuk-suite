@@ -170,6 +170,9 @@ it("lässt den Dialog offen und meldet es, wenn das Löschen scheitert", async (
   )!;
   await zeigerfolge(bestaetigen);
   await vi.waitFor(() => expect(queryPortal(".ant-modal").textContent).toContain("Der Dienst ließ sich nicht löschen."));
+  // antd behält einen geschlossenen Dialog im DOM; offen heißt: die Hülle ist nicht ausgeblendet.
+  const huelle = queryPortal(".ant-modal").closest<HTMLElement>(".ant-modal-wrap")!;
+  expect(huelle.style.display).not.toBe("none");
 });
 
 it("öffnet „Bearbeiten“ in einer Schublade mit dem Stand des Dienstes", async () => {
