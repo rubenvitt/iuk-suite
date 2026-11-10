@@ -258,8 +258,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
       "Bestand",
       "Abweichung",
       "Ist",
-      "MHD",
-      "Min.",
+      // IDA-393: MHD steht unter dem Artikel, „min." unter dem Bestand.
       "Kategorie",
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Inventur");
@@ -472,8 +471,8 @@ describe("InventurForm — Zeile und Filter", () => {
   it("zeigt das nächste MHD und den Mindestbestand", async () => {
     await mount(<Formular zeilen={ZEILEN} />);
     const zeile = query("tr[data-row-key='a1']");
-    expect(zeile.textContent).toContain("10/26");
-    expect(zeile.textContent).toContain("5");
+    expect(zeile.querySelector("[data-rolle='mhd']")?.textContent).toBe("10/26");
+    expect(zeile.querySelector("[data-rolle='mindest']")?.textContent).toBe("min. 5");
   });
 
   it("behält einen gezählten Wert, wenn der Filter die Zeile ausblendet, und bucht ihn mit", async () => {

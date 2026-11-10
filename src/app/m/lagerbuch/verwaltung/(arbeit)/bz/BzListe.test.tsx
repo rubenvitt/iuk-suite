@@ -301,12 +301,11 @@ describe("BzListe", () => {
     expect(bemerkung.hasAttribute("data-gekuerzt")).toBe(true);
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
       .toEqual([
-        "Gerät", "Standort", "Fälligkeit", "Letzte Kontrolle",
-        // DRK-311: getrennte Spalten, und die Reihenfolge ist Absicht — die
-        // Bemerkung steht neben dem Zeitpunkt der Kontrolle, zu der sie
-        // gehoert, die Beachtung daneben als eigener Status.
-        "Letzte Bemerkung", "Beachtung",
-        "Status",
+        // IDA-393: Status hinter dem Namen; die Bemerkung steht unter dem
+        // Zeitpunkt der Kontrolle, zu der sie gehoert (DRK-311), die
+        // Beachtung daneben als eigener Status.
+        "Gerät", "Status", "Standort", "Fälligkeit", "Letzte Kontrolle",
+        "Beachtung",
       ]);
     expect(query<HTMLAnchorElement>("a[href='/verwaltung/bz/nie']").textContent)
       .toBe("Accu-Chek Mobile");

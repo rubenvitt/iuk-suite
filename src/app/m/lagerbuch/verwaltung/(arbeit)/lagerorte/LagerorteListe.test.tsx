@@ -115,6 +115,32 @@ function knopfMitText(text: string): HTMLButtonElement {
   return treffer;
 }
 
+/**
+ * IDA-393 — DIE AKTIONEN EINER ZEILE liegen im Menü „Aktionen für <Name>". Geöffnet wird es
+ * wie von einer Person: Menüknopf, dann Eintrag.
+ */
+function offeneEintraege(): HTMLElement[] {
+  return Array.from(document.body.querySelectorAll<HTMLElement>(
+    ".ant-dropdown:not(.ant-dropdown-hidden) [role='menuitem']",
+  ));
+}
+
+async function menueOeffnen(zeile: Element): Promise<string[]> {
+  const knopf = zeile.querySelector<HTMLButtonElement>("button[aria-label^='Aktionen für']");
+  if (!knopf) throw new Error("Kein Aktionsmenü in der Zeile");
+  await clickElement(knopf);
+  await warteAuf(() => offeneEintraege().length > 0, "Aktionsmenü");
+  return offeneEintraege().map((eintrag) => eintrag.textContent ?? "");
+}
+
+async function aktionWaehlen(zeile: Element, text: string): Promise<void> {
+  await menueOeffnen(zeile);
+  const eintrag = offeneEintraege().find((e) => e.textContent === text);
+  if (!eintrag) throw new Error(`Menüeintrag fehlt: ${text}`);
+  await clickElement(eintrag);
+  await warte();
+}
+
 async function modalOeffnen(auslöser: string, titel: string): Promise<void> {
   await clickElement(knopfMitText(auslöser));
   await warteAuf(
@@ -226,14 +252,16 @@ describe("LagerorteListe", () => {
     expect(query('[data-row-key="schrank-gf"]').textContent).toContain("2");
   });
 
-  it("trägt je Zeile Bearbeiten- und Statusknopf", async () => {
+  it("trägt je Zeile Bearbeiten, Status und Löschen im Aktionsmenü", async () => {
     await mount(<LagerorteListe zeilen={ZEILEN} />);
     const aktive = query('[data-row-key="schrank-1"]');
-    expect(aktive.textContent).toContain("Bearbeiten");
-    expect(aktive.textContent).toContain("Stilllegen");
+    expect(aktive.querySelector("button[aria-label='Aktionen für Schrank 1']")).not.toBeNull();
+    expect(await menueOeffnen(aktive)).toEqual(["Bearbeiten", "Stilllegen", "Löschen"]);
+    await unmount();
 
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
     const inaktive = query('[data-row-key="schrank-alt"]');
-    expect(inaktive.textContent).toContain("Wieder aufnehmen");
+    expect(await menueOeffnen(inaktive)).toContain("Wieder aufnehmen");
   });
 });
 
@@ -249,26 +277,20 @@ describe("LagerorteListe", () => {
  * an die Postenzahl haengt — `schrank-1` traegt vier Posten.
  */
 describe("Schrank löschen", () => {
-  function loeschKnopf(rowKey: string): HTMLButtonElement {
-    const zeile = query(`[data-row-key="${rowKey}"]`);
-    const treffer = Array.from(zeile.querySelectorAll<HTMLButtonElement>("button"))
-      .find((b) => (b.textContent ?? "").trim() === "Löschen");
-    if (!treffer) throw new Error(`Kein Löschknopf in ${rowKey}`);
-    return treffer;
-  }
-
   async function dialogOeffnen(rowKey: string): Promise<void> {
-    await clickElement(loeschKnopf(rowKey));
+    await aktionWaehlen(query(`[data-row-key="${rowKey}"]`), "Löschen");
     await warteAuf(
       () => document.body.querySelector(".ant-modal [data-rolle='loeschen'], .ant-modal [data-rolle='fachwarnung']") !== null,
       "Löschdialog fertig geprüft",
     );
   }
 
-  it("trägt an JEDER Zeile einen Löschknopf — auch an der mit Bestand", async () => {
-    await mount(<LagerorteListe zeilen={ZEILEN} />);
-
-    for (const { id } of ZEILEN) expect(loeschKnopf(id)).toBeTruthy();
+  it("trägt an JEDER Zeile einen Löscheintrag — auch an der mit Bestand", async () => {
+    for (const { id } of ZEILEN) {
+      await mount(<LagerorteListe zeilen={ZEILEN} />);
+      expect(await menueOeffnen(query(`[data-row-key="${id}"]`))).toContain("Löschen");
+      await unmount();
+    }
     // Die Fixture belegt, dass die Sichtbarkeit NICHT an der Postenzahl haengt.
     expect(ZEILEN.find((z) => z.id === "schrank-1")?.bestandsposten).toBe(4);
   });
@@ -420,10 +442,7 @@ describe("Schrank bearbeiten", () => {
   it("öffnet mit den bestehenden Werten und speichert die Änderung", async () => {
     await mount(<LagerorteListe zeilen={ZEILEN} />);
     const zeile = query('[data-row-key="schrank-gf"]');
-    await clickElement(
-      Array.from(zeile.querySelectorAll<HTMLButtonElement>("button"))
-        .find((b) => (b.textContent ?? "").includes("Bearbeiten"))!,
-    );
+    await aktionWaehlen(zeile, "Bearbeiten");
     await warteAuf(
       () => document.body.querySelector("[role='dialog']") !== null,
       "Bearbeiten-Modal",
@@ -446,10 +465,7 @@ describe("Schrank stilllegen / wieder aufnehmen", () => {
   it("legt einen aktiven Schrank still", async () => {
     await mount(<LagerorteListe zeilen={ZEILEN} />);
     const zeile = query('[data-row-key="schrank-1"]');
-    await clickElement(
-      Array.from(zeile.querySelectorAll<HTMLButtonElement>("button"))
-        .find((b) => (b.textContent ?? "").includes("Stilllegen"))!,
-    );
+    await aktionWaehlen(zeile, "Stilllegen");
     await warte();
 
     expect(mocks.setSchrankAktiv).toHaveBeenCalledWith({ id: "schrank-1", aktiv: false });
@@ -459,10 +475,7 @@ describe("Schrank stilllegen / wieder aufnehmen", () => {
   it("nimmt einen stillgelegten Schrank wieder auf", async () => {
     await mount(<LagerorteListe zeilen={ZEILEN} />);
     const zeile = query('[data-row-key="schrank-alt"]');
-    await clickElement(
-      Array.from(zeile.querySelectorAll<HTMLButtonElement>("button"))
-        .find((b) => (b.textContent ?? "").includes("Wieder aufnehmen"))!,
-    );
+    await aktionWaehlen(zeile, "Wieder aufnehmen");
     await warte();
 
     expect(mocks.setSchrankAktiv).toHaveBeenCalledWith({ id: "schrank-alt", aktiv: true });
@@ -483,10 +496,7 @@ describe("Schrank stilllegen / wieder aufnehmen", () => {
     });
     await mount(<LagerorteListe zeilen={ZEILEN} />);
     const zeile = query('[data-row-key="schrank-1"]');
-    await clickElement(
-      Array.from(zeile.querySelectorAll<HTMLButtonElement>("button"))
-        .find((b) => (b.textContent ?? "").includes("Stilllegen"))!,
-    );
+    await aktionWaehlen(zeile, "Stilllegen");
     await warteAuf(
       () => zeile.querySelector(".ant-alert-warning") !== null,
       "Fehlermeldung an der Zeile",
@@ -503,18 +513,15 @@ describe("Schrank stilllegen / wieder aufnehmen", () => {
     // als sie behauptet): die Beschriftung liest `zeile.aktiv` direkt aus der
     // Prop, die dieser Test nie aendert, und staende auch ohne den Fix hier.
     // Sie steht trotzdem, weil sie dokumentiert, was die Person NACH dem
-    // Fehlschlag tatsaechlich sieht.
-    expect(zeile.textContent).toContain("Stilllegen");
+    // Fehlschlag tatsaechlich sieht (seit IDA-393 im Aktionsmenü der Zeile).
+    expect(await menueOeffnen(zeile)).toContain("Stilllegen");
   });
 
   it("faengt eine abgelehnte Anfrage (try ohne catch war die Luecke) und zeigt eine Meldung", async () => {
     mocks.setSchrankAktiv.mockRejectedValueOnce(new Error("offline"));
     await mount(<LagerorteListe zeilen={ZEILEN} />);
     const zeile = query('[data-row-key="schrank-1"]');
-    await clickElement(
-      Array.from(zeile.querySelectorAll<HTMLButtonElement>("button"))
-        .find((b) => (b.textContent ?? "").includes("Stilllegen"))!,
-    );
+    await aktionWaehlen(zeile, "Stilllegen");
     await warteAuf(
       () => zeile.querySelector(".ant-alert-warning") !== null,
       "Fehlermeldung an der Zeile nach abgelehnter Anfrage",

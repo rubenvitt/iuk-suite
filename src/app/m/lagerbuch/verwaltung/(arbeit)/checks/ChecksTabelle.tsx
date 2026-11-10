@@ -115,10 +115,19 @@ function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["co
        */
       filters: werteAlsFilter(zeilen, titel),
       onFilter: trifftWert<CheckAnzeigeZeile>(titel),
+      /*
+       * IDA-393: der Name ist der Link, Art und Kennung stehen darunter — dieselbe Zeichenkette
+       * wie im Filter, nur auf zwei Zeilen (`meta` traegt bei einer Namensgleichheit die ID mit).
+       */
       render: (name: string, zeile: CheckAnzeigeZeile) => (
-        <Link href={zeile.detailHref} style={{ fontWeight: 600 }}>
-          {titel(zeile)}
-        </Link>
+        <>
+          <Link href={zeile.detailHref} style={{ fontWeight: 600 }}>
+            {name}
+          </Link>
+          {beschriftung.get(zeile.fahrzeugId)?.meta ? (
+            <div style={SCHRIFT.neben}>{beschriftung.get(zeile.fahrzeugId)?.meta}</div>
+          ) : null}
+        </>
       ),
     },
     {
@@ -156,7 +165,9 @@ function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["co
         // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger
         // Chip-Zeilenabstand, wie in ArtikelTable.tsx (Aufgabe 8), bleibt
         // Literal statt auf einen sichtbar groeberen Wert gerundet.
-        <Flex gap={6} wrap>
+        // IDA-393: `maxWidth`, damit die Chips umbrechen — unter `max-content` stünden sie sonst
+        // alle in einer Zeile (624px).
+        <Flex gap={6} wrap style={{ maxWidth: 320 }}>
           {chips.map((chip) => (
             <Chip
               key={chip.schluessel}

@@ -108,7 +108,8 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
     // Der Filter, dessen eigentlicher Zweck der Zwischenstand ist: die nicht
     // zugeordneten Einheiten stehen sonst verstreut und tragen kein
     // gemeinsames Wort im Namen.
-    await klickeWennRuhig(page.locator("th", { hasText: "Art" }).locator(".ant-table-filter-trigger"));
+    // IDA-393: die Art steht unter dem Namen, ihr Filter im Kopf „Einheit".
+    await klickeWennRuhig(page.locator("th", { hasText: "Einheit" }).locator(".ant-table-filter-trigger"));
     const menue = page.locator(".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown");
     await menue.getByText("nicht zugeordnet", { exact: true }).click();
     await menue.getByRole("button", { name: "OK" }).click();
