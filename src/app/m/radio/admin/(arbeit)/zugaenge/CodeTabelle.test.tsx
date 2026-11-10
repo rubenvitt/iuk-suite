@@ -285,10 +285,11 @@ import {
   clickElement,
   clickPortal,
   exists,
-  fill,
+  fillElement,
   mount,
   query,
   queryAll,
+  queryPortal,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../_lib/quelltextScan";
@@ -379,7 +380,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * bestuende der Fall auch dann, wenn die Flaeche gar nicht filterte, sondern gar nichts
      * anzeigte.
      */
-    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile(), gesperrteZeile()]} />);
 
     const zeilen = queryAll("tbody tr.ant-table-row");
     expect(zeilen.length, "eine der beiden Zeilen fehlt in der Liste").toBe(2);
@@ -399,7 +400,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * steht in der Zelle, der rohe sub im title"). Ohne ihn waeren zwei gleichnamige Personen
      * nicht zu unterscheiden; in der Zelle waere er Laerm.
      */
-    await mount(<CodeTabelle zeilen={[gesperrteZeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[gesperrteZeile()]} />);
 
     const angabe = query(`${BREIT}[data-rolle="radio-code-gesperrt"]`);
     expect(angabe.textContent, "der Zeitpunkt der Sperre fehlt").toContain("22.06.2026, 07:00");
@@ -427,6 +428,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      */
     await mount(
       <CodeTabelle
+        titel="Zugangscodes"
         zeilen={[
           gesperrteZeile({ id: "zc-a", gesperrtVonText: "", gesperrtVonSub: "" }),
           gesperrteZeile({ id: "zc-b", gesperrtAmText: "" }),
@@ -450,7 +452,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * ueber einer Fassung, die den Zusatz an JEDER Zeile zeigt — dann stuende an einem
      * gueltigen Zugang „gesperrt am — von —".
      */
-    await mount(<CodeTabelle zeilen={[zeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile()]} />);
     expect(
       queryAll(`${BREIT}[data-rolle="radio-code-gesperrt"]`).length,
       "ein aktiver Zugang zeigt eine Sperrangabe",
@@ -465,7 +467,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * „lastUsedAt NULL wird zu einem Text"). ⛔ HIER STEHT DIE ANDERE HAELFTE: die Flaeche
      * gibt den Text WIRKLICH AUS und laesst die Zelle nicht leer.
      */
-    await mount(<CodeTabelle zeilen={[zeile({ zuletztText: "nie eingelöst" })]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile({ zuletztText: "nie eingelöst" })]} />);
     const zelle = query(`${BREIT}[data-rolle="radio-code-zuletzt"]`);
     expect(zelle.textContent).toBe("nie eingelöst");
   });
@@ -490,7 +492,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * und nennt das Wort dabei — dieselbe Prosa-Sperre wie in `_db/leihen.ts:57-64`, nur in
      * der entschaerften Form.
      */
-    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile(), gesperrteZeile()]} />);
 
     const zeilen = queryAll("tbody tr.ant-table-row");
     expect(zeilen.length, "die Tabelle rendert ihre Zeilen nicht").toBe(2);
@@ -548,7 +550,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * Rueckfrage der ERSTEN Zeile — der Fall meldete `['zc-1', false]` statt
      * `['zc-2', true]`. ⛔ `unmount()` raeumt genau das weg (`test-dom.tsx:77-107`).
      */
-    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile(), gesperrteZeile()]} />);
 
     const knoepfe = queryAll<HTMLButtonElement>(`${BREIT}[data-rolle="radio-code-umschalten"]`);
     expect(knoepfe.length, "nicht genau ein Knopf je Zeile").toBe(2);
@@ -560,10 +562,13 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
 
     await unmount();
     setzeMock.mockClear();
-    await mount(<CodeTabelle zeilen={[gesperrteZeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[gesperrteZeile()]} />);
     await click('[data-rolle="radio-code-umschalten"]');
     await clickPortal(".ant-popconfirm .ant-btn-primary");
     expect(setzeMock.mock.calls[0], "Entsperren schickt nicht (id, true)").toEqual(["zc-2", true]);
+    expect(document.body.querySelector(".ant-popconfirm")?.textContent).toContain(
+      "Zugangscode entsperren?",
+    );
   });
 
   it("der Knopf schaltet nicht ohne Rueckfrage", async () => {
@@ -578,11 +583,11 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * (`_db/schema.ts:180-183`); ein versehentliches Entsperren gibt genau dieses Kaertchen
      * wieder frei.
      */
-    await mount(<CodeTabelle zeilen={[zeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile()]} />);
     await click('[data-rolle="radio-code-umschalten"]');
     expect(setzeMock, "geschaltet, bevor jemand bestaetigt hat").not.toHaveBeenCalled();
     expect(document.body.querySelector(".ant-popconfirm")?.textContent).toContain(
-      "Diesen Zugang wirklich sperren?",
+      "Zugangscode sperren?",
     );
   });
 
@@ -593,7 +598,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * sich die Reihenfolge messen liesse (siehe `_lib/lesepfade/codes.ts`, Dateikopf) — der
      * Brief IST hier die Vorlage.
      */
-    await mount(<CodeTabelle zeilen={[zeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile()]} />);
     expect(queryAll("thead th").map((k) => (k.textContent ?? "").trim())).toEqual([
       "Bezeichnung",
       "Code",
@@ -614,7 +619,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * (`src/core/theme/theme.ts:32-33`) — ein roter Ton auf einer Datenflaeche saehe aus wie
      * die Primaeraktion.
      */
-    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile(), gesperrteZeile()]} />);
 
     expect(queryAll(`${BREIT}[data-rolle="radio-code-bezeichnung"]`).map((k) => k.textContent)).toEqual([
       "Aufsteller Funkraum",
@@ -636,7 +641,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * ein Zaehler waere also gruen, ohne dass DIESES Zeichen da stuende. Der Name kommt aus
      * `_ui/verwaltungIkonen.tsx`; ein Tippfehler darin ist ein Typfehler, kein stilles Nichts.
      */
-    await mount(<CodeTabelle zeilen={[zeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile()]} />);
 
     expect(
       query('[data-rolle="radio-neucode-anlegen"] [data-zeichen]').getAttribute("data-zeichen"),
@@ -649,7 +654,23 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
   });
 });
 
+/** Das Feld im Dialog „Zugangscode anlegen" — es steht im Portal, nicht im Mount-Wirt. */
+function eingabe(): HTMLInputElement {
+  return queryPortal<HTMLInputElement>('[data-rolle="radio-neucode-eingabe"]');
+}
+
 describe("radio-Zugaenge: das Anlegefeld", () => {
+  it("der Kopf traegt den Titel und rechts den Knopf, der den Dialog oeffnet", async () => {
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[]} />);
+    expect(query("h1").textContent).toBe("Zugangscodes");
+    expect((query('[data-rolle="radio-neucode-anlegen"]').textContent ?? "").trim()).toBe(
+      "Zugangscode anlegen",
+    );
+    await click('[data-rolle="radio-neucode-anlegen"]');
+    expect(queryPortal(".ant-modal-title").textContent).toBe("Zugangscode anlegen");
+    expect(queryPortal('label[for="radio-neucode-bezeichnung"]').textContent).toBe("Bezeichnung");
+  });
+
   it("ein leerer oder nur aus Leerraum bestehender Wert laeuft gar nicht los", async () => {
     /*
      * ⛔ `zugangscodes.bezeichnung` ist `.notNull()` (`_db/schema.ts:177`), aber NICHT gegen
@@ -664,13 +685,14 @@ describe("radio-Zugaenge: das Anlegefeld", () => {
      * Zunder-Projekt IDA:** der serverseitige Riegel gehoert in dieselbe Aufgabe, die `_actions/`
      * ohnehin oeffnet.
      */
-    await mount(<CodeTabelle zeilen={[]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[]} />);
 
     await click('[data-rolle="radio-neucode-anlegen"]');
+    await clickPortal('[data-rolle="radio-neucode-senden"]');
     expect(erstelleMock, "ein leerer Name lief los").not.toHaveBeenCalled();
 
-    await fill('[data-rolle="radio-neucode-eingabe"]', "   ");
-    await click('[data-rolle="radio-neucode-anlegen"]');
+    await fillElement(eingabe(), "   ");
+    await clickPortal('[data-rolle="radio-neucode-senden"]');
     expect(erstelleMock, "nur Leerraum lief los").not.toHaveBeenCalled();
   });
 
@@ -682,17 +704,17 @@ describe("radio-Zugaenge: das Anlegefeld", () => {
      * ⛔ UND NUR DER ERFOLGSFALL LEERT DAS FELD — sonst tippt der Bedienende seine Korrektur
      * neu (dieselbe Wahl wie in `versionen/NeuVersion.tsx`).
      */
-    await mount(<CodeTabelle zeilen={[]} />);
-    await fill('[data-rolle="radio-neucode-eingabe"]', "  Aufsteller Halle  ");
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[]} />);
     await click('[data-rolle="radio-neucode-anlegen"]');
+    await fillElement(eingabe(), "  Aufsteller Halle  ");
+    await clickPortal('[data-rolle="radio-neucode-senden"]');
 
     expect(erstelleMock.mock.calls[0], "der Name ging ungetrimmt hinueber").toEqual([
       "Aufsteller Halle",
     ]);
-    expect(
-      query<HTMLInputElement>('[data-rolle="radio-neucode-eingabe"]').value,
-      "das Feld blieb nach dem Erfolg stehen",
-    ).toBe("");
+    /* Der Dialog haelt seinen Inhalt beim Schliessen fest — geprueft wird beim naechsten Oeffnen. */
+    await click('[data-rolle="radio-neucode-anlegen"]');
+    expect(eingabe().value, "das Feld blieb nach dem Erfolg stehen").toBe("");
   });
 
   it("Enter im Eingabefeld legt an — der Hauptweg auf einer Tastaturflaeche", async () => {
@@ -700,9 +722,10 @@ describe("radio-Zugaenge: das Anlegefeld", () => {
      * ⛔ `onPressEnter` (dieselbe Bauform wie `versionen/NeuVersion.tsx`): wer einen Namen
      * tippt, drueckt Enter — ein Feld, das darauf nichts tut, wirkt kaputt.
      */
-    await mount(<CodeTabelle zeilen={[]} />);
-    await fill('[data-rolle="radio-neucode-eingabe"]', "Aufsteller Halle");
-    const feld = query<HTMLInputElement>('[data-rolle="radio-neucode-eingabe"]');
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[]} />);
+    await click('[data-rolle="radio-neucode-anlegen"]');
+    await fillElement(eingabe(), "Aufsteller Halle");
+    const feld = eingabe();
     await act(async () => {
       feld.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }),
@@ -742,11 +765,12 @@ describe("radio-Zugaenge: die ZWEI Fehlerpfade — und der Klartext bleibt draus
     {
       action: "erstelleCode",
       mock: erstelleMock,
-      text: "Der Zugang konnte nicht ausgestellt werden.",
+      text: "Der Zugangscode konnte nicht angelegt werden.",
       ausloesen: async () => {
-        await mount(<CodeTabelle zeilen={[]} />);
-        await fill('[data-rolle="radio-neucode-eingabe"]', "Aufsteller Halle");
+        await mount(<CodeTabelle titel="Zugangscodes" zeilen={[]} />);
         await click('[data-rolle="radio-neucode-anlegen"]');
+        await fillElement(eingabe(), "Aufsteller Halle");
+        await clickPortal('[data-rolle="radio-neucode-senden"]');
       },
     },
     {
@@ -754,7 +778,7 @@ describe("radio-Zugaenge: die ZWEI Fehlerpfade — und der Klartext bleibt draus
       mock: setzeMock,
       text: "Der Zustand konnte nicht gespeichert werden.",
       ausloesen: async () => {
-        await mount(<CodeTabelle zeilen={[zeile()]} />);
+        await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile()]} />);
         await click('[data-rolle="radio-code-umschalten"]');
         await clickPortal(".ant-popconfirm .ant-btn-primary");
       },
@@ -768,7 +792,7 @@ describe("radio-Zugaenge: die ZWEI Fehlerpfade — und der Klartext bleibt draus
       await pfad.ausloesen();
 
       expect(
-        query('[data-rolle="radio-zugaenge-fehler"]').textContent,
+        queryPortal('[data-rolle="radio-zugaenge-fehler"]').textContent,
         `${pfad.action}: der Fehlschlag bleibt stumm`,
       ).toBe(pfad.text);
       expect(
@@ -969,7 +993,7 @@ describe("radio-Zugaenge: die Bauform der Insel und ihrer Seite", () => {
      * `CLAUDE.md`), die Wirkung ist hier strukturell nicht messbar. Sie gehoert der
      * `Datentabelle` und wird dort geprueft.
      */
-    await mount(<CodeTabelle zeilen={[zeile(), zeile({ id: "zc-2" })]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile(), zeile({ id: "zc-2" })]} />);
     expect(exists(".ant-pagination"), "die Zugangsliste blaettert").toBe(false);
   });
 
@@ -1155,7 +1179,7 @@ describe("radio-Zugaenge: Sortierung und Filter im Spaltenkopf", () => {
      * ist, den jemand gerade ausgestellt hat und sucht. Ein versehentliches
      * `defaultSortOrder` waere eine stille Umordnung der ganzen Flaeche.
      */
-    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile(), gesperrteZeile()]} />);
     expect(bezeichnungen()).toEqual(["Aufsteller Funkraum", "Aufsteller Fahrzeughalle"]);
   });
 
@@ -1166,7 +1190,7 @@ describe("radio-Zugaenge: Sortierung und Filter im Spaltenkopf", () => {
      * ⛔ UND ZURUECK: der zweite Klick dreht die Richtung um. Ohne die Gegenprobe bestuende der
      * Fall auch ueber einem Vergleicher, der IMMER dieselbe Ordnung liefert.
      */
-    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile(), gesperrteZeile()]} />);
 
     await klickeSpaltenkopf("Bezeichnung");
     expect(bezeichnungen()).toEqual(["Aufsteller Fahrzeughalle", "Aufsteller Funkraum"]);
@@ -1188,6 +1212,7 @@ describe("radio-Zugaenge: Sortierung und Filter im Spaltenkopf", () => {
      */
     await mount(
       <CodeTabelle
+        titel="Zugangscodes"
         zeilen={[
           zeile({ id: "zc-a", bezeichnung: "A", zuletztText: "nie eingelöst", zuletztIso: "" }),
           zeile({
@@ -1220,7 +1245,7 @@ describe("radio-Zugaenge: Sortierung und Filter im Spaltenkopf", () => {
      * ⚠️ antd rendert das Aufklappmenue und seine Knoepfe in ein PORTAL an `document.body`
      * (`qr/_lib/test-dom.tsx`); gegriffen wird deshalb dort.
      */
-    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+    await mount(<CodeTabelle titel="Zugangscodes" zeilen={[zeile(), gesperrteZeile()]} />);
     expect(bezeichnungen().length).toBe(2);
 
     await clickElement(query("th .ant-table-filter-trigger"));

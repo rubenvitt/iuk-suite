@@ -56,7 +56,7 @@ const AUSLEIHE_ID = "[data-rolle='radio-ausleihe-id']";
 const SATZ_SCHON_ZURUECK = "41/12 wurde zwischenzeitlich von jemand anderem zurückgegeben.";
 const SATZ_SITZUNG =
   "Dein Zugang ist abgelaufen. Gib den Code erneut ein — deine Eingaben bleiben stehen.";
-const SATZ_GESPERRT = "Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung.";
+const SATZ_GESPERRT = "Dieser Zugangscode wurde gesperrt. Wende dich an die Leitung.";
 
 const EINS: DialogAusleihe = { id: "l-1", rufname: "41/12" };
 const ZWEI: DialogAusleihe = { id: "l-2", rufname: "41/13" };

@@ -22,7 +22,7 @@ async function scanneEan(handy: Page, ean: string) {
   await klickeWennRuhig(handy.getByRole("button", { name: `Weiter mit ${ean}` }));
 }
 
-test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verwaltung sehen", async ({ page, browser }) => {
+test("Lager einrichten, mit Zugangscode am Telefon buchen, Buchungen in der Verwaltung sehen", async ({ page, browser }) => {
   test.setTimeout(180_000);
   const n = Date.now() % 100_000;
   const ort = `Regal E2E ${n}`;
@@ -52,9 +52,9 @@ test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verw
 
   await page.goto(url("/links"));
   await warteAufGestreamteInhalte(page);
-  await klickeWennRuhig(page.getByRole("button", { name: "Link anlegen" }));
-  const linkDialog = page.getByRole("dialog", { name: "Helfer-Link anlegen" });
-  await linkDialog.getByLabel("Anlass").fill(anlass);
+  await klickeWennRuhig(page.getByRole("button", { name: "Zugangscode anlegen" }));
+  const linkDialog = page.getByRole("dialog", { name: "Zugangscode anlegen" });
+  await linkDialog.getByLabel("Bezeichnung").fill(anlass);
   await klickeWennRuhig(linkDialog.getByRole("button", { name: "Anlegen" }));
   const adresse = (await page.locator('[data-rolle="helfer-adresse"]').textContent())!.trim();
   expect(adresse.startsWith(url("/t/"))).toBe(true);
@@ -67,7 +67,7 @@ test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verw
   await expect(handy.locator('[data-rolle="kein-zugang"]')).toHaveText("Kein Zugang.");
   await handy.goto(adresse);
   await handy.waitForURL(/\/h$/);
-  await expect(handy.locator('[data-rolle="wer"]')).toContainText(`Helfer-Link ${anlass}`);
+  await expect(handy.locator('[data-rolle="wer"]')).toContainText(`Zugangscode · ${anlass}`);
   await klickeWennRuhig(handy.getByRole("button", { name: "Ort wechseln" }));
   const ortWahl = handy.getByRole("dialog", { name: "Ort wechseln" });
   await klickeWennRuhig(ortWahl.getByRole("button", { name: new RegExp(ort) }));
@@ -133,7 +133,7 @@ test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verw
   // Die Verwaltung sieht die Buchungen unter dem Namen des Links und den vorläufigen Artikel.
   await page.goto(url("/buchungen"));
   await warteAufGestreamteInhalte(page);
-  await expect(page.getByRole("row", { name: new RegExp(`Aussonderung.*${artikel}`) })).toContainText(`Helfer-Link ${anlass}`);
+  await expect(page.getByRole("row", { name: new RegExp(`Aussonderung.*${artikel}`) })).toContainText(`Zugangscode · ${anlass}`);
   await expect(page.getByRole("row", { name: new RegExp(`Ausgabe.*${artikel}`) })).toContainText("Dienstabend");
   await page.goto(url("/artikel"));
   await warteAufGestreamteInhalte(page);
@@ -157,7 +157,7 @@ test("ohne Admin keine Lagerorte und Links, auf fremdem Host kein Modul", async 
   await page.goto(url("/"));
   await warteAufGestreamteInhalte(page);
   await expect(page.getByRole("heading", { name: "Übersicht" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Helfer-Links" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Zugangscodes" })).toHaveCount(0);
   expect((await page.goto(url("/links")))?.status()).toBe(404);
   expect((await page.goto(url("/orte")))?.status()).toBe(404);
   expect((await page.request.get(`http://portal.localtest.me:${E2E_PORT}/m/verpflegung/h`)).status()).toBe(404);

@@ -97,7 +97,7 @@ afterEach(async () => {
 describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () => {
   it("`aktiv=\"entnahme\"` setzt `aria-current=\"page\"` GENAU EINMAL, am Entnahme-Tab", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="Zugangscode · RTW 1" laeuftAb={LAEUFT_AB}>
         <p>Inhalt</p>
       </HelferRahmen>,
     );
@@ -187,7 +187,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
 describe("HelferRahmen — der Kopf", () => {
   it("zeigt das Sitzungsetikett auf der dafuer vorgesehenen Flaeche", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="Zugangscode · RTW 1" laeuftAb={LAEUFT_AB}>
         <p />
       </HelferRahmen>,
     );
@@ -195,7 +195,7 @@ describe("HelferRahmen — der Kopf", () => {
     // Vitest zu `_etikett_<hash>` auf. Ohne die Klasse gaebe es die Zeile zwar,
     // aber ohne ihre Schriftgroesse und Farbe — und `header` allein saehe das
     // nicht.
-    expect(query("header [class*='etikett']").textContent).toBe("Token 482-137 · RTW 1");
+    expect(query("header [class*='etikett']").textContent).toBe("Zugangscode · RTW 1");
   });
 
   it("rendert die Restzeit-Insel mit der SERVER-Uhrzeit", async () => {

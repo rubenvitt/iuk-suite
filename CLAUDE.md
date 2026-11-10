@@ -7,7 +7,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 `docs/design/README.md` enthält die verbindlichen Querschnittsregeln. Referenzentwürfe:
 `docs/design/feedback-oeffentliche-ansicht.md` (öffentliche, login-freie Ansichten) und
-`docs/design/feedback-admin.md` (Admin-Arbeitsseiten).
+`docs/design/feedback-admin.md` (Admin-Arbeitsseiten). Wörter und Anrede: `docs/design/wortliste.md`.
 
 ### Fallen, die `pnpm build` nicht findet
 

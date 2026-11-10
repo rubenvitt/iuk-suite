@@ -31,6 +31,29 @@
 }
 
 /*
+ * Ueberschrift links, die Seitenaktion rechts (Zugangscodes). Den Abstand nach unten traegt
+ * hier der Kopf, nicht `.titel`, sonst stuende er doppelt.
+ */
+.kopfMitAktion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-block-end: 12px;
+}
+
+.kopfMitAktion .titel {
+  margin-block-end: 0;
+}
+
+/* Die Beschriftung ueber einem einzelnen Feld im Dialog. */
+.feldEtikett {
+  display: block;
+  margin-block-end: 4px;
+}
+
+/*
  * Die Huelle einer klickbaren Kennzahlkarte. Sie ist ein LINK und kein `onClick`
  * (Entscheidung E-V15) — deshalb muss die Linkfarbe hier heraus, sonst faerbt sie den
  * ganzen Kartentext blau. `display: block` gibt der Karte die volle Spaltenbreite zurueck,

@@ -12,7 +12,7 @@ export function verpflegungNav(r: Rechte): SuiteNavItem[] {
     { key: "artikel", title: "Artikel", href: "/artikel", ikon: "katalog", abschnitt: "Einrichten" },
     ...(r.admin ? [
       { key: "orte", title: "Lagerorte", href: "/orte", ikon: "lagerorte" as const, abschnitt: "Einrichten" },
-      { key: "links", title: "Helfer-Links", href: "/links", ikon: "tokens" as const, abschnitt: "Einrichten" },
+      { key: "links", title: "Zugangscodes", href: "/links", ikon: "tokens" as const, abschnitt: "Einrichten" },
     ] : []),
   ];
 }

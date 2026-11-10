@@ -1,3 +1,4 @@
+import { Button } from "antd";
 import { getDb } from "../../../_db/client";
 import { einheitMeta, standortMeta } from "../../../_lib/konstanten";
 import { etikettOrte } from "../../../_lib/lesepfade/ortEtiketten";
@@ -105,11 +106,12 @@ export default function TokensSeite() {
   return (
     <>
       <SeitenKopf
-        titel="Zugangs-Codes"
+        titel="Zugangscodes"
+        aktionen={<Button href="/verwaltung/ortsetiketten">Ortsetiketten</Button>}
       />
       <TokenTable zeilen={zeilen} />
     </>
   );
 }
 
-export const metadata = { title: "Zugangs-Codes" };
+export const metadata = { title: "Zugangscodes" };

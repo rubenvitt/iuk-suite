@@ -303,13 +303,13 @@ describe("das Druckblatt an /admin/zugaenge/blatt", () => {
      * (Sonde **P5**, 2026-08-26): die erste Fassung las den Text des Baumes und den rohen
      * Quelltext auf `"/admin/zugaenge"`. Das `<a>` durch ein `<span>` zu ersetzen liess
      * BEIDE Zusicherungen stehen — `16 passed`, **0 rot**. Ein Zustand mit einem
-     * unklickbaren Satz „Zurück zur Zugangsverwaltung" ist genau die Sackgasse, gegen die
+     * unklickbaren Satz „Zurück zu den Zugangscodes" ist genau die Sackgasse, gegen die
      * der Global Constraint steht.
      */
     const baum = await seite();
     const ziele = zieleImBaum(baum);
     expect(ziele, "der Rueckweg ist kein anklickbares Ziel").toContain("/admin/zugaenge");
-    expect(text(baum)).toContain("Zurück zur Zugangsverwaltung");
+    expect(text(baum)).toContain("Zurück zu den Zugangscodes");
   });
 
   it("der Rueckweg steht im nicht druckenden Block — und der verschluckt nichts anderes", async () => {

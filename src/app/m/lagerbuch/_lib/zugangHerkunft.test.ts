@@ -113,8 +113,8 @@ describe("zugangsAkteur — das Zugriffsprotokoll", () => {
 });
 
 describe("sitzungsEtikett — der Satz im Rahmenkopf", () => {
-  it("Kärtchen: Code UND Label", () => {
-    expect(sitzungsEtikett(TOKEN)).toBe("Zugang: Token 482-137 · RTW 1 Kärtchen");
+  it("Kärtchen: Zugangscode und Bezeichnung, nie der Code selbst", () => {
+    expect(sitzungsEtikett(TOKEN)).toBe("Zugangscode · RTW 1 Kärtchen");
   });
 
   it("Konto: der Name, und NIE die Kennung", () => {

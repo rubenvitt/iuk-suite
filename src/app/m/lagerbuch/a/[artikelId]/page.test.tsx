@@ -299,7 +299,7 @@ describe("/a/<id> — die Rollen-Weiche, drei Ausgaenge", () => {
     // beiseitelegen — und die Bindung aus DRK-302 waere hin.
     expect(kontoZugangOderNull).not.toHaveBeenCalled();
     // Der Kopf zeigt das KAERTCHEN, nicht das Konto.
-    expect(gesehen.rahmen?.etikett).toBe("Zugang: Token 482-137 · RTW 1");
+    expect(gesehen.rahmen?.etikett).toBe("Zugangscode · RTW 1");
   });
 
   it("Ausgang 2 — OHNE Kaertchen, ABER angemeldet: RENDERT die Entnahme (DRK-305)", async () => {
@@ -404,7 +404,7 @@ describe("/a/<id> — die Seite loest ihren Zugang SELBST auf (N-11)", () => {
     vi.mocked(helferZugangOderNull).mockResolvedValue(ZUGANG);
     await mount(await ArtikelDeepLink({ params: Promise.resolve({ artikelId: "art-9" }) }));
     expect(exists("[data-rolle='entnahme']")).toBe(true);
-    expect(gesehen.rahmen?.etikett).toBe("Zugang: Token 482-137 · RTW 1");
+    expect(gesehen.rahmen?.etikett).toBe("Zugangscode · RTW 1");
   });
 });
 
@@ -420,7 +420,7 @@ describe("/a/<id> — der Rahmen", () => {
     await mount(await ArtikelDeepLink(params("art-9")));
     const r = query("[data-rolle='rahmen']");
     expect(r.getAttribute("data-aktiv")).toBe("entnahme");
-    expect(r.getAttribute("data-etikett")).toBe("Zugang: Token 482-137 · RTW 1");
+    expect(r.getAttribute("data-etikett")).toBe("Zugangscode · RTW 1");
   });
 
   it("das Etikett folgt der DB-Zeile, nicht einem Literal", async () => {
@@ -432,7 +432,7 @@ describe("/a/<id> — der Rahmen", () => {
       label: "GW-San",
     });
     await mount(await ArtikelDeepLink(params("art-9")));
-    expect(gesehen.rahmen?.etikett).toBe("Zugang: Token 900-001 · GW-San");
+    expect(gesehen.rahmen?.etikett).toBe("Zugangscode · GW-San");
   });
 
   it("reicht `laeuftAb` UNVERAENDERT durch — die zweite Pflicht-Prop (§7.8.2)", async () => {

@@ -122,8 +122,8 @@ export function OrtsetikettenChrome({
           {neueCodes > 0 && (
             <p data-testid="lb-ort-neu" style={{ margin: 0, fontWeight: 600 }}>
               {neueCodes === 1
-                ? "Für einen Ort ist gerade ein neuer Zugangs-Code entstanden."
-                : `Für ${neueCodes} Orte sind gerade neue Zugangs-Codes entstanden.`}
+                ? "Für einen Ort ist gerade ein neuer Zugangscode entstanden."
+                : `Für ${neueCodes} Orte sind gerade neue Zugangscodes entstanden.`}
             </p>
           )}
           {/*

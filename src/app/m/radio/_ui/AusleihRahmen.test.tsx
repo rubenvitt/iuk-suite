@@ -339,7 +339,7 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
     await mount(
       await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
     );
-    expect(query("[data-rolle='radio-sitzungsetikett']").textContent).toContain("Aufsteller Wache");
+    expect(query("[data-rolle='radio-sitzungsetikett']").textContent).toContain("Zugangscode · Aufsteller Wache");
 
     await unmount();
     await mount(

@@ -201,7 +201,7 @@ test.describe("Der Weg am Stueck", () => {
     const vorher = zaehleBuchungen("e2e-artikel", "token", E2E_TOKEN_HELFER);
 
     await page.goto(lagerbuchUrl("/"));
-    await page.getByRole("textbox", { name: "Zugangs-Code" }).fill(E2E_TOKEN_HELFER);
+    await page.getByRole("textbox", { name: "Zugangscode" }).fill(E2E_TOKEN_HELFER);
     await page.getByRole("button", { name: "Weiter" }).click();
     await page.waitForURL(/\/helfer$/);
 
@@ -275,7 +275,7 @@ test.describe("Der Weg am Stueck", () => {
     const vorherHandlager = bestandAn("e2e-artikel", "handlager");
 
     await page.goto(lagerbuchUrl("/"));
-    await page.getByRole("textbox", { name: "Zugangs-Code" }).fill(E2E_TOKEN_HELFER);
+    await page.getByRole("textbox", { name: "Zugangscode" }).fill(E2E_TOKEN_HELFER);
     await page.getByRole("button", { name: "Weiter" }).click();
     await page.waitForURL(/\/helfer$/);
 
@@ -321,7 +321,7 @@ test.describe("Der Weg am Stueck", () => {
    */
   test("nach einem Kärtchenwechsel gilt die Wahl der vorigen Schicht nicht weiter", async ({ page }) => {
     await page.goto(lagerbuchUrl("/"));
-    await page.getByRole("textbox", { name: "Zugangs-Code" }).fill(E2E_TOKEN_HELFER);
+    await page.getByRole("textbox", { name: "Zugangscode" }).fill(E2E_TOKEN_HELFER);
     await page.getByRole("button", { name: "Weiter" }).click();
     await page.waitForURL(/\/helfer$/);
 
@@ -515,7 +515,7 @@ test.describe("Ein gesperrter Code — deutsche Meldung statt Absturz", () => {
     await page.goto(lagerbuchUrl("/helfer"));
     await expect(page).toHaveURL(/\/\?grund=gesperrt$/);
     await expect(page.locator('[data-rolle="gate-fehler"]')).toHaveText(
-      "Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung.",
+      "Dieser Zugangscode wurde gesperrt. Wende dich an die Leitung.",
     );
 
     // Ein zweiter Aufruf landet OHNE Umweg am Gate: das Cookie ist jetzt weg,

@@ -1,9 +1,9 @@
 "use client";
 
 // src/app/m/radio/admin/(arbeit)/zugaenge/CodeTabelle.tsx
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Popconfirm, Space, Tag, type TableColumnType } from "antd";
+import { Button, Input, Modal, Popconfirm, Space, Tag, type TableColumnType } from "antd";
 import { Kartentabelle, nachDatum, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 import type { CodeZeile } from "../../../_lib/lesepfade/codes";
 import { erstelleCode, setzeCodeAktiv } from "../../../_actions/codes";
@@ -136,23 +136,22 @@ const CODE_TEXTE = {
   /** ⛔ EIN Knopf mit ZWEI Beschriftungen — `setzeCodeAktiv(id, aktiv)` ist EINE Action. */
   sperren: "Sperren",
   entsperren: "Entsperren",
-  sperrFrage: "Diesen Zugang wirklich sperren?",
-  entsperrFrage: "Diesen Zugang wieder freigeben?",
+  sperrFrage: "Zugangscode sperren?",
+  entsperrFrage: "Zugangscode entsperren?",
   ja: "Ja",
   abbrechen: "Abbrechen",
-  platzhalter: "Neuer Zugang, z. B. Aufsteller Funkraum",
-  feldName: "Bezeichnung des neuen Zugangs",
+  neu: "Zugangscode anlegen",
   anlegen: "Anlegen",
-  /** Der zugaengliche Name der Tabelle. ⚠️ Nicht wortgleich mit der Ueberschrift der Seite. */
-  tabelleName: "Ausgestellte Zugänge",
+  /** Der zugaengliche Name der Tabelle. */
+  tabelleName: "Zugangscodes",
   /** Die leere Liste — Hausform (`ausleihen/AusleihenTabelle.tsx:334-335`). */
-  leer: "Kein Zugang ausgestellt",
+  leer: "Noch keine Zugangscodes",
   /**
    * ⛔ DIE ZWEI FEHLERTEXTE SIND HAUSTEXTE UND KEINE SERVERTEXTE. Es gibt hier kein
    * `{ ok, fehler }` zum Durchreichen — und die gefangene Meldung darf nicht auf den
    * Bildschirm, siehe den Kopf dieser Datei.
    */
-  fehlerAnlegen: "Der Zugang konnte nicht ausgestellt werden.",
+  fehlerAnlegen: "Der Zugangscode konnte nicht angelegt werden.",
   fehlerSchalten: "Der Zustand konnte nicht gespeichert werden.",
 } as const;
 
@@ -179,12 +178,17 @@ function sperrangabe(z: CodeZeile): string | null {
 export type CodeTabelleProps = {
   /** ⛔ Der ganze Vertrag, `Spec:4510`. Alles darin ist skalar und vorformatiert. */
   zeilen: CodeZeile[];
+  /** Die Ueberschrift der Seite; sie steht in `SEITEN_TEXTE` (`page.tsx`). */
+  titel: string;
+  /** Was die Seite zwischen Kopf und Tabelle stellt (der Link aufs Druckblatt). */
+  children?: ReactNode;
 };
 
-export function CodeTabelle({ zeilen }: CodeTabelleProps) {
+export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
+  const [offen, setOffen] = useState(false);
   const [legtAn, setLegtAn] = useState(false);
   /*
    * ⛔ EIN SAMMELZUSTAND FUER DIE GANZE TABELLE, UND DAS IST GEWOLLT (REVIEW-V20, N5,
@@ -217,6 +221,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
       await erstelleCode(sauber);
       /* ⛔ NUR DER ERFOLGSFALL LEERT — sonst tippt der Bedienende seine Korrektur neu. */
       setName("");
+      setOffen(false);
       router.refresh();
     } catch {
       /*
@@ -418,29 +423,57 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
 
   return (
     <div data-rolle="radio-zugaenge-flaeche">
-      {/* ⛔ OHNE `style` — Masse dieses Moduls stehen im Stylesheet
-          (`_ui/verwaltung.module.css`, `.suchfeld`), nicht im Markup. */}
-      <div className={s.werkzeugleiste}>
-        <Space.Compact className={s.suchfeld}>
-          <Input
-            placeholder={CODE_TEXTE.platzhalter}
-            aria-label={CODE_TEXTE.feldName}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onPressEnter={anlegen}
-            data-rolle="radio-neucode-eingabe"
-          />
+      <div className={s.kopfMitAktion}>
+        <h1 className={s.titel}>{titel}</h1>
+        <Button
+          type="primary"
+          icon={<VIkone name="plus" />}
+          onClick={() => {
+            setFehler(null);
+            setOffen(true);
+          }}
+          data-rolle="radio-neucode-anlegen"
+        >
+          {CODE_TEXTE.neu}
+        </Button>
+      </div>
+      {children}
+      <Modal
+        open={offen}
+        title={CODE_TEXTE.neu}
+        onCancel={() => setOffen(false)}
+        footer={[
+          <Button key="abbrechen" onClick={() => setOffen(false)}>
+            {CODE_TEXTE.abbrechen}
+          </Button>,
           <Button
+            key="anlegen"
             type="primary"
             loading={legtAn}
             onClick={anlegen}
-            icon={<VIkone name="plus" />}
-            data-rolle="radio-neucode-anlegen"
+            data-rolle="radio-neucode-senden"
           >
             {CODE_TEXTE.anlegen}
-          </Button>
-        </Space.Compact>
-      </div>
+          </Button>,
+        ]}
+      >
+        <label className={s.feldEtikett} htmlFor="radio-neucode-bezeichnung">
+          {CODE_TEXTE.spalteBezeichnung}
+        </label>
+        <Input
+          id="radio-neucode-bezeichnung"
+          maxLength={60}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onPressEnter={anlegen}
+          data-rolle="radio-neucode-eingabe"
+        />
+        {offen && fehler !== null && (
+          <p className={s.dialogFehler} role="alert" data-rolle="radio-zugaenge-fehler">
+            {fehler}
+          </p>
+        )}
+      </Modal>
       {/*
         ⛔ KEINE BLAETTERUNG UND KEIN `scroll` HIER — beides ist die Vorgabe der `Datentabelle`
         (`src/core/tabelle/Datentabelle.tsx`) und stuende hier nur ein zweites Mal. Die
@@ -456,7 +489,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
         aria-label={CODE_TEXTE.tabelleName}
         leer={{ nichts: CODE_TEXTE.leer, figur: "radio" }}
       />
-      {fehler !== null && (
+      {!offen && fehler !== null && (
         /*
           ⛔ KEIN `Alert type="error"` UND KEIN ROTTON: `colorError === colorPrimary`
           (`src/core/theme/theme.ts:32-33`) — ein roter Kasten saehe aus wie die

@@ -246,7 +246,7 @@ describe("Gate — das Codefeld (§7.2.4)", () => {
     expect(f.getAttribute("placeholder")).toBe(CODEFELD_PLATZHALTER);
     expect(f.getAttribute("autocapitalize")).toBe("characters");
     expect(f.getAttribute("spellcheck")).toBe("false");
-    expect(f.getAttribute("aria-label")).toBe("Zugangs-Code");
+    expect(f.getAttribute("aria-label")).toBe("Zugangscode");
     expect(f.getAttribute("aria-describedby")).toBeNull();
     expect(f.getAttribute("autocomplete")).toBe("off");
   });

@@ -78,7 +78,7 @@ const EINTRAEGE: SuiteNavItem[] = [
   // Nur Admin (Spec:4202-4203); die Seite traegt `requireRadioAdmin()` (Spec:4376), V19.
   { key: "versionen", title: "Softwareversionen", href: "/admin/versionen", ikon: "versionen" },
   // Nur Admin (Spec:4202-4203); die Seite traegt `requireRadioAdmin()` (Spec:4377), V20.
-  { key: "zugaenge", title: "Zugänge", href: "/admin/zugaenge", ikon: "tokens" },
+  { key: "zugaenge", title: "Zugangscodes", href: "/admin/zugaenge", ikon: "tokens" },
 ];
 
 /**

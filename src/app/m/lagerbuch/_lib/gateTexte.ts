@@ -122,7 +122,7 @@ export function istGateGrund(roh: string | null | undefined): roh is GateGrund {
  */
 const TEXTE: Record<GateGrund, (sperrSekunden: number | null) => string> = {
   code: () => "Dieser Code ist unbekannt oder wurde gesperrt. Wende dich an die Leitung.",
-  gesperrt: () => "Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung.",
+  gesperrt: () => "Dieser Zugangscode wurde gesperrt. Wende dich an die Leitung.",
   abgelaufen: () => "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut.",
   /**
    * DERSELBE ZUSTAND, ANDERE HERKUNFT — DRK-305. Wer den Helfer-Weg angemeldet

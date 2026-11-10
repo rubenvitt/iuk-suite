@@ -193,7 +193,7 @@ export function Gate({
               maxLength={CODEFELD_LAENGE}
               pattern={CODEFELD_MUSTER}
               placeholder={CODEFELD_PLATZHALTER}
-              aria-label="Zugangs-Code"
+              aria-label="Zugangscode"
             />
             {/*
               `role="alert"`: seit dem Netzfall erscheint dieser Ort auch

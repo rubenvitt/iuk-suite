@@ -1400,7 +1400,7 @@ test.describe("radio-Verwaltung", () => {
      * ⛔ DAS ANLEGEFELD GEHOERT ZUR SELBEN INSEL und ist der einzige Teil der Flaeche, den ein
      * leerer Bestand sichtbar laesst — ohne es bewiese der Fall nur, dass ein `<div>` da ist.
      */
-    await expect(page.locator('[data-rolle="radio-neucode-eingabe"]')).toHaveCount(1);
+    await expect(page.locator('[data-rolle="radio-neucode-anlegen"]')).toHaveCount(1);
 
   });
 

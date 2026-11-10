@@ -57,7 +57,7 @@ export function HelferListe({ liste, darfVerwalten }: { liste: HelferDTO[]; darf
       if (!e.ok) void message.warning(e.fehler);
       else if (ids.length > 1) void message.success(`${e.wert} geändert.`);
     } catch {
-      void message.warning("Die Freigabe ließ sich nicht ändern. Bitte die Seite neu laden.");
+      void message.warning("Die Bereitstellung ließ sich nicht ändern. Bitte die Seite neu laden.");
     } finally {
       setLaeuft(null);
     }
@@ -103,8 +103,8 @@ export function HelferListe({ liste, darfVerwalten }: { liste: HelferDTO[]; darf
       title: "Einsatztagebuch",
       key: "einsatzbuch",
       ...zustandsFilter<HelferDTO>([
-        { wert: "ja", text: "freigegeben", trifft: (h) => h.fuerEinsatzbuch },
-        { wert: "nein", text: "nicht freigegeben", trifft: (h) => !h.fuerEinsatzbuch },
+        { wert: "ja", text: "bereitgestellt", trifft: (h) => h.fuerEinsatzbuch },
+        { wert: "nein", text: "nicht bereitgestellt", trifft: (h) => !h.fuerEinsatzbuch },
       ]),
       render: (_: unknown, h: HelferDTO) =>
         darfVerwalten ? (
@@ -114,11 +114,11 @@ export function HelferListe({ liste, darfVerwalten }: { liste: HelferDTO[]; darf
               loading={laeuft === h.id}
               disabled={laeuft !== null && laeuft !== h.id}
               onChange={(wert) => void setze([h.id], wert, h.id)}
-              aria-label={`${h.vorname} ${h.nachname} fürs Einsatztagebuch freigeben`}
+              aria-label={`${h.vorname} ${h.nachname} fürs Einsatztagebuch bereitstellen`}
             />
-            {h.fuerEinsatzbuch ? "freigegeben" : "nicht freigegeben"}
+            {h.fuerEinsatzbuch ? "bereitgestellt" : "nicht bereitgestellt"}
           </label>
-        ) : h.fuerEinsatzbuch ? "freigegeben" : "nicht freigegeben",
+        ) : h.fuerEinsatzbuch ? "bereitgestellt" : "nicht bereitgestellt",
     },
   ];
 
@@ -127,15 +127,15 @@ export function HelferListe({ liste, darfVerwalten }: { liste: HelferDTO[]; darf
   function alleSetzen(wert: boolean): void {
     const ids = angezeigt.filter((h) => h.fuerEinsatzbuch !== wert).map((h) => h.id);
     if (ids.length === 0) {
-      void message.info(wert ? "Alle angezeigten sind schon freigegeben." : "Keiner der angezeigten ist freigegeben.");
+      void message.info(wert ? "Alle angezeigten sind schon bereitgestellt." : "Keiner der angezeigten ist bereitgestellt.");
       return;
     }
     modal.confirm({
-      title: wert ? `${ids.length} fürs Einsatztagebuch freigeben?` : `${ids.length} nicht mehr fürs Einsatztagebuch bereitstellen?`,
+      title: wert ? `${ids.length} fürs Einsatztagebuch bereitstellen?` : `${ids.length} nicht mehr fürs Einsatztagebuch bereitstellen?`,
       content: wert
         ? "Sie stehen nach dem nächsten Abgleich im Einsatztagebuch zur Auswahl."
         : "Im Einsatztagebuch werden sie beim nächsten Abgleich deaktiviert. Versiegelte Einsätze behalten ihren Stand.",
-      okText: wert ? "Freigeben" : "Nicht mehr bereitstellen",
+      okText: wert ? "Bereitstellen" : "Nicht mehr bereitstellen",
       cancelText: "Abbrechen",
       onOk: () => setze(ids, wert, "alle"),
     });
@@ -155,7 +155,7 @@ export function HelferListe({ liste, darfVerwalten }: { liste: HelferDTO[]; darf
         <span aria-live="polite">{angezeigt.length} von {liste.length} angezeigt</span>
         {darfVerwalten && liste.length > 0 ? (
           <span style={{ display: "inline-flex", flexWrap: "wrap", gap: SPACE.sm, marginInlineStart: "auto" }}>
-            <Button onClick={() => alleSetzen(true)} loading={laeuft === "alle"} disabled={laeuft !== null}>Angezeigte freigeben</Button>
+            <Button onClick={() => alleSetzen(true)} loading={laeuft === "alle"} disabled={laeuft !== null}>Angezeigte bereitstellen</Button>
             <Button onClick={() => alleSetzen(false)} disabled={laeuft !== null}>Angezeigte nicht bereitstellen</Button>
           </span>
         ) : null}
