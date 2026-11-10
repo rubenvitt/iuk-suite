@@ -136,11 +136,12 @@ export function PruefungAmGeraet({
 
   function senden() {
     if (laeuft || !bereit) return;
+    // Erst die alte Meldung weg, sonst verdeckt sie die Rückfrage im Fuß.
+    setFehler(null);
     if (befund.art === "sprung" && !fragtGerade) {
       setRueckfrage(befund.wert);
       return;
     }
-    setFehler(null);
     setRueckfrage(null);
     entwurf.sende({
       stunden, ergebnis: gewaehlt, notiz,
