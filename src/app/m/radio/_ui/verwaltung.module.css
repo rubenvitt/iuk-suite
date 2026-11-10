@@ -606,7 +606,7 @@
  * waere ein zweiter Wahrheitsort.
  */
 .codeNeben {
-  display: block; max-width: 24ch; /* IDA-393: die Sperrangabe bricht um, statt die Spalte zu verbreitern */
+  display: block; max-width: 20ch; /* IDA-393: die Sperrangabe bricht um, statt die Spalte zu verbreitern */
   color: var(--iuk-gedaempft);
 }
 

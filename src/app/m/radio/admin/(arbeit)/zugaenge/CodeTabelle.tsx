@@ -272,7 +272,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
       key: "bezeichnung",
       sorter: nachText<CodeZeile>((z) => z.bezeichnung),
       render: (_: unknown, z: CodeZeile) => (
-        <Zellentext data-rolle="radio-code-bezeichnung" text={z.bezeichnung} style={{ maxWidth: "24ch" }} />
+        <Zellentext data-rolle="radio-code-bezeichnung" text={z.bezeichnung} style={{ maxWidth: "20ch" }} />
       ),
     },
     {

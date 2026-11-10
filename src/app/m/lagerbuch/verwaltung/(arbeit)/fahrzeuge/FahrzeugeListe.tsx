@@ -267,7 +267,8 @@ function spalten(
         // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
         // Chip-Zeilenabstand, wie in ArtikelTable.tsx (Aufgabe 8), bleibt
         // Literal statt auf einen sichtbar groeberen Wert gerundet.
-        <Flex gap={6} wrap>
+        // IDA-393: zwei Chips stehen untereinander statt nebeneinander (bei 1280px 6px zu breit).
+        <Flex gap={6} wrap style={{ maxWidth: "16ch" }}>
           {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
           {zeile.artikelUnterSoll > 0 ? (
             <Chip ton="rot" zeichen="warnung">
