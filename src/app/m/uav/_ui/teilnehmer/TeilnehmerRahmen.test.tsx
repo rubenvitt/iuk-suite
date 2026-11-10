@@ -33,7 +33,9 @@ describe("TeilnehmerRahmen", () => {
     expect(link.textContent).toBe("Verwaltung");
     // `callbackUrl`: ohne ihn landet man nach der Anmeldung wieder auf der
     // Trainingsansicht, also dort, wo man schon war.
-    expect(link.getAttribute("href")).toBe("/api/auth/signin?callbackUrl=%2Fadmin");
+    // Direkt `/login` (IDA-401): über `/api/auth/signin` löste Auth.js `/admin`
+    // gegen `AUTH_URL` auf, und man landete auf der Portal-Verwaltung.
+    expect(link.getAttribute("href")).toBe("/login?callbackUrl=%2Fadmin");
   });
 
   it("führt Verwalter direkt in die Verwaltung", async () => {
