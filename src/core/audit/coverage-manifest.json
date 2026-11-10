@@ -710,6 +710,10 @@
     "kind": "context",
     "via": "setzeAusgeblendeteKategorien"
   },
+  "src/app/m/lagerbuch/_actions/journal.ts#gegenbucheVorgang": {
+    "kind": "context",
+    "via": "gegenbucheVorgang"
+  },
   "src/app/m/lagerbuch/_actions/journal.ts#naechsteJournalSeite": {
     "kind": "excluded",
     "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
@@ -769,6 +773,10 @@
   "src/app/m/lagerbuch/_actions/buchung.ts#bucheAuffuellung": {
     "kind": "context",
     "via": "bucheAuffuellung"
+  },
+  "src/app/m/lagerbuch/_actions/buchung.ts#macheEntnahmeRueckgaengig": {
+    "kind": "context",
+    "via": "macheEntnahmeRueckgaengig"
   },
   "src/app/m/lagerbuch/_actions/bz.ts#geraetSpeichern": {
     "kind": "context",
