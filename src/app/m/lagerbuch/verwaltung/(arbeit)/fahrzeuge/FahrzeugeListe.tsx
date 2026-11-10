@@ -210,53 +210,75 @@ function spalten(
       title: "Einheit",
       dataIndex: "name",
       sorter: nachText<FahrzeugAnzeigeZeile>((zeile) => zeile.name),
+      /**
+       * ⚠️ DIE ART STEHT DIREKT UNTER DEM NAMEN (DRK-309, IDA-393). Sie beantwortet „was ist
+       * das hier ueberhaupt?" — die Frage, die man VOR „wie voll ist es?" stellt. Bis IDA-393
+       * war sie eine eigene Spalte daneben; bei 1280px ragte die Liste damit aus ihrem Rahmen.
+       * Ihr Filter sitzt seither in diesem Spaltenkopf.
+       *
+       * ⚠️ „nicht zugeordnet" IST DER EIGENTLICHE GRUND FUER DIESEN FILTER (s. `ART_FILTER`).
+       */
+      filters: ART_FILTER.filters,
+      onFilter: ART_FILTER.onFilter,
       render: (wert: string, zeile) => (
-        <span>
-          {/* 44 px Tippziel (Arbeitsdichte, IDA-241): ein Textlink erbt sie nicht. */}
-          <Link
-            href={verwaltungDetailPfad("fahrzeuge", zeile.id)}
-            style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", minHeight: 44 }}
-          >
-            {wert}
-          </Link>
-          {zeile.kennung ? (
-            <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
-              {zeile.kennung}
-            </span>
-          ) : null}
-        </span>
+        <>
+          <span>
+            {/* 44 px Tippziel (Arbeitsdichte, IDA-241): ein Textlink erbt sie nicht. */}
+            <Link
+              href={verwaltungDetailPfad("fahrzeuge", zeile.id)}
+              style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", minHeight: 44 }}
+            >
+              {wert}
+            </Link>
+            {zeile.kennung ? (
+              <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
+                {zeile.kennung}
+              </span>
+            ) : null}
+          </span>
+          <div>
+            {/*
+             * ⚠️ CHIP MIT TEXT, nicht nur ein Zeichen (`_ui/Chip.tsx`). GRAU, NICHT GELB fuer
+             * den Zwischenstand: er ist erlaubt (Migration 0010 backfillt bewusst nicht), und
+             * ein Warnton auf jeder Altzeile entwertete das Gelb in der Verfallsspalte, wo es
+             * fachlich etwas heisst (Falle 3, `docs/design/README.md`).
+             */}
+            {zeile.einheitenart === null ? (
+              <Chip ton="grau">{einheitenartLabel(null)}</Chip>
+            ) : (
+              <Chip ton="grau" zeichen={zeile.einheitenart}>
+                {einheitenartLabel(zeile.einheitenart)}
+              </Chip>
+            )}
+          </div>
+        </>
       ),
     },
     {
-      /**
-       * ⚠️ DIE ART STEHT DIREKT NEBEN DEM NAMEN, nicht hinten bei den
-       * Kennzahlen. Sie beantwortet „was ist das hier ueberhaupt?" — die
-       * Frage, die man VOR „wie voll ist es?" stellt. Am rechten Rand gelesen
-       * kaeme die Antwort nach der Entscheidung.
-       *
-       * ⚠️ CHIP MIT TEXT, nicht nur ein Zeichen. Die Regel des Moduls steht in
-       * `_ui/Chip.tsx`: jeder Chip traegt Text, das Zeichen ist `aria-hidden`
-       * und Zugabe. Ein Taschen- neben einem Lastwagensymbol waere auf
-       * Zeilenhoehe zwei aehnlich grosse graue Flecken.
-       */
-      title: "Art",
-      dataIndex: "einheitenart",
-      key: "art",
-      sorter: nachText<FahrzeugAnzeigeZeile>(
-        (zeile) => einheitenartLabel(zeile.einheitenart)),
-      filters: ART_FILTER.filters,
-      onFilter: ART_FILTER.onFilter,
-      render: (wert: Einheitenart | null) => wert === null ? (
-        /*
-         * GRAU, NICHT GELB. Der Zwischenstand ist erlaubt (Migration 0010
-         * backfillt bewusst nicht) — ein Warnton auf jeder Altzeile mahnte
-         * jeden Tag zu etwas, das niemand versprochen hat, und entwertete das
-         * Gelb daneben in der Verfallsspalte, wo es fachlich etwas heisst
-         * (Falle 3, `docs/design/README.md`).
-         */
-        <Chip ton="grau">{einheitenartLabel(null)}</Chip>
-      ) : (
-        <Chip ton="grau" zeichen={wert}>{einheitenartLabel(wert)}</Chip>
+      // IDA-393: direkt hinter der Einheit, damit Status bei 1280px nicht hinter dem Rand liegt.
+      title: "Status",
+      dataIndex: "aktiv",
+      // Die Zahl der Artikel unter Soll ordnet die Spalte fachlich: absteigend
+      // steht oben, was Aufmerksamkeit verlangt.
+      sorter: nachZahl<FahrzeugAnzeigeZeile>((zeile) => zeile.artikelUnterSoll),
+      filters: STATUS_FILTER.filters,
+      onFilter: STATUS_FILTER.onFilter,
+      render: (_wert: boolean, zeile) => (
+        // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+        // Chip-Zeilenabstand, wie in ArtikelTable.tsx (Aufgabe 8), bleibt
+        // Literal statt auf einen sichtbar groeberen Wert gerundet.
+        // IDA-393: zwei Chips stehen untereinander statt nebeneinander (bei 1280px 6px zu breit).
+        <Flex gap={6} wrap style={{ maxWidth: "16ch" }}>
+          {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
+          {zeile.artikelUnterSoll > 0 ? (
+            <Chip ton="rot" zeichen="warnung">
+              {zeile.artikelUnterSoll} unter Soll
+            </Chip>
+          ) : null}
+          {zeile.positionen > 0 && zeile.artikelUnterSoll === 0 ? (
+            <Chip ton="ok">auf Soll</Chip>
+          ) : null}
+        </Flex>
       ),
     },
     {
@@ -348,34 +370,11 @@ function spalten(
             : <Chip ton="ok">im grünen Bereich</Chip>;
         }
         // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
-        // Chip-Zeilenabstand wie in der Statusspalte daneben.
-        return <Flex gap={6} wrap>{chips}</Flex>;
+        // Chip-Zeilenabstand wie in der Statusspalte. IDA-393: `maxWidth`, damit
+        // die Chips untereinander umbrechen — unter `max-content` stuenden sie
+        // sonst in einer Zeile.
+        return <Flex gap={6} wrap style={{ maxWidth: 150 }}>{chips}</Flex>;
       },
-    },
-    {
-      title: "Status",
-      dataIndex: "aktiv",
-      // Die Zahl der Artikel unter Soll ordnet die Spalte fachlich: absteigend
-      // steht oben, was Aufmerksamkeit verlangt.
-      sorter: nachZahl<FahrzeugAnzeigeZeile>((zeile) => zeile.artikelUnterSoll),
-      filters: STATUS_FILTER.filters,
-      onFilter: STATUS_FILTER.onFilter,
-      render: (_wert: boolean, zeile) => (
-        // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
-        // Chip-Zeilenabstand, wie in ArtikelTable.tsx (Aufgabe 8), bleibt
-        // Literal statt auf einen sichtbar groeberen Wert gerundet.
-        <Flex gap={6} wrap>
-          {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
-          {zeile.artikelUnterSoll > 0 ? (
-            <Chip ton="rot" zeichen="warnung">
-              {zeile.artikelUnterSoll} unter Soll
-            </Chip>
-          ) : null}
-          {zeile.positionen > 0 && zeile.artikelUnterSoll === 0 ? (
-            <Chip ton="ok">auf Soll</Chip>
-          ) : null}
-        </Flex>
-      ),
     },
     {
       title: "Zuletzt geprüft",

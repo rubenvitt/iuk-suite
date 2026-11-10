@@ -310,8 +310,10 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     // der Zeile darunter und meldete sich als „der leere Schrank muss
     // löschbar sein" — eine Meldung, die auf die Loeschregeln zeigt, waehrend
     // in Wahrheit die Anfrage nie ankam.
+    // IDA-393: „Löschen" liegt im Aktionsmenü der Zeile.
+    await klickeWennRuhig(zeile.getByRole("button", { name: `Aktionen für ${schrankName}` }));
     const pruefAntwort = serverActionAntwort(page);
-    await klickeWennRuhig(zeile.getByRole("button", { name: "Löschen", exact: true }));
+    await klickeWennRuhig(page.getByRole("menuitem", { name: "Löschen", exact: true }));
     expect((await pruefAntwort).ok(), "Löschbarkeit prüfen: Server Action").toBe(true);
 
     // Erst danach steht das Bestaetigungsfeld im Dialog. Auf das FELD zu warten

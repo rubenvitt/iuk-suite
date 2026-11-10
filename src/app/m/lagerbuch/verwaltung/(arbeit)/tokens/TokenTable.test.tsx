@@ -324,25 +324,63 @@ async function warte(): Promise<void> {
   });
 }
 
-/** IDA-379 — die offene Rueckfrage (`Popconfirm`), nicht eine geschlossene von vorher. */
-const OFFENE_RUECKFRAGE = ".ant-popover:not(.ant-popover-hidden)";
+/**
+ * IDA-393 — DIE AKTIONEN EINER ZEILE. Ab zwei liegen sie im Menü „Aktionen für <Bezeichnung>",
+ * eine einzelne bleibt ein Knopf. Gelesen wird beides so, wie eine Person es sieht.
+ */
+function aktionsbereich(id: string): HTMLElement {
+  return query(`tr[data-row-key='${id}'] [data-rolle='zeilenaktionen']`);
+}
 
-/** Liefert den Text der Folge, wie er in der Rueckfrage stand, und bestaetigt. */
-async function bestaetigen(): Promise<string> {
-  for (let i = 0; i < 40 && !existsPortal(`${OFFENE_RUECKFRAGE} [data-rolle='token-folge']`); i++) await warte();
-  if (!existsPortal(`${OFFENE_RUECKFRAGE} [data-rolle='token-folge']`)) throw new Error("Rückfrage fehlt.");
-  const folge = queryPortal(`${OFFENE_RUECKFRAGE} [data-rolle='token-folge']`).textContent ?? "";
-  await clickPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons .ant-btn-primary`);
+function offeneEintraege(): HTMLElement[] {
+  return Array.from(document.body.querySelectorAll<HTMLElement>(
+    ".ant-dropdown:not(.ant-dropdown-hidden) [role='menuitem']",
+  ));
+}
+
+async function aktionenVon(id: string): Promise<string[]> {
+  const bereich = aktionsbereich(id);
+  const menue = bereich.querySelector<HTMLElement>("button[aria-label^='Aktionen für']");
+  if (!menue) {
+    return Array.from(bereich.querySelectorAll<HTMLElement>(".ant-btn"))
+      .map((knopf) => knopf.textContent ?? "");
+  }
+  await clickElement(menue);
   await warte();
-  return folge;
+  return offeneEintraege().map((eintrag) => eintrag.textContent ?? "");
 }
 
-function knopfMitText(text: string): HTMLElement {
-  const knopf = Array.from(document.body.querySelectorAll<HTMLElement>("button"))
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!knopf) throw new Error(`Knopf fehlt: ${text}`);
-  return knopf;
+async function aktionWaehlen(id: string, text: string): Promise<void> {
+  const bereich = aktionsbereich(id);
+  const menue = bereich.querySelector<HTMLElement>("button[aria-label^='Aktionen für']");
+  if (!menue) {
+    const knopf = Array.from(bereich.querySelectorAll<HTMLElement>(".ant-btn"))
+      .find((k) => k.textContent === text);
+    if (!knopf) throw new Error(`Knopf fehlt: ${text}`);
+    await clickElement(knopf);
+    await warte();
+    return;
+  }
+  await clickElement(menue);
+  await warte();
+  const eintrag = offeneEintraege().find((e) => e.textContent === text);
+  if (!eintrag) throw new Error(`Menüeintrag fehlt: ${text}`);
+  await clickElement(eintrag);
+  await warte();
 }
+
+function rueckfrageText(): string {
+  return document.body.querySelector(".ant-modal")?.textContent ?? "";
+}
+
+async function rueckfrageBeantworten(text: "Neu erzeugen" | "Sperren" | "Abbrechen"): Promise<void> {
+  const knopf = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-modal .ant-btn"))
+    .find((k) => k.textContent === text);
+  if (!knopf) throw new Error(`Dialogknopf fehlt: ${text}`);
+  await clickElement(knopf);
+  await warte();
+}
+
 
 
 
@@ -404,9 +442,10 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
     // ⚠️ VIERTE SPALTE SEIT DRK-406 — „Ort" steht jetzt an zweiter Stelle.
     const ziele = queryAll("tbody tr[data-row-key] td:nth-child(4)")
       .map((z) => z.textContent);
+    // IDA-393: Art und Kennung stehen UNTER dem Chip.
     expect(ziele).toEqual([
-      "RTW 1 · Fahrzeug · MS-1",
-      "Rucksack Betreuung · Tasche",
+      "RTW 1Fahrzeug · MS-1",
+      "Rucksack BetreuungTasche",
       "Ärzte-Verband",
     ]);
   });
@@ -533,22 +572,17 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
 describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
   it("beobachtet beide Statusrichtungen ohne optimistischen Zustand", async () => {
     await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
-    const sperren = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
-      .find((knopf) => knopf.textContent === "Sperren");
-    const reaktivieren = Array.from(query("tr[data-row-key='t2']").querySelectorAll("button"))
-      .find((knopf) => knopf.textContent === "Entsperren");
-    if (!sperren || !reaktivieren) throw new Error("Statusknöpfe fehlen");
-    await clickElement(sperren);
-    await bestaetigen();
-    await clickElement(reaktivieren);
-    await warte();
+    await aktionWaehlen("t1", "Sperren");
+    await rueckfrageBeantworten("Sperren");
+    await aktionWaehlen("t2", "Entsperren");
 
     expect(mocks.setTokenAktiv.mock.calls).toEqual([
       [{ id: "t1", aktiv: false }],
       [{ id: "t2", aktiv: true }],
     ]);
-    expect(sperren.textContent).toBe("Sperren");
-    expect(reaktivieren.textContent).toBe("Entsperren");
+    // Kein optimistischer Zustand: die Zeilen sagen weiter, was der Server zuletzt lieferte.
+    expect(await aktionenVon("t1")).toContain("Sperren");
+    expect(await aktionenVon("t2")).toEqual(["Entsperren"]);
   });
 
   /*
@@ -558,17 +592,13 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
    */
   it("fragt vor dem Sperren nach, nennt die Karte und meldet danach kurz", async () => {
     await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
-    const sperren = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
-      .find((knopf) => knopf.textContent === "Sperren");
-    if (!sperren) throw new Error("Sperrknopf fehlt");
-    await clickElement(sperren);
-    await warte();
+    await aktionWaehlen("t1", "Sperren");
     expect(mocks.setTokenAktiv, "erst nach der Rückfrage").not.toHaveBeenCalled();
-
-    expect(await bestaetigen()).toBe(sperrFolge(FAHRZEUG));
+    expect(rueckfrageText()).toContain(sperrFolge(FAHRZEUG));
     expect(sperrFolge(FAHRZEUG)).toBe(
       "Die Karte am RTW 1 funktioniert danach nicht mehr. Der Code kommt nicht zurück.",
     );
+    await rueckfrageBeantworten("Sperren");
     expect(mocks.setTokenAktiv.mock.calls).toEqual([[{ id: "t1", aktiv: false }]]);
     for (let i = 0; i < 40 && !existsPortal(".ant-message-notice"); i++) await warte();
     expect(queryPortal(".ant-message").textContent).toContain("111-111 gesperrt.");
@@ -581,14 +611,10 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
       .toBe("Wer 333-333 scannt, kommt danach nicht mehr hinein. Der Code kommt nicht zurück.");
   });
 
-  async function sperrenKlicken(): Promise<HTMLElement> {
+  async function sperrenKlicken(): Promise<void> {
     await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
-    const sperren = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
-      .find((knopf) => knopf.textContent === "Sperren");
-    if (!sperren) throw new Error("Sperrknopf fehlt");
-    await clickElement(sperren);
-    await bestaetigen();
-    return sperren;
+    await aktionWaehlen("t1", "Sperren");
+    await rueckfrageBeantworten("Sperren");
   }
 
   /**
@@ -611,21 +637,21 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
       ok: false,
       fehler: "Ein Code, der zu einer Ortskarte gehört, wird nicht wieder aktiviert.",
     });
-    const sperren = await sperrenKlicken();
+    await sperrenKlicken();
 
     expect(query(".ant-alert-warning").textContent ?? "")
       .toContain("wird nicht wieder aktiviert");
-    expect(sperren.textContent).toBe("Sperren");
+    expect(await aktionenVon("t1")).toContain("Sperren");
   });
 
   it("zeigt bei einem WURF den festen Warntext und nie die Ausnahme", async () => {
     mocks.setTokenAktiv.mockRejectedValueOnce(new Error("SQLITE geheim"));
-    const sperren = await sperrenKlicken();
+    await sperrenKlicken();
 
     const warnung = query(".ant-alert-warning").textContent ?? "";
     expect(warnung).toContain("Zustand des Zugangscodes konnte nicht geändert werden.");
     expect(warnung).not.toContain("SQLITE");
-    expect(sperren.textContent).toBe("Sperren");
+    expect(await aktionenVon("t1")).toContain("Sperren");
   });
 
   /**
@@ -673,14 +699,8 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
   it("bietet an einem Ortscode Neu erzeugen und Sperren an, keinen Löschweg", async () => {
     await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
 
-    expect(
-      Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
-        .map((knopf) => knopf.textContent),
-    ).toEqual(["Neu erzeugen", "Sperren"]);
-    expect(
-      Array.from(query("tr[data-row-key='t2']").querySelectorAll("button"))
-        .map((knopf) => knopf.textContent),
-    ).toEqual(["Entsperren"]);
+    expect(await aktionenVon("t1")).toEqual(["Einsteigen", "Neu erzeugen", "Sperren"]);
+    expect(await aktionenVon("t2")).toEqual(["Entsperren"]);
     expect(document.body.textContent).not.toContain("Löschen");
   });
 
@@ -694,12 +714,8 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     const gesperrterOrtscode = { ...FAHRZEUG, id: "t9", code: "999-111", aktiv: false };
     await mount(<App><TokenTable zeilen={[LISTE, gesperrterOrtscode]} /></App>);
 
-    const knoepfe = (id: string) => Array.from(
-      query(`tr[data-row-key='${id}']`).querySelectorAll("button"),
-    ).map((knopf) => knopf.textContent);
-
-    expect(knoepfe("t3"), "Altbestand hat keinen Ort").not.toContain("Neu erzeugen");
-    expect(knoepfe("t9"), "gesperrt: der Ort hat längst einen neuen Code")
+    expect(await aktionenVon("t3"), "Altbestand hat keinen Ort").not.toContain("Neu erzeugen");
+    expect(await aktionenVon("t9"), "gesperrt: der Ort hat längst einen neuen Code")
       .not.toContain("Neu erzeugen");
   });
 
@@ -730,13 +746,9 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     } satisfies TokenAnzeigeZeile;
     await mount(<App><TokenTable zeilen={[ARTIKEL, gesperrterOrtscode, verwaist]} /></App>);
 
-    const knoepfe = (id: string) => Array.from(
-      query(`tr[data-row-key='${id}']`).querySelectorAll("button"),
-    ).map((knopf) => knopf.textContent);
-
-    expect(knoepfe("t2"), "Altbestand bleibt reaktivierbar").toContain("Entsperren");
-    expect(knoepfe("t9")).not.toContain("Entsperren");
-    expect(knoepfe("t8")).not.toContain("Entsperren");
+    expect(await aktionenVon("t2"), "Altbestand bleibt reaktivierbar").toContain("Entsperren");
+    expect(await aktionenVon("t9")).not.toContain("Entsperren");
+    expect(await aktionenVon("t8")).not.toContain("Entsperren");
 
     // ⚠️ AN SEINER STELLE STEHT EINE AUSKUNFT, KEINE LÜCKE — und am ersetzten
     // Code beantwortet sie die Frage, die am Tresen wirklich gestellt wird.
@@ -752,13 +764,11 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
    */
   it("setzt den Code des Ortes zurück und nennt den neuen", async () => {
     await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
-    const knopf = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
-      .find((k) => k.textContent === "Neu erzeugen");
-    if (!knopf) throw new Error("Knopf „Neu erzeugen“ fehlt");
-    await clickElement(knopf);
+    await aktionWaehlen("t1", "Neu erzeugen");
     expect(mocks.setzeOrtCodeZurueck, "erst nach der Rückfrage").not.toHaveBeenCalled();
-    expect(await bestaetigen())
-      .toBe("111-111 wird dauerhaft gesperrt. Die Karte am RTW 1 muss danach neu gedruckt werden.");
+    expect(rueckfrageText())
+      .toContain("111-111 wird dauerhaft gesperrt. Die Karte am RTW 1 muss danach neu gedruckt werden.");
+    await rueckfrageBeantworten("Neu erzeugen");
 
     /*
      * ⚠️ DIE ORT-ID WANDERT, NICHT DIE TOKEN-ID. Die Action erzeugt für einen
@@ -783,13 +793,8 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
    */
   it("erzeugt nichts, wenn die Rückfrage abgelehnt wird", async () => {
     await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
-    const knopf = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
-      .find((k) => k.textContent === "Neu erzeugen");
-    if (!knopf) throw new Error("Knopf „Neu erzeugen“ fehlt");
-    await clickElement(knopf);
-    await warte();
-    await clickPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons .ant-btn:not(.ant-btn-primary)`);
-    await warte();
+    await aktionWaehlen("t1", "Neu erzeugen");
+    await rueckfrageBeantworten("Abbrechen");
 
     expect(mocks.setzeOrtCodeZurueck).not.toHaveBeenCalled();
   });
@@ -804,11 +809,8 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     if (ausgang instanceof Error) mocks.setzeOrtCodeZurueck.mockRejectedValueOnce(ausgang);
     else mocks.setzeOrtCodeZurueck.mockResolvedValueOnce(ausgang);
     await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
-    const knopf = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
-      .find((k) => k.textContent === "Neu erzeugen");
-    if (!knopf) throw new Error("Knopf „Neu erzeugen“ fehlt");
-    await clickElement(knopf);
-    await bestaetigen();
+    await aktionWaehlen("t1", "Neu erzeugen");
+    await rueckfrageBeantworten("Neu erzeugen");
 
     expect(document.querySelector("[data-testid='lb-token-neuer-code']")).toBeNull();
     expect(query(".ant-alert-warning").textContent ?? "").not.toContain("SQLITE");
@@ -817,16 +819,23 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
   it("bietet für aktive Codes „Einsteigen“ über den QR-Weg im neuen Tab an, für gesperrte nicht", async () => {
     await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
 
-    const einstiege = (id: string) => Array.from(
-      query(`tr[data-row-key='${id}']`).querySelectorAll<HTMLAnchorElement>("a"),
-    ).filter((anker) => (anker.textContent ?? "").includes("Einsteigen"));
+    // IDA-393: „Einsteigen" ist ein Eintrag im Menü der Zeile — ein echter Anker.
+    const einstiege = async (id: string) => {
+      await aktionenVon(id);
+      return Array.from(document.body.querySelectorAll<HTMLAnchorElement>(
+        ".ant-dropdown:not(.ant-dropdown-hidden) [role='menuitem'] a",
+      )).filter((anker) => (anker.textContent ?? "").includes("Einsteigen"));
+    };
 
-    const [fahrzeug] = einstiege("t1");
+    const [fahrzeug] = await einstiege("t1");
     expect(fahrzeug?.getAttribute("href")).toBe("/t/111-111");
     expect(fahrzeug?.getAttribute("target")).toBe("_blank");
-    expect(fahrzeug?.getAttribute("rel")).toBe("noopener noreferrer");
-    expect(einstiege("t3").map((anker) => anker.getAttribute("href"))).toEqual(["/t/333-333"]);
-    expect(einstiege("t2"), "gesperrt: am Gate wäre es ein Fehlversuch").toEqual([]);
+    expect(fahrzeug?.getAttribute("rel")).toContain("noreferrer");
+    expect(aktionsbereich("t2").textContent, "gesperrt: am Gate wäre es ein Fehlversuch")
+      .not.toContain("Einsteigen");
+    await unmount();
+    await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
+    expect((await einstiege("t3")).map((anker) => anker.getAttribute("href"))).toEqual(["/t/333-333"]);
   });
 
   it("kennt in der Quelle weder den Löschknopf noch die generische Löschaction", () => {

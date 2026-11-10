@@ -417,7 +417,7 @@ describe("die Uebersicht gegen eine echte, migrierte Datenbank", () => {
     });
   });
 
-  it("zeigt Passwortschutz als Ja/Nein und den Hash NIRGENDS", async () => {
+  it("zeigt Passwortschutz als Wort und den Hash NIRGENDS", async () => {
     const quelle = await markup();
     /*
      * DIE ZUSICHERUNG DIESES TASKS, in einer Zeile: die Alt-App selektierte alle
@@ -428,8 +428,8 @@ describe("die Uebersicht gegen eine echte, migrierte Datenbank", () => {
      */
     expect(quelle).not.toContain("$2b$");
     expect(quelle).not.toContain(HASH);
-    expect(zeileAusMarkup(quelle, "sh-alt00001")).toContain("Ja");
-    expect(zeileAusMarkup(quelle, "sh-neu00001")).toContain("Nein");
+    expect(zeileAusMarkup(quelle, "sh-alt00001")).toContain("mit Passwort");
+    expect(zeileAusMarkup(quelle, "sh-neu00001")).toContain("ohne Passwort");
   });
 
   it("rechnet Menge, Groesze und Downloads aus den ZEILEN", async () => {

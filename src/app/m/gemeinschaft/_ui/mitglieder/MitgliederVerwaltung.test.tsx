@@ -20,19 +20,23 @@ const BASIS = "https://gemeinschaft.example";
 
 const abwarten = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 const knoepfe = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].filter((b) => b.textContent?.trim() === text);
+const menue = async (name: string) => {
+  await clickElement(document.querySelector<HTMLButtonElement>(`button[aria-label="Aktionen für ${name}"]`)!);
+};
+const eintrag = (text: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((e) => e.textContent?.trim() === text)!;
 const ansicht = () => mount(<App><MitgliederVerwaltung zeilen={ZEILEN} basis={BASIS} /></App>);
 
 beforeEach(() => { for (const f of Object.values(aktion)) f.mockReset().mockResolvedValue({ ok: true }); });
 afterEach(async () => { await unmount(); vi.unstubAllGlobals(); });
 
 describe("MitgliederVerwaltung", () => {
-  it("zeigt Name mit Kennzeichen, Telefon, Verantwortung als Link, offene Aufgaben und gekürzten Link", async () => {
+  it("zeigt Name mit Kennzeichen und Telefon, Verantwortung als Link, offene Aufgaben und gekürzten Link", async () => {
     await ansicht();
     const tabelle = document.querySelector("table")!;
     const text = tabelle.textContent ?? "";
     expect(text).toContain("Jonas Albersverantwortlich");
     expect(text).toContain("0151 1000002");
-    expect(text).toContain("keine Nummer");
+    expect(tabelle.querySelector<HTMLAnchorElement>('a[href="tel:01511000002"]')?.textContent).toBe("0151 1000002");
     expect(tabelle.querySelector<HTMLAnchorElement>('a[href="/v/v1"]')?.textContent).toBe("Weihnachtsmarkt-Stand");
     expect(text).toContain("…/mein/AbCdEf…");
     expect(text).not.toContain("AbCdEfGhIjKlMnOpQrStUv");
@@ -43,25 +47,27 @@ describe("MitgliederVerwaltung", () => {
     const schreibe = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: schreibe } });
     await ansicht();
-    await clickElement(knoepfe("Link kopieren")[0]);
+    await clickElement(document.querySelector<HTMLButtonElement>('button[aria-label="Link kopieren"]')!);
     await abwarten();
     expect(schreibe).toHaveBeenCalledWith("https://gemeinschaft.example/mein/AbCdEfGhIjKlMnOpQrStUv");
     expect(document.body.textContent).toContain("Link kopiert. Schick ihn nur an Jonas.");
   });
 
-  it("„Neuer Link“ und „Entfernen“ fragen nach und rufen erst dann die Action", async () => {
+  it("„Neuer Link“ und „Entfernen“ liegen im Zeilenmenü, fragen nach und rufen erst dann die Action", async () => {
     await ansicht();
-    await clickElement(knoepfe("Neuer Link")[0]);
+    await menue("Jonas Albers");
+    await clickElement(eintrag("Neuer Link"));
     expect(aktion.neuerLink).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain("Der bisherige Link geht dann sofort nicht mehr.");
     await clickElement(knoepfe("Neu erzeugen")[0]);
     await abwarten();
     expect(aktion.neuerLink).toHaveBeenCalledWith("m1");
 
-    await clickElement(knoepfe("Entfernen")[0]);
+    await menue("Jonas Albers");
+    await clickElement(eintrag("Entfernen"));
     expect(document.body.textContent).toContain("Jonas Albers entfernen?");
     expect(aktion.entfernen).not.toHaveBeenCalled();
-    const ok = [...document.querySelectorAll<HTMLButtonElement>(".ant-popconfirm button")].find((b) => b.textContent?.trim() === "Entfernen")!;
+    const ok = [...document.querySelectorAll<HTMLButtonElement>(".ant-modal button")].find((b) => b.textContent?.trim() === "Entfernen")!;
     await clickElement(ok);
     await abwarten();
     expect(aktion.entfernen).toHaveBeenCalledWith("m1");

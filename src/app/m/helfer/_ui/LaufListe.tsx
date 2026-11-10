@@ -1,6 +1,6 @@
 "use client";
 
-import { Kartentabelle } from "@/core/tabelle";
+import { Kartentabelle, Zellentext } from "@/core/tabelle";
 import { zeitFormat } from "@/core/zeit";
 import type { LaufDTO } from "../_lib/daten";
 import { AUSSCHLUSSGRUENDE, GRUND_TEXT } from "../_lib/filter";
@@ -28,8 +28,13 @@ export function LaufListe({ laeufe }: { laeufe: LaufDTO[] }) {
         {
           title: "Ausgefiltert",
           key: "ausgefiltert",
-          render: (_: unknown, l: LaufDTO) =>
-            AUSSCHLUSSGRUENDE.filter((g) => (l.ausgefiltert[g] ?? 0) > 0).map((g) => `${l.ausgefiltert[g]} ${GRUND_TEXT[g]}`).join(", ") || "—",
+          // Lesebreite (IDA-393): eine lange Aufzählung bricht um, statt die Zeile aus dem Rahmen zu schieben.
+          render: (_: unknown, l: LaufDTO) => (
+            <Zellentext
+              style={{ maxWidth: "32ch" }}
+              text={AUSSCHLUSSGRUENDE.filter((g) => (l.ausgefiltert[g] ?? 0) > 0).map((g) => `${l.ausgefiltert[g]} ${GRUND_TEXT[g]}`).join(", ") || "—"}
+            />
+          ),
         },
       ]}
     />

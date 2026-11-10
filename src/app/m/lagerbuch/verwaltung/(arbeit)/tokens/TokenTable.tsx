@@ -1,10 +1,14 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Alert, App, Button, Flex, Popconfirm } from "antd";
+import { Alert, App, Button, Flex } from "antd";
 import type { TableProps } from "antd";
 import {
   Kartentabelle,
+  Kurzkennung,
+  Zeilenaktionen,
+  Zellentext,
+  aktionsSpalte,
   filterAktiv,
   type Filterwert,
   type FilterZustand,
@@ -23,7 +27,6 @@ import { istLangerCode } from "../../../_lib/code";
 import { falte } from "../../../_lib/suche";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
-import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 
@@ -275,7 +278,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   }
 
   /*
-   * Ruft erst die Rueckfrage an der Zeile (`Popconfirm` unten) — nie direkt.
+   * Ruft erst die Rueckfrage der Zeilenaktion (`rueckfrage` unten) — nie direkt.
    * IDA-379: vorher stand hier `window.confirm()`, ein Browserdialog im Stil
    * des Betriebssystems neben einem „Sperren" ganz ohne Rueckfrage.
    */
@@ -298,11 +301,28 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
     });
   }
 
+  /*
+   * ⚠️ EINE RÜCKFRAGE, UND SIE NENNT DIE FOLGE STATT SIE ZU UMSCHREIBEN.
+   * „Bist du sicher?" wäre hier wertlos: die Handlung ist nicht gefährlich,
+   * weil sie schwer rückgängig zu machen ist, sondern weil ihre Wirkung
+   * ANDERSWO eintritt — an einer laminierten Karte am Fahrzeug, die ab
+   * diesem Klick ins Leere führt. Seit IDA-393 ein Dialog der Zeilenaktionen
+   * statt `window.confirm`.
+   */
+  function rueckfrage(zeile: TokenAnzeigeZeile) {
+    return {
+      titel: `Neuen Code für ${zeile.ortName ?? "diesen Ort"} erzeugen?`,
+      text: `${zeile.code} wird dauerhaft gesperrt. Die Karte ${amOrt(zeile)} muss danach neu gedruckt werden.`,
+      ok: "Neu erzeugen",
+    };
+  }
+
   const spalten: NonNullable<TableProps<TokenAnzeigeZeile>["columns"]> = [
     {
       title: "Bezeichnung",
       dataIndex: "label",
       sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.label),
+      render: (label: string) => <Zellentext text={label} style={{ maxWidth: "12ch" }} />,
     },
     {
       title: "Code",
@@ -314,11 +334,16 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
        * Sperre, die ein Angreifer für neue Geräte auslösen kann. Die Zeile sagt,
        * was zu tun ist, nicht nur, was ist.
        */
+      /*
+       * IDA-393: der Code GEKÜRZT mit Kopierknopf. Ungekürzt gab er seiner Spalte die
+       * Breite seines längsten Werts — bei 1280px lagen Zustand und Aktionen hinter
+       * dem Rand.
+       */
       render: (code: string, zeile) => (
         <div>
-          <span style={{ ...SCHRIFT.mono, fontWeight: 600 }}>{code}</span>
+          <Kurzkennung wert={code} was="Code" />
           {zeile.aktiv && !istLangerCode(code) ? (
-            <div style={SCHRIFT.neben} data-testid="lb-token-alte-form">
+            <div style={{ ...SCHRIFT.neben, maxWidth: "24ch" }} data-testid="lb-token-alte-form">
               {/* IDA-379 — „kurzer Code" statt „alte Form": die Zeile nennt, was
                   man sieht (6 statt 28 Zeichen), nicht eine Versionsgeschichte. */}
               {zeile.zuruecksetzbar ? "kurzer Code — neu erzeugen und Karte neu drucken" : "kurzer Code"}
@@ -357,9 +382,13 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
            * Auskunft über seine Herkunft — und zwar an der Stelle, an der man
            * sie nachschlägt.
            */
-          <Chip ton="grau" zeichen="schluessel">{ART_TEXT[artVon(zeile)]}</Chip>
+          <Chip ton="grau" zeichen="schluessel">
+            {/* IDA-393: umbrechen dürfen — „Ohne Ortsetikett" in einer Zeile war die Mindestbreite der Spalte. */}
+            <span style={{ whiteSpace: "normal" }}>{ART_TEXT[artVon(zeile)]}</span>
+          </Chip>
         ) : (
-          <div>
+          // IDA-393: Lesebreite, sonst schob ein langer Ortsname Zustand und Aktionen hinaus.
+          <div style={{ maxWidth: "12ch", overflowWrap: "anywhere" }}>
             <div>{zeile.ortName}</div>
             {zeile.ortMeta ? <div style={SCHRIFT.neben}>{zeile.ortMeta}</div> : null}
           </div>
@@ -387,29 +416,45 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
            * Lastwagen — er ist dort kein Befund, sondern die Gruppe, und ein
            * eigenes Zeichen fuer „weiss nicht" gibt es nicht.
            */
-          <Chip
-            ton="grau"
-            zeichen={ziel === "fahrzeug"
-              ? (zeile.zielEinheitenart ?? "fahrzeug")
-              : ziel === "artikel" ? "objekt" : "liste"}
-          >
-            {ziel === "liste"
-              ? ZIEL_TEXT.liste
-              : ziel === "fahrzeug" && zeile.zielName
-                ? `${zeile.zielName} · ${zeile.zielMeta ?? ""}`
-                : (zeile.zielName ?? "—")}
-          </Chip>
+          <div style={{ maxWidth: "12ch", overflowWrap: "anywhere" }}>
+            <Chip
+              ton="grau"
+              zeichen={ziel === "fahrzeug"
+                ? (zeile.zielEinheitenart ?? "fahrzeug")
+                : ziel === "artikel" ? "objekt" : "liste"}
+            >
+              {/* IDA-393: der Chip ist `nowrap` — ein langer Name ohne Leerzeichen gab der
+                  Spalte sonst seine volle Breite. */}
+              <span style={{ whiteSpace: "normal", overflowWrap: "anywhere" }}>
+                {ziel === "liste" ? ZIEL_TEXT.liste : (zeile.zielName ?? "—")}
+              </span>
+            </Chip>
+            {/* IDA-393: Art und Kennung UNTER dem Chip — „RTW 1 · Fahrzeug · HN-DRK-1101" in
+                einem Chip war die breiteste Zelle der Zeile. */}
+            {ziel === "fahrzeug" && zeile.zielName && zeile.zielMeta ? (
+              <div style={SCHRIFT.neben}>{zeile.zielMeta}</div>
+            ) : null}
+          </div>
         );
       },
     },
     {
+      // IDA-393: was an einem gesperrten Code nicht mehr geht, sagt die Zeile darunter —
+      // bis dahin stand es in der Aktionsspalte. Spaltenfolge und Wörter: IDA-395.
       title: "Zustand",
       dataIndex: "aktiv",
       sorter: nachJaNein<TokenAnzeigeZeile>((zeile) => zeile.aktiv),
       filters: STATUS_FILTER.filters,
       onFilter: STATUS_FILTER.onFilter,
-      render: (aktiv: boolean) => (
-        <Chip ton={aktiv ? "ok" : "rot"}>{aktiv ? "aktiv" : "gesperrt"}</Chip>
+      render: (aktiv: boolean, zeile) => (
+        <>
+          <Chip ton={aktiv ? "ok" : "rot"}>{aktiv ? "aktiv" : "gesperrt"}</Chip>
+          {aktiv || kannReaktivieren(zeile) ? null : (
+            <div style={SCHRIFT.neben}>
+              {zeile.ersetztText ? `ersetzt am ${zeile.ersetztText}` : "dauerhaft gesperrt"}
+            </div>
+          )}
+        </>
       ),
     },
     {
@@ -420,107 +465,71 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       sorter: nachDatum<TokenAnzeigeZeile>((zeile) => zeile.lastUsedIso),
       render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
     },
-    {
-      title: "Aktionen",
-      key: "aktionen",
-      render: (_wert: unknown, zeile) => (
-        <Flex gap={SPACE.sm} wrap align="center">
-          {/* KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
-              docs/design/README.md) ist mit der Arbeitsdichte gefallen --
-              44px ist hier bereits die volle wie die halbe Bediendichte,
-              "small" unterbietet die Mindesttapflaeche (WCAG 2.5.5). */}
-          {/* EINSTEIGEN: derselbe Weg wie der gescannte QR (`t/[code]/route.ts`),
-              also echte Einloesung mit Helfer-Sitzung, `lastUsedAt` und
-              Protokollzeile. Neuer Tab, damit die Verwaltung offen bleibt.
-              Nur fuer AKTIVE Codes: ein gesperrter landete am Gate und
-              buchte einen Fehlversuch in den geteilten Eimer. */}
-          {zeile.aktiv ? (
-            <Button
-              href={`/t/${encodeURIComponent(zeile.code)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              icon={<Ikone name="pfeil-rechts" groesse={16} />}
-            >
-              Einsteigen
-            </Button>
-          ) : null}
-          {/*
+    aktionsSpalte<TokenAnzeigeZeile>((zeile) => (
+      /*
+       * IDA-393: die Aktionen einer Zeile liegen ab zwei in einem Menü
+       * (`Zeilenaktionen`) — „Einsteigen", „Neu erzeugen" und „Sperren"
+       * nebeneinander waren 396px breit.
+       */
+      <Zeilenaktionen
+        name={zeile.label}
+        laeuft={laeuft}
+        aktionen={[
+          /* EINSTEIGEN: derselbe Weg wie der gescannte QR (`t/[code]/route.ts`),
+             also echte Einloesung mit Helfer-Sitzung, `lastUsedAt` und
+             Protokollzeile. Neuer Tab, damit die Verwaltung offen bleibt.
+             Nur fuer AKTIVE Codes: ein gesperrter landete am Gate und
+             buchte einen Fehlversuch in den geteilten Eimer. */
+          {
+            key: "einsteigen",
+            label: "Einsteigen",
+            href: `/t/${encodeURIComponent(zeile.code)}`,
+            neuesFenster: true,
+            sichtbar: zeile.aktiv,
+          },
+          /*
             ⚠️ „NEU ERZEUGEN" STEHT NUR AN AKTIVEN ORTSCODES. An einem
             GESPERRTEN wäre er sinnlos — dessen Ort hat längst einen neuen
             aktiven Code, und ein zweiter Klick sperrte den. Am Altbestand gibt
             es keinen Ort, an den ein neuer Code gehen könnte.
-          */}
-          {zeile.aktiv && zeile.zuruecksetzbar ? (
-            /*
-             * ⚠️ EINE RÜCKFRAGE, UND SIE NENNT DIE FOLGE STATT SIE ZU
-             * UMSCHREIBEN. „Bist du sicher?" wäre hier wertlos: die Handlung
-             * ist nicht gefährlich, weil sie schwer rückgängig zu machen ist,
-             * sondern weil ihre Wirkung ANDERSWO eintritt — an einer
-             * laminierten Karte am Fahrzeug, die ab diesem Klick ins Leere führt.
-             */
-            <Popconfirm
-              title={`Neuen Code für ${zeile.ortName ?? "diesen Ort"} erzeugen?`}
-              description={
-                <span data-rolle="token-folge" style={{ display: "block", maxWidth: "min(22rem, calc(100vw - 64px))" }}>
-                  {`${zeile.code} wird dauerhaft gesperrt. Die Karte ${amOrt(zeile)} muss danach neu gedruckt werden.`}
-                </span>
-              }
-              okText="Neu erzeugen"
-              cancelText="Abbrechen"
-              disabled={laeuft}
-              onConfirm={() => neuErzeugen(zeile)}
-            >
-              <Button disabled={laeuft} icon={<Ikone name="erneut" groesse={16} />}>
-                Neu erzeugen
-              </Button>
-            </Popconfirm>
-          ) : null}
-          {/*
+          */
+          {
+            key: "neu",
+            label: "Neu erzeugen",
+            onClick: () => neuErzeugen(zeile),
+            bestaetigen: rueckfrage(zeile),
+            sichtbar: zeile.aktiv && zeile.zuruecksetzbar,
+          },
+          /*
             ⚠️ „REAKTIVIEREN" GIBT ES NUR AM ALTBESTAND — DRK-406, gefunden in
             der Durchsicht. Ein Code, der zu einer Ortskarte gehört oder gehört
             HAT, kommt nie zurück: sein Nachschub sind die Ortsetiketten, nicht
             dieser Knopf. Die Action lehnt genau so ab; hier steht derselbe
             Riegel nur früher, damit niemand einen Knopf drückt, der nichts tun
-            kann.
-
-            ⚠️ AN SEINER STELLE STEHT EINE AUSKUNFT, KEINE LÜCKE. Eine leere
-            Zelle liest sich wie ein vergessener Knopf. „Ersetzt am …"
-            beantwortet dazu die Frage, die am Tresen wirklich gestellt wird,
-            wenn jemand mit einem alten Foto auftaucht.
+            kann. Was stattdessen gilt („ersetzt am …"), steht in der
+            Statusspalte.
 
             ⚠️ „SPERREN" BLEIBT FÜR JEDEN CODE. Es ist der Griff, der wirkt,
             wenn eine Karte verschwindet — auch an einem Ortscode.
-          */}
-          {zeile.aktiv ? (
-            /* IDA-379 — Sperren fragt nach und nennt die Karte, die danach tot ist;
-               vorher wirkte ein Fehltipp sofort, direkt neben „Neu erzeugen". */
-            <Popconfirm
-              title={`${zeile.code} sperren?`}
-              description={
-                <span data-rolle="token-folge" style={{ display: "block", maxWidth: "min(22rem, calc(100vw - 64px))" }}>
-                  {sperrFolge(zeile)}
-                </span>
-              }
-              okText="Sperren"
-              cancelText="Abbrechen"
-              disabled={laeuft}
-              onConfirm={() => statusAendern(zeile)}
-            >
-              <Button disabled={laeuft}>Sperren</Button>
-            </Popconfirm>
-          ) : kannReaktivieren(zeile) ? (
-            // Reaktivieren braucht keine Rueckfrage: es macht nichts unbrauchbar.
-            <Button disabled={laeuft} onClick={() => statusAendern(zeile)}>
-              Entsperren
-            </Button>
-          ) : (
-            <span style={SCHRIFT.neben}>
-              {zeile.ersetztText ? `ersetzt am ${zeile.ersetztText}` : "dauerhaft gesperrt"}
-            </span>
-          )}
-        </Flex>
-      ),
-    },
+          */
+          {
+            key: "sperren",
+            label: "Sperren",
+            onClick: () => statusAendern(zeile),
+            /* IDA-379 — Sperren fragt nach und nennt die Karte, die danach tot ist. */
+            bestaetigen: { titel: `${zeile.code} sperren?`, text: sperrFolge(zeile), ok: "Sperren" },
+            sichtbar: zeile.aktiv,
+          },
+          // Reaktivieren braucht keine Rueckfrage: es macht nichts unbrauchbar.
+          {
+            key: "entsperren",
+            label: "Entsperren",
+            onClick: () => statusAendern(zeile),
+            sichtbar: !zeile.aktiv && kannReaktivieren(zeile),
+          },
+        ]}
+      />
+    ), "Aktionen"),
   ];
 
   // Was WIRKLICH in der Tabelle steht: Suche UND Spaltenfilter. antd wendet

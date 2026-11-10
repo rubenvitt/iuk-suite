@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { App, Button, Drawer } from "antd";
 import { Statuschip } from "@/core/status/Statuschip";
-import { Kartentabelle, filterAktiv, nachText, trifftWert, werteAlsFilter, zustandsFilter, type FilterZustand } from "@/core/tabelle";
+import { Kartentabelle, Zeilenaktionen, filterAktiv, nachText, trifftWert, werteAlsFilter, zustandsFilter, type FilterZustand } from "@/core/tabelle";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { flyinBreite } from "@/core/theme/flyin";
 import { SPACE } from "@/core/theme/tokens";
@@ -99,7 +99,22 @@ export function FahrzeugVerwaltung({ liste, darfVerwalten }: { liste: FahrzeugDT
           aktiv: liste.length > 0 && filterAktiv(filter),
         }}
         columns={[
-          { title: "Funkrufname", key: "funkrufname", sorter: nachText<FahrzeugDTO>((f) => f.funkrufname), render: (_: unknown, f: FahrzeugDTO) => f.funkrufname },
+          // IDA-393: das Kennzeichen steht leise unter dem Funkrufnamen, der Status direkt dahinter.
+          {
+            title: "Funkrufname", key: "funkrufname", sorter: nachText<FahrzeugDTO>((f) => f.funkrufname),
+            render: (_: unknown, f: FahrzeugDTO) => (
+              <div>
+                <div>{f.funkrufname}</div>
+                {f.kennzeichen ? <div style={{ fontSize: 12, color: "var(--iuk-gedaempft)" }}>{f.kennzeichen}</div> : null}
+              </div>
+            ),
+          },
+          {
+            title: "Status",
+            key: "status",
+            ...status,
+            render: (_: unknown, f: FahrzeugDTO) => <Statuschip ton={f.aktiv ? "ok" : "neutral"}>{f.aktiv ? "im Dienst" : "außer Dienst"}</Statuschip>,
+          },
           { title: "Funkkenner", key: "funkkenner", sorter: nachText<FahrzeugDTO>((f) => f.funkkenner ?? ""), render: (_: unknown, f: FahrzeugDTO) => f.funkkenner ?? "—" },
           {
             title: "Typ",
@@ -108,7 +123,6 @@ export function FahrzeugVerwaltung({ liste, darfVerwalten }: { liste: FahrzeugDT
             onFilter: trifftWert<FahrzeugDTO>((f) => f.typ),
             render: (_: unknown, f: FahrzeugDTO) => (f.art === "anhaenger" ? `${f.typ} (Anhänger)` : f.typ),
           },
-          { title: "Kennzeichen", key: "kennzeichen", render: (_: unknown, f: FahrzeugDTO) => f.kennzeichen ?? "—" },
           {
             title: "Standort",
             key: "standort",
@@ -116,23 +130,24 @@ export function FahrzeugVerwaltung({ liste, darfVerwalten }: { liste: FahrzeugDT
             onFilter: trifftWert<FahrzeugDTO>((f) => f.standort),
             render: (_: unknown, f: FahrzeugDTO) => f.standort,
           },
-          {
-            title: "Status",
-            key: "status",
-            ...status,
-            render: (_: unknown, f: FahrzeugDTO) => <Statuschip ton={f.aktiv ? "ok" : "neutral"}>{f.aktiv ? "im Dienst" : "außer Dienst"}</Statuschip>,
-          },
           ...(darfVerwalten
             ? [{
                 title: "Aktionen",
                 key: "aktionen",
                 render: (_: unknown, f: FahrzeugDTO) => (
-                  <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
-                    <Button onClick={() => setFormular({ eintrag: f })}>Bearbeiten</Button>
-                    <Button onClick={() => umschalten(f, !f.aktiv)} loading={laeuft === f.id} disabled={laeuft !== null && laeuft !== f.id}>
-                      {f.aktiv ? "Außer Dienst stellen" : "In Dienst stellen"}
-                    </Button>
-                  </div>
+                  <Zeilenaktionen
+                    name={f.funkrufname}
+                    laeuft={laeuft === f.id}
+                    aktionen={[
+                      { key: "bearbeiten", label: "Bearbeiten", ikone: "pencil", onClick: () => setFormular({ eintrag: f }) },
+                      {
+                        key: "status",
+                        label: f.aktiv ? "Außer Dienst stellen" : "In Dienst stellen",
+                        disabled: laeuft !== null && laeuft !== f.id,
+                        onClick: () => umschalten(f, !f.aktiv),
+                      },
+                    ]}
+                  />
                 ),
               }]
             : []),

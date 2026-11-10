@@ -43,9 +43,12 @@ test("anlegen, doppelten Funkkenner abweisen, außer Dienst stellen", async ({ p
   await expect(zweite.getByText("Diesen Funkkenner hat schon ein anderes Fahrzeug.").first()).toBeVisible();
   await zweite.getByRole("button", { name: "Abbrechen" }).click();
 
-  await klickeWennRuhig(zeile.getByRole("button", { name: "Außer Dienst stellen" }));
+  // Seit IDA-393 liegen Bearbeiten und Statuswechsel im Zeilenmenü.
+  const menue = zeile.getByRole("button", { name: `Aktionen für Rotkreuz Test ${kenner}` });
+  await klickeWennRuhig(menue);
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Außer Dienst stellen" }));
   await expect(zeile).toContainText("außer Dienst");
-  await expect(zeile.getByRole("button", { name: "In Dienst stellen" })).toBeVisible();
+  await expect(zeile.getByRole("button", { name: `Aktionen für Rotkreuz Test ${kenner}` })).toBeVisible();
 
   // IDA-384: eine Meldung nennt die Folge in den anderen Apps und holt es mit „Rückgängig“ zurück.
   const meldung = page.getByTestId("ausser-dienst-meldung");
@@ -53,7 +56,8 @@ test("anlegen, doppelten Funkkenner abweisen, außer Dienst stellen", async ({ p
   await expect(meldung).toContainText("beim nächsten Abgleich");
   await meldung.getByRole("button", { name: "Rückgängig" }).click();
   await expect(zeile).toContainText("im Dienst");
-  await expect(zeile.getByRole("button", { name: "Außer Dienst stellen" })).toBeVisible();
+  await klickeWennRuhig(menue);
+  await expect(page.getByRole("menuitem", { name: "Außer Dienst stellen" })).toBeVisible();
 });
 
 test("ohne Admin-Gruppe nur lesend, ohne Gruppe 403", async ({ page, browser }) => {
@@ -61,7 +65,7 @@ test("ohne Admin-Gruppe nur lesend, ohne Gruppe 403", async ({ page, browser }) 
   await oeffne(page);
   await expect(page.getByRole("heading", { name: "Fahrzeuge" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Fahrzeug anlegen" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Bearbeiten" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Aktionen für / })).toHaveCount(0);
 
   const fremd = await browser.newPage();
   await devLogin(fremd, { host: HOST, groups: "kommplan-nutzer", callbackPath: "/" });

@@ -383,14 +383,15 @@ afterEach(async () => {
 });
 
 describe("ArtikelTable: Struktur und Bedienanker", () => {
-  it("zeigt sieben Spalten in Fachreihenfolge und öffnet den Drawer über einen echten Knopf", async () => {
+  it("zeigt fünf Spalten und öffnet den Drawer über einen echten Knopf", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
     // Die leere erste Spalte ist die Auswahlspalte (DRK-293); sie traegt das
     // „alle auswaehlen"-Kreuzchen und keinen Text.
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
       .toEqual([
-        "", "Artikel", "Fach", "Kategorie", "Bestand", "Min.", "Nächster Verfall", "Status",
+        // IDA-393: Fach und Kategorie stehen unter dem Namen, Status dahinter.
+        "", "Artikel", "Status", "Bestand", "Min.", "Nächster Verfall",
       ]);
     expect(query("table").getAttribute("aria-label")).toBe("Artikel und Bestand");
     expect(exists(".ant-pagination")).toBe(false);
@@ -398,7 +399,8 @@ describe("ArtikelTable: Struktur und Bedienanker", () => {
     // Auswahlfeld ueber der Tabelle, und diese Zusicherung lautete umgekehrt.
     expect(queryAll(".ant-table-column-sorter").length).toBeGreaterThan(0);
     // Und die Spalten, an denen fachlich gefiltert wird, tragen einen Ausloeser.
-    expect(spaltenKopf("Fach").querySelector(".ant-table-filter-trigger")).not.toBeNull();
+    // IDA-393: der Fachfilter sitzt im Kopf „Artikel", unter dem das Fach steht.
+    expect(spaltenKopf("Artikel").querySelector(".ant-table-filter-trigger")).not.toBeNull();
     expect(spaltenKopf("Status").querySelector(".ant-table-filter-trigger")).not.toBeNull();
 
     const artikelKnopf = query<HTMLButtonElement>("tr[data-row-key='alpha'] button");
@@ -563,12 +565,12 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
     expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 5");
   });
 
-  it("bietet Fach und Kategorie als Spaltenfilter an", async () => {
+  it("bietet das Fach als Spaltenfilter an — im Kopf „Artikel“ (IDA-393)", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
     // Die Liste entsteht aus den Daten — es steht keine Option darin, die
     // keine Zeile trifft.
-    const faecher = await filterEintraege("Fach");
+    const faecher = await filterEintraege("Artikel");
     expect(faecher.length).toBeGreaterThan(0);
     for (const fach of faecher) {
       expect(ZEILEN.some((zeile) => zeile.fach === fach)).toBe(true);
@@ -765,7 +767,9 @@ describe("ArtikelTable: ausgeblendete Kategorien (DRK-294)", () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
     expect(query("tr[data-row-key='zulu']").textContent).toContain("Hygiene");
-    expect(query("tr[data-row-key='beta']").textContent).toContain("–");
+    // IDA-393: die Kategorie steht hinter dem Fach unter dem Namen — ohne Kategorie nur das Fach.
+    expect(query("tr[data-row-key='zulu'] td:nth-child(2)").textContent).toContain(" · Hygiene");
+    expect(query("tr[data-row-key='beta'] td:nth-child(2)").textContent).not.toContain(" · ");
     // „Hygiene" (Zulu) und „hygiene" (Gamma) sind EINE Option.
     const optionen = (await kategorienOeffnen()).map((element) => element.textContent?.toLowerCase());
     expect(optionen).toEqual(["hygiene", "technik", "verbandmaterial"]);
@@ -889,7 +893,7 @@ describe("ArtikelTable: Sortierung in den Spaltenköpfen und eine Exportquelle",
     await spalteSortieren("Bestand");
     const bestaende = queryAll("tbody tr[data-row-key]").map((zeile) => {
       const zellen = zeile.querySelectorAll("td");
-      return Number.parseInt(zellen[4]?.textContent ?? "", 10);
+      return Number.parseInt(zellen[3]?.textContent ?? "", 10);
     });
     const aufsteigend = [...bestaende].sort((a, b) => a - b);
     expect(bestaende).toEqual(aufsteigend);

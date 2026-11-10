@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AutoComplete, Button, Form, Input, Modal, Popconfirm, Space, Tag } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { Kartentabelle, nachText } from "@/core/tabelle";
+import { Kartentabelle, nachText, Zeilenaktionen } from "@/core/tabelle";
 import {
   gruppeLoeschenAction, gruppeSpeichernAction, suchePersonenAction, verwalterEntfernenAction, verwalterHinzufuegenAction,
 } from "../_actions/verwaltung";
@@ -53,15 +53,18 @@ export function GruppenVerwaltung({ gruppen }: { gruppen: GruppeDTO[] }) {
           {
             title: "Aktionen", key: "aktion",
             render: (_: unknown, g: GruppeDTO) => (
-              <Space wrap>
-                <Button icon={<Icons8Ikone name="pencil" groesse={16} />} onClick={() => oeffne({ id: g.id, name: g.name })}>Bearbeiten</Button>
-                {g.geraete === 0 && (
-                  <Popconfirm title={`${g.name} löschen?`} okText="Löschen" okButtonProps={{ danger: true }} cancelText="Abbrechen"
-                    onConfirm={() => fuehreAus(() => gruppeLoeschenAction(g.id), "Gelöscht.")}>
-                    <Button type="text" disabled={laeuft}>Löschen</Button>
-                  </Popconfirm>
-                )}
-              </Space>
+              <Zeilenaktionen
+                name={g.name}
+                laeuft={laeuft}
+                aktionen={[
+                  { key: "bearbeiten", label: "Bearbeiten", ikone: "pencil", onClick: () => oeffne({ id: g.id, name: g.name }) },
+                  {
+                    key: "loeschen", label: "Löschen", danger: true, sichtbar: g.geraete === 0,
+                    bestaetigen: { titel: `${g.name} löschen?`, ok: "Löschen" },
+                    onClick: () => fuehreAus(() => gruppeLoeschenAction(g.id), "Gelöscht."),
+                  },
+                ]}
+              />
             ),
           },
         ]}

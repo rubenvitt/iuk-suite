@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Button, Progress, Select, Tag, type TableProps } from "antd";
+import { App, Button, Progress, Select, Tag, type TableProps } from "antd";
 import {
   angezeigteZeilen,
   Datentabelle,
@@ -16,6 +16,7 @@ import {
   zustandsFilter,
   type FilterZustand,
   type SortZustand,
+  Zeilenaktionen,
 } from "@/core/tabelle";
 import { datumKurz, datumZeit } from "../../_lib/datum";
 import type { ParticipantProgressDTO } from "../../_lib/typen";
@@ -76,8 +77,8 @@ export interface TeilnehmerZeile extends ParticipantProgressDTO {
  * Zeichenkette den 2. Oktober vor den 14. September, und „3/12" ist kein Bruch, sondern
  * Text. Verglichen werden deshalb `beginn`/`lastSeen` (beide ISO in `ParticipantDTO`) und
  * `quote` — alle drei liegen bereits als Rohwert in der Zeile, ein zusätzliches Feld war
- * nicht nötig. Die Spalten „Magic-Link" und „Aktionen" tragen keinen `sorter`: in ihnen
- * steht ein Knopf, kein Wert.
+ * nicht nötig. Die Spalte „Aktionen" trägt keinen `sorter`: in ihr steht ein Menü, kein
+ * Wert.
  */
 /**
  * DER ZEILENLINK — EINE FORM, ZWEI DARSTELLUNGEN (DRK-421).
@@ -115,6 +116,7 @@ const STATUS_ZUSTAENDE = [
 ];
 
 export function TeilnehmerTabelle({ zeilen }: { zeilen: TeilnehmerZeile[] }) {
+  const { message } = App.useApp();
   const [kopiert, setKopiert] = useState<string | null>(null);
   /**
    * ⚠️ GEMERKT WIRD DER ZUSTAND DER SPALTENKOEPFE, NIE DIE LISTE DARAUS
@@ -126,15 +128,18 @@ export function TeilnehmerTabelle({ zeilen }: { zeilen: TeilnehmerZeile[] }) {
   const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
   const [sortierung, setSortierung] = useState<SortZustand>({});
 
-  function kopieren(text: string, markierung: string): void {
-    navigator.clipboard?.writeText(text).then(
+  function kopieren(text: string, markierung: string, melden = false): void {
+    // Seit IDA-393 steht der Link nicht mehr in der Zeile: geht Kopieren nicht, nennt ihn die Meldung.
+    const nennen = () => { if (melden) void message.info({ content: `Kopieren ging nicht. Link: ${text}`, duration: 15 }); };
+    if (!navigator.clipboard) { nennen(); return; }
+    navigator.clipboard.writeText(text).then(
       () => {
+        // Aus dem Menü heraus gibt es keinen Knopf, der „Kopiert" zeigen könnte — dort meldet es die Nachricht.
+        if (melden) message.success("Link kopiert.");
         setKopiert(markierung);
         window.setTimeout(() => setKopiert((m) => (m === markierung ? null : m)), 1800);
       },
-      () => {
-        /* Zwischenablage ohne Berechtigung — Text bleibt in der Zeile sichtbar. */
-      },
+      nennen,
     );
   }
 
@@ -213,19 +218,36 @@ export function TeilnehmerTabelle({ zeilen }: { zeilen: TeilnehmerZeile[] }) {
         ),
       },
       {
+        title: "Status",
+        key: "status",
+        /*
+         * „Nur die Aktiven" ist ein Prädikat über der Zeile und gehört deshalb in den
+         * Spaltenkopf, nicht in eine Knopfleiste darüber. `zustandsFilter` und nicht
+         * `werteAlsFilter`: `aktiv` ist ein Wahrheitswert, die zwei Wörter daneben sind
+         * Anzeige. Sortiert wird über `aktiv`, nicht über das Wort — „aktiv" steht
+         * alphabetisch zufällig richtig vor „inaktiv", und das bliebe bei einer
+         * Umbenennung still falsch.
+         */
+        sorter: nachJaNein<TeilnehmerZeile>((zeile) => zeile.participant.aktiv),
+        ...zustandsFilter<TeilnehmerZeile>(STATUS_ZUSTAENDE),
+        /*
+         * ⚠️ GESTEUERT SEIT DRK-421 — sonst gaebe es diesen Filter auf dem
+         * Telefon gar nicht. Ungesteuert fuehrt antd den Stand allein; die
+         * Leiste ueber den Karten koennte ihn nicht setzen, und die beiden
+         * Darstellungen zeigten verschiedene Mengen.
+         */
+        filteredValue: spaltenFilter.status ?? null,
+        render: (_: unknown, zeile: TeilnehmerZeile) => (
+          <Tag color={zeile.participant.aktiv ? "green" : "default"}>
+            {zeile.participant.aktiv ? "aktiv" : "inaktiv"}
+          </Tag>
+        ),
+      },
+      {
         title: "Code",
         key: "code",
         sorter: nachText<TeilnehmerZeile>((zeile) => zeile.participant.loginCode),
         render: (_: unknown, zeile: TeilnehmerZeile) => <span style={SCHRIFT.mono}>{zeile.participant.loginCode}</span>,
-      },
-      {
-        title: "Anmeldelink",
-        key: "magicLink",
-        render: (_: unknown, zeile: TeilnehmerZeile) => (
-          <Button onClick={() => kopieren(zeile.magicLink, `link-${zeile.participant.id}`)}>
-            {kopiert === `link-${zeile.participant.id}` ? "Kopiert" : "Link kopieren"}
-          </Button>
-        ),
       },
       {
         title: "Beginn",
@@ -255,43 +277,22 @@ export function TeilnehmerTabelle({ zeilen }: { zeilen: TeilnehmerZeile[] }) {
         render: (_: unknown, zeile: TeilnehmerZeile) => datumZeit(zeile.participant.lastSeen) || "—",
       },
       {
-        title: "Status",
-        key: "status",
-        /*
-         * „Nur die Aktiven" ist ein Prädikat über der Zeile und gehört deshalb in den
-         * Spaltenkopf, nicht in eine Knopfleiste darüber. `zustandsFilter` und nicht
-         * `werteAlsFilter`: `aktiv` ist ein Wahrheitswert, die zwei Wörter daneben sind
-         * Anzeige. Sortiert wird über `aktiv`, nicht über das Wort — „aktiv" steht
-         * alphabetisch zufällig richtig vor „inaktiv", und das bliebe bei einer
-         * Umbenennung still falsch.
-         */
-        sorter: nachJaNein<TeilnehmerZeile>((zeile) => zeile.participant.aktiv),
-        ...zustandsFilter<TeilnehmerZeile>(STATUS_ZUSTAENDE),
-        /*
-         * ⚠️ GESTEUERT SEIT DRK-421 — sonst gaebe es diesen Filter auf dem
-         * Telefon gar nicht. Ungesteuert fuehrt antd den Stand allein; die
-         * Leiste ueber den Karten koennte ihn nicht setzen, und die beiden
-         * Darstellungen zeigten verschiedene Mengen.
-         */
-        filteredValue: spaltenFilter.status ?? null,
-        render: (_: unknown, zeile: TeilnehmerZeile) => (
-          <Tag color={zeile.participant.aktiv ? "green" : "default"}>
-            {zeile.participant.aktiv ? "aktiv" : "inaktiv"}
-          </Tag>
-        ),
-      },
-      {
         title: "Aktionen",
         key: "aktionen",
         /*
-         * Der Farbeinwand von oben trifft diesen Weg NICHT: ein `Button` traegt
-         * antds Knopffarben, nicht `colorLink`. Er steht neben dem Namenslink und
-         * ist keine Doppelung ohne Zweck — auf dem Telefon ist die Zeile
-         * waagerecht gescrollt, und wer am rechten Ende der Zeile steht, kaeme
-         * sonst nur ueber ein Zurueckscrollen zum Ziel.
+         * IDA-393: „Link kopieren" (vorher eine eigene Spalte „Anmeldelink") und „Details"
+         * stehen im Aktionsmenü der Zeile — zwei ausgeschriebene Knöpfe schoben die Tabelle
+         * bei 1280px über den Rahmen. Die Karte behält ihren Knopf. „Details" ist ein echter
+         * Anker (`href`) und trägt antds Menüfarbe, nicht `colorLink` (Farbeinwand oben).
          */
         render: (_: unknown, zeile: TeilnehmerZeile) => (
-          <Button href={`/admin/teilnehmer/${zeile.participant.id}`}>Details</Button>
+          <Zeilenaktionen
+            name={zeile.participant.name}
+            aktionen={[
+              { key: "link", label: "Link kopieren", onClick: () => kopieren(zeile.magicLink, `link-${zeile.participant.id}`, true) },
+              { key: "details", label: "Details", href: `/admin/teilnehmer/${zeile.participant.id}` },
+            ]}
+          />
         ),
       },
   ], [spaltenFilter, kopiert]);
