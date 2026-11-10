@@ -29,6 +29,11 @@ export function Feld({ titel, hilfe, fehler, children }: { titel: string; hilfe?
   );
 }
 
+/** Die Feldfehler ohne die genannten Felder — eine Meldung verschwindet, sobald das Feld ausgefüllt ist. */
+const ohne = (f: FeldFehler, ...felder: string[]): FeldFehler => Object.fromEntries(Object.entries(f).filter(([k]) => !felder.includes(k)));
+const NAME_FEHLT = "Bitte einen Namen eintragen.";
+const ZEIT_FEHLT = "Bitte Beginn und Ende wählen.";
+
 /** Führt eine Action aus und meldet den Fehlersatz; gibt das Ergebnis oder `null` zurück. */
 async function senden<T>(aufruf: () => Promise<ActionErgebnis<T>>, setFehler: (f: FeldFehler) => void, warnen: (t: string) => void): Promise<T | null> {
   try {
@@ -76,7 +81,12 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
 
   async function speichern() {
     const { von, bis } = zeitraum;
-    if (von === null || bis === null) { setFehler({ bis: "Bitte Beginn und Ende wählen." }); return; }
+    // IDA-385: Der Knopf ist nie grau; was fehlt, steht am Feld.
+    const fehlt: FeldFehler = {
+      ...(name.trim() ? {} : { name: NAME_FEHLT }),
+      ...(von === null || bis === null ? { bis: ZEIT_FEHLT } : {}),
+    };
+    if (von === null || bis === null || Object.keys(fehlt).length) { setFehler(fehlt); return; }
     // IDA-373: Jeder Name nur einmal — sonst lehnt der Server die zweite Einheit ab, und die Planung stünde ohne sie da.
     const namen = [...abschnitte, ...gewaehlt.map((fid) => fahrzeuge.find((f) => f.id === fid)?.name ?? "")].map(postenSchluessel);
     if (new Set(namen).size < namen.length) { setFehler({ abschnitte: "Jeder Name darf nur einmal vorkommen." }); return; }
@@ -107,15 +117,17 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
   return (
     <div>
       <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
-      <Feld titel="Name" fehler={fehler.name}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Stadtfest Uelzen" maxLength={120} /></Feld>
+      <Feld titel="Name" fehler={fehler.name}><Input value={name} aria-required status={fehler.name ? "error" : undefined} aria-invalid={!!fehler.name} onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setFehler((f) => (f.name === NAME_FEHLT ? ohne(f, "name") : f)); }} placeholder="z. B. Stadtfest Uelzen" maxLength={120} /></Feld>
       <Feld titel="Art">
         <Radio.Group value={art} onChange={(e) => setArt(e.target.value as PlanungArt)} options={[{ value: "veranstaltung", label: "Veranstaltung" }, { value: "lage", label: "Lage" }]} />
       </Feld>
       <Feld titel="Ort" fehler={fehler.ort}><Input value={ort} onChange={(e) => setOrt(e.target.value)} maxLength={120} /></Feld>
       <div className={s.feld} role="group" aria-label="Zeitraum">
         <span className={s.feldTitel}>Zeitraum</span>
-        <Zeitfelder wert={zeitraum} onChange={setZeitraum} />
-        {fehler.bis ?? fehler.von ? <span className={s.feldFehler} role="alert">{fehler.bis ?? fehler.von}</span> : <span className={s.neben}>{planung ? "Bestehende Schichten müssen im neuen Zeitraum liegen." : "Höchstens 14 Tage."}</span>}
+        {/* Nur die eigene „fehlt“-Meldung verschwindet beim Ausfüllen; eine Serverablehnung (z. B. zu lang) bleibt bis zum nächsten Speichern. */}
+        <Zeitfelder wert={zeitraum} pflicht fehlerId={fehler.bis ?? fehler.von ? "planung-zeitraum-fehler" : undefined}
+          onChange={(z) => { setZeitraum(z); if (z.von !== null && z.bis !== null) setFehler((f) => (f.bis === ZEIT_FEHLT ? ohne(f, "bis") : f)); }} />
+        {fehler.bis ?? fehler.von ? <span id="planung-zeitraum-fehler" className={s.feldFehler} role="alert">{fehler.bis ?? fehler.von}</span> : <span className={s.neben}>{planung ? "Bestehende Schichten müssen im neuen Zeitraum liegen." : "Höchstens 14 Tage."}</span>}
       </div>
       {planung ? null : (
         <>
@@ -138,7 +150,7 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
           <InputNumber min={0} max={24} step={0.5} value={minRuhe} onChange={(v) => setMinRuhe(v ?? 8)} suffix="h" style={{ width: "100%" }} />
         </Feld>
       </div>
-      <Button type="primary" loading={laeuft} disabled={!name.trim() || zeitraum.von === null || zeitraum.bis === null} onClick={() => void speichern()}>{planung ? "Speichern" : "Planung anlegen"}</Button>
+      <Button type="primary" loading={laeuft} onClick={() => void speichern()}>{planung ? "Speichern" : "Planung anlegen"}</Button>
     </div>
   );
 }
