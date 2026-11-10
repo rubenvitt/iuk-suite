@@ -385,7 +385,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
           <Chip ton="grau" zeichen="schluessel">{ART_TEXT[artVon(zeile)]}</Chip>
         ) : (
           // IDA-393: Lesebreite, sonst schob ein langer Ortsname Zustand und Aktionen hinaus.
-          <div style={{ maxWidth: "18ch" }}>
+          <div style={{ maxWidth: "14ch" }}>
             <div>{zeile.ortName}</div>
             {zeile.ortMeta ? <div style={SCHRIFT.neben}>{zeile.ortMeta}</div> : null}
           </div>
@@ -413,7 +413,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
            * Lastwagen — er ist dort kein Befund, sondern die Gruppe, und ein
            * eigenes Zeichen fuer „weiss nicht" gibt es nicht.
            */
-          <>
+          <div style={{ maxWidth: "16ch" }}>
             <Chip
               ton="grau"
               zeichen={ziel === "fahrzeug"
@@ -427,7 +427,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
             {ziel === "fahrzeug" && zeile.zielName && zeile.zielMeta ? (
               <div style={SCHRIFT.neben}>{zeile.zielMeta}</div>
             ) : null}
-          </>
+          </div>
         );
       },
     },
