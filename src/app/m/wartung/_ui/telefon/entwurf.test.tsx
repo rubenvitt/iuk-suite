@@ -2,7 +2,7 @@
 import { App } from "antd";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
-import { click, exists, fill, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
+import { click, clickElement, exists, fill, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 
 const stunden = vi.fn();
 const inhalt = vi.fn();
@@ -113,6 +113,7 @@ describe("Mangel am Gerät", () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     await mangel();
     await fill("textarea[aria-label='Was ist los?']", "Tankdeckel fehlt");
+    await click("input[name='einsatzbereit'][value='mangel']");
     await click("button.ant-btn-primary");
     expect(query("[data-rolle='entwurf-hinweis']").textContent).toMatch(/^Nicht gesendet\./);
     const e = ladeEntwurf<{ text: string }>(`wartung:mangel:${G}`);
@@ -134,6 +135,128 @@ describe("Betriebsstunden am Gerät", () => {
     await click("button.ant-btn-primary");
     expect(stunden).toHaveBeenCalledWith(G, { stunden: 130, sendung: expect.stringMatching(/^[0-9a-f-]{36}$/) });
     expect(ladeEntwurf(`wartung:stunden:${G}`)?.sendung).toBeTruthy();
+  });
+});
+
+describe("Betriebsstunden lesen und rückfragen (IDA-381)", () => {
+  const ansicht = (darfKorrigieren = false) =>
+    mount(<App><StundenAmGeraet geraetId={G} geraetName="Stromerzeuger" zuletzt={231} darfKorrigieren={darfKorrigieren} /></App>);
+  const feld = "input[aria-label='Stand am Zähler']";
+  const knopf = () => query<HTMLButtonElement>("button.ant-btn-primary");
+
+  it("231,5 wird 232, nicht 2315", async () => {
+    stunden.mockResolvedValue({ ok: true });
+    await ansicht();
+    await fill(feld, "231,5");
+    expect(query("[data-rolle='stunden-zeile']").textContent).toBe("Gerundet auf 232 h");
+    await click("button.ant-btn-primary");
+    expect(stunden).toHaveBeenCalledWith(G, { stunden: 232, sendung: expect.any(String) });
+  });
+
+  it("ein großer Sprung wird erst nach Rückfrage gespeichert", async () => {
+    stunden.mockResolvedValue({ ok: true });
+    await ansicht();
+    await fill(feld, "2121");
+    await click("button.ant-btn-primary");
+    expect(stunden).not.toHaveBeenCalled();
+    expect(query("[data-rolle='stunden-rueckfrage']").textContent).toBe("+1.890 h seit dem letzten Stand?");
+    expect(knopf().textContent).toContain("Ja, speichern");
+    await click("button.ant-btn-primary");
+    expect(stunden).toHaveBeenCalledWith(G, { stunden: 2121, sendung: expect.any(String) });
+  });
+
+  it("ein anderer Wert stellt die Rückfrage neu", async () => {
+    await ansicht();
+    await fill(feld, "2121");
+    await click("button.ant-btn-primary");
+    await fill(feld, "2122");
+    expect(exists("[data-rolle='stunden-rueckfrage']")).toBe(false);
+    expect(knopf().textContent).toContain("Speichern");
+  });
+
+  it("kleiner als der letzte Stand: gesperrt ohne Verwaltung, sonst Korrektur nach Rückfrage", async () => {
+    stunden.mockResolvedValue({ ok: true });
+    await ansicht();
+    await fill(feld, "230");
+    expect(knopf().disabled).toBe(true);
+    expect(query("[data-rolle='stunden-zeile']").textContent).toBe("Kleiner als der letzte Stand (231 h).");
+    await unmount();
+    localStorage.clear();
+
+    await ansicht(true);
+    await fill(feld, "23");
+    expect(knopf().disabled).toBe(false);
+    await click("button.ant-btn-primary");
+    expect(stunden).not.toHaveBeenCalled();
+    expect(query("[data-rolle='stunden-rueckfrage']").textContent).toBe("Stand von 231 h auf 23 h korrigieren?");
+    await click("button.ant-btn-primary");
+    expect(stunden).toHaveBeenCalledWith(G, { stunden: 23, korrektur: true, sendung: expect.any(String) });
+  });
+
+  it("was keine Zahl ist, sperrt und sagt es", async () => {
+    await ansicht();
+    await fill(feld, "23x");
+    expect(knopf().disabled).toBe(true);
+    expect(query("[data-rolle='stunden-zeile']").textContent).toBe("Bitte den Stand als Zahl eingeben.");
+  });
+
+  it("ein Entwurf von vor IDA-381 (nur die Zahl) kommt wieder an", async () => {
+    localStorage.clear();
+    await ansicht();
+    await fill(feld, "240");
+    const e = ladeEntwurf<{ text?: string }>(`wartung:stunden:${G}`);
+    expect(e?.stand).toEqual({ text: "240" });
+  });
+});
+
+describe("Prüfung: Hinweise und Gründe beim Knopf (IDA-381)", () => {
+  const Q = "6f1c2a4e-0000-4000-8000-000000000003";
+  const lang = "Erst den Deckel öffnen. ".repeat(10);
+  const ansicht = () => mount(
+    <App>
+      <PruefungAmGeraet
+        geraetId={G} geraetName="Stromerzeuger" pruefartId={P} titel="Prüfung" stundenPflicht stundenZuletzt={231}
+        checkliste={[{ id: P, text: "Öl", hinweis: "Messstab abwischen, ablesen." }, { id: Q, text: "Filter", hinweis: lang }]}
+      />
+    </App>,
+  );
+
+  it("zeigt kurze Hinweise offen, lange gekürzt mit „Mehr“", async () => {
+    await ansicht();
+    const hinweise = queryAll("[data-rolle='punkt-hinweis']");
+    expect(hinweise.map((h) => h.textContent)).toEqual(["Messstab abwischen, ablesen.", lang]);
+    expect(exists("button[aria-expanded='false']")).toBe(true);
+    await click("button[aria-expanded='false']");
+    expect(exists("button[aria-expanded='true']")).toBe(true);
+  });
+
+  it("nennt fehlende und ungültige Betriebsstunden beim Knopf und springt per Tipp zum Feld", async () => {
+    await ansicht();
+    const gruende = () => query("[data-rolle='pruefung-gruende']").textContent;
+    expect(gruende()).toContain("Betriebsstunden fehlen.");
+    await fill("input[aria-label='Betriebsstunden am Zähler']", "abc");
+    expect(gruende()).toContain("Betriebsstunden sind keine Zahl.");
+    await fill("input[aria-label='Betriebsstunden am Zähler']", "200");
+    expect(gruende()).toContain("Betriebsstunden: Kleiner als der letzte Stand (231 h).");
+    (document.activeElement as HTMLElement | null)?.blur();
+    const sprung = queryAll<HTMLButtonElement>("[data-rolle='pruefung-gruende'] button").find((b) => b.textContent?.startsWith("Betriebsstunden"))!;
+    await clickElement(sprung);
+    expect(document.activeElement).toBe(query("input[aria-label='Betriebsstunden am Zähler']"));
+    expect(query<HTMLButtonElement>("button.ant-btn-primary").disabled).toBe(true);
+  });
+
+  it("ein großer Sprung wird erst nach Rückfrage abgeschlossen", async () => {
+    fetchMock.mockResolvedValue(json({ ok: true, maengel: 0 }));
+    await ansicht();
+    await fill("input[aria-label='Betriebsstunden am Zähler']", "2315");
+    await click("input[name='pruef-" + P + "'][value='ok']");
+    await click("input[name='pruef-" + Q + "'][value='ok']");
+    await click("button.ant-btn-primary");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(query("[data-rolle='stunden-rueckfrage']").textContent).toBe("+2.084 h seit dem letzten Stand?");
+    await click("button.ant-btn-primary");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String((fetchMock.mock.calls[0][1].body as FormData).get("daten"))).stunden).toBe(2315);
   });
 });
 

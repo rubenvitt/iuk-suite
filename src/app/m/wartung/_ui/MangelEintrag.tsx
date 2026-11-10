@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Button, Popconfirm } from "antd";
+import { mangelZustand } from "../_lib/fristen";
 import { tagInZone } from "../_lib/heute";
 import type { MangelDTO } from "../_lib/typen";
-import { Chip, datum } from "./teile";
+import { Chip, datum, ZustandChip } from "./teile";
 import s from "./wartung.module.css";
 
 /** Ein Mangel mit Foto und „Behoben“ — in der Akte ohne Gerätename, in der Mängelliste mit. */
@@ -26,7 +27,7 @@ export function MangelEintrag({ m, mitGeraet, laeuft, onBehoben }: {
           )}
           <div style={{ marginTop: 4 }}>
             {m.behobenAm === null
-              ? <Chip farbe={m.einsatzbereit ? "gelb" : "rot"}>{m.einsatzbereit ? "Einsatzbereit" : "Nicht einsatzbereit"}</Chip>
+              ? <ZustandChip z={mangelZustand(m.einsatzbereit)} />
               : <Chip farbe="ok">Behoben</Chip>}
           </div>
         </div>

@@ -162,4 +162,11 @@ export interface SuiteNavItem {
    * Gruppierung reine Darstellung.
    */
   abschnitt?: string;
+  /**
+   * Der Eintrag gilt auch für die Seiten UNTER seinem `href` (`/geraete/<id>` → „Geräte“), als Abschnitt
+   * markiert (`aria-current="true"`), nicht als die Seite selbst. Opt-in, weil Module wie das Lagerbuch eine
+   * Unterseite bewusst unmarkiert lassen (`lagerbuch/_lib/nav.test.ts`); ohne das Feld bleibt alles wie
+   * zuvor (IDA-381, `aktiverEintrag` in `SuiteNav.tsx`).
+   */
+  auchDarunter?: boolean;
 }

@@ -88,7 +88,7 @@ export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: 
             </span>
           }
         >
-          <Kicker>Prüfarten</Kicker>
+          <Kicker leise>Prüfarten</Kicker>
           <ul className={s.zeilen} style={{ marginBottom: 16 }}>
             {a.pruefarten.flatMap((id) => nachId.get(id) ?? []).map((f) => (
               <li key={f.id} className={s.zeile}>
@@ -100,7 +100,7 @@ export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: 
           {a.kiste && <p className={s.neben}>Materialkiste mit Inhaltsliste.</p>}
           {!a.kiste && a.checkliste.length > 0 && (
             <>
-              <Kicker>Checkliste der Prüfung am Gerät</Kicker>
+              <Kicker leise>Checkliste der Prüfung am Gerät</Kicker>
               <ol style={{ margin: "8px 0 0", paddingInlineStart: 20 }}>
                 {a.checkliste.map((p) => (
                   <li key={p.id}>
@@ -155,7 +155,7 @@ export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: 
               <Switch checked={e.kiste} onChange={(v) => setze(v ? { kiste: v, stundenPflicht: false } : { kiste: v })} aria-label="Materialkiste mit Inhaltsliste" />
             </Form.Item>
 
-            <Kicker>Prüfarten</Kicker>
+            <Kicker leise>Prüfarten</Kicker>
             {feldFehler.pruefarten && <div className={s.textRot}>{feldFehler.pruefarten}</div>}
             <Checkbox.Group
               className={s.haken}
@@ -171,7 +171,7 @@ export function ArtenVerwaltung({ arten, katalog }: { arten: ArtDTO[]; katalog: 
 
             {!e.kiste && (
               <>
-                <Kicker>Checkliste der Prüfung am Gerät</Kicker>
+                <Kicker leise>Checkliste der Prüfung am Gerät</Kicker>
                 {feldFehler.checkliste && <div className={s.textRot}>{feldFehler.checkliste}</div>}
                 <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
                   {e.checkliste.map((p, i) => {
