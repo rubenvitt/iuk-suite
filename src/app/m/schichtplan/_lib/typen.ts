@@ -93,3 +93,14 @@ export const STUNDE = 60 * MINUTE;
 export const RASTER_MIN = 5;
 /** Kürzeste Schicht; im Sanitätsdienst gibt es auch sehr kurze Einsätze (Ruben, 01.11.2026: „ab 10 min“). */
 export const MIN_SCHICHT_MIN = 10;
+/**
+ * Höchstzahl der Qualifikationsanforderungen je Einheit — so viele nimmt Lifeline Hub im Soll an
+ * (IDA-373); mehr wären dort eine fehlerhafte Zeile.
+ */
+export const MAX_ANFORDERUNGEN = 10;
+/**
+ * Der Name einer Einheit ist im Austauschblatt der Posten (IDA-365). Zwei Einheiten, die hier gleich
+ * sind, fielen in Lifeline Hub zu einem Posten zusammen — deshalb ohne Groß-/Kleinschreibung und
+ * mehrfache Leerzeichen verglichen.
+ */
+export const postenSchluessel = (name: string) => name.trim().replace(/\s+/g, " ").toLocaleLowerCase("de");

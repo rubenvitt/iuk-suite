@@ -82,7 +82,7 @@ export function HelferAnsicht({ p, a, helfer, neuTemp, bearbeiteTemp, entferneTe
 
 // ── Prüfen ─────────────────────────────────────────────────────────────────
 
-const ARTEN: readonly KonfliktArt[] = ["doppelt", "quali", "dienst", "bestand"];
+const ARTEN: readonly KonfliktArt[] = ["doppelt", "ueberschneidung", "quali", "dienst", "einheit", "bestand"];
 
 export function PruefAnsicht({ p, a, zurSchicht }: { p: PlanungDTO; a: Auswertung; zurSchicht: (id: string) => void }) {
   const schicht = new Map(p.schichten.map((x) => [x.id, x]));
@@ -101,7 +101,7 @@ export function PruefAnsicht({ p, a, zurSchicht }: { p: PlanungDTO; a: Auswertun
                   <div key={i} className={s.befund}>
                     <Icons8Ikone name="warning" groesse={18} style={{ color: "var(--sp-rot-text)", flex: "none" }} />
                     <span style={{ flex: 1 }}>{k.text}</span>
-                    <Button onClick={() => zurSchicht(k.schichtIds[0])}>Zur Schicht</Button>
+                    {k.schichtIds.length ? <Button onClick={() => zurSchicht(k.schichtIds[0])}>Zur Schicht</Button> : null}
                   </div>
                 ))}
               </div>

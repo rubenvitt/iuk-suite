@@ -133,7 +133,7 @@ export const NICHT_GELESENE_PFADE = [/^docs\//, /^patches\//];
  * Einsatzbuch §2.2.
  */
 export const ENDUNGEN =
-  /\.(ts|tsx|css|sql|mjs|md|sh|json|txt|ndjson|ya?ml|conf|example|dockerignore|gitattributes|gitignore|rs|toml|html|js)$/;
+  /\.(ts|tsx|css|sql|mjs|cjs|md|sh|json|txt|ndjson|ya?ml|conf|example|dockerignore|gitattributes|gitignore|rs|toml|html|js)$/;
 
 /** Dateien ohne Endung, die trotzdem Quelltext sind. */
 export const OHNE_ENDUNG = /^(Dockerfile|Makefile|CODEOWNERS|LICENSE)$/;

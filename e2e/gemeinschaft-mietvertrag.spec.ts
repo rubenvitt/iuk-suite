@@ -87,6 +87,7 @@ async function frageAn(page: Page, tag: string, anlass: string): Promise<string>
   await page.getByLabel("Name", { exact: true }).fill("Erika Sommer");
   await page.getByLabel(/^Telefon oder E-Mail/).fill("05141 12345");
   await klickeWennRuhig(page.getByRole("button", { name: "Anfrage senden" }));
+  await page.waitForURL(/\/status\/[A-Za-z0-9_-]{22}$/);
   await expect(page.getByText("Danke.")).toBeVisible();
   return new URL((await page.getByTestId("statuslink").textContent()) ?? "").pathname;
 }
