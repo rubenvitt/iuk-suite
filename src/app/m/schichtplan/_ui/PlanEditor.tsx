@@ -19,10 +19,10 @@ import { MINUTE } from "../_lib/typen";
 import { stunden, zeitspanne } from "../_lib/zeit";
 import { AusgabeAnsicht, HelferAnsicht, PruefAnsicht } from "./ansichten";
 import { EinheitFormular, PlanungFormular, TempFormular } from "./formulare";
-import { Raster } from "./Raster";
+import { Raster, type RasterAktionen } from "./Raster";
 import { SchichtInhalt } from "./SchichtFlyin";
 import s from "./schichtplan.module.css";
-import { einheitTitel, KpiReihe } from "./teile";
+import { einheitTitel, KpiReihe, name } from "./teile";
 import { useTokensAmBody } from "./useTokensAmBody";
 
 type Ansicht = "raster" | "helfer" | "pruefen" | "ausgabe";
@@ -82,13 +82,32 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     if (laufend.current === 0) setP(neu);
   }
 
-  function aendere(optimistisch: (q: PlanungDTO) => PlanungDTO, aufruf: () => Promise<ActionErgebnis<PlanungDTO>>) {
+  /** Liefert den bestätigten Stand, oder `null`, wenn die Änderung nicht durchging. */
+  function aendere(optimistisch: (q: PlanungDTO) => PlanungDTO, aufruf: () => Promise<ActionErgebnis<PlanungDTO>>): Promise<PlanungDTO | null> {
     setP(optimistisch);
     laufend.current++;
-    void aufruf()
-      .then((r) => { if (r.ok) bestaetigt.current = r.wert; else void message.warning(r.fehler); })
-      .catch(() => void message.warning("Die Änderung ging nicht durch. Bitte die Seite neu laden."))
+    return aufruf()
+      .then((r) => {
+        if (r.ok) { bestaetigt.current = r.wert; return r.wert; }
+        void message.warning(r.fehler);
+        return null;
+      })
+      .catch(() => { void message.warning("Die Änderung ging nicht durch. Bitte die Seite neu laden."); return null; })
       .finally(() => { laufend.current--; if (laufend.current === 0) setP(bestaetigt.current); });
+  }
+
+  /** IDA-385: Jede Änderung per Ziehen meldet sich und lässt sich mit einem Klick zurücknehmen. */
+  function meldeMitRueckgaengig(text: string, zurueck: () => void) {
+    const key = `rueckgaengig-${Date.now()}`;
+    void message.open({
+      key, type: "success", duration: 8,
+      content: (
+        <span className={s.meldung}>
+          {text}
+          <Button type="link" style={{ paddingInline: 4, height: "auto" }} onClick={() => { message.destroy(key); zurueck(); }}>Rückgängig</Button>
+        </span>
+      ),
+    });
   }
 
   const aktionen = {
@@ -124,6 +143,38 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
       (q) => ({ ...q, schichten: q.schichten.filter((x) => x.id !== sid), zuordnungen: q.zuordnungen.filter((z) => z.schichtId !== sid) }),
       () => schichtLoeschenAction(p.id, sid),
     ),
+  };
+
+  // Was das Raster per Ziehen auslöst, mit Meldung und „Rückgängig“; Flyin und Knöpfe nehmen `aktionen`.
+  const einheitVon = (sid: string) => p.einheiten.find((e) => e.id === p.schichten.find((x) => x.id === sid)?.einheitId);
+  const rasterAktionen: RasterAktionen = {
+    zuteilen: (sid, k, aus) => {
+      const sch = p.schichten.find((x) => x.id === sid);
+      const h = helfer.find((x) => x.schluessel === k);
+      aktionen.zuteilen(sid, k, aus);
+      if (!sch || !h) return;
+      meldeMitRueckgaengig(
+        `${name(h)} eingeteilt: ${einheitVon(sid)?.name ?? ""} ${zeitspanne(sch.von, sch.bis)}`,
+        () => (aus ? aktionen.zuteilen(aus, k, sid) : aktionen.austragen(sid, k)),
+      );
+    },
+    schichtSetzen: (sid, von, bis, einheitId) => {
+      const alt = p.schichten.find((x) => x.id === sid);
+      aktionen.schichtSetzen(sid, von, bis, einheitId);
+      if (!alt) return;
+      const wohin = einheitId ? ` · ${p.einheiten.find((e) => e.id === einheitId)?.name ?? ""}` : "";
+      meldeMitRueckgaengig(
+        `${bis - von === alt.bis - alt.von ? "Verschoben auf" : "Geändert auf"} ${zeitspanne(von, bis)}${wohin}`,
+        () => aktionen.schichtSetzen(alt.id, alt.von, alt.bis, einheitId ? alt.einheitId : undefined),
+      );
+    },
+    schichtAnlegen: (einheitId, von, bis) => {
+      const vorher = new Set(p.schichten.map((x) => x.id));
+      void aktionen.schichtAnlegen(einheitId, von, bis).then((neu) => {
+        const id = neu?.schichten.find((x) => !vorher.has(x.id) && x.einheitId === einheitId)?.id;
+        if (id) meldeMitRueckgaengig(`Schicht ${zeitspanne(von, bis)} angelegt`, () => aktionen.schichtLoeschen(id));
+      });
+    },
   };
 
   const offeneSchicht = schichtId ? p.schichten.find((x) => x.id === schichtId) ?? null : null;
@@ -169,7 +220,7 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
             children: (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <KpiReihe a={a} p={p} />
-                <Raster p={p} a={a} helfer={helfer} katalog={katalog} aktionen={aktionen} oeffneSchicht={setSchichtId} bearbeiteEinheit={setEinheitFlyin} />
+                <Raster p={p} a={a} helfer={helfer} katalog={katalog} aktionen={rasterAktionen} oeffneSchicht={setSchichtId} bearbeiteEinheit={setEinheitFlyin} />
               </div>
             ),
           },

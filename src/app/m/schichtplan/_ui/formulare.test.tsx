@@ -67,6 +67,17 @@ describe("PlanungFormular und EinheitFormular (Modus 2)", () => {
     expect(felder()[1]!.value).toBe("Uelzen");
   });
 
+  it("„Planung anlegen“ ist nie grau und sagt am Feld, was fehlt (IDA-385)", async () => {
+    const { planungSpeichernAction } = await import("../_actions/planung");
+    await mount(<App><PlanungFormular planung={null} fahrzeuge={[]} onGespeichert={vi.fn()} /></App>);
+    const knopf = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find((b) => b.textContent === "Planung anlegen")!;
+    expect(knopf.disabled).toBe(false);
+    await clickElement(knopf);
+    const meldungen = Array.from(document.querySelectorAll("[role='alert']")).map((x) => x.textContent);
+    expect(meldungen).toEqual(expect.arrayContaining(["Bitte einen Namen eintragen.", "Bitte Beginn und Ende wählen."]));
+    expect(planungSpeichernAction).not.toHaveBeenCalled();
+  });
+
   it("ein Abschnitt stellt seinen Namen je Planung wieder her", async () => {
     const ansicht = () => mount(<App><EinheitFormular planId="p1" einheit={null} fahrzeuge={[]} katalog={[]} einteilungen={0} onPlanung={vi.fn()} /></App>);
     await ansicht();

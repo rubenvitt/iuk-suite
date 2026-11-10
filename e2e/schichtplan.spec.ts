@@ -62,6 +62,13 @@ test("planen: anlegen, aufziehen, verschieben, Helfer ziehen, prüfen, Excel", a
   const bloecke = spur.locator("[data-schicht]");
   await expect(bloecke).toHaveCount(3);
   await expect(bloecke.nth(1)).toHaveAttribute("aria-label", /12:00–16:00/);
+  // Das Raster wählt „Eng“, wenn der Zeitraum nicht in die Breite passt (IDA-385); hier wird in „Normal“ gemessen.
+  await page.getByText("Normal", { exact: true }).click();
+
+  // IDA-385: Die Zeile ist lückenlos belegt — „Schicht anlegen“ legt nichts darüber.
+  await page.getByRole("button", { name: "Schicht anlegen" }).click();
+  await expect(page.getByText("Sanitätswache ist im ganzen Zeitraum belegt.")).toBeVisible();
+  await expect(bloecke).toHaveCount(3);
 
   // Mittlere Schicht löschen …
   await bloecke.nth(1).click();
@@ -70,6 +77,16 @@ test("planen: anlegen, aufziehen, verschieben, Helfer ziehen, prüfen, Excel", a
   await page.getByRole("button", { name: "Löschen", exact: true }).click();
   await expect(bloecke).toHaveCount(2);
   await expect(flyin).toBeHidden();
+
+  // IDA-385: 08–12 auf 14–18 gezogen überlappt 16–20 — beide bleiben sichtbar; „Rückgängig“ holt 08–12 zurück.
+  const erste = await mitte(bloecke.first());
+  await ziehe(page, { x: erste.x, y: erste.y - 10 }, { x: erste.x + 6 * 56, y: erste.y - 10 });
+  const verlegt = spur.locator('[data-schicht][aria-label*="14:00–18:00"]');
+  await expect(verlegt).toHaveCount(1);
+  const [oben, unten] = [(await verlegt.boundingBox())!, (await spur.locator('[data-schicht][aria-label*="16:00–20:00"]').boundingBox())!];
+  expect(oben.y + oben.height <= unten.y || unten.y + unten.height <= oben.y).toBe(true);
+  await page.getByText("Verschoben auf 14:00–18:00").locator("..").getByRole("button", { name: "Rückgängig" }).click();
+  await expect(spur.locator('[data-schicht][aria-label*="08:00–12:00"]')).toHaveCount(1);
 
   // … und 12:00–15:00 neu aufziehen (Zoom „Normal“: 56 px je Stunde, Spur beginnt um 08:00).
   const s = await mitte(spur);
@@ -81,6 +98,13 @@ test("planen: anlegen, aufziehen, verschieben, Helfer ziehen, prüfen, Excel", a
 
   // Verschieben um eine Stunde: 13:00–16:00.
   const b = await mitte(neueSchicht);
+  await ziehe(page, { x: b.x, y: b.y - 10 }, { x: b.x + px, y: b.y - 10 });
+  await expect(spur.locator('[data-schicht][aria-label*="13:00–16:00"]')).toHaveCount(1);
+  // IDA-385: Ziehen meldet sich und lässt sich zurücknehmen — danach wieder verschieben.
+  const verschoben = page.getByText("Verschoben auf 13:00–16:00");
+  await verschoben.locator("..").getByRole("button", { name: "Rückgängig" }).click();
+  await expect(spur.locator('[data-schicht][aria-label*="12:00–15:00"]')).toHaveCount(1);
+  await expect(verschoben).toBeHidden();
   await ziehe(page, { x: b.x, y: b.y - 10 }, { x: b.x + px, y: b.y - 10 });
   await expect(spur.locator('[data-schicht][aria-label*="13:00–16:00"]')).toHaveCount(1);
 
@@ -104,6 +128,17 @@ test("planen: anlegen, aufziehen, verschieben, Helfer ziehen, prüfen, Excel", a
   await warteAufGestreamteInhalte(page);
   await expect(page.locator("[data-spur]").first().locator("[data-schicht]")).toHaveCount(3);
   await expect(page.locator("[data-spur]").first().locator("[data-schicht]").first()).toContainText("Erika Beispiel");
+
+  // IDA-385: Am Telefon läuft nichts aus der Namensspalte, die Seite scrollt nicht seitlich.
+  for (const breite of [390, 320]) {
+    await page.setViewportSize({ width: breite, height: 800 });
+    const knopf = page.getByRole("button", { name: "Abschnitt oder Fahrzeug" });
+    const zelle = knopf.locator("..");
+    const [k, z] = [(await knopf.boundingBox())!, (await zelle.boundingBox())!];
+    expect(k.x + k.width).toBeLessThanOrEqual(z.x + z.width + 0.5);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(breite);
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   // Prüfen zeigt die offenen Plätze, Ausgabe lädt eine Excel-Datei.
   await page.getByRole("tab", { name: /Prüfen/ }).click();

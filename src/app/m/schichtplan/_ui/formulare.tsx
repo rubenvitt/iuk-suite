@@ -76,7 +76,12 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
 
   async function speichern() {
     const { von, bis } = zeitraum;
-    if (von === null || bis === null) { setFehler({ bis: "Bitte Beginn und Ende wählen." }); return; }
+    // IDA-385: Der Knopf ist nie grau; was fehlt, steht am Feld.
+    const fehlt: FeldFehler = {
+      ...(name.trim() ? {} : { name: "Bitte einen Namen eintragen." }),
+      ...(von === null || bis === null ? { bis: "Bitte Beginn und Ende wählen." } : {}),
+    };
+    if (von === null || bis === null || Object.keys(fehlt).length) { setFehler(fehlt); return; }
     setLaeuft(true);
     const eingabe = {
       name, art, ort, von, bis,
@@ -135,7 +140,7 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
           <InputNumber min={0} max={24} step={0.5} value={minRuhe} onChange={(v) => setMinRuhe(v ?? 8)} suffix="h" style={{ width: "100%" }} />
         </Feld>
       </div>
-      <Button type="primary" loading={laeuft} disabled={!name.trim() || zeitraum.von === null || zeitraum.bis === null} onClick={() => void speichern()}>{planung ? "Speichern" : "Planung anlegen"}</Button>
+      <Button type="primary" loading={laeuft} onClick={() => void speichern()}>{planung ? "Speichern" : "Planung anlegen"}</Button>
     </div>
   );
 }
