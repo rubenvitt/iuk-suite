@@ -385,7 +385,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
           <Chip ton="grau" zeichen="schluessel">{ART_TEXT[artVon(zeile)]}</Chip>
         ) : (
           // IDA-393: Lesebreite, sonst schob ein langer Ortsname Zustand und Aktionen hinaus.
-          <div style={{ maxWidth: "14ch" }}>
+          <div style={{ maxWidth: "14ch", overflowWrap: "anywhere" }}>
             <div>{zeile.ortName}</div>
             {zeile.ortMeta ? <div style={SCHRIFT.neben}>{zeile.ortMeta}</div> : null}
           </div>
@@ -413,14 +413,18 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
            * Lastwagen — er ist dort kein Befund, sondern die Gruppe, und ein
            * eigenes Zeichen fuer „weiss nicht" gibt es nicht.
            */
-          <div style={{ maxWidth: "16ch" }}>
+          <div style={{ maxWidth: "16ch", overflowWrap: "anywhere" }}>
             <Chip
               ton="grau"
               zeichen={ziel === "fahrzeug"
                 ? (zeile.zielEinheitenart ?? "fahrzeug")
                 : ziel === "artikel" ? "objekt" : "liste"}
             >
-              {ziel === "liste" ? ZIEL_TEXT.liste : (zeile.zielName ?? "—")}
+              {/* IDA-393: der Chip ist `nowrap` — ein langer Name ohne Leerzeichen gab der
+                  Spalte sonst seine volle Breite. */}
+              <span style={{ whiteSpace: "normal", overflowWrap: "anywhere" }}>
+                {ziel === "liste" ? ZIEL_TEXT.liste : (zeile.zielName ?? "—")}
+              </span>
             </Chip>
             {/* IDA-393: Art und Kennung UNTER dem Chip — „RTW 1 · Fahrzeug · HN-DRK-1101" in
                 einem Chip war die breiteste Zelle der Zeile. */}

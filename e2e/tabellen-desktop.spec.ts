@@ -72,7 +72,16 @@ async function tabellenUeberstand(page: Page) {
         const spalten = [...w.querySelectorAll("thead th")]
           .filter((th) => th.getBoundingClientRect().width > 0)
           .map((th) => `${(th.textContent ?? "").trim().slice(0, 16) || "·"} ${Math.round(th.getBoundingClientRect().width)}`);
-        return { name: w.querySelector("table")?.getAttribute("aria-label") ?? "", ueber, rechts, spalten };
+        // Welche Zelle eine Spalte breit macht: die breiteste je Spalte, gekürzt.
+        const breiteste = [...w.querySelectorAll("tbody tr")].reduce<Record<number, { b: number; t: string }>>((acc, tr) => {
+          [...tr.children].forEach((td, i) => {
+            const b = (td as HTMLElement).scrollWidth;
+            if (!acc[i] || b > acc[i].b) acc[i] = { b, t: (td.textContent ?? "").trim().slice(0, 24) };
+          });
+          return acc;
+        }, {});
+        const zellen = Object.values(breiteste).map((z) => `„${z.t}" ${z.b}`);
+        return { name: w.querySelector("table")?.getAttribute("aria-label") ?? "", ueber, rechts, spalten, zellen };
       }));
 }
 
@@ -103,7 +112,7 @@ test.describe("Tabellen bei 1280px", () => {
         if (tabellen.length === 0 && !OHNE_TABELLE.has(wo)) fehler.push(`${wo}: keine Tabelle sichtbar`);
         for (const t of tabellen) {
           if (t.ueber > 1 || t.rechts > 1) {
-            fehler.push(`${wo} [${t.name}] ${Math.max(t.ueber, t.rechts)}px zu breit — ${t.spalten.join(" · ")}`);
+            fehler.push(`${wo} [${t.name}] ${Math.max(t.ueber, t.rechts)}px zu breit — ${t.spalten.join(" · ")} — breiteste Zellen: ${t.zellen.join(" · ")}`);
           }
         }
       }
