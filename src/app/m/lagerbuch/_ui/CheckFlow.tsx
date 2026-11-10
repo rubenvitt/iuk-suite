@@ -571,7 +571,7 @@ export function CheckFlow({
    * Jetzt startet jede Zeile bei 0; „Alles geholt" uebernimmt den Vorschlag mit einem bewussten Tipp.
    *
    * Greedy je Artikel: die Handlager-Verfuegbarkeit ueber die Positionen (Anzeige-Reihenfolge)
-   * verteilen, damit der Vorschlag nicht mehr verspricht, als der Handlager hergibt (1:1, `:222-238`).
+   * verteilen, damit der Vorschlag nicht mehr verspricht, als der Handlager hergibt (1:1 aus der Alt-Anwendung).
    */
   const nfVorschlag = (): Record<string, number> => {
     const rest = new Map<string, number>();

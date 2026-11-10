@@ -21,25 +21,57 @@ export function AbmeldenKnopf() {
   const [frage, setFrage] = useState(false);
   const bestaetigt = useRef(false);
   const formular = useRef<HTMLFormElement>(null);
+  const knopf = useRef<HTMLButtonElement>(null);
+  const zurueck = () => {
+    setFrage(false);
+    knopf.current?.focus();
+  };
 
   return (
     <form
       action={beenden}
       ref={formular}
       onSubmit={(e) => {
-        if (offen && !bestaetigt.current) {
+        // Eine Bestaetigung gibt nur DIESES Absenden frei, nicht jedes spaetere.
+        const ok = bestaetigt.current;
+        bestaetigt.current = false;
+        if (offen && !ok) {
           e.preventDefault();
           setFrage(true);
         }
       }}
     >
-      <button className={s.beenden} type="submit" data-rolle="abmelden">
+      <button className={s.beenden} type="submit" data-rolle="abmelden" ref={knopf}>
         <Ikone name="kreuz" groesse={14} />
         Abmelden
       </button>
       {frage && (
         <div className={s.rueckfrageGrund} data-rolle="abmelden-rueckfrage">
-          <div className={s.rueckfrage} role="alertdialog" aria-modal="true" aria-labelledby="abmelden-titel">
+          <div
+            className={s.rueckfrage}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="abmelden-titel"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                zurueck();
+                return;
+              }
+              // Tab bleibt in der Rueckfrage: zwei Knoepfe, also reicht der Wechsel an den Enden.
+              if (e.key !== "Tab") return;
+              const knoepfe = [...e.currentTarget.querySelectorAll("button")];
+              const erster = knoepfe[0];
+              const letzter = knoepfe[knoepfe.length - 1];
+              if (e.shiftKey && document.activeElement === erster) {
+                e.preventDefault();
+                letzter?.focus();
+              } else if (!e.shiftKey && document.activeElement === letzter) {
+                e.preventDefault();
+                erster?.focus();
+              }
+            }}
+          >
             <div className={s.zeileName} id="abmelden-titel">Der Check ist noch nicht abgeschlossen.</div>
             <p className={s.fussnote}>Deine Eingaben bleiben auf diesem Gerät.</p>
             <div className={s.rueckfrageKnoepfe}>
@@ -47,7 +79,7 @@ export function AbmeldenKnopf() {
                 className={`${s.knopf} ${s.knopfGeist}`}
                 type="button"
                 autoFocus
-                onClick={() => setFrage(false)}
+                onClick={zurueck}
                 data-rolle="abmelden-abbrechen"
               >
                 Weiter prüfen
