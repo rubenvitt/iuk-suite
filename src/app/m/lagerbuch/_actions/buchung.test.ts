@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
-import { HANDLAGER_ID } from "../_lib/konstanten";
+import { HANDLAGER_ID, PSEUDO_VERFALL } from "../_lib/konstanten";
 import { RIEGEL_TEXTE, darfErneuern, leerText } from "../_lib/actionTypen";
 import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 import { VOLLE_REICHWEITE } from "../_lib/helferBereich";
@@ -129,6 +129,11 @@ let zielCookie: string | undefined;
 const JETZT = new Date("2026-06-15T10:00:00Z");
 
 beforeEach(() => {
+  // IDA-378: `bucheZugang` weist abgelaufene Chargen ab. Ohne feste Uhr liefen
+  // die Verfallsmonate dieser Datei mit dem Kalender ab, und Zugangsfaelle
+  // kippten auf die Abweisung. Nur `Date` — Zeitgeber bleiben echt.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(JETZT);
   revalidiert.length = 0;
   zielCookie = "tk1|verbrauch";
   riegel.mockResolvedValue(ZUGANG_OK);
@@ -166,7 +171,7 @@ beforeEach(() => {
 
 // ⚠️ `t.schliessen()`, NICHT `t.aufraeumen()`: `TestDb` hat genau `db`, `sqlite`
 // und `schliessen` (Befund 11).
-afterEach(() => { t.schliessen(); vi.clearAllMocks(); });
+afterEach(() => { t.schliessen(); vi.clearAllMocks(); vi.useRealTimers(); });
 
 /**
  * DIE PFADE, DIE EINE BUCHUNG AUSRAEUMT — seit DRK-374 die MODULWEITE Liste.
@@ -344,6 +349,82 @@ describe("bucheZugang", () => {
       expect(feldFehlerVon(erg)?.menge).toMatch(/größer als 0/);
     }
     expect(geschrieben()).toEqual([]);
+  });
+});
+
+/**
+ * IDA-378 — WARENEINGANG OHNE NUMMER, OHNE VERFALL, UND ABGELAUFEN NUR NACH
+ * RUECKFRAGE. Die Uhr steht auf `JETZT` (2026-06): 2026-05 ist abgelaufen,
+ * 2026-06 laeuft noch bis Monatsende.
+ */
+describe("bucheZugang — IDA-378", () => {
+  it("nimmt eine leere Chargennummer an und bucht auf „ohne Nummer“", async () => {
+    const erg = await bucheZugang(
+      { artikelId: "art-1", menge: 2, neueCharge: { chargenNr: "  ", verfall: "2027-06" } },
+      t.db,
+    );
+    expect(erg.ok).toBe(true);
+    const neu = t.db.select().from(chargen).where(eq(chargen.verfall, "2027-06")).all();
+    expect(neu).toHaveLength(1);
+    expect(neu[0]).toMatchObject({ chargenNr: "ohne Nummer" });
+    expect(geschrieben()[0]).toMatchObject({ chargeId: neu[0]!.id, menge: 2 });
+  });
+
+  it("nimmt „ohne Verfall“ als PSEUDO_VERFALL an — nie abgelaufen", async () => {
+    const erg = await bucheZugang(
+      { artikelId: "art-1", menge: 1, neueCharge: { chargenNr: "", verfall: PSEUDO_VERFALL } },
+      t.db,
+    );
+    expect(erg.ok).toBe(true);
+    expect(t.db.select().from(chargen).where(eq(chargen.verfall, PSEUDO_VERFALL)).get())
+      .toMatchObject({ chargenNr: "ohne Verfall" });
+  });
+
+  it("weist eine NEUE abgelaufene Charge ohne Bestaetigung mit einem Satz ab", async () => {
+    const erg = await bucheZugang(
+      { artikelId: "art-1", menge: 1, neueCharge: { chargenNr: "ALT", verfall: "2026-05" } },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toBe(
+      "Verfall 05/2026 ist abgelaufen – bestätige den Zugang, um trotzdem zu buchen.",
+    );
+    expect(geschrieben()).toEqual([]);
+    expect(t.db.select().from(chargen).where(eq(chargen.chargenNr, "ALT")).get()).toBeUndefined();
+  });
+
+  it("weist eine GEWAEHLTE abgelaufene Charge ohne Bestaetigung ab", async () => {
+    t.db.insert(chargen).values({
+      id: "ch-alt", artikelId: "art-1", chargenNr: "L0", verfall: "2026-05", createdAt: JETZT,
+    }).run();
+    const erg = await bucheZugang({ artikelId: "art-1", menge: 1, chargeId: "ch-alt" }, t.db);
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toMatch(/^Verfall 05\/2026 ist abgelaufen/);
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("bucht abgelaufen MIT Bestaetigung — neu wie gewaehlt", async () => {
+    t.db.insert(chargen).values({
+      id: "ch-alt", artikelId: "art-1", chargenNr: "L0", verfall: "2026-05", createdAt: JETZT,
+    }).run();
+    const gewaehlt = await bucheZugang(
+      { artikelId: "art-1", menge: 1, chargeId: "ch-alt", abgelaufenBestaetigt: true }, t.db);
+    const neu = await bucheZugang(
+      { artikelId: "art-1", menge: 2, abgelaufenBestaetigt: true,
+        neueCharge: { chargenNr: "ALT", verfall: "2020-01" } },
+      t.db,
+    );
+    expect(gewaehlt.ok).toBe(true);
+    expect(neu.ok).toBe(true);
+    expect(geschrieben()).toHaveLength(2);
+  });
+
+  it("fragt im laufenden Monat nicht — abgelaufen ist erst das Monatsende", async () => {
+    const erg = await bucheZugang(
+      { artikelId: "art-1", menge: 1, neueCharge: { chargenNr: "JUNI", verfall: "2026-06" } },
+      t.db,
+    );
+    expect(erg.ok).toBe(true);
   });
 });
 

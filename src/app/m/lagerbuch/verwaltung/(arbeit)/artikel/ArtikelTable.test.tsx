@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, isValidElement, type ReactElement, type ReactNode } from "react";
+import { App } from "antd";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -43,8 +44,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("../../../_ui/ArtikelDrawer", () => ({
-  ArtikelDrawer: ({ id }: { id: string }) => (
-    <div data-rolle="artikel-drawer" data-artikel-id={id} />
+  ArtikelDrawer: ({ id, startReiter }: { id: string; startReiter?: string }) => (
+    <div data-rolle="artikel-drawer" data-artikel-id={id} data-start-reiter={startReiter ?? ""} />
   ),
 }));
 
@@ -889,7 +890,7 @@ describe("ArtikelTable: Sortierung in den Spaltenköpfen und eine Exportquelle",
 
 describe("NeuArtikel", () => {
   it("bindet die vier Felder, sendet exakte Werte und schließt nur bei Erfolg", async () => {
-    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
     await neuArtikelOeffnen();
     await neuesArtikelFormularFuellen();
     await submitNeuArtikel();
@@ -906,6 +907,57 @@ describe("NeuArtikel", () => {
       "geschlossener Artikeldialog",
     );
     expect(mocks.refresh).toHaveBeenCalledOnce();
+    // IDA-378: Rueckmeldung, und die Schublade des neuen Artikels steht offen —
+    // auf „Buchen", denn der naechste Handgriff ist der Wareneingang.
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("„Wundauflage“ angelegt."),
+      "Erfolgsmeldung",
+    );
+    const schublade = query("[data-rolle='artikel-drawer']");
+    expect(schublade.dataset.artikelId).toBe("artikel-neu");
+    expect(schublade.dataset.startReiter).toBe("buchen");
+  });
+
+  it("warnt vor einem gleichnamigen Artikel und legt erst mit „Trotzdem anlegen“ an", async () => {
+    mocks.createArtikel.mockResolvedValueOnce({
+      ok: false, fehler: "„Wundauflage“ gibt es schon.", dublette: true,
+    });
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
+    await neuArtikelOeffnen();
+    await neuesArtikelFormularFuellen();
+    await submitNeuArtikel();
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("„Wundauflage“ gibt es schon."),
+      "Dublettenwarnung",
+    );
+    expect(Array.from(document.body.querySelectorAll("button"))
+      .some((knopf) => (knopf.textContent ?? "").includes("Trotzdem anlegen"))).toBe(true);
+    expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
+
+    await submitNeuArtikel();
+    await warteAuf(() => mocks.createArtikel.mock.calls.length === 2, "zweiter Versuch");
+    expect(mocks.createArtikel.mock.calls[1]![0]).toMatchObject({
+      name: "Wundauflage", dublettBestaetigt: true,
+    });
+  });
+
+  it("fragt nach einer Namensaenderung wieder", async () => {
+    mocks.createArtikel.mockResolvedValueOnce({
+      ok: false, fehler: "„Wundauflage“ gibt es schon.", dublette: true,
+    });
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
+    await neuArtikelOeffnen();
+    await neuesArtikelFormularFuellen();
+    await submitNeuArtikel();
+    await warteAuf(() => mocks.createArtikel.mock.calls.length === 1, "erster Versuch");
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("gibt es schon"),
+      "Dublettenwarnung",
+    );
+    await fillPortal("[aria-label='Name']", "Wundauflage groß");
+    await submitNeuArtikel();
+    await warteAuf(() => mocks.createArtikel.mock.calls.length === 2, "zweiter Versuch");
+    expect(mocks.createArtikel.mock.calls[1]![0]).not.toHaveProperty("dublettBestaetigt");
   });
 
   it("zeigt allgemeinen und bekannten Feldfehler, erhält Dialog sowie Werte", async () => {
@@ -917,7 +969,7 @@ describe("NeuArtikel", () => {
         unbekannt: "Phantomfeld darf nicht erscheinen.",
       },
     });
-    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
     await neuArtikelOeffnen();
     await neuesArtikelFormularFuellen();
     await submitNeuArtikel();
@@ -935,7 +987,7 @@ describe("NeuArtikel", () => {
 
   it("zeigt bei verworfenem Promise nur einen festen Clienttext", async () => {
     mocks.createArtikel.mockRejectedValueOnce(new Error("internes Framework-Geheimnis"));
-    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
     await neuArtikelOeffnen();
     await neuesArtikelFormularFuellen();
     await submitNeuArtikel();
