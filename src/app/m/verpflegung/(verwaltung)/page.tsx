@@ -3,10 +3,10 @@ import { Card } from "antd";
 import { Kennzahl, Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../_db/client";
-import { chargeInStufe, type Stufe } from "../_lib/bestand";
+import { chargeInStufe, stufeVon } from "../_lib/bestand";
 import { bestandJeArtikel, ladeBuchungen, ladeSicht, unterMindest } from "../_lib/daten";
 import { heute, zeitText } from "../_lib/heute";
-import { datumLang, mengeText, type MhdStatus } from "../_lib/mhd";
+import { datumLang, mengeText } from "../_lib/mhd";
 import { BUCHUNGS_TEXT } from "../_lib/typen";
 import { requireZugang } from "../_lib/zugang";
 import { AmpelChip, Kicker } from "../_ui/teile";
@@ -18,9 +18,6 @@ export const dynamic = "force-dynamic";
 function Kpi({ zahl, text, farbe, href }: { zahl: number; text: string; farbe: "rot" | "gelb"; href: string }) {
   return <Kennzahl wert={zahl} label={text} ton={zahl === 0 ? undefined : farbe === "rot" ? "fehler" : "warnung"} href={href} />;
 }
-
-/** Die Stufe, in der eine Charge der Liste „Läuft als Nächstes ab“ steht. */
-const stufeVon = (c: { status: MhdStatus }): Stufe => (c.status.abgelaufen ? "abgelaufen" : c.status.ampel === "rot" ? "kritisch" : "bald");
 
 /** Übersicht: was abläuft, was fehlt, was zuletzt gebucht wurde. */
 export default async function Uebersicht() {

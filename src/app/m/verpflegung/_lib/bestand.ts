@@ -24,6 +24,13 @@ export function chargeInStufe(c: { status: MhdStatus }, stufe: Stufe): boolean {
   return true;
 }
 
+/** Die Ampelstufe, in der eine Charge steht; Gegenstück zu `chargeInStufe`, damit Kennzahl und Link nicht auseinanderlaufen. */
+export function stufeVon(c: { status: MhdStatus }): Exclude<Stufe, "alle" | "mindest"> {
+  if (chargeInStufe(c, "abgelaufen")) return "abgelaufen";
+  if (chargeInStufe(c, "kritisch")) return "kritisch";
+  return "bald";
+}
+
 /** Wie viel eines Bestands gesperrt (Verbrauchsdatum über) und wie viel nur abgelaufen (MHD über) ist. */
 export type Zustand = { gesperrt: number; abgelaufen: number };
 

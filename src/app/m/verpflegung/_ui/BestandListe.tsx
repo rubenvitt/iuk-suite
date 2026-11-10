@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "antd";
 import { Filterchips } from "@/core/filterchips/Filterchips";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachText, nachZahl, trifftWert, werteAlsFilter } from "@/core/tabelle";
-import { artikelZeilen, STUFE_TEXT, STUFEN, type ArtikelZeile, type Stufe } from "../_lib/bestand";
+import { artikelZeilen, STUFE_TEXT, STUFEN, stufeAus, type ArtikelZeile, type Stufe } from "../_lib/bestand";
 import { datumLang, mengeText, zahlText } from "../_lib/mhd";
 import type { ArtikelDTO, ChargeSicht, OrtDTO } from "../_lib/typen";
 import { AussondernDialog } from "./AussondernDialog";
@@ -19,31 +20,34 @@ import s from "./verpflegung.module.css";
  * dem nächsten MHD; aufgeklappt die Chargen nach Ablauf zuerst, je mit Ausgeben und Aussondern. Die frühere
  * MHD-Kontrolle ist die Stufe darüber (`?stufe=`); in einer Stufe stehen nur die betroffenen Chargen, aufgeklappt.
  */
-export function BestandListe({ artikel, chargen, orte, heute, start }: {
+export function BestandListe({ artikel, chargen, orte, heute }: {
   artikel: ArtikelDTO[];
   chargen: ChargeSicht[];
   orte: OrtDTO[];
   heute: string;
-  start: Stufe;
 }) {
-  const [stufe, setStufe] = useState<Stufe>(start);
+  /*
+   * Die Stufe IST die Adresse, kein eigener Zustand: ein Klick auf „Bestand“ in der Seitenleiste behält diese
+   * Komponente, und ein gemerkter Zustand stünde dann auf „Kritisch“ unter `/bestand`. `replaceState` meldet Next
+   * an `useSearchParams` weiter.
+   */
+  const stufe = stufeAus(useSearchParams().get("stufe"));
   const zeilen = artikelZeilen(artikel, chargen, stufe);
   /*
    * Gemerkt wird, was der Mensch umgeklappt hat, nicht was offen ist (Vorbild `lagerbuch/…/OrtVerfallTabelle.tsx`):
    * in einer Stufe ist alles offen, unter „Alle“ alles zu, und ein Stufenwechsel setzt das zurück.
    */
-  const [umgeklappt, setUmgeklappt] = useState<ReadonlySet<string>>(new Set());
+  const [klappung, setKlappung] = useState<{ stufe: Stufe; ids: ReadonlySet<string> }>({ stufe, ids: new Set() });
+  const umgeklappt = klappung.stufe === stufe ? klappung.ids : new Set<string>();
   const offenStandard = stufe !== "alle";
   const istOffen = (id: string) => offenStandard !== umgeklappt.has(id);
-  const klappe = (id: string) => setUmgeklappt((alt) => {
-    const neu = new Set(alt);
+  const klappe = (id: string) => {
+    const neu = new Set(umgeklappt);
     if (neu.has(id)) neu.delete(id);
     else neu.add(id);
-    return neu;
-  });
+    setKlappung({ stufe, ids: neu });
+  };
   const waehle = (neu: Stufe) => {
-    setStufe(neu);
-    setUmgeklappt(new Set());
     window.history.replaceState(null, "", neu === "alle" ? window.location.pathname : `?stufe=${neu}`);
   };
 

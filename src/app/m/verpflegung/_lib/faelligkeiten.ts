@@ -16,6 +16,7 @@ import type { Faelligkeit, Sofortmeldung } from "@/core/faelligkeiten";
 import { getDb, type VerpflegungDb } from "../_db/client";
 import { ladeArtikel, ladeChargen, ladeOrte } from "./daten";
 import { stundeInZone, tagInZone } from "./heute";
+import { stufeVon } from "./bestand";
 import { mengeText, restText } from "./mhd";
 import { vermerke, vermerkt } from "./schreiben";
 
@@ -53,7 +54,7 @@ export function verpflegungFaelligkeiten(jetzt: Date, db: Leser = getDb()): Fael
       dringlichkeit: c.status.abgelaufen ? "ueberfaellig" : "bald",
       sortierung: c.mhd,
       // IDA-382: auf die Stufe des Bestands, in der diese Charge steht.
-      pfad: c.status.abgelaufen ? "/bestand?stufe=abgelaufen" : "/bestand?stufe=kritisch",
+      pfad: `/bestand?stufe=${stufeVon(c)}`,
     };
   });
 }
