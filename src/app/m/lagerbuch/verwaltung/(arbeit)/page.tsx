@@ -261,9 +261,9 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
           Artikel" und kannte nur den Bestand. */}
       <Card
         title="Was steht an"
-        extra={kritisch.length > sichtbar.length ? (
+        extra={kritisch.length > sichtbar.length || steht.zeilen.length > fristen.length ? (
           <span style={SCHRIFT.neben}>
-            {sichtbar.length} von {kritisch.length}
+            {fristen.length + sichtbar.length} von {steht.zeilen.length + kritisch.length}
           </span>
         ) : undefined}
         style={{ marginBlockEnd: SPACE.lg }}

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { artikel, buchungen, chargen } from "../../_db/schema";
+import { artikel, buchungen, chargen, lagerorte, maengel } from "../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { HANDLAGER_ID } from "../../_lib/konstanten";
 import { Kachel } from "../../_ui/Kachel";
@@ -13,6 +13,7 @@ import {
   type UebersichtJournalZeile,
 } from "./LetzteBuchungenTable";
 import {
+  FRISTEN_ANZEIGE,
   KRITISCH_ANZEIGE,
   kritischeArtikel,
   kritischeReihenfolge,
@@ -365,6 +366,24 @@ describe("Verwaltungsübersicht", () => {
     expect(textVon(seite)).toContain("Alle 12 unter Mindestbestand anzeigen");
     expect(textVon(seite)).toContain("Alle 1 mit kritischer Charge anzeigen");
     expect(textVon(seite)).toContain(`${KRITISCH_ANZEIGE} von 13`);
+  });
+
+  it("nennt auch gekürzte Fristen in der Zählung von „Was steht an“", () => {
+    const jetzt = new Date("2026-08-07T12:00:00Z");
+    t.db.insert(lagerorte).values({ id: "rtw-frist", name: "RTW Frist", typ: "fahrzeug", einheitenart: "fahrzeug" }).run();
+    t.db.insert(maengel).values(
+      Array.from({ length: FRISTEN_ANZEIGE + 2 }, (_, i) => ({
+        id: `mangel-${i}`,
+        lagerortId: "rtw-frist",
+        punkte: [`Punkt ${i}`],
+        quelleTyp: "token" as const,
+        quelleId: "x",
+        createdAt: jetzt,
+      })),
+    ).run();
+
+    const seite = verwaltungInhalt(t.db, jetzt);
+    expect(textVon(seite)).toContain(`${FRISTEN_ANZEIGE} von ${FRISTEN_ANZEIGE + 2}`);
   });
 
   it("stellt eine abgelaufene Charge vor bald fällige, auch über die ersten zehn hinaus (IDA-246)", () => {

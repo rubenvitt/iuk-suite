@@ -80,7 +80,7 @@
  * (1,04:1). Hier werden deshalb die EIGENEN Variablen mit Dunkelzweig auf ihre
  * hellen Werte gesetzt — eine Deklaration am Element schlägt den geerbten
  * Wert, gleich wie spezifisch die Regel am Vorfahren ist. Die Werte sind
- * Abschriften; `festHell.test.ts` hält sie an `app/globals.css` (`:root`) und
+ * Abschriften; `festHell.test.tsx` hält sie an `app/globals.css` (`:root`) und
  * `_ui/verwaltung.module.css` (`.modul`) fest.
  *
  * antds Bauteile stellt `FEST_HELL` um, nicht diese Datei (kein `.ant-`, kein

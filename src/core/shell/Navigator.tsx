@@ -174,7 +174,7 @@ export function Navigator({
       ebeneKnoten.removeEventListener("scroll", pruefe);
       beobachter?.disconnect();
     };
-  }, [sucht]);
+  }, [sucht, daten.angemeldet, nav]);
 
   function fertig() {
     setSuche("");
