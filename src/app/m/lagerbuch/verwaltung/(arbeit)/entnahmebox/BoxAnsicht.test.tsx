@@ -171,12 +171,12 @@ describe("BoxAnsicht — die Tabellen", () => {
         ...POSTEN[0]!,
         chargen: [{
           id: "ch-pseudo", chargenNr: "Korrektur", verfall: "2099-12", rest: 6,
-          ampel: "gruen", text: "bis 12/99",
+          ampel: "gruen", text: "ohne Verfall",
         }],
         gemeldet: { verfall: "2026-05", ampel: "rot", abgelaufen: true, text: "abgelaufen" },
       }],
     }));
-    expect(document.body.textContent).toContain("Korrektur · bis 12/99 · 6");
+    expect(document.body.textContent).toContain("Korrektur · ohne Verfall · 6");
     expect(document.body.textContent).toContain("abgelaufen");
   });
 

@@ -111,6 +111,8 @@ export function ChecksFilter({
           value={von ? dayjs(von) : null}
           format="YYYY-MM-DD"
           aria-label="Zeitraum von"
+          // IDA-380 — sonst stuende in beiden Feldern antds „Datum auswählen".
+          placeholder="von"
           disabledDate={(datum) => (bis ? datum.isAfter(dayjs(bis)) : false)}
           onChange={(datum) => schreibe({
             von: datum ? datum.format("YYYY-MM-DD") : "",
@@ -121,6 +123,7 @@ export function ChecksFilter({
           value={bis ? dayjs(bis) : null}
           format="YYYY-MM-DD"
           aria-label="Zeitraum bis"
+          placeholder="bis"
           disabledDate={(datum) => (von ? datum.isBefore(dayjs(von)) : false)}
           onChange={(datum) => schreibe({
             bis: datum ? datum.format("YYYY-MM-DD") : "",

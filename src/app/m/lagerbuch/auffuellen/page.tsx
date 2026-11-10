@@ -67,7 +67,7 @@ export default async function AuffuellenSeite() {
   const inKiste = boxOrt(db) === null ? 0 : boxInhalt(db).length;
 
   return (
-    <AuffuellRahmen etikett={sitzungsEtikett(kontoZugangAus(viewer))}>
+    <AuffuellRahmen etikett={sitzungsEtikett(kontoZugangAus(viewer))} titel="Auffüllen">
       {inKiste > 0 && (
         <div className={s.karte}>
           {/*

@@ -546,6 +546,15 @@
   background: var(--lb-karte); white-space: nowrap;
 }
 .fussnote { font-size: 13px; color: var(--lb-stahl); line-height: 1.5 }
+/*
+ * DER SEITENTITEL DER HELFERFLAECHEN — IDA-380. Er nennt die Richtung („Entnahme",
+ * „Auffüllen", „Check") und steht deshalb ueber `.schirmKopf`, der nur den Schritt nennt.
+ * Tinte, nicht Stahl: er ist das Erste, was auf dem Schirm gelesen wird.
+ */
+.schirmTitel {
+  font-family: var(--lb-display); font-weight: 700; font-size: 28px; line-height: 1.1;
+  color: var(--lb-tinte); margin: 2px 2px 12px; overflow-wrap: anywhere;
+}
 .schirmKopf {
   font-family: var(--lb-display); font-weight: 700; font-size: 17px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--lb-stahl); margin: 2px 2px 10px;

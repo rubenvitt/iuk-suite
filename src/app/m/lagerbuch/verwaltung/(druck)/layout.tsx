@@ -3,6 +3,7 @@ import "./druck.css";
 import { requireLagerbuchHost } from "../../_lib/host";
 import { requireLagerbuchAdmin } from "../../_lib/zugang";
 import { DruckRahmen } from "../../_ui/DruckRahmen";
+import { FestHell } from "./FestHell";
 
 /**
  * DAS DRUCK-LAYOUT DES ETIKETTENBOGENS (Spec §8.4, Entscheidung 8-H; §6.1.3).
@@ -62,5 +63,10 @@ export default async function LagerbuchDruckLayout({
   requireLagerbuchHost(kopf);
   await requireLagerbuchAdmin();
 
-  return <DruckRahmen>{children}</DruckRahmen>;
+  // IDA-380 — die Fläche unter dem Menü ist fest hell (Begründung in `FestHell.tsx`).
+  return (
+    <DruckRahmen>
+      <FestHell>{children}</FestHell>
+    </DruckRahmen>
+  );
 }

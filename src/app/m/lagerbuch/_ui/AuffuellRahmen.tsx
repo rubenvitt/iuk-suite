@@ -43,8 +43,11 @@ import s from "./helfer.module.css";
  */
 export function AuffuellRahmen({
   etikett,
+  titel,
   children,
 }: {
+  /** Sichtbarer Seitentitel (IDA-380), z. B. „Auffüllen". */
+  titel?: string;
   /** „Angemeldet: …" — der einzige Satz, der sagt, wer hier gerade bucht.
    *  Aus `sitzungsEtikett`, damit beide Flaechen denselben Satz bilden. */
   etikett: string;
@@ -75,7 +78,13 @@ export function AuffuellRahmen({
         </Link>
       </header>
 
-      <main className={s.inhalt}>{children}</main>
+      <main className={s.inhalt}>
+        {/* IDA-380 — DER SEITENTITEL NENNT DIE RICHTUNG. Entnahme und Auffüllen
+            sahen gleich aus (beide „Artikel wählen"), buchen aber entgegengesetzt;
+            nur Titel, kein Erklärtext. Optional: Unterschritte tragen ihn nicht. */}
+        {titel ? <h1 className={s.schirmTitel} data-rolle="schirm-titel">{titel}</h1> : null}
+        {children}
+      </main>
     </div>
   );
 }

@@ -8,7 +8,9 @@ import type { DatumFaelligkeit } from "./domain/geraet";
 describe("fmtVerfall", () => {
   it("macht aus 2026-03 das 03/26", () => {
     expect(fmtVerfall("2026-03")).toBe("03/26");
-    expect(fmtVerfall("2099-12")).toBe("12/99");
+  });
+  it("der Platzhalter 2099-12 heisst „ohne Verfall\", nie „12/99\" (IDA-380)", () => {
+    expect(fmtVerfall("2099-12")).toBe("ohne Verfall");
   });
 });
 
@@ -26,6 +28,9 @@ describe("chargeText — der Vertrag in allen VIER Zustaenden", () => {
   });
   it("gruen -> 'bis MM/JJ'", () => {
     expect(chargeText({ ampel: "gruen", abgelaufen: false }, "2027-01")).toBe("bis 01/27");
+  });
+  it("gruen ohne Verfall -> 'ohne Verfall', nicht 'bis 12/99'", () => {
+    expect(chargeText({ ampel: "gruen", abgelaufen: false }, "2099-12")).toBe("ohne Verfall");
   });
 });
 

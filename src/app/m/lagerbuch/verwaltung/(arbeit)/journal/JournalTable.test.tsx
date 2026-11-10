@@ -69,34 +69,13 @@ function zeilenIds(): Array<string | null> {
 }
 
 /**
- * ⚠️ JSDOM KENNT KEINEN `IntersectionObserver`, und ein blosser Stummel meldete
- * auch nichts: jsdom rechnet keine Layoutboxen, nichts kommt je „in Sicht".
- * Ohne Ersatz waere jeder Nachlade-Test hier gruen, ohne etwas zu messen.
- *
- * Dieser Stummel meldet beim `observe()` sofort einen Treffer — er prueft damit
- * die VERDRAHTUNG (Wache in Sicht → Nachschlag → anhaengen), nicht die
- * Sichtbarkeitsrechnung des Browsers. Dass die Wache im echten Browser
- * tatsaechlich in Sicht kommt, kann nur Playwright sagen.
+ * IDA-380 — DAS NACHLADEN HAENGT AN EINEM KNOPF, nicht mehr an einem
+ * Beobachter am Fussende. Der Klick ist damit derselbe Weg, den eine Person
+ * geht; fehlt der Knopf (nach einem Fehler, am Ende der Liste), tut der Klick
+ * nichts — genau die Zusicherung „laedt nicht von selbst weiter".
  */
-function beobachterStellen(): { ausloesen: () => void } {
-  let melden: (() => void) | null = null;
-  class Stummel {
-    constructor(private rueckruf: IntersectionObserverCallback) {
-      melden = () => this.rueckruf(
-        [{ isIntersecting: true } as IntersectionObserverEntry],
-        this as unknown as IntersectionObserver,
-      );
-    }
-    observe() { /* der Treffer wird von Hand ausgeloest */ }
-    disconnect() { melden = null; }
-    unobserve() {}
-    takeRecords() { return []; }
-    root = null;
-    rootMargin = "";
-    thresholds = [];
-  }
-  vi.stubGlobal("IntersectionObserver", Stummel);
-  return { ausloesen: () => melden?.() };
+function weitereLaden(): void {
+  document.querySelector<HTMLElement>("[data-testid='journal-weitere']")?.click();
 }
 
 /** Ein Makrotask-Tick, damit React die Wirkung eines Klicks ausspielt. */
@@ -241,7 +220,6 @@ describe("JournalTable", () => {
    * DAS NACHLADEN (DRK-331).
    */
   it("haengt eine nachgeladene Seite an, statt die Liste zu ersetzen", async () => {
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -275,7 +253,7 @@ describe("JournalTable", () => {
     );
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
 
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     // ANGEHAENGT, nicht ersetzt — und die nachgeladene Zeile hat dieselbe
@@ -303,7 +281,6 @@ describe("JournalTable", () => {
    * Bedingung, nach der auch die Wache unten aufhoert.
    */
   it("fuehrt die Trefferzahl mit der nachgeladenen Seite nach", async () => {
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -336,9 +313,9 @@ describe("JournalTable", () => {
       />,
     );
     expect(query("[data-testid='journal-treffer']").textContent)
-      .toBe("2 Treffer geladen — weitere beim Scrollen");
+      .toBe("2 von mehr als 2 Treffern");
 
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(3);
@@ -346,7 +323,6 @@ describe("JournalTable", () => {
   });
 
   it("reicht Filter UND Schluesselposition an den Nachschlag weiter", async () => {
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({ ok: true, cursor: null, zeilen: [] });
 
@@ -363,7 +339,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     // Ohne den Filter lieferte Seite zwei andere Zeilen als Seite eins — der
@@ -380,7 +356,6 @@ describe("JournalTable", () => {
 
   it("zaehlt eine doppelt gelieferte Zeile nicht zweimal", async () => {
     // Ein doppelter `rowKey` waere in React ein stiller Renderfehler.
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -396,7 +371,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
@@ -405,7 +380,6 @@ describe("JournalTable", () => {
   it("bietet nach einem Fehler einen Knopf und laedt NICHT von selbst weiter", async () => {
     // Sonst liefe bei abgerissenem Netz eine stille Endlosschleife gegen den
     // Server.
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: false,
@@ -420,7 +394,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(document.body.textContent).toContain("Weitere Buchungen konnten nicht geladen werden.");
@@ -429,9 +403,49 @@ describe("JournalTable", () => {
     expect(knopf).toBeDefined();
 
     const aufrufeVorher = mocks.naechsteJournalSeite.mock.calls.length;
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
     expect(mocks.naechsteJournalSeite.mock.calls.length).toBe(aufrufeVorher);
+  });
+
+  /**
+   * IDA-380 — NICHT MEHR ALLES AUF EINMAL. Am Telefon ergaben 97 Buchungen gut
+   * 17 000 px; jetzt stehen `JOURNAL_SCHRITT` Zeilen, und der Knopf zeigt die
+   * naechsten — aus der schon geladenen Portion, ohne den Server zu fragen.
+   */
+  it("zeigt die geladenen Zeilen schrittweise und fragt den Server erst danach", async () => {
+    mocks.naechsteJournalSeite.mockReset();
+    mocks.naechsteJournalSeite.mockResolvedValue({ ok: true, cursor: null, zeilen: [] });
+    const viele: JournalZeileDTO[] = Array.from({ length: 60 }, (_, i) => ({
+      ...ZEILEN[0],
+      id: `journal-${String(i).padStart(3, "0")}`,
+      ts: new Date(Date.UTC(2026, 7, 7, 12, 0, 60 - i)).toISOString(),
+    }));
+
+    await mount(
+      <JournalTable
+        ersteZeilen={viele}
+        ersterCursor={null}
+        abrufFilter={KEIN_FILTER}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    expect(zeilenIds()).toHaveLength(25);
+    expect(query("[data-testid='journal-treffer']").textContent).toBe("25 von 60 Treffern");
+    expect(document.body.textContent).not.toContain("Keine weiteren Buchungen.");
+
+    await act(async () => { weitereLaden(); });
+    await warte();
+    expect(zeilenIds()).toHaveLength(50);
+
+    await act(async () => { weitereLaden(); });
+    await warte();
+    expect(zeilenIds()).toHaveLength(60);
+    expect(query("[data-testid='journal-treffer']").textContent).toBe("60 Treffer");
+    expect(document.querySelector("[data-testid='journal-weitere']")).toBeNull();
+    expect(document.body.textContent).toContain("Keine weiteren Buchungen.");
+    // Alles stand schon im Browser — kein einziger Nachschlag.
+    expect(mocks.naechsteJournalSeite).not.toHaveBeenCalled();
   });
 
   it("sagt am Ende der Liste, dass nichts mehr kommt", async () => {
@@ -470,7 +484,6 @@ describe("JournalTable", () => {
      * Antwort haengte danach die Zeilen des ALTEN Filters an den neuen Stand.
      * Die Liste zeigte Buchungen, die der gewaehlte Filter ausschliesst.
      */
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
 
     let antworten!: (wert: unknown) => void;
@@ -484,7 +497,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
 
     // Filterwechsel, WAEHREND der Abruf laeuft: neue erste Seite vom Server.
     await rerender(
@@ -540,7 +553,6 @@ describe("JournalTable", () => {
      * nachgeladenen AELTEREN Zeilen standen weiter da, obwohl sie den neuen
      * Filter verletzen.
      */
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -575,7 +587,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
     expect(zeilenIds()).toContain("journal-alt-entnahme");
 
@@ -726,7 +738,6 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
      * Zeile 1 in genau der Kleinigkeit, die niemand sucht — und zwar erst nach
      * dem ersten Scrollen.
      */
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -742,7 +753,7 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(query("tr[data-row-key='journal-aussonderung']").textContent)
@@ -820,7 +831,6 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
   });
 
   it("reicht den Ort auch auf dem Nachladepfad durch", async () => {
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true, cursor: null, zeilen: [UMLAGERUNG[1]],
@@ -834,7 +844,7 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(query("tr[data-row-key='journal-um-quelle']").querySelectorAll("td")[3]?.textContent)

@@ -102,8 +102,21 @@ export function zaehlOrtWert(ortId: string | null): string {
  * Die Wurzel als Zaehlort. Der Name des Lagerorts („Handlager") waere hier
  * IRREFUEHREND: er stuende fuer denselben Bereich wie „ganzer Handlager", und
  * im Verlauf liesse sich beides nicht mehr auseinanderhalten.
+ *
+ * ⚠️ EIN WORT FUER DIESEN ORT, UEBERALL (IDA-380). Derselbe Ort hiess hier
+ * „Nicht zugeordnet", als Zugangsziel „Handlager (ohne Schrank)" und in der
+ * Chargenverteilung „Handlager" — drei Namen, und niemand sah, dass es einer
+ * ist. Ohne Klammer, weil Auswahlzeilen die Menge in Klammern anhaengen.
+ * `ZUGANGSZIEL_WURZEL_LABEL` (`lesepfade/orte.ts`) ist derselbe Wert.
  */
-export const ZAEHLORT_WURZEL_LABEL = "Nicht zugeordnet";
+export const ZAEHLORT_WURZEL_LABEL = "Handlager ohne Schrank";
+
+/**
+ * Das Wort bis IDA-380. Es steht in append-only Inventurlaeufen
+ * (`umfang.ort`); `ortNamensaufloesung` loest es weiter auf die Wurzel auf,
+ * sonst bekaeme jeder alte Lauf die Kennung angehaengt.
+ */
+export const ZAEHLORT_WURZEL_LABEL_ALT = "Nicht zugeordnet";
 
 /**
  * Ein waehlbarer Zaehlort — `id` ist `null` („ganzer Handlager"), `HANDLAGER_ID`

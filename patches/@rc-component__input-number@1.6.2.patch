@@ -1,0 +1,68 @@
+diff --git a/es/InputNumber.js b/es/InputNumber.js
+index da284cdeebb249628436cfd4003815a7940c3b3e..b9b0c42551daeedc647c21a0840f081b5a6cefd8 100644
+--- a/es/InputNumber.js
++++ b/es/InputNumber.js
+@@ -57,7 +57,8 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+     parser,
+     formatter,
+     precision,
+-    decimalSeparator,
++    // iuk-suite (IDA-394): Komma als Vorgabe-Trenner, sonst wird „231,5“ zu 2315.
++    decimalSeparator = ',',
+     onChange,
+     onInput,
+     onPressEnter,
+@@ -73,6 +74,11 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+     changeOnBlur = true,
+     ...restProps
+   } = props;
++
++  // iuk-suite (IDA-394): Zifferntastatur am Telefon als Vorgabe. Ganze Zahlen „numeric“, sonst
++  // „decimal“ (mit Komma); darf das Feld negativ werden, die volle Tastatur (kein Minus auf dem
++  // Ziffernblock). Ein `inputMode` am Aufruf geht vor (er steht in `restProps`).
++  const iukTastatur = min !== undefined && min !== null && Number(min) < 0 ? undefined : precision !== undefined && precision !== null ? precision === 0 ? 'numeric' : 'decimal' : props.step !== undefined && props.step !== null && Number.isInteger(Number(props.step)) ? 'numeric' : 'decimal';
+   const [focus, setFocus] = React.useState(false);
+   const userTypingRef = React.useRef(false);
+   const compositionRef = React.useRef(false);
+@@ -529,6 +535,7 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+     style: styles?.prefix
+   }, prefix), /*#__PURE__*/React.createElement("input", _extends({
+     autoComplete: "off",
++    inputMode: iukTastatur,
+     role: "spinbutton",
+     "aria-valuemin": min,
+     "aria-valuemax": max,
+diff --git a/lib/InputNumber.js b/lib/InputNumber.js
+index 7806d85ad119acffdf1d28410a14b8b3ab3e5e31..67c954675117496d6e931234d41a995a07028877 100644
+--- a/lib/InputNumber.js
++++ b/lib/InputNumber.js
+@@ -66,7 +66,8 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+     parser,
+     formatter,
+     precision,
+-    decimalSeparator,
++    // iuk-suite (IDA-394): Komma als Vorgabe-Trenner, sonst wird „231,5“ zu 2315.
++    decimalSeparator = ',',
+     onChange,
+     onInput,
+     onPressEnter,
+@@ -82,6 +83,11 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+     changeOnBlur = true,
+     ...restProps
+   } = props;
++
++  // iuk-suite (IDA-394): Zifferntastatur am Telefon als Vorgabe. Ganze Zahlen „numeric“, sonst
++  // „decimal“ (mit Komma); darf das Feld negativ werden, die volle Tastatur (kein Minus auf dem
++  // Ziffernblock). Ein `inputMode` am Aufruf geht vor (er steht in `restProps`).
++  const iukTastatur = min !== undefined && min !== null && Number(min) < 0 ? undefined : precision !== undefined && precision !== null ? precision === 0 ? 'numeric' : 'decimal' : props.step !== undefined && props.step !== null && Number.isInteger(Number(props.step)) ? 'numeric' : 'decimal';
+   const [focus, setFocus] = React.useState(false);
+   const userTypingRef = React.useRef(false);
+   const compositionRef = React.useRef(false);
+@@ -538,6 +544,7 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+     style: styles?.prefix
+   }, prefix), /*#__PURE__*/React.createElement("input", _extends({
+     autoComplete: "off",
++    inputMode: iukTastatur,
+     role: "spinbutton",
+     "aria-valuemin": min,
+     "aria-valuemax": max,

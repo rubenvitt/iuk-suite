@@ -240,6 +240,44 @@ describe("Navigator — Springen zu", () => {
   });
 });
 
+describe("Navigator — Sprungziele und Scrollhinweis (IDA-380)", () => {
+  it("ein Inhalt des Moduls folgt clientseitig, unter eigener Überschrift", async () => {
+    await mount(<Navigator daten={daten({
+      sprungziele: [{ key: "ort:rtw", titel: "RTW 1", hinweis: "Fahrzeug", href: "/verwaltung/fahrzeuge/rtw" }],
+    })} />);
+    await fill('[data-testid="befehlspalette-eingabe"]', "rtw");
+    const [ziel] = queryAll('[data-testid="befehl"]');
+    expect(ziel.querySelector("span")?.textContent).toBe("RTW 1");
+    expect(ziel.getAttribute("href")).toBe("/verwaltung/fahrzeuge/rtw");
+    expect(document.body.textContent).toContain("In diesem Modul");
+    const feld = query<HTMLInputElement>('[data-testid="befehlspalette-eingabe"]');
+    await act(async () => {
+      feld.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(pushMock).toHaveBeenCalledWith("/verwaltung/fahrzeuge/rtw");
+  });
+
+  it("markiert die Seitenliste, solange unter der Kante noch etwas steht", async () => {
+    const masse = { scrollHeight: 1200, clientHeight: 600 };
+    const hoehe = (name: keyof typeof masse) =>
+      vi.spyOn(HTMLElement.prototype, name, "get").mockImplementation(() => masse[name]);
+    hoehe("scrollHeight");
+    hoehe("clientHeight");
+    try {
+      await mount(<Navigator daten={daten()} />);
+      const ebene = query('[data-testid="modulleiste"]').parentElement!;
+      expect(ebene.hasAttribute("data-mehr-unten")).toBe(true);
+      await act(async () => {
+        ebene.scrollTop = 600;
+        ebene.dispatchEvent(new Event("scroll"));
+      });
+      expect(ebene.hasAttribute("data-mehr-unten")).toBe(false);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+});
+
 describe("Navigator — anonym", () => {
   it("hat weder Umschalter noch Suche noch App-Ebene", async () => {
     await mount(<Navigator daten={daten({ angemeldet: false, eintraege: [] })} />);

@@ -63,8 +63,11 @@ export function HelferRahmen({
   sitzungsetikett,
   laeuftAb,
   mangelOrt,
+  titel,
   children,
 }: {
+  /** Sichtbarer Seitentitel (IDA-380), z. B. „Entnahme" oder „Check". */
+  titel?: string;
   /**
    * DRK-314: DREI Reiter, nicht mehr zwei. Der dritte ist die Gegenrichtung zur
    * Entnahme — „in die Box legen" statt „aus dem Regal nehmen".
@@ -182,7 +185,13 @@ export function HelferRahmen({
         )}
       </header>
 
-      <main className={s.inhalt}>{children}</main>
+      <main className={s.inhalt}>
+        {/* IDA-380 — DER SEITENTITEL NENNT DIE RICHTUNG. Entnahme und Auffüllen
+            sahen gleich aus (beide „Artikel wählen"), buchen aber entgegengesetzt;
+            nur Titel, kein Erklärtext. Optional: Unterschritte tragen ihn nicht. */}
+        {titel ? <h1 className={s.schirmTitel} data-rolle="schirm-titel">{titel}</h1> : null}
+        {children}
+      </main>
 
       {/*
         `data-testid` und `aria-label` sind ZUSICHERUNGEN an Teil 6, T171

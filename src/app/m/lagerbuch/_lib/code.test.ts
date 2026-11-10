@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { gruppiereCode, istLangerCode, normalisiereCode } from "./code";
+import { codeEingabeMangel, gruppiereCode, istLangerCode, normalisiereCode } from "./code";
 
 describe("normalisiereCode", () => {
   it("bringt jede zumutbare Eingabeform auf DIESELBE kanonische Gestalt", () => {
@@ -84,5 +84,22 @@ describe("die lange Form — DRK-442", () => {
   it("gruppiert in Vieren", () => {
     expect(gruppiereCode("ABCDEFGH")).toBe("ABCD-EFGH");
     expect(normalisiereCode(normalisiereCode(LANG))).toBe(LANG);
+  });
+});
+
+describe("codeEingabeMangel — was am Feld gar nicht erst abgeht (IDA-380)", () => {
+  it("leer ist leer, auch aus Leerzeichen und Trennern", () => {
+    for (const roh of ["", "   ", " - ", "\t"]) expect(codeEingabeMangel(roh)).toBe("leer");
+  });
+
+  it("beide Formen gehen ab, mit Leerzeichen am Rand und als Gruppierung", () => {
+    for (const roh of ["100-100", "100100", " 100 100 ", "100 100"]) expect(codeEingabeMangel(roh)).toBeNull();
+    expect(codeEingabeMangel(" abcd efgh jkmn pqrs tvwx yz01 2345 ")).toBeNull();
+  });
+
+  it("was nie ein Code sein kann, ist `form`", () => {
+    for (const roh of ["12345", "1234567", "abc-def", "UUUU-UUUU-UUUU-UUUU-UUUU-UUUU-UUUU"]) {
+      expect(codeEingabeMangel(roh)).toBe("form");
+    }
   });
 });

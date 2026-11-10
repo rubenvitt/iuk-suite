@@ -158,6 +158,7 @@ import maengelMelden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/202
 import verfallInJedemFach from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-01-verfall-in-jedem-fach";
 import geraeteSchnellwahl from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-04-geraete-schnellwahl";
 import checkOhneVorbelegung from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-check-ohne-vorbelegung";
+import lagerbuchUebersichtUndSpringen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-uebersicht-und-springen";
 import kontrolleStornieren from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-kontrolle-stornieren";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
@@ -320,6 +321,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   verfallInJedemFach,
   geraeteSchnellwahl,
   checkOhneVorbelegung,
+  lagerbuchUebersichtUndSpringen,
   kontrolleStornieren,
   ruecklaufVomFahrzeug,
   checksLaufend,
