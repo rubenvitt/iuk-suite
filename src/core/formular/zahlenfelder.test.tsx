@@ -70,17 +70,6 @@ describe("antd-InputNumber mit Suite-Vorgaben", () => {
   });
 });
 
-/**
- * Felder, die heute noch ohne `inputMode` stehen, weil ihr Modul gerade in einem eigenen Paket
- * umgebaut wird (IDA-390 Feedback). Die Liste wird nur kürzer.
- */
-const NOCH_OHNE_TASTATUR = new Set([
-  "src/app/m/feedback/_ui/AbendBearbeiten.tsx",
-  "src/app/m/feedback/_ui/Gruppenkarten.tsx",
-  "src/app/m/feedback/_ui/StartFormular.tsx",
-  "src/app/m/feedback/_ui/Verlauf.tsx",
-]);
-
 const WURZEL = join(__dirname, "..", "..", "..");
 
 function tsxDateien(ordner: string): string[] {
@@ -120,9 +109,7 @@ function zahlenfelderOhneTastatur(pfad: string, text = readFileSync(pfad, "utf8"
 
 describe("rohe Zahlenfelder", () => {
   it("tragen inputMode", () => {
-    const funde = tsxDateien(join(WURZEL, "src"))
-      .filter((p) => !NOCH_OHNE_TASTATUR.has(relative(WURZEL, p)))
-      .flatMap((p) => zahlenfelderOhneTastatur(p));
+    const funde = tsxDateien(join(WURZEL, "src")).flatMap((p) => zahlenfelderOhneTastatur(p));
     expect(
       funde,
       'type="number" ohne inputMode öffnet am Telefon nicht den Ziffernblock: inputMode="numeric" oder "decimal" setzen, oder antds InputNumber nehmen',

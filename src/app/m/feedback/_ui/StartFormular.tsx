@@ -140,6 +140,7 @@ export function StartFormular({
             id={`fb-anzahl-${variante}`}
             name="participantCount"
             type="number"
+            inputMode="numeric"
             min={0}
             defaultValue={feldWert(
               state,
