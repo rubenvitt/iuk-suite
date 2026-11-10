@@ -13,9 +13,10 @@ import { devLogin, E2E_PORT, warteAufSpaltenaufteilung } from "./fixtures";
  * Das Vorbild ist die Überlaufprüfung fürs Telefon (`ueberlauf-mobil.spec.ts`); ein Fehlschlag
  * nennt Seite, Tabelle, Überstand und die Spaltenbreiten.
  *
- * ⚠️ DIE DATEN SIND DIE DER E2E-DATENBANK, nicht die von `pnpm seed:lokal`. Module ohne Seed
- * zeigen hier nur Spaltenköpfe — die prüft der Test trotzdem, denn ein Kopf kann allein schon zu
- * breit sein. Die volle Messung mit Demodaten steht in den Notizen von IDA-393.
+ * ⚠️ DIE DATEN SIND DIE DER E2E-DATENBANK, nicht die von `pnpm seed:lokal`. Wo sie leer ist,
+ * zeigt die Seite eine Leerkarte statt einer Tabelle; solche Seiten stehen in `OHNE_TABELLE`, jede
+ * andere Seite ohne sichtbare Tabelle schlägt fehl. Die volle Messung mit Demodaten steht in den
+ * Notizen von IDA-393.
  */
 
 const GRUPPEN = [
@@ -48,6 +49,17 @@ const SEITEN: Record<string, readonly (string | { pfad: string; klick: string })
   kommplan: ["/", "/archiv", "/bibliothek"],
   einsatzbuch: ["/stammdaten", "/rechner"],
 };
+
+/** Seiten, die mit der E2E-Datenbank eine Leerkarte statt einer Tabelle zeigen (Stand 10.11.2026). */
+const OHNE_TABELLE = new Set<string>([
+  "aufgaben/archiv", "einsatzbuch/rechner", "einsatzbuch/stammdaten", "fahrzeuge/", "files/",
+  "files/posteingang", "files/zugangslinks", "gemeinschaft/mitglieder", "gemeinschaft/projekte",
+  "helfer/abgleich", "kommplan/archiv", "lagerbuch/verwaltung/bz",
+  "lagerbuch/verwaltung/checklisten", "lagerbuch/verwaltung/fahrzeuge/e2e-box-fahrzeug",
+  "lagerbuch/verwaltung/maengel", "verpflegung/artikel", "verpflegung/bestand",
+  "verpflegung/buchungen", "verpflegung/links", "verpflegung/mhd", "verpflegung/orte",
+  "wartung/arten", "wartung/geraete", "wartung/maengel", "wartung/pruefungen",
+]);
 
 async function tabellenUeberstand(page: Page) {
   return page.evaluate(() =>
@@ -86,7 +98,10 @@ test.describe("Tabellen bei 1280px", () => {
           await warteAufSpaltenaufteilung(page);
           wo = `${modul}${new URL(page.url()).pathname}`;
         }
-        for (const t of await tabellenUeberstand(page)) {
+        const tabellen = await tabellenUeberstand(page);
+        // Eine Seite ohne Tabelle bestünde die Prüfung still — sie muss in OHNE_TABELLE stehen.
+        if (tabellen.length === 0 && !OHNE_TABELLE.has(wo)) fehler.push(`${wo}: keine Tabelle sichtbar`);
+        for (const t of tabellen) {
           if (t.ueber > 1 || t.rechts > 1) {
             fehler.push(`${wo} [${t.name}] ${Math.max(t.ueber, t.rechts)}px zu breit — ${t.spalten.join(" · ")}`);
           }
