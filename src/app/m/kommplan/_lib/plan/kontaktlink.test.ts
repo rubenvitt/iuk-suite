@@ -23,6 +23,9 @@ describe("kontaktLink (IDA-390)", () => {
     expect(kontaktLink("telefon", "0581 9032293")).toBe("tel:05819032293");
     expect(kontaktLink("email", "lage@example.org")).toBe("mailto:lage@example.org");
     expect(kontaktLink("email", "keine Adresse")).toBeNull();
+    expect(kontaktLink("email", "a@b.de?cc=x%40y.de")).toBeNull();
+    expect(kontaktLink("email", "a@b.de,x@y.de")).toBeNull();
+    expect(kontaktLink("email", "a+tag@b.de")).toBe("mailto:a+tag@b.de");
     expect(kontaktLink("fax", "0581 82 284")).toBeNull();
     expect(kontaktLink("digitalfunk", "RK 40-12-1")).toBeNull();
   });

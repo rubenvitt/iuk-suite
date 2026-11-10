@@ -11,7 +11,8 @@ import type { KontaktArt } from "./schema";
  */
 export function kontaktLink(art: KontaktArt, wert: string): string | null {
   const w = wert.trim();
-  if (art === "email") return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(w) ? `mailto:${w}` : null;
+  // `?`, `&`, `,` u. Ä. hängten sonst Kopfzeilen (cc, body) oder weitere Empfänger an den Verweis.
+  if (art === "email") return /^[^\s@?&,;<>"%]+@[^\s@?&,;<>"%]+\.[^\s@?&,;<>"%]+$/.test(w) ? `mailto:${w}` : null;
   if (art !== "telefon" && art !== "mobil") return null;
   return telefonLink(w);
 }
