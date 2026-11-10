@@ -1246,12 +1246,13 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // STILL durch. Vierzehn Namen; seit IDA-234 fuenfzehn (`Verwaltungsluft.tsx`, Polster-Insel des Rahmens).
     // Seit IDA-239 achtzehn: `Fachgruppen.tsx` (Soll und Vorlage), `Stammdaten.tsx`
     // (BZ-Geraet und Sauerstoffflasche) und `LinkKnopf.tsx` — alle drei nur in der Verwaltung.
+    // Seit IDA-378 neunzehn: `MonatsFeld.tsx`, das Monatsfeld des Wareneingangs in `ArtikelDrawer.tsx`.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
       "KategorieEingabe.tsx", "SammelDrawer.tsx", "OrtVerteilung.tsx", "Verwaltungsluft.tsx",
-      "Fachgruppen.tsx", "Stammdaten.tsx", "LinkKnopf.tsx",
+      "Fachgruppen.tsx", "Stammdaten.tsx", "LinkKnopf.tsx", "MonatsFeld.tsx",
     ]);
     //
     // NACHTRAG 16.09.2026 (DRK-313): `auffuellen/` kommt als fuenfter Ast dazu.

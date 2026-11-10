@@ -1428,3 +1428,9 @@
   font: inherit; color: var(--lb-tinte); background: none; border: 0; padding: 0;
   text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
 }
+
+/* IDA-378: sichtbare Beschriftung der neuen Charge beim Auffüllen — ein Platzhalter
+   verschwindet beim ersten Zeichen. „Pflicht" ist Text, nicht nur ein Sternchen. */
+.feldBeschriftung { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; color: var(--lb-tinte) }
+.feldPflicht { margin-left: 6px; font-size: 12px; font-weight: 600; color: var(--lb-stahl) }
+.verfallZeile input:disabled { opacity: .45 }

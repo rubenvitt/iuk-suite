@@ -13,7 +13,7 @@
  */
 import { desc, eq, inArray } from "drizzle-orm";
 import { artikel, buchungen, chargen } from "../../_db/schema";
-import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
+import { istAbgelaufen, verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
 import { chargeText } from "../format";
 import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
@@ -242,6 +242,9 @@ export function artikelDetailHelfer(db: Leser, id: string, now: Date = new Date(
         orte: v.orte,
         ampel: s.ampel as Ampel,
         text: chargeText(s, c.verfall),
+        // IDA-378 — gesperrt fuer die Entnahme; `istAbgelaufen` statt
+        // `s.abgelaufen`, weil „ohne Verfall" nie ablaeuft.
+        abgelaufen: istAbgelaufen(c.verfall, now),
       };
     })
     // ⚠️ DER FILTER GEHT AUF DIE SUMME UEBER ALLE ORTE, nicht auf den

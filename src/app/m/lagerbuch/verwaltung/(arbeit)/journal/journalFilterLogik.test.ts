@@ -47,8 +47,8 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
     expect(action).not.toMatch(/z\.string\(\)\.max\(\d/);
   });
 
-  it("laesst genau die sechs Vorgangsarten bis zum SQL-Filter durch", () => {
-    // ⚠️ SECHS SEIT DRK-344: die vier Buchungstypen plus die beiden Arten, die
+  it("laesst genau die sieben Vorgangsarten bis zum SQL-Filter durch", () => {
+    // ⚠️ SECHS SEIT DRK-344, SIEBEN SEIT IDA-378: die vier Buchungstypen plus die Arten, die
     // ihre Bedeutung im Referenz-Praefix tragen. Die Reihenfolge ist zugleich
     // die Reihenfolge im Auswahlfeld.
     expect([...VORGANG_ARTEN]).toEqual([
@@ -58,6 +58,8 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
       "umlagerung",
       "aussondern",
       "inventur",
+      // IDA-378 — die Gegenbuchung, ebenfalls am Referenz-Praefix.
+      "gegenbuchung",
     ]);
 
     expect(journalParameterAus({ typ: "entnahme" })).toMatchObject({

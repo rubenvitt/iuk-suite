@@ -280,7 +280,7 @@ export function TeilnehmerTabelle({ zeilen }: { zeilen: TeilnehmerZeile[] }) {
         title: "Aktionen",
         key: "aktionen",
         /*
-         * IDA-393: „Link kopieren" (vorher eine eigene Spalte „Magic-Link") und „Details"
+         * IDA-393: „Link kopieren" (vorher eine eigene Spalte „Anmeldelink") und „Details"
          * stehen im Aktionsmenü der Zeile — zwei ausgeschriebene Knöpfe schoben die Tabelle
          * bei 1280px über den Rahmen. Die Karte behält ihren Knopf. „Details" ist ein echter
          * Anker (`href`) und trägt antds Menüfarbe, nicht `colorLink` (Farbeinwand oben).

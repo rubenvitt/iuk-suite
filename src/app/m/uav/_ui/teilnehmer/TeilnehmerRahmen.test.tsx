@@ -10,8 +10,10 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("../offline/client", () => ({ api: { logout: vi.fn() } }));
+
 import { TeilnehmerRahmen } from "./TeilnehmerRahmen";
-import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import { exists, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 
 afterEach(async () => {
   await unmount();
@@ -57,5 +59,17 @@ describe("TeilnehmerRahmen", () => {
     for (const a of queryAll<HTMLAnchorElement>("a")) {
       expect(a.getAttribute("href")?.startsWith("/m/uav")).toBe(false);
     }
+  });
+
+  // IDA-389: nach der Code-Anmeldung stand nirgends, wer eingetragen wird.
+  it("zeigt, wer angemeldet ist, und den Weg zum Abmelden", async () => {
+    await mount(<TeilnehmerRahmen darfVerwalten={false} angemeldet="Ada Muster">Inhalt</TeilnehmerRahmen>);
+    expect(query("[data-rolle='uav-angemeldet']").textContent).toContain("Angemeldet als Ada Muster");
+    expect(query("[data-rolle='uav-abmelden']").textContent).toBe("Abmelden");
+  });
+
+  it("zeigt ohne Anmeldung keine Personenzeile", async () => {
+    await mount(<TeilnehmerRahmen darfVerwalten={false}>Inhalt</TeilnehmerRahmen>);
+    expect(exists("[data-rolle='uav-angemeldet']")).toBe(false);
   });
 });

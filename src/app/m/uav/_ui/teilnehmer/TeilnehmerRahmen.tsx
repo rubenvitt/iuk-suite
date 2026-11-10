@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AbmeldenKnopf } from "./AbmeldenKnopf";
 import styles from "./uav.module.css";
 
 /**
@@ -37,9 +38,16 @@ import styles from "./uav.module.css";
  */
 export function TeilnehmerRahmen({
   darfVerwalten,
+  angemeldet = null,
   children,
 }: {
   darfVerwalten: boolean;
+  /**
+   * Name der per Code angemeldeten Person, sonst `null` (IDA-389). Steht auf
+   * JEDER Fläche dieses Zweigs, mit dem Weg zum Abmelden: nach der
+   * Code-Anmeldung stand nirgends, wer eingetragen wird.
+   */
+  angemeldet?: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -76,14 +84,31 @@ export function TeilnehmerRahmen({
            * `callbackUrl=%2Fadmin`: ohne ihn landete man nach der Anmeldung
            * wieder auf der Trainingsansicht, also dort, wo man schon war.
            */}
+          {/*
+           * `prefetch={false}` (IDA-389): `next/link` lud das Ziel beim
+           * Erscheinen vor. Für Abgemeldete ist das `/api/auth/signin`, das auf
+           * den Suite-Login umleitet — gemessen blieben danach zwei
+           * RSC-Anfragen an `/login` offen, und die Seite kam nie zur Ruhe
+           * (`networkidle` nach 10 s nicht erreicht, ohne den Link nach ~0,4 s).
+           */}
           <Link
             href={darfVerwalten ? "/admin" : "/api/auth/signin?callbackUrl=%2Fadmin"}
+            prefetch={false}
             className={styles["rahmen-neben"]}
             data-rolle="uav-verwaltungslink"
           >
             Verwaltung
           </Link>
         </div>
+
+        {angemeldet && (
+          <div className={styles["rahmen-person"]} data-rolle="uav-angemeldet">
+            <span className={styles["rahmen-person-name"]}>
+              Angemeldet als <strong>{angemeldet}</strong>
+            </span>
+            <AbmeldenKnopf />
+          </div>
+        )}
       </header>
 
       {children}

@@ -101,6 +101,8 @@ describe("JournalFilter", () => {
       "umlagerung",
       "aussondern",
       "inventur",
+      // IDA-378 — die Gegenbuchung, ebenfalls am Referenz-Praefix.
+      "gegenbuchung",
     ]);
     expect(deckelText(3, 3, false)).toBe("3 Treffer");
     expect(mitGetipptem(
@@ -269,7 +271,7 @@ describe("JournalFilter", () => {
    * Wert in die Adresszeile schreibt. Beides liesse sich einzeln kaputtmachen,
    * ohne die Konstante anzufassen.
    */
-  it("bietet alle sechs Vorgangsarten an und schreibt die gewaehlte in die URL", async () => {
+  it("bietet alle sieben Vorgangsarten an und schreibt die gewaehlte in die URL", async () => {
     await mount(<JournalFilter q="" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
     // antds `Select` oeffnet auf `mousedown`, nicht auf `click` — derselbe
     // Griff wie in `waehleVorgang`.
@@ -288,6 +290,7 @@ describe("JournalFilter", () => {
       "Umlagerung",
       "Aussonderung",
       "Inventur",
+      "Gegenbuchung",
     ]);
 
     await waehleVorgang("Aussonderung");

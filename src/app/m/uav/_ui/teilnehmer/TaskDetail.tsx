@@ -5,7 +5,6 @@ import Link from "next/link";
 import { datumKurz } from "../../_lib/datum";
 import type { TaskDTO } from "../../_lib/typen";
 import { type AufgabenFortschritt, type Durchfuehrung, aufgabenStatus } from "../offline/progress";
-import { AnzahlFeld } from "./AnzahlFeld";
 import { CodeHinweis } from "./CodeHinweis";
 import { DurchfuehrungForm } from "./DurchfuehrungForm";
 import styles from "./uav.module.css";
@@ -16,6 +15,8 @@ type Props = {
   heute: string;
   /** Besitzer des lokalen Speichers (DRK-286), für die Team-Vorbelegung. */
   besitzer: string;
+  /** Name der angemeldeten Person — Vorbelegung des Drohnensteuerers. */
+  eigenerName?: string;
   /**
    * Ohne Code: Beschreibung, Schritte, Lernziel und Hinweise bleiben lesbar,
    * alles Erfassende verschwindet (Betreiberentscheidung 2026-08-29, siehe
@@ -26,7 +27,6 @@ type Props = {
   nurLesen?: boolean;
   onAdd: (eintrag: Omit<Durchfuehrung, "id">) => void;
   onRemove: (eintragId: string) => void;
-  onZielanzahl: (ziel: number) => void;
   onNichtAnwendbar: (wert: boolean) => void;
 };
 
@@ -79,13 +79,16 @@ export function TaskDetail({
   fortschritt,
   heute,
   besitzer,
+  eigenerName,
   nurLesen = false,
   onAdd,
   onRemove,
-  onZielanzahl,
   onNichtAnwendbar,
 }: Props) {
   const status = aufgabenStatus(fortschritt);
+  // Die Durchführung, deren Löschen gerade gefragt wird — die Frage steht in
+  // der Zeile selbst statt im Dialog des Browsers (IDA-389).
+  const [loeschFrage, setLoeschFrage] = useState<string | null>(null);
   const istTeil23 = aufgabe.teil !== 1;
   const bild = aufgabe.bildUrl ?? null;
 
@@ -153,44 +156,63 @@ export function TaskDetail({
             {status === "erledigt" && <span className={styles["erledigt-marke"]}>erledigt</span>}
           </header>
 
-          <label className={`${styles.feld} ${styles.ziel}`}>
-            <span className={styles["feld-label"]}>Zielanzahl</span>
-            <AnzahlFeld value={fortschritt.zielanzahl} min={1} onValueChange={onZielanzahl} />
-          </label>
-
           {fortschritt.durchfuehrungen.length === 0 ? (
             <p className={styles["liste-leer"]}>Noch keine Durchführung erfasst.</p>
           ) : (
             <ul className={styles.liste}>
-              {fortschritt.durchfuehrungen.map((d) => (
-                <li key={d.id}>
-                  <span className={styles["liste-text"]}>
-                    {/* Deutsches Datum statt des ISO-Werts aus der Datenbank —
-                        `2026-01-13` liest im Training niemand als Datum. */}
-                    <span className={styles["liste-datum"]}>{datumKurz(d.datum) || d.datum}</span>
-                    <span className={styles["liste-team"]}>
-                      {d.drohnensteuerer || "—"} / {d.luftraumbeobachter || "—"}
+              {fortschritt.durchfuehrungen.map((d) => {
+                const datum = datumKurz(d.datum) || d.datum;
+                return (
+                  <li key={d.id}>
+                    <span className={styles["liste-text"]}>
+                      {/* Deutsches Datum statt des ISO-Werts aus der Datenbank —
+                          `2026-01-13` liest im Training niemand als Datum. */}
+                      <span className={styles["liste-datum"]}>{datum}</span>
+                      <span className={styles["liste-team"]}>
+                        {d.drohnensteuerer || "—"} / {d.luftraumbeobachter || "—"}
+                      </span>
                     </span>
-                  </span>
-                  <button
-                    type="button"
-                    className={styles.loeschen}
-                    onClick={() => {
-                      if (window.confirm("Diese Durchführung wirklich löschen?")) onRemove(d.id);
-                    }}
-                    aria-label={`Durchführung vom ${datumKurz(d.datum) || d.datum} löschen`}
-                  >
-                    ✕
-                  </button>
-                </li>
-              ))}
+                    {loeschFrage === d.id ? (
+                      <span className={styles["loesch-frage"]} data-rolle="uav-loeschfrage">
+                        <button
+                          type="button"
+                          className={styles["loesch-ja"]}
+                          onClick={() => {
+                            setLoeschFrage(null);
+                            onRemove(d.id);
+                          }}
+                        >
+                          Löschen
+                        </button>
+                        <button
+                          type="button"
+                          className={styles["loesch-nein"]}
+                          onClick={() => setLoeschFrage(null)}
+                          autoFocus
+                        >
+                          Behalten
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.loeschen}
+                        onClick={() => setLoeschFrage(d.id)}
+                        aria-label={`Durchführung vom ${datum} löschen`}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
 
           <h3 className={`${styles["sektion-titel"]} ${styles["erfassung-titel"]}`}>
             Neue Durchführung
           </h3>
-          <DurchfuehrungForm onAdd={onAdd} heute={heute} besitzer={besitzer} />
+          <DurchfuehrungForm onAdd={onAdd} heute={heute} besitzer={besitzer} eigenerName={eigenerName} />
         </section>
       )}
     </article>

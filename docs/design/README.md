@@ -548,7 +548,7 @@ ganze Zahlen (`precision={0}` oder ganzzahliger `step`) bekommen `inputMode="num
 Ziffernblöcke haben kein Minus. „231,5“ ist 231,5 und nicht 2315. Ein rohes `type="number"`
 (oder antds `Input` damit) kennt den Patch nicht und trägt `inputMode` selbst;
 `core/formular/zahlenfelder.test.tsx` meldet jedes `<input>`/`<Input>` mit `type="number"` ohne
-`inputMode` (ausgenommen Felder mit Spread und die Ausnahmeliste) und misst die Wirkung des Patches. Ein Code aus Buchstaben und Ziffern ist kein Zahlenfeld. Vorbild: Betriebsstunden der
+`inputMode` (ausgenommen Felder mit Spread) und misst die Wirkung des Patches. Ein Code aus Buchstaben und Ziffern ist kein Zahlenfeld. Vorbild: Betriebsstunden der
 Gerätewartung am Gerät.
 
 **4. Umkehrbares wirkt sofort und bietet „Rückgängig“; Unumkehrbares fragt nach und nennt die Folge.**

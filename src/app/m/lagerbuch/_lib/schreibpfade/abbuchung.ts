@@ -45,6 +45,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { buchungen, chargen, newId } from "../../_db/schema";
 import { fefoVerteilung, type ChargeRest, type FefoTeil } from "../domain/fefo";
+import { istAbgelaufen } from "../domain/verfall";
 import type { Lagerbereich } from "../domain/orte";
 import { handlagerOrte, ortStamm } from "../lesepfade/orte";
 import type { IdQuelle } from "./sendung";
@@ -88,6 +89,13 @@ export type AbbuchungArgs = {
   typ?: "entnahme" | "korrektur" | "umlagerung";
   /** IDA-358: die IDs der Journalzeilen (`sendung.ts`); fehlt sie, `newId()`. */
   neueId?: IdQuelle;
+  /**
+   * IDA-378 — ABGELAUFENE CHARGEN UEBERSPRINGEN (`istAbgelaufen`). Nur die
+   * Entnahme setzt es: eine abgelaufene Charge geht nicht auf einen RTW und
+   * nicht in den Verbrauch. Check, Korrektur, Aussondern und Inventur buchen
+   * genau das Abgelaufene und lassen es deshalb weg — Standard wie bisher.
+   */
+  ohneAbgelaufene?: boolean;
 };
 
 /**
@@ -127,8 +135,10 @@ function abbuchen(
 ): { gebucht: number; teile: Teil[] } {
   const {
     artikelId, menge, chargeId, quelle, kommentar, referenz,
-    typ = "entnahme", neueId = newId,
+    typ = "entnahme", neueId = newId, ohneAbgelaufene = false,
   } = args;
+  // Ein Zeitstempel fuer alle Legs UND fuer die Ablaufgrenze (Begruendung unten).
+  const ts = new Date();
 
   const chargenPraedikat = chargeId
     ? and(eq(chargen.artikelId, artikelId), eq(chargen.id, chargeId))
@@ -159,6 +169,7 @@ function abbuchen(
   for (const r of rows) {
     const c = chargeNach.get(r.chargeId);
     if (!c || r.summe <= 0) continue;
+    if (ohneAbgelaufene && istAbgelaufen(c.verfall, ts)) continue;
     chargenRest.push({
       chargeId: c.id, verfall: c.verfall, rest: r.summe, createdAt: c.createdAt,
       // DER ORT DES TEILS, nicht die Wurzel des Bereichs.
@@ -173,8 +184,8 @@ function abbuchen(
    * `umlagerung.ts`: `new Date()` IN der Schleife liest die Uhr je Charge neu,
    * und eine Abbuchung ueber mehrere Chargen kann eine Sekundengrenze
    * ueberqueren. `ts` ist auf Sekunden genau, der Unterschied also sichtbar.
+   * (Gebildet am Anfang der Funktion, weil auch die Ablaufgrenze ihn liest.)
    */
-  const ts = new Date();
   for (const teil of teile) {
     tx.insert(buchungen).values({
       id: neueId(), ts, typ, artikelId, chargeId: teil.chargeId,

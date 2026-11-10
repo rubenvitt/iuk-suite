@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, Button, Flex, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { Kartentabelle, Zellentext } from "@/core/tabelle";
@@ -18,6 +18,7 @@ import { SCHRIFT } from "../../../_lib/schrift";
 import { fmtTs } from "../../../_lib/zeit";
 import { Chip } from "../../../_ui/Chip";
 import s from "../../../_ui/verwaltung.module.css";
+import { GegenbuchenAktion } from "./GegenbuchenAktion";
 
 export type JournalAnzeigeZeile = {
   id: string;
@@ -44,6 +45,9 @@ export type JournalAnzeigeZeile = {
    *  Antwort in einem append-only Buch, das man spaeter liest, ohne die Liste
    *  daneben zu haben. */
   ortName: string;
+  /** IDA-378 — durchgereicht aus dem Lesepfad (`journalEintraege`). */
+  gegenbuchbar: boolean;
+  gegengebucht: boolean;
 };
 
 /** Die Cursor-Form, wie sie ueber die Server Action reist. */
@@ -95,6 +99,8 @@ export function anzeigeZeile(zeile: JournalZeileDTO): JournalAnzeigeZeile {
     quelleName: zeile.quelleName,
     quelleId: zeile.quelleId,
     ortName: ortZeile(zeile.ortStandort),
+    gegenbuchbar: zeile.gegenbuchbar,
+    gegengebucht: zeile.gegengebucht,
   };
 }
 
@@ -207,6 +213,29 @@ const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
   },
 ];
 
+/**
+ * IDA-378 — DIE AKTIONSSPALTE. Im Client gebaut, weil sie den Stand der Insel
+ * braucht: eine eben gegengebuchte Zeile ist sofort markiert, auch wenn der
+ * Filter die neuen Gegenzeilen ausblendet und die erste Seite deshalb gleich
+ * bleibt (der Ruecksetz-Schluessel unten sieht dann keinen Wechsel).
+ */
+function aktionsSpalte(
+  erledigt: ReadonlySet<string>, beiErfolg: (ids: string[]) => void,
+): NonNullable<TableProps<JournalAnzeigeZeile>["columns"]>[number] {
+  return {
+    title: "Aktion",
+    key: "aktion",
+    render: (_: unknown, zeile: JournalAnzeigeZeile) => (
+      <GegenbuchenAktion
+        zeilenId={zeile.id}
+        gegenbuchbar={zeile.gegenbuchbar}
+        gegengebucht={zeile.gegengebucht || erledigt.has(zeile.id)}
+        beiErfolg={beiErfolg}
+      />
+    ),
+  };
+}
+
 /** Mindestbreite des Journals — Begruendung am Aufruf. */
 const JOURNAL_SCROLL = { x: 960 } as const;
 
@@ -309,6 +338,14 @@ export function JournalTable({
   const { zeilen, cursor, fehler, sichtbar } = stand;
   const gezeigt = zeilen.slice(0, sichtbar);
 
+  const [erledigt, setErledigt] = useState<ReadonlySet<string>>(() => new Set());
+  const spalten = useMemo(
+    () => [...(SPALTEN ?? []), aktionsSpalte(erledigt, (ids) => {
+      setErledigt((vorher) => new Set([...vorher, ...ids]));
+    })],
+    [erledigt],
+  );
+
   const mehrLaden = useCallback(async () => {
     if (!cursor || laedt) return;
     /**
@@ -403,7 +440,7 @@ export function JournalTable({
         aria-label="Buchungsjournal"
         dataSource={gezeigt}
         leer={{ nichts: leertext }}
-        columns={SPALTEN}
+        columns={spalten}
         /*
          * ⚠️ EINE ZAHL STATT DER VORGABE `max-content` (IDA-241). Unter
          * `max-content` bricht keine Zelle um: Artikel und Ort standen in voller
