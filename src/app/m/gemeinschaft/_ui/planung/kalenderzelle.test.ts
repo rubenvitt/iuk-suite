@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
@@ -27,7 +28,13 @@ const klassenZahl = (selektor: string) => (selektor.replace(/:where\([^)]*\)/g, 
 describe("Kalender: flache Zellen am Telefon (IDA-387, Falle 20)", () => {
   it("antd rendert die Klassen, auf die die Regel zielt", () => {
     const { markup } = kalender();
-    for (const k of KLASSEN) expect(markup, k).toMatch(new RegExp(`class="[^"]*\\b${k}\\b`));
+    const klassen = new Set([...markup.matchAll(/class="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/)));
+    for (const k of KLASSEN) expect(klassen.has(k), k).toBe(true);
+    // Nicht nur jede Klasse für sich: die ganze Nachfahrenkette der Regel muss ein Element treffen.
+    const wurzel = document.createElement("div");
+    wurzel.innerHTML = markup;
+    const kette = ".ant-picker-calendar.ant-picker-calendar-full .ant-picker-panel .ant-picker-calendar-date .ant-picker-calendar-date-content";
+    expect(wurzel.querySelectorAll(kette).length, kette).toBeGreaterThan(0);
   });
 
   it("unser Selektor schlägt antds Regel für die Höhe des Inhaltsbereichs", () => {
