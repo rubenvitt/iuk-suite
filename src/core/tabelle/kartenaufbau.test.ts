@@ -67,6 +67,19 @@ describe("kartenaufbau", () => {
   });
 
   /*
+   * IDA-380 — was wachsen kann (Statuschips), steht unter dem Titel, nicht
+   * neben ihm, und weder als Kennzeichen noch als Merkmal ein zweites Mal.
+   */
+  it("stellt Spalten unter den Titel, ohne sie doppelt zu führen", () => {
+    const aufbau = kartenaufbau(SPALTEN, { kennzeichen: ["aktionen"], unterTitel: ["fach"] });
+    expect(aufbau.unterTitel.map((f) => f.schluessel)).toEqual(["fach"]);
+    expect(aufbau.kennzeichen.map((f) => f.schluessel)).toEqual(["aktionen"]);
+    expect(aufbau.merkmale).toHaveLength(0);
+    expect(aufbau.titel?.schluessel).toBe("name");
+    expect(kartenaufbau(SPALTEN, { unterTitel: ["gibtsnicht"] }).hinweis).toContain("gibtsnicht");
+  });
+
+  /*
    * Ein gruppierter Spaltenkopf trägt selbst keinen Wert. Wer nur die oberste
    * Ebene liest, baut eine Karte aus Gruppennamen ohne eine einzige Zahl.
    */

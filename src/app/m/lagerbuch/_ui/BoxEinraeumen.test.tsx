@@ -98,14 +98,14 @@ describe("BoxEinraeumen — was der Schirm sagt", () => {
       posten: [posten({
         chargen: [{
           id: "ch-pseudo", chargenNr: "Korrektur", verfall: "2099-12", rest: 6,
-          ampel: "gruen", text: "bis 12/99",
+          ampel: "gruen", text: "ohne Verfall",
         }],
         gemeldet: { verfall: "2026-05", ampel: "rot", abgelaufen: true, text: "abgelaufen" },
       })],
     }));
 
     const zeile = query("[data-rolle='einraeum-posten']").textContent ?? "";
-    expect(zeile).toContain("bis 12/99");
+    expect(zeile).toContain("ohne Verfall");
     expect(zeile).toContain("gemeldet: abgelaufen");
   });
 
@@ -377,7 +377,7 @@ describe("BoxEinraeumen — die Buchung", () => {
 describe("BoxEinraeumen — das Datum auf der Packung (DRK-404)", () => {
   const PSEUDO = {
     id: "ch-pseudo", chargenNr: "Korrektur", verfall: "2099-12", rest: 6,
-    ampel: "gruen" as const, text: "bis 12/99",
+    ampel: "gruen" as const, text: "ohne Verfall",
   };
   const GEMELDET = { verfall: "2026-10", ampel: "gelb" as const, abgelaufen: false, text: "fällig 10/26" };
   const FELD = "[data-rolle='einraeum-verfall']";

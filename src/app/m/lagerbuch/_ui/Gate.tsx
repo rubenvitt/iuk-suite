@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { einloesenAmGate, type GateZustand } from "../_actions/gate";
 import { LAGERBUCH_ZEILE } from "../_lib/marke";
-import { CODEFELD_LAENGE, CODEFELD_MUSTER, CODEFELD_PLATZHALTER } from "../_lib/tokenForm";
+import { CODEFELD_LAENGE, CODEFELD_PLATZHALTER } from "../_lib/tokenForm";
+import { codeEingabeMangel } from "../_lib/code";
+import { GATE_TEXT_FORM, GATE_TEXT_LEER } from "../_lib/gateTexte";
 import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
@@ -115,6 +117,11 @@ const MELDUNG_AUSNAHME_GATE =
   "bleibt es dabei, wende dich an die Leitung.";
 
 async function amGate(vorher: GateZustand, formData: FormData): Promise<GateZustand> {
+  // IDA-380: was nie ein Treffer sein kann, geht gar nicht erst ab — und
+  // bekommt einen Satz am EINEN Fehlerort statt der stummen nativen Pruefung.
+  const mangel = codeEingabeMangel(String(formData.get("code") ?? ""));
+  if (mangel === "leer") return { fehler: GATE_TEXT_LEER };
+  if (mangel === "form") return { fehler: GATE_TEXT_FORM };
   try {
     const ergebnis: GateZustand | undefined = await einloesenAmGate(vorher, formData);
     return ergebnis ?? {};
@@ -155,6 +162,24 @@ export function Gate({
   // Meldung aus `?grund=`.
   const fehler = zustand.fehler ?? meldung;
 
+  /*
+   * NACH JEDER ABWEISUNG STEHT DER FOKUS IM FELD, der Inhalt markiert
+   * (IDA-380): richtig Getipptes bleibt stehen und laesst sich ausbessern, ein
+   * neuer Code ueberschreibt die Markierung. `zustand` ist je Antwort ein neues
+   * Objekt — auch derselbe Satz zweimal faengt den Fokus wieder ein.
+   *
+   * ⚠️ DAS FELD IST KONTROLLIERT, und das traegt die Zusage: eine Form-Action
+   * setzt unkontrollierte Felder nach dem Absenden zurueck (React 19), die
+   * Person stuende sonst vor einem leeren Feld und taetigte 28 Zeichen neu.
+   */
+  const [eingabe, setEingabe] = useState("");
+  const feld = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!zustand.fehler) return;
+    feld.current?.focus();
+    feld.current?.select();
+  }, [zustand]);
+
   return (
     <div className={s.gate}>
       <div className={s.gateBalken} />
@@ -176,22 +201,27 @@ export function Gate({
             Verwaltungskarte durch deren `align-items: stretch` ueber die volle
             Breite geht. Gleiche Klasse, anderes Elternteil, zwei Knopfbreiten.
           */}
-          <form className={s.gateForm} action={formAction}>
+          <form className={s.gateForm} action={formAction} noValidate>
             <input type="hidden" name="returnTo" value={returnTo} />
             {/*
-              `maxLength` und `pattern` (aus `_lib/tokenForm.ts`) sind die
-              billigste Massnahme gegen Fehleingaben am GEMEINSAMEN Eimer der
-              alten Form (§7.5.3, Falle 24). Seit DRK-442 traegt ein Code
-              Buchstaben: kein `inputMode="numeric"` mehr, dafuer Grossschrift
-              und keine Autokorrektur, die eine Vierergruppe zum Wort macht.
+              `maxLength` (aus `_lib/tokenForm.ts`) und `codeEingabeMangel` in
+              `amGate` sind die billigste Massnahme gegen Fehleingaben am
+              GEMEINSAMEN Eimer der alten Form (§7.5.3, Falle 24). Kein
+              `pattern` und `noValidate` am Formular: die native Pruefung hielt
+              ` 100 100 ` wortlos an (IDA-380). Seit DRK-442 traegt ein Code
+              Buchstaben: kein `inputMode="numeric"` (am Telefon fehlten dann
+              die Buchstaben der langen Form), dafuer Grossschrift und keine
+              Autokorrektur, die eine Vierergruppe zum Wort macht.
             */}
             <input
               className={s.codefeld}
+              ref={feld}
               name="code"
+              value={eingabe}
+              onChange={(e) => setEingabe(e.target.value)}
               autoCapitalize="characters" autoCorrect="off" spellCheck={false}
               autoComplete="off"
               maxLength={CODEFELD_LAENGE}
-              pattern={CODEFELD_MUSTER}
               placeholder={CODEFELD_PLATZHALTER}
               aria-label="Zugangscode"
             />

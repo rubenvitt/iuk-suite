@@ -19,14 +19,15 @@
 import type { Ampel } from "./domain/verfall";
 import type { DatumFaelligkeit, GeraetTyp } from "./domain/geraet";
 import { tagesGrenzen } from "./zeit";
-import { TAG_REGEX, istEchterKalendertag } from "./konstanten";
+import { OHNE_VERFALL_TEXT, TAG_REGEX, istEchterKalendertag, istOhneVerfall } from "./konstanten";
 
 /** Die vier Toenungen. `"ok"` statt `"gruen"` ist die Namensfalle aus §5.17;
  *  `"grau"` ist KEIN Ampelwert und darf nie als gruen dargestellt werden. */
 export type AmpelTon = "rot" | "gelb" | "ok" | "grau";
 
-/** "2026-03" → "03/26" */
+/** "2026-03" → "03/26"; der Platzhalter `PSEUDO_VERFALL` → „ohne Verfall". */
 export function fmtVerfall(v: string): string {
+  if (istOhneVerfall(v)) return OHNE_VERFALL_TEXT;
   const [y, m] = v.split("-");
   return `${m}/${y.slice(2)}`;
 }
@@ -43,7 +44,7 @@ export function chargeText(
   if (status.abgelaufen) return "abgelaufen";
   if (status.ampel === "rot") return `läuft ${fmtVerfall(verfall)} ab`;
   if (status.ampel === "gelb") return `fällig ${fmtVerfall(verfall)}`;
-  return `bis ${fmtVerfall(verfall)}`;
+  return istOhneVerfall(verfall) ? OHNE_VERFALL_TEXT : `bis ${fmtVerfall(verfall)}`;
 }
 
 /**

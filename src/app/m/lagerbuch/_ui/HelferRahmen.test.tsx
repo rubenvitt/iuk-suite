@@ -581,3 +581,39 @@ describe("HelferRahmen — die Reiter haengen je an ihrem Bereich (DRK-417)", ()
     expect(mangel.getAttribute("aria-current")).toBe("page");
   });
 });
+
+/*
+ * IDA-380 — Entnahme und Auffüllen sahen gleich aus („Artikel wählen") und buchen
+ * entgegengesetzt. Der Titel nennt die Richtung; ohne `titel` steht keiner da
+ * (Unterschritte), damit kein leeres `h1` im Baum hängt.
+ */
+describe("Seitentitel (IDA-380)", () => {
+  it("zeigt den Titel als h1 im Inhalt, und ohne Titel keinen", async () => {
+    await mount(
+      <HelferRahmen aktiv="entnahme" titel="Entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+        <p>Inhalt</p>
+      </HelferRahmen>,
+    );
+    expect(query("main h1[data-rolle='schirm-titel']").textContent).toBe("Entnahme");
+    await unmount();
+    await mount(
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+        <p>Inhalt</p>
+      </HelferRahmen>,
+    );
+    expect(exists("h1")).toBe(false);
+  });
+
+  it("der Auffüllrahmen trägt ihn genauso", async () => {
+    const { AuffuellRahmen } = await import("./AuffuellRahmen");
+    await mount(<AuffuellRahmen etikett="Angemeldet: Test" titel="Auffüllen"><p>Inhalt</p></AuffuellRahmen>);
+    expect(query("main h1[data-rolle='schirm-titel']").textContent).toBe("Auffüllen");
+  });
+
+  it("Entnahme, Auffüllen und Check setzen ihren Titel", () => {
+    expect(readFileSync("src/app/m/lagerbuch/helfer/page.tsx", "utf8")).toContain('titel="Entnahme"');
+    expect(readFileSync("src/app/m/lagerbuch/auffuellen/page.tsx", "utf8")).toContain('titel="Auffüllen"');
+    const check = readFileSync("src/app/m/lagerbuch/helfer/check/page.tsx", "utf8");
+    expect(check.match(/<HelferRahmen\b[^>]*titel="Check"/g)).toHaveLength(check.match(/<HelferRahmen\b/g)!.length);
+  });
+});

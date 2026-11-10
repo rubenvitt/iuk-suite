@@ -156,7 +156,7 @@ describe("BoxAbgabe — der Schirm", () => {
         posten={[posten({
           chargen: [{
             id: "ch-pseudo", chargenNr: "Korrektur", verfall: "2099-12", rest: 6,
-            ampel: "gruen", text: "bis 12/99",
+            ampel: "gruen", text: "ohne Verfall",
           }],
           gemeldet: { verfall: "2026-05", ampel: "rot", abgelaufen: true, text: "abgelaufen" },
         })]}

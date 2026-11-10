@@ -13,7 +13,7 @@ vi.mock("../_actions/gate", () => ({ einloesenAmGate: vi.fn() }));
 import { einloesenAmGate } from "../_actions/gate";
 
 import { Gate } from "./Gate";
-import { CODEFELD_LAENGE, CODEFELD_MUSTER, CODEFELD_PLATZHALTER } from "../_lib/tokenForm";
+import { CODEFELD_LAENGE, CODEFELD_PLATZHALTER } from "../_lib/tokenForm";
 
 const QUELLE = "src/app/m/lagerbuch/_ui/Gate.tsx";
 
@@ -99,6 +99,16 @@ const gefiltert = () => ohneKommentare(readFileSync(QUELLE, "utf8"));
 
 const aktion = vi.mocked(einloesenAmGate);
 
+/**
+ * Ein gueltig geformter Code, dann Absenden. Seit IDA-380 haelt die Insel ein
+ * leeres Feld selbst an — ein Test, der die ANTWORT DER ACTION prueft, muss sie
+ * also mit einer Eingabe erreichen, die abgeht.
+ */
+async function absenden(code = "482-137"): Promise<void> {
+  await fill("input[name='code']", code);
+  await submitForm();
+}
+
 beforeEach(() => {
   aktion.mockReset();
 });
@@ -129,7 +139,7 @@ describe("Gate — die FERTIGE Meldung", () => {
      */
     aktion.mockResolvedValue({ fehler: "Zu viele Fehlversuche. Bitte in 42 Sekunden erneut versuchen." });
     await mount(<Gate meldung={URL_SATZ} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
-    await submitForm();
+    await absenden();
     const orte = queryAll("[data-rolle='gate-fehler']");
     expect(orte.length).toBe(1);
     expect(orte[0].textContent).toBe("Zu viele Fehlversuche. Bitte in 42 Sekunden erneut versuchen.");
@@ -154,7 +164,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
      */
     aktion.mockRejectedValue(new TypeError("Failed to fetch"));
     await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
-    await submitForm();
+    await absenden();
     const orte = queryAll("[data-rolle='gate-fehler']");
     expect(orte.length).toBe(1);
     expect(orte[0].textContent).toBe(AUSNAHME_SATZ);
@@ -184,7 +194,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
      */
     aktion.mockRejectedValue(Object.assign(new Error("boom"), { digest: "3141592653" }));
     await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
-    await submitForm();
+    await absenden();
     const orte = queryAll("[data-rolle='gate-fehler']");
     expect(orte.length).toBe(1);
     expect(orte[0].textContent).toBe(AUSNAHME_SATZ);
@@ -197,7 +207,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
     // einer falschen Diagnose.
     aktion.mockResolvedValue({ fehler: URL_SATZ });
     await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
-    await submitForm();
+    await absenden();
     expect(query("[data-rolle='gate-fehler']").textContent).toBe(URL_SATZ);
   });
 
@@ -214,7 +224,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
      */
     aktion.mockResolvedValue(undefined as unknown as GateZustand);
     await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
-    await submitForm();
+    await absenden();
     expect(exists("[data-rolle='gate-fehler']")).toBe(false);
     // Der Baum steht noch: das Feld ist da, nicht abgeraeumt.
     expect(exists("input[name='code']")).toBe(true);
@@ -222,7 +232,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
 });
 
 describe("Gate — das Codefeld (§7.2.4)", () => {
-  it("traegt maxlength, pattern, aria-label — und KEIN aria-describedby", async () => {
+  it("traegt maxlength, aria-label — und KEIN aria-describedby, KEIN pattern", async () => {
     // inputMode/maxlength/pattern sind zusammen die billigste Massnahme gegen
     // Fehleingaben am GEMEINSAMEN Rate-Limit-Eimer (Falle 24): alle Helferinnen
     // hinter demselben Uplink teilen sich fuenf Fehlversuche pro Minute.
@@ -236,13 +246,15 @@ describe("Gate — das Codefeld (§7.2.4)", () => {
     // schlechter als keiner, weil sie dann gar nichts sagt und es niemandem
     // auffaellt. Diese Zeile haelt genau das in der neuen Form fest — kein
     // halber Rueckbau, der das Attribut stehen laesst und das Ziel entfernt.
-    // Das Format traegt `pattern`; seit DRK-442 nimmt es beide Codeformen, und
-    // ohne `inputmode="numeric"`: ein langer Code hat Buchstaben.
+    // Das Format prueft seit IDA-380 die Insel (`codeEingabeMangel`), nicht
+    // mehr `pattern`: die native Pruefung hielt ` 100 100 ` wortlos an. Und
+    // ohne `inputmode="numeric"`: ein langer Code hat Buchstaben (DRK-442).
     await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     const f = query<HTMLInputElement>("input[name='code']");
     expect(f.getAttribute("inputmode")).toBeNull();
     expect(f.getAttribute("maxlength")).toBe(String(CODEFELD_LAENGE));
-    expect(f.getAttribute("pattern")).toBe(CODEFELD_MUSTER);
+    expect(f.getAttribute("pattern")).toBeNull();
+    expect(query<HTMLFormElement>("form").noValidate).toBe(true);
     expect(f.getAttribute("placeholder")).toBe(CODEFELD_PLATZHALTER);
     expect(f.getAttribute("autocapitalize")).toBe("characters");
     expect(f.getAttribute("spellcheck")).toBe("false");
@@ -272,6 +284,46 @@ describe("Gate — das Codefeld (§7.2.4)", () => {
     const daten = aktion.mock.calls[0][1];
     expect(daten.get("code")).toBe("482-137");
     expect(daten.get("returnTo")).toBe("/a/art-9");
+  });
+});
+
+describe("Gate — Eingabe am Feld (IDA-380)", () => {
+  it("ein leeres Feld bekommt „Bitte den Code eingeben.\" — die Action laeuft nicht", async () => {
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
+    await absenden("   ");
+    expect(aktion).not.toHaveBeenCalled();
+    expect(query("[data-rolle='gate-fehler']").textContent).toBe("Bitte den Code eingeben.");
+  });
+
+  it("eine Eingabe, die nie ein Code sein kann, bekommt einen Satz — und kostet keinen Versuch", async () => {
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
+    await absenden("12345");
+    expect(aktion).not.toHaveBeenCalled();
+    expect(query("[data-rolle='gate-fehler']").textContent)
+      .toBe("Das ist kein vollständiger Code. Vergleiche ihn mit dem Etikett.");
+  });
+
+  it("` 100 100 ` mit Leerzeichen am Rand geht ab, statt wortlos stehen zu bleiben", async () => {
+    aktion.mockResolvedValue({});
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
+    await absenden(" 100 100 ");
+    expect(aktion).toHaveBeenCalledTimes(1);
+  });
+
+  it("nach einer Abweisung steht der Fokus im Feld, der Inhalt bleibt und ist markiert", async () => {
+    aktion.mockResolvedValue({ fehler: URL_SATZ });
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
+    await absenden("482-137");
+    const f = query<HTMLInputElement>("input[name='code']");
+    expect(document.activeElement).toBe(f);
+    expect(f.value).toBe("482-137");
+    expect([f.selectionStart, f.selectionEnd]).toEqual([0, 7]);
+  });
+
+  it("auch nach dem leeren Absenden steht der Fokus im Feld", async () => {
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
+    await submitForm();
+    expect(document.activeElement).toBe(query("input[name='code']"));
   });
 });
 

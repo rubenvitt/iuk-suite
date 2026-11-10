@@ -3,7 +3,7 @@ import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
 import { rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import { RueckmeldungKnopf } from "@/core/rueckmeldung/RueckmeldungKnopf";
 import { Seitenwechsel } from "@/core/shell/Seitenwechsel";
-import type { SuiteNavItem } from "@/core/shell/types";
+import type { Sprungziel, SuiteNavItem } from "@/core/shell/types";
 
 /**
  * Die Arbeitsflächen-Variante: volle Inhaltsbreite, das Menü der Suite links
@@ -52,16 +52,18 @@ import type { SuiteNavItem } from "@/core/shell/types";
 export async function FullShell({
   moduleKey,
   nav,
+  sprungziele,
   children,
 }: {
   moduleKey: string;
   nav?: SuiteNavItem[];
+  sprungziele?: Sprungziel[];
   children: React.ReactNode;
 }) {
   const rueckmeldung = rueckmeldeweg();
 
   return (
-    <MenueRahmen moduleKey={moduleKey} nav={nav}>
+    <MenueRahmen moduleKey={moduleKey} nav={nav} sprungziele={sprungziele}>
       <Arbeitsdichte>
         <Seitenwechsel>{children}</Seitenwechsel>
         {rueckmeldung && <RueckmeldungKnopf weg={rueckmeldung} />}

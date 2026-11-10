@@ -197,6 +197,8 @@ export function JournalFilter({
           value={sicherVon ? dayjs(sicherVon) : null}
           format="YYYY-MM-DD"
           aria-label="Zeitraum von"
+          // IDA-380 — sonst stuende in beiden Feldern antds „Datum auswählen".
+          placeholder="von"
           disabledDate={(tag) => (
             sicherBis ? tag.isAfter(dayjs(sicherBis), "day") : false
           )}
@@ -209,6 +211,7 @@ export function JournalFilter({
           value={sicherBis ? dayjs(sicherBis) : null}
           format="YYYY-MM-DD"
           aria-label="Zeitraum bis"
+          placeholder="bis"
           disabledDate={(tag) => (
             sicherVon ? tag.isBefore(dayjs(sicherVon), "day") : false
           )}

@@ -7,6 +7,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/headers", () => ({ headers: vi.fn() }));
 vi.mock("../../_lib/host", () => ({ requireLagerbuchHost: vi.fn() }));
 vi.mock("../../_lib/zugang", () => ({ requireLagerbuchAdmin: vi.fn() }));
+vi.mock("../../_db/client", () => ({ getDb: () => ({ marke: "test-db" }) }));
+vi.mock("../../_lib/sprungziele", () => ({
+  lagerbuchSprungziele: vi.fn(() => [{ key: "ort:rtw", titel: "RTW 1", hinweis: "Fahrzeug", href: "/verwaltung/fahrzeuge/rtw" }]),
+}));
 
 import { headers } from "next/headers";
 import { LAGERBUCH_NAV } from "../../_lib/nav";
@@ -411,6 +415,10 @@ describe("verwaltung/(arbeit)/layout.tsx: Laufzeitvertrag", () => {
     expect(element.type).toBe(VerwaltungsRahmen);
     expect(element.props.nav).toBe(LAGERBUCH_NAV);
     expect(element.props.children).toBe(kind);
+    // IDA-380: die Sprungziele fürs Menü kommen aus dem Lesepfad, gelesen nach dem Admin-Riegel.
+    expect((element.props as { sprungziele?: unknown }).sprungziele).toEqual([
+      { key: "ort:rtw", titel: "RTW 1", hinweis: "Fahrzeug", href: "/verwaltung/fahrzeuge/rtw" },
+    ]);
   });
 });
 

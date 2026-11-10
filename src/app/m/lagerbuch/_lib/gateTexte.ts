@@ -174,3 +174,14 @@ export function gateMeldung(
   if (!istGateGrund(roh)) return null;
   return TEXTE[roh](sperrSekunden);
 }
+
+/**
+ * ZWEI SAETZE AM FELD, KEINE LANDUNGSGRUENDE — IDA-380. Sie entstehen nur am
+ * Formular und wandern nie ueber `?grund=`, deshalb stehen sie nicht in
+ * `GATE_GRUENDE`. Vorher bekam ein leeres Feld den `code`-Satz („unbekannt
+ * oder gesperrt"), und das ist fuer jemanden, der nichts eingegeben hat, die
+ * falsche Auskunft.
+ */
+export const GATE_TEXT_LEER = "Bitte den Code eingeben.";
+export const GATE_TEXT_FORM =
+  "Das ist kein vollständiger Code. Vergleiche ihn mit dem Etikett.";

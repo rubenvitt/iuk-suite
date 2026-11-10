@@ -1,4 +1,5 @@
 import { datierterDateiname } from "@/core/export";
+import { OHNE_VERFALL_TEXT, istOhneVerfall } from "./konstanten";
 
 /**
  * Aufbereitung der Artikelliste fuer den Excel-Export. Bewusst frei von der
@@ -63,7 +64,10 @@ export function bestandExportZeilen(rows: BestandExportEingabe[]): BestandExport
     // Leerstring statt „–": in Excel bleibt die Zelle so leer und stoert
     // Filter/Sortierung nicht.
     charge: r.naechsteCharge?.chargenNr ?? "",
-    verfall: r.naechsteCharge?.verfall ?? "",
+    // Der Platzhalter `2099-12` ist kein Datum (IDA-380): in der Mappe steht
+    // dasselbe Wort wie am Bildschirm, als Text sortiert es weiter hinten.
+    verfall: !r.naechsteCharge ? ""
+      : istOhneVerfall(r.naechsteCharge.verfall) ? OHNE_VERFALL_TEXT : r.naechsteCharge.verfall,
     hinweis: r.naechsteAblaufText ?? "",
   }));
 }

@@ -506,13 +506,13 @@ export function Entnahme({
       <div className={s.karte}>
         {/*
           ⚠️ DIE UEBERSCHRIFT SAGT SEIT DRK-418 ETWAS ANDERES, SOBALD MAN WAEHLEN
-          KANN. „Nächste Charge zuerst (FEFO)" beschreibt eine Regel, die die
+          KANN. „Zuerst ablaufende" (IDA-380, vorher „… (FEFO)") beschreibt eine Regel, die die
           Anwendung befolgt; wo eine Wahl steht, ist sie nur noch die VORGABE,
           und die Ueberschrift muss sagen, dass hier etwas zu tun ist. Eine
           Liste, die aussieht wie eine Auskunft, tippt niemand an.
         */}
         <div className={s.karteTitel}>
-          {wahlMoeglich ? "Charge wählen" : "Nächste Charge zuerst (FEFO)"}
+          {wahlMoeglich ? "Charge wählen" : "Zuerst ablaufende"}
         </div>
         {/*
           ⚠️ DIE FEFO-ZEILE IST EINE ZEILE IN DERSELBEN LISTE, kein Leerlassen —

@@ -19,10 +19,10 @@ import { MINUTE } from "../_lib/typen";
 import { stunden, zeitspanne } from "../_lib/zeit";
 import { AusgabeAnsicht, HelferAnsicht, PruefAnsicht } from "./ansichten";
 import { EinheitFormular, PlanungFormular, TempFormular } from "./formulare";
-import { Raster } from "./Raster";
+import { Raster, type RasterAktionen } from "./Raster";
 import { SchichtInhalt } from "./SchichtFlyin";
 import s from "./schichtplan.module.css";
-import { einheitTitel, KpiReihe } from "./teile";
+import { einheitTitel, KpiReihe, name } from "./teile";
 import { useTokensAmBody } from "./useTokensAmBody";
 
 type Ansicht = "raster" | "helfer" | "pruefen" | "ausgabe";
@@ -82,19 +82,52 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     if (laufend.current === 0) setP(neu);
   }
 
-  function aendere(optimistisch: (q: PlanungDTO) => PlanungDTO, aufruf: () => Promise<ActionErgebnis<PlanungDTO>>) {
+  /** Liefert den bestätigten Stand, oder `null`, wenn die Änderung nicht durchging. */
+  function aendere(optimistisch: (q: PlanungDTO) => PlanungDTO, aufruf: () => Promise<ActionErgebnis<PlanungDTO>>): Promise<PlanungDTO | null> {
     setP(optimistisch);
     laufend.current++;
-    void aufruf()
-      .then((r) => { if (r.ok) bestaetigt.current = r.wert; else void message.warning(r.fehler); })
-      .catch(() => void message.warning("Die Änderung ging nicht durch. Bitte die Seite neu laden."))
+    return aufruf()
+      .then((r) => {
+        if (r.ok) { bestaetigt.current = r.wert; return r.wert; }
+        void message.warning(r.fehler);
+        return null;
+      })
+      .catch(() => { void message.warning("Die Änderung ging nicht durch. Bitte die Seite neu laden."); return null; })
       .finally(() => { laufend.current--; if (laufend.current === 0) setP(bestaetigt.current); });
+  }
+
+  /** IDA-385: Jede Änderung per Ziehen meldet sich und lässt sich mit einem Klick zurücknehmen. */
+  // Je Gegenstand (Schicht oder Person) gilt nur die letzte Meldung: eine neuere Änderung ersetzt oder
+  // schließt sie, sonst stellte ein veraltetes „Rückgängig“ einen Stand her, den es so nie gab.
+  // Ein Zähler je Gegenstand erkennt auch eine Bestätigung, die erst nach einer neueren Änderung eintrifft.
+  const meldung = (gegenstand: string) => `rueckgaengig-${gegenstand}`;
+  const fassungen = useRef(new Map<string, number>());
+  const fassung = (gegenstand: string) => fassungen.current.get(gegenstand) ?? 0;
+  function beruehre(gegenstand: string) {
+    fassungen.current.set(gegenstand, fassung(gegenstand) + 1);
+    message.destroy(meldung(gegenstand));
+  }
+  /** Zeigt die Meldung nur, wenn seit `stand` nichts mehr an `gegenstand` geändert wurde. */
+  function meldeMitRueckgaengig(gegenstand: string, stand: number, text: string, zurueck: () => void) {
+    if (fassung(gegenstand) !== stand) return;
+    const key = meldung(gegenstand);
+    void message.open({
+      key, type: "success", duration: 8,
+      content: (
+        <span className={s.meldung}>
+          {text}
+          <Button type="link" style={{ paddingInline: 4, height: "auto" }} onClick={() => { message.destroy(key); zurueck(); }}>Rückgängig</Button>
+        </span>
+      ),
+    });
   }
 
   const aktionen = {
     zuteilen: (sid: string, k: string, aus?: string) => {
       const { quelle, helferId } = teile(k);
-      aendere(
+      // Auch die Schichten gelten als geändert: „Rückgängig“ einer Anlage löschte sonst die Einteilung mit.
+      for (const g of [k, sid, ...(aus ? [aus] : [])]) beruehre(g);
+      return aendere(
         (q) => ({
           ...q,
           zuordnungen: [
@@ -107,23 +140,76 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     },
     austragen: (sid: string, k: string) => {
       const { quelle, helferId } = teile(k);
-      aendere(
+      beruehre(k);
+      beruehre(sid);
+      return aendere(
         (q) => ({ ...q, zuordnungen: q.zuordnungen.filter((z) => !(z.schichtId === sid && z.quelle === quelle && z.helferId === helferId)) }),
         () => austragenAction(p.id, { schichtId: sid, quelle, helferId }),
       );
     },
-    schichtSetzen: (sid: string, von: number, bis: number, einheitId?: string) => aendere(
-      (q) => ({ ...q, schichten: q.schichten.map((x) => (x.id === sid ? { ...x, von, bis, einheitId: einheitId ?? x.einheitId } : x)) }),
-      () => schichtSetzenAction(p.id, sid, { von, bis }, einheitId),
-    ),
-    schichtAnlegen: (einheitId: string, von: number, bis: number) => aendere(
-      (q) => ({ ...q, schichten: [...q.schichten, { id: `entwurf-${von}-${einheitId}`, einheitId, von, bis }] }),
-      () => schichtAnlegenAction(p.id, einheitId, { von, bis }),
-    ),
-    schichtLoeschen: (sid: string) => aendere(
-      (q) => ({ ...q, schichten: q.schichten.filter((x) => x.id !== sid), zuordnungen: q.zuordnungen.filter((z) => z.schichtId !== sid) }),
-      () => schichtLoeschenAction(p.id, sid),
-    ),
+    schichtSetzen: (sid: string, von: number, bis: number, einheitId?: string) => {
+      beruehre(sid);
+      return aendere(
+        (q) => ({ ...q, schichten: q.schichten.map((x) => (x.id === sid ? { ...x, von, bis, einheitId: einheitId ?? x.einheitId } : x)) }),
+        () => schichtSetzenAction(p.id, sid, { von, bis }, einheitId),
+      );
+    },
+    /** Liefert die Kennung der neuen Schicht, oder `null`, wenn sie nicht angelegt wurde. */
+    schichtAnlegen: async (einheitId: string, von: number, bis: number): Promise<string | null> => {
+      let neu: string | null = null;
+      await aendere(
+        (q) => ({ ...q, schichten: [...q.schichten, { id: `entwurf-${von}-${einheitId}`, einheitId, von, bis }] }),
+        () => schichtAnlegenAction(p.id, einheitId, { von, bis }).then((r) => {
+          if (!r.ok) return r;
+          neu = r.wert.schichtId;
+          return { ok: true as const, wert: r.wert.planung };
+        }),
+      );
+      return neu;
+    },
+    schichtLoeschen: (sid: string) => {
+      beruehre(sid);
+      return aendere(
+        (q) => ({ ...q, schichten: q.schichten.filter((x) => x.id !== sid), zuordnungen: q.zuordnungen.filter((z) => z.schichtId !== sid) }),
+        () => schichtLoeschenAction(p.id, sid),
+      );
+    },
+  };
+
+  // Was das Raster per Ziehen auslöst, mit Meldung und „Rückgängig“; Flyin und Knöpfe nehmen `aktionen`.
+  const einheitVon = (sid: string) => p.einheiten.find((e) => e.id === p.schichten.find((x) => x.id === sid)?.einheitId);
+  const rasterAktionen: RasterAktionen = {
+    zuteilen: (sid, k, aus) => {
+      const sch = p.schichten.find((x) => x.id === sid);
+      const h = helfer.find((x) => x.schluessel === k);
+      const zug = aktionen.zuteilen(sid, k, aus);
+      const stand = fassung(k);
+      void zug.then((ok) => {
+        if (!ok || !sch || !h) return;
+        meldeMitRueckgaengig(
+          k, stand, `${name(h)} eingeteilt: ${einheitVon(sid)?.name ?? ""} ${zeitspanne(sch.von, sch.bis)}`,
+          () => void (aus ? aktionen.zuteilen(aus, k, sid) : aktionen.austragen(sid, k)),
+        );
+      });
+    },
+    schichtSetzen: (sid, von, bis, einheitId) => {
+      const alt = p.schichten.find((x) => x.id === sid);
+      const wohin = einheitId ? ` · ${p.einheiten.find((e) => e.id === einheitId)?.name ?? ""}` : "";
+      const zug = aktionen.schichtSetzen(sid, von, bis, einheitId);
+      const stand = fassung(sid);
+      void zug.then((ok) => {
+        if (!ok || !alt) return;
+        meldeMitRueckgaengig(
+          sid, stand, `${bis - von === alt.bis - alt.von ? "Verschoben auf" : "Geändert auf"} ${zeitspanne(von, bis)}${wohin}`,
+          () => void aktionen.schichtSetzen(alt.id, alt.von, alt.bis, einheitId ? alt.einheitId : undefined),
+        );
+      });
+    },
+    schichtAnlegen: (einheitId, von, bis) => {
+      void aktionen.schichtAnlegen(einheitId, von, bis).then((id) => {
+        if (id) meldeMitRueckgaengig(id, fassung(id), `Schicht ${zeitspanne(von, bis)} angelegt`, () => void aktionen.schichtLoeschen(id));
+      });
+    },
   };
 
   const offeneSchicht = schichtId ? p.schichten.find((x) => x.id === schichtId) ?? null : null;
@@ -169,7 +255,7 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
             children: (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <KpiReihe a={a} p={p} />
-                <Raster p={p} a={a} helfer={helfer} katalog={katalog} aktionen={aktionen} oeffneSchicht={setSchichtId} bearbeiteEinheit={setEinheitFlyin} />
+                <Raster p={p} a={a} helfer={helfer} katalog={katalog} aktionen={rasterAktionen} oeffneSchicht={setSchichtId} bearbeiteEinheit={setEinheitFlyin} />
               </div>
             ),
           },

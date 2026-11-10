@@ -35,6 +35,10 @@ export function Kpi({ titel, wert, ton = "grau", zusatz }: { titel: string; wert
 export const name = (h: Pick<PlanHelfer, "vorname" | "nachname">) => `${h.vorname} ${h.nachname}`;
 export const einheitTitel = (e: Pick<EinheitDTO, "name" | "kenner">) => (e.kenner ? `${e.name} · ${e.kenner}` : e.name);
 export const anforderungText = (e: Pick<EinheitDTO, "anforderungen">) => e.anforderungen.map((a) => `${a.anzahl}× ${a.quali.name}`).join(", ");
+/** Mit Kürzeln, für die schmale Namensspalte des Rasters (IDA-385): „1× RS, 1× C1“. */
+export const anforderungKurz = (e: Pick<EinheitDTO, "anforderungen">) => e.anforderungen.map((a) => `${a.anzahl}× ${a.quali.kurz}`).join(", ");
+/** „RS“, „RS oder C1“, „RS, San oder C1“. */
+export const oderListe = (teile: readonly string[]) => (teile.length < 2 ? teile.join("") : `${teile.slice(0, -1).join(", ")} oder ${teile.at(-1)}`);
 
 export function EinheitZeichen({ e }: { e: Pick<EinheitDTO, "art"> }) {
   return <Icons8Ikone name={e.art === "fahrzeug" ? "truck" : "marker"} groesse={18} />;
