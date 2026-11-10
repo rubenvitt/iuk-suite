@@ -39,7 +39,7 @@ export const suchlageEingabe = z.object({
     .string()
     .trim()
     .max(500)
-    .refine((t) => suchlageLinkAus(t) !== null, "Das ist kein Großbild-Link aus Suchlage.")
+    .refine((t) => suchlageLinkAus(t) !== null, "Das ist kein Großbild-Link. Er sieht so aus: https://…/kiosk#… (in Suchlage unter Großbild).")
     // Das Token geht bei jedem Abruf als Bearer mit, über http also im Klartext.
     .refine((t) => suchlageLinkAus(t)?.adresse.startsWith("https://") !== false, "Der Großbild-Link muss mit https:// beginnen."),
 }).strict();

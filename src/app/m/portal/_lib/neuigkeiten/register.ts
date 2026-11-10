@@ -36,6 +36,7 @@ import neueSchriftUndWeitereZeichen from "@/app/m/portal/_lib/neuigkeiten/notize
 import typischeEinsatzmittel from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-03-typische-einsatzmittel";
 import freieStellen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-05-freie-stellen";
 import verweisAufPlan from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-05-verweis-auf-plan";
+import geteilterPlanAlsListe from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-10-geteilter-plan-als-liste";
 import helferAusHiorg from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-20-helfer-aus-hiorg";
 import helferAusExcel from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-24-helfer-aus-excel";
 import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-10-21-fahrzeuge-als-stammdaten";
@@ -48,6 +49,7 @@ import gemeinschaftDokumenteAusfuellen from "@/app/m/portal/_lib/neuigkeiten/not
 import gemeinschaftBarTestanfragen from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-09-bar-testanfragen";
 import feedbackEhrlichGesagt from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-03-ehrlich-gesagt";
 import feedbackEhrlichGesagtAdresse from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-04-ehrlich-gesagt-adresse";
+import feedbackUmfrageStarten from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-10-umfrage-starten";
 import wartungGeraetewartung from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-03-geraetewartung";
 import wartungMaterialkisten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-materialkisten";
 import wartungUnterlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-unterlagen";
@@ -204,6 +206,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   gemeinschaftBarTestanfragen,
   feedbackEhrlichGesagt,
   feedbackEhrlichGesagtAdresse,
+  feedbackUmfrageStarten,
   wartungGeraetewartung,
   wartungMaterialkisten,
   wartungUnterlagen,
@@ -363,6 +366,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   typischeEinsatzmittel,
   freieStellen,
   verweisAufPlan,
+  geteilterPlanAlsListe,
 ];
 
 /**

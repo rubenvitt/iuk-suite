@@ -33,7 +33,7 @@ export const groups = sqliteTable(
  * * `planned` — im Voraus angesetzt, noch ohne Umfrage. Der QR-Code gilt für
  *   ihn nicht; freigegeben wird am Abend selbst.
  * * `held` — hat stattgefunden. Das ist die Lage jedes Abends, der über
- *   „Feedback starten" entsteht, und die jedes nachgetragenen Abends.
+ *   „Umfrage starten" entsteht, und die jedes nachgetragenen Abends.
  * * `cancelled` — war angesetzt und fiel aus. BLEIBT STEHEN, statt gelöscht zu
  *   werden: „am 3. November war kein Dienst" ist eine Auskunft, eine fehlende
  *   Zeile ist keine.

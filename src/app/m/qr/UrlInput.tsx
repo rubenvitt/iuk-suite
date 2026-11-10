@@ -6,6 +6,7 @@ import { Button, Input, Typography } from "antd";
 import { QR_MAX_LENGTH, exceedsQrCapacity } from "@/app/m/qr/_lib/qr";
 import { buildQrUrl } from "@/app/m/qr/_lib/qr-url";
 import { recordEntry } from "@/app/m/qr/_lib/history";
+import { ergaenzeSchemaWennAdresse } from "@/app/m/qr/_lib/url";
 
 import { SPACE } from "@/core/theme/tokens";
 export function UrlInput() {
@@ -14,7 +15,10 @@ export function UrlInput() {
   // Byte-Länge, nicht value.length: ein Text aus Umlauten wäre nach Zeichen
   // gezählt längst erlaubt, während die Erzeugung ihn bereits ablehnt. Die
   // Warnung schwiege dann genau dann, wenn sie gebraucht wird.
-  const tooLong = exceedsQrCapacity(value);
+  // „drk.de" wird https://drk.de — ohne Schema zeigt mancher Scanner nur Text (`_lib/url.ts`).
+  // Ein Satz bleibt, wie er ist: das Feld nimmt auch freien Text. Gemessen wird der fertige Inhalt.
+  const inhalt = ergaenzeSchemaWennAdresse(value);
+  const tooLong = exceedsQrCapacity(inhalt);
   const canSubmit = value.length > 0 && !tooLong;
 
   return (
@@ -23,9 +27,9 @@ export function UrlInput() {
       onSubmit={(e) => {
         e.preventDefault();
         if (!canSubmit) return;
-        const payload = { kind: "url" as const, value };
-        recordEntry(value, payload);
-        router.push(buildQrUrl(value, payload));
+        const payload = { kind: "url" as const, value: inhalt };
+        recordEntry(inhalt, payload);
+        router.push(buildQrUrl(inhalt, payload));
       }}
     >
       <label htmlFor="qr-url" style={{ fontWeight: 600 }}>

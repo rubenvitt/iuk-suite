@@ -86,7 +86,7 @@ export function StartFormular({
   const datumsFehler = feldFehler(state, "date");
   const gewaehlt = tagAusEingabe(datum);
   const beschriftung =
-    variante === "primaer" ? "Feedback starten" : "Laufende beenden & neue starten";
+    variante === "primaer" ? "Umfrage starten" : "Laufende beenden & neue starten";
 
   const felder = (
     <form action={formAction} ref={formular} className="fb-form">
@@ -221,7 +221,7 @@ export function StartFormular({
           key: "naechster",
           label: (
             <span>
-              <span style={{ ...T.body, fontWeight: 600 }}>Nächsten Dienstabend starten</span>
+              <span style={{ ...T.body, fontWeight: 600 }}>Nächste Umfrage starten</span>
               <span style={{ ...T.meta, display: "block" }}>beendet die laufende Umfrage</span>
             </span>
           ),
