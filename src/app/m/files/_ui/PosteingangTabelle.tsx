@@ -45,6 +45,7 @@ import {
   Kartentabelle,
   nachText,
   nachZahl,
+  Zeilenaktionen,
   Zellentext,
   type Kartenwunsch,
 } from "@/core/tabelle";
@@ -505,14 +506,26 @@ function FilterGruppe({
  * Kartenliste an (`Schmalsteuerung`), aus demselben Zustand wie die Koepfe.
  */
 const SPALTEN = [
+  /*
+   * BEI 1280px PASST DIE ZEILE IN DEN RAHMEN (IDA-393; gemessen ragte sie 602px
+   * hinaus). Der AV-Status steht direkt hinter dem Dateinamen, der Abgabelink
+   * leise unter der Zeit, die Kategorie leise unter der Groesze, und die
+   * Zeilenaktionen liegen in einem Menue. Keine Angabe ist weg — gefiltert wird
+   * ohnehin in der Leiste oben (s. o.), nicht im Spaltenkopf.
+   */
   {
     key: "zeit",
     title: "Zeit",
     sorter: nachZahl<PosteingangZeile>((zeile) => zeile.empfangenSekunden),
     render: (_: unknown, zeile: PosteingangZeile) => (
-      <span data-spalte="zeit" className={styles.zahlen}>
-        {zeile.empfangenText}
-      </span>
+      <>
+        <span data-spalte="zeit" className={styles.zahlen}>
+          {zeile.empfangenText}
+        </span>
+        <span data-spalte="abgabelink" className={styles.leise}>
+          <Abgabelink link={zeile.abgabelink} />
+        </span>
+      </>
     ),
   },
   {
@@ -528,27 +541,37 @@ const SPALTEN = [
     sorter: nachText<PosteingangZeile>((zeile) => zeile.dateiname),
   },
   {
+    key: "avstatus",
+    title: "AV-Status",
+    /* Ueber den SATZ aus `AV_TEXT`, nicht ueber den Statusnamen: `unscanned`
+       und `scanning` stuenden alphabetisch nebeneinander, ihre Saetze sagen
+       aber Verschiedenes — sortiert wird, was in der Zelle steht. */
+    sorter: nachText<PosteingangZeile>((zeile) => AV_TEXT[zeile.avStatus]),
+    render: (_: unknown, zeile: PosteingangZeile) => (
+      <>
+        <span data-spalte="avstatus">
+          <AvZustand status={zeile.avStatus} />
+        </span>
+        <PruefungWiederholen zeile={zeile} />
+      </>
+    ),
+  },
+  {
     key: "groesse",
     title: "Größe",
     sorter: nachZahl<PosteingangZeile>((zeile) => zeile.groesseBytes),
     render: (_: unknown, zeile: PosteingangZeile) => (
-      <span data-spalte="groesse" className={styles.zahlen}>
-        {byteText(zeile.groesseBytes)}
-      </span>
-    ),
-  },
-  {
-    key: "kategorie",
-    title: "Kategorie",
-    // Ueber den ANZEIGETEXT, nicht ueber den Rohwert: `anzeigeKategorie`
-    // uebersetzt, und zwei Zeilen mit demselben Wort stuenden sonst
-    // auseinander, weil ihre Rohwerte verschieden heiszen.
-    sorter: nachText<PosteingangZeile>((zeile) => anzeigeKategorie(zeile.kategorieRoh)),
-    render: (_: unknown, zeile: PosteingangZeile) => (
-      // ROH, auch wenn der Wert unbekannt ist: der Altbestand traegt, was
-      // `sanitizeCategory` durchliess. Eine Zeile zu verwerfen, deren Datei
-      // sehr wohl da ist, waere der teurere Fehler (T6).
-      <span data-spalte="kategorie">{anzeigeKategorie(zeile.kategorieRoh)}</span>
+      <>
+        <span data-spalte="groesse" className={styles.zahlen}>
+          {byteText(zeile.groesseBytes)}
+        </span>
+        {/* ROH, auch wenn der Wert unbekannt ist: der Altbestand traegt, was
+            `sanitizeCategory` durchliess. Eine Zeile zu verwerfen, deren Datei
+            sehr wohl da ist, waere der teurere Fehler (T6). */}
+        <span data-spalte="kategorie" className={styles.leise}>
+          {anzeigeKategorie(zeile.kategorieRoh)}
+        </span>
+      </>
     ),
   },
   {
@@ -562,34 +585,10 @@ const SPALTEN = [
        und `max-width` gilt nicht fuer nicht-ersetzte Inline-Elemente (CSS 2.1
        §10.4): in der Tabelle wirkte sie nie, und zwar still. `Zellentext`
        bringt sein `display` selbst mit, und seit DRK-422 steht derselbe Wert
-       auch auf der Karte. */
+       auch auf der Karte. Schmaler als die Vorgabe (IDA-393): der Satz bricht
+       um, gekuerzt wird nichts. */
     render: (_: unknown, zeile: PosteingangZeile) => (
-      <Zellentext data-spalte="hinweis" text={zeile.hinweis ?? "—"} />
-    ),
-  },
-  {
-    key: "avstatus",
-    title: "AV-Status",
-    /* Ueber den SATZ aus `AV_TEXT`, nicht ueber den Statusnamen: `unscanned`
-       und `scanning` stuenden alphabetisch nebeneinander, ihre Saetze sagen
-       aber Verschiedenes — sortiert wird, was in der Zelle steht. */
-    sorter: nachText<PosteingangZeile>((zeile) => AV_TEXT[zeile.avStatus]),
-    render: (_: unknown, zeile: PosteingangZeile) => (
-      <span data-spalte="avstatus">
-        <AvZustand status={zeile.avStatus} />
-      </span>
-    ),
-  },
-  {
-    key: "abgabelink",
-    title: "Abgabelink",
-    // „Altbestand" ist ein benannter Wert und sortiert deshalb mit — eine
-    // leere Zeichenkette landete am Ende und saehe aus wie ein fehlender Wert.
-    sorter: nachText<PosteingangZeile>((zeile) => zeile.abgabelink?.name ?? "Altbestand"),
-    render: (_: unknown, zeile: PosteingangZeile) => (
-      <span data-spalte="abgabelink">
-        <Abgabelink link={zeile.abgabelink} />
-      </span>
+      <Zellentext data-spalte="hinweis" text={zeile.hinweis ?? "—"} style={{ maxWidth: "18ch" }} />
     ),
   },
   {
@@ -737,6 +736,45 @@ function SammelAktionen({
   );
 }
 
+/**
+ * DIE PRUEFUNG WIEDERHOLEN steht in der AV-Spalte, direkt unter „Prüfung nicht
+ * möglich" (IDA-393): dort, wo der Zustand steht, den sie behebt — und nicht im
+ * Menue der Zeilenaktionen, wo man sie erst suchen muesste.
+ */
+function PruefungWiederholen({ zeile }: { zeile: PosteingangZeile }) {
+  /*
+   * DIE PRUEFUNG WIEDERHOLEN — nur an einer Zeile in `error` (§6.2, §10.2).
+   *
+   * Das Praedikat ist der STATUS und nicht `!herunterladbar`: Letzteres ist
+   * fuer `scanning`, `infected` und `unscanned` ebenso wahr, und aus diesen
+   * dreien fuehrt kein Weg hierher — `clean` und `infected` sind
+   * Endzustaende, `scanning` laeuft schon, und `unscanned → scanning`
+   * gehoert ausschliesslich dem Nachscan-Lauf aus Spec 2. Dieselbe
+   * Bedingung steht als `WHERE av_status = 'error'` in der Action:
+   * Oberflaeche und Riegel wenden dasselbe Praedikat an.
+   *
+   * EIN NATIVES `<form>` MIT DER SERVER ACTION, kein `useActionState`: die
+   * Action gibt nichts zurueck, was hier anzuzeigen waere. Die Rueckmeldung
+   * ist die Auffrischung — die Zeile geht auf „wird geprüft", und der Knopf
+   * verschwindet mit ihr.
+   *
+   * `htmlType="submit"` ausgeschrieben: antds Vorgabe ist `"button"`, und
+   * ohne die Angabe schickte der Knopf still nichts ab.
+   */
+  if (zeile.avStatus !== "error") return null;
+  return (
+    <form action={avWiederholenAction}>
+      {/* `inbox`, nicht `inbox_files`: die Action spricht die Sprache von
+          `BlobZiel` (`_lib/storage.ts`), damit niemand unterwegs uebersetzt. */}
+      <input type="hidden" name="art" value="inbox" />
+      <input type="hidden" name="id" value={zeile.id} />
+      <Button htmlType="submit" data-testid={`files-inbox-av-wiederholen-${zeile.id}`}>
+        Prüfung wiederholen
+      </Button>
+    </form>
+  );
+}
+
 // ---------------------------------------------------------------------------
 
 /**
@@ -763,77 +801,48 @@ function ZeilenAktionen({ zeile }: { zeile: PosteingangZeile }) {
   return (
     <div>
       {/*
-       * DER DOWNLOAD BLEIBT BIS `clean` GESPERRT (§6.3). Ein Knopf, der immer
-       * 403 bekaeme, waere eine Sackgasse — der Zustand in der Nachbarspalte
-       * sagt, warum er nicht geht. Die Entscheidung faellt SERVERSEITIG
+       * DIE AKTIONEN IN EINEM MENUE (IDA-393): nebeneinander trugen sie die
+       * Zeile bei 1280px aus dem Rahmen.
+       *
+       * DER DOWNLOAD BLEIBT BIS `clean` GESPERRT (§6.3). Ein Eintrag, der immer
+       * 403 bekaeme, waere eine Sackgasse — der Zustand in der AV-Spalte sagt,
+       * warum er nicht geht. Die Entscheidung faellt SERVERSEITIG
        * (`herunterladbar`), nicht hier.
        *
-       * `href` steht immer, `disabled` entscheidet — dieselbe Begruendung wie
-       * beim ZIP-Knopf: antd nimmt die Adresse bei `disabled` heraus und setzt
-       * `aria-disabled`, und der Knopf bleibt in beiden Zustaenden dasselbe
-       * Element.
+       * NAME UND GROESZE in der Rueckfrage, beide (§8.6). Der Name allein sagt
+       * nicht, was verloren geht; die Groesze allein nicht, welche Datei gemeint
+       * ist. Und ausdruecklich „endgültig": es gibt keinen Papierkorb, die
+       * Bytes sind danach weg.
        */}
-      <Button
-        href={`/api/inbox/${zeile.id}`}
-        disabled={!zeile.herunterladbar}
-        data-testid={`files-inbox-download-${zeile.id}`}
-      >
-        Herunterladen
-      </Button>
+      <Zeilenaktionen
+        name={zeile.dateiname}
+        aktionen={[
+          {
+            key: "herunterladen",
+            label: "Herunterladen",
+            // Ohne Freigabe auch ohne Adresse: ein gesperrter Eintrag fuehrt nirgendwohin.
+            href: zeile.herunterladbar ? `/api/inbox/${zeile.id}` : undefined,
+            disabled: !zeile.herunterladbar,
+          },
+          {
+            key: "loeschen",
+            label: "Löschen",
+            danger: true,
+            bestaetigen: {
+              titel: "Abgabe löschen?",
+              text: `„${zeile.dateiname}" (${byteText(
+                zeile.groesseBytes,
+              )}) wird mit der Datei endgültig gelöscht.`,
+              ok: "Löschen",
+            },
+            onClick: () => formular.current?.requestSubmit(),
+          },
+        ]}
+      />
 
       <form action={abschicken} ref={formular}>
         <input type="hidden" name="ids" value={zeile.id} />
-        <Popconfirm
-          title="Abgabe löschen?"
-          /*
-           * NAME UND GROESZE, beide (§8.6). Der Name allein sagt nicht, was
-           * verloren geht; die Groesze allein nicht, welche Datei gemeint ist.
-           * Und ausdruecklich „endgültig": es gibt keinen Papierkorb, die Bytes
-           * sind danach weg.
-           */
-          description={`„${zeile.dateiname}" (${byteText(
-            zeile.groesseBytes,
-          )}) wird mit der Datei endgültig gelöscht.`}
-          okText="Löschen"
-          cancelText="Abbrechen"
-          onConfirm={() => formular.current?.requestSubmit()}
-        >
-          <Button danger data-testid={`files-inbox-loeschen-${zeile.id}`}>
-            Löschen
-          </Button>
-        </Popconfirm>
       </form>
-
-      {/*
-       * DIE PRUEFUNG WIEDERHOLEN — nur an einer Zeile in `error` (§6.2, §10.2).
-       *
-       * Das Praedikat ist der STATUS und nicht `!herunterladbar`: Letzteres ist
-       * fuer `scanning`, `infected` und `unscanned` ebenso wahr, und aus diesen
-       * dreien fuehrt kein Weg hierher — `clean` und `infected` sind
-       * Endzustaende, `scanning` laeuft schon, und `unscanned → scanning`
-       * gehoert ausschliesslich dem Nachscan-Lauf aus Spec 2. Dieselbe
-       * Bedingung steht als `WHERE av_status = 'error'` in der Action:
-       * Oberflaeche und Riegel wenden dasselbe Praedikat an.
-       *
-       * EIN NATIVES `<form>` MIT DER SERVER ACTION, kein `useActionState`: die
-       * Action gibt nichts zurueck, was hier anzuzeigen waere. Die Rueckmeldung
-       * ist die Auffrischung — die Zeile geht auf „wird geprüft", und der Knopf
-       * verschwindet mit ihr.
-       *
-       * `htmlType="submit"` ausgeschrieben: antds Vorgabe ist `"button"`, und
-       * ohne die Angabe schickte der Knopf still nichts ab.
-       */}
-      {zeile.avStatus === "error" && (
-        <form action={avWiederholenAction}>
-          {/* `inbox`, nicht `inbox_files`: die Action spricht die Sprache von
-              `BlobZiel` (`_lib/storage.ts`), damit niemand unterwegs uebersetzt. */}
-          <input type="hidden" name="art" value="inbox" />
-          <input type="hidden" name="id" value={zeile.id} />
-          <Button htmlType="submit" data-testid={`files-inbox-av-wiederholen-${zeile.id}`}>
-            Prüfung wiederholen
-          </Button>
-        </form>
-      )}
 
       {fehler !== null && (
         <Alert

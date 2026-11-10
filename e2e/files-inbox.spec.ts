@@ -297,8 +297,11 @@ test("4 — die anonyme Abgabe erscheint im Posteingang des anderen Hosts und is
     await expect(zeile()).toContainText("freigegeben");
   }).toPass({ timeout: 60_000 });
 
-  const adresse = await zeile()
-    .locator("[data-testid^='files-inbox-download-']")
+  // Seit IDA-393 liegt „Herunterladen" im Zeilenmenue.
+  await zeile().getByRole("button", { name: `Aktionen für ${dateiname}` }).click();
+  const adresse = await page
+    .getByRole("menuitem", { name: "Herunterladen" })
+    .getByRole("link")
     .getAttribute("href");
   expect(adresse, "der Download-Knopf trägt keine Adresse").not.toBeNull();
 

@@ -104,7 +104,8 @@ describe("Anfragenliste", () => {
     aktion.ablehnen.mockResolvedValue({ ok: true });
     await mount(<App><Anfragenliste anfragen={ANFRAGEN} sperren={SPERREN} startId={null} /></App>);
     const zeile = queryAll("tr").find((r) => r.textContent?.includes("Kaffeetrinken"))!;
-    await clickElement(knopfIn(zeile, "Ablehnen")!);
+    await clickElement(zeile.querySelector<HTMLButtonElement>('button[aria-label="Aktionen für Kaffeetrinken"]')!);
+    await clickElement(Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((e) => e.textContent === "Ablehnen")!);
     const ok = () => Array.from(document.querySelectorAll<HTMLButtonElement>(".ant-modal button")).find((b) => b.textContent === "Ablehnen")!;
     expect(ok().disabled).toBe(true);
     await fillElement(queryPortal<HTMLTextAreaElement>("#begruendung"), "Dienstabend.");

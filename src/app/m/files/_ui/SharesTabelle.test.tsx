@@ -48,6 +48,7 @@ vi.mock("../(verwaltung)/actions", () => ({
 }));
 
 import { act } from "react";
+import { App } from "antd";
 
 import { SharesTabelle, SharesTabelleSkelett, type ShareZeile } from "./SharesTabelle";
 import kartenStil from "@/core/tabelle/spaltenkarte.module.css";
@@ -129,7 +130,7 @@ function zeile(ueberschreibung: Partial<ShareZeile> = {}): ShareZeile {
 }
 
 async function zeige(zeilen: ShareZeile[] = [zeile()]): Promise<void> {
-  await mount(<SharesTabelle zeilen={zeilen} linkBasis="https://dateien.example.test/s/" />);
+  await mount(<App><SharesTabelle zeilen={zeilen} linkBasis="https://dateien.example.test/s/" /></App>);
 }
 
 /**
@@ -147,6 +148,18 @@ function zeilentext(index = 0): string {
     /\s+/g,
     " ",
   );
+}
+
+/** Der Menueknopf der Zeilenaktionen in einer Darstellung (IDA-393). */
+const MENUE = (rahmen: string) => `${rahmen} button[aria-label='Aktionen für Übung Nord']`;
+
+/** Ein Eintrag des gerade offenen Menues. */
+function menueEintrag(text: string): HTMLElement {
+  const eintrag = Array.from(document.body.querySelectorAll<HTMLElement>("[role='menuitem']")).find(
+    (e) => e.textContent === text,
+  );
+  expect(eintrag, `kein Menueeintrag „${text}"`).toBeDefined();
+  return eintrag!;
 }
 
 /** Der Text einer Karte der schmalen Darstellung. */
@@ -296,13 +309,13 @@ describe("Punkt 4 — die Zeile zeigt Zustand, Menge und Datum", () => {
     expect(kartentext("sh-ohne")).toContain("7 / ∞");
   });
 
-  it("nennt den Passwortschutz mit Ja/Nein statt mit einem Symbol allein", async () => {
+  it("nennt den Passwortschutz mit Worten statt mit einem Symbol allein", async () => {
     await zeige([
       zeile({ id: "sh-mit", hatPasswort: true }),
       zeile({ id: "sh-ohne", hatPasswort: false }),
     ]);
-    expect(zeilentext(0)).toContain("Ja");
-    expect(zeilentext(1)).toContain("Nein");
+    expect(zeilentext(0)).toContain("mit Passwort");
+    expect(zeilentext(1)).toContain("ohne Passwort");
   });
 
   /**
@@ -350,25 +363,20 @@ describe("Punkt 4 — die Zeile zeigt Zustand, Menge und Datum", () => {
 describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
   it("führt „Bearbeiten“ auf `/shares/<id>/bearbeiten`", async () => {
     await zeige();
-    const link = query<HTMLAnchorElement>(
-      `${BREIT} [data-testid='files-share-bearbeiten-sh-aaaaaaaa']`,
-    );
+    await click(MENUE(BREIT));
+    const link = menueEintrag("Bearbeiten").querySelector("a");
     // Relativ und ohne Host: das Ziel liegt auf DEMSELBEN (Verwaltungs-)Host.
-    expect(link.getAttribute("href")).toBe("/shares/sh-aaaaaaaa/bearbeiten");
-    expect(
-      query<HTMLAnchorElement>(
-        `${SCHMAL} [data-testid='files-share-bearbeiten-sh-aaaaaaaa']`,
-      ).getAttribute("href"),
-    ).toBe("/shares/sh-aaaaaaaa/bearbeiten");
+    expect(link?.getAttribute("href")).toBe("/shares/sh-aaaaaaaa/bearbeiten");
   });
 
   it("nennt in der Löschen-Bestätigung Dateizahl UND Größe", async () => {
     await zeige();
-    expect(existsPortal(".ant-popconfirm")).toBe(false);
-    await click(`${BREIT} [data-testid='files-share-loeschen-sh-aaaaaaaa']`);
-    expect(existsPortal(".ant-popconfirm")).toBe(true);
+    expect(existsPortal(".ant-modal")).toBe(false);
+    await click(MENUE(BREIT));
+    await clickElement(menueEintrag("Löschen"));
+    expect(existsPortal(".ant-modal")).toBe(true);
 
-    const text = (document.body.querySelector(".ant-popconfirm")?.textContent ?? "").replace(
+    const text = (document.body.querySelector(".ant-modal")?.textContent ?? "").replace(
       /\s+/g,
       " ",
     );
@@ -382,13 +390,14 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
     await zeige();
     const loeschen = abschickenFuer(loeschenMock);
 
-    await click(`${BREIT} [data-testid='files-share-loeschen-sh-aaaaaaaa']`);
+    await click(MENUE(BREIT));
+    await clickElement(menueEintrag("Löschen"));
     expect(loeschen).not.toHaveBeenCalled();
 
     const bestaetigen = Array.from(
-      document.body.querySelectorAll<HTMLElement>(".ant-popconfirm .ant-btn"),
+      document.body.querySelectorAll<HTMLElement>(".ant-modal .ant-btn"),
     ).find((knopf) => knopf.textContent === "Löschen");
-    expect(bestaetigen, "kein Bestaetigungsknopf im Popconfirm").toBeDefined();
+    expect(bestaetigen, "kein Bestaetigungsknopf im Dialog").toBeDefined();
     await clickElement(bestaetigen!);
 
     expect(loeschen).toHaveBeenCalled();
@@ -400,7 +409,8 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
     await zeige();
     expect(existsPortal("[data-testid='files-share-qr-dialog']")).toBe(false);
 
-    await click(`${BREIT} [data-testid='files-share-qr-sh-aaaaaaaa']`);
+    await click(MENUE(BREIT));
+    await clickElement(menueEintrag("QR"));
     const dialog = document.body.querySelector("[data-testid='files-share-qr-dialog']");
     expect(dialog, "kein QR-Dialog").not.toBeNull();
     expect(
@@ -441,7 +451,8 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
     await zeige();
     expect(existsPortal("[data-testid='files-share-qr-dialog']")).toBe(false);
 
-    await click(`${SCHMAL} [data-testid='files-share-qr-sh-aaaaaaaa']`);
+    await click(MENUE(SCHMAL));
+    await clickElement(menueEintrag("QR"));
     expect(existsPortal("[data-testid='files-share-qr-dialog']")).toBe(true);
     expect(existsPortal("[data-testid='files-share-qr-png']")).toBe(true);
   });
@@ -466,11 +477,13 @@ describe("IDA-388 — Weg zur Detailseite und „Link kopieren“", () => {
     Object.defineProperty(navigator, "clipboard", { value: { writeText: schreibe }, configurable: true });
     await zeige();
 
-    await click(`${BREIT} [data-testid='files-share-kopieren-sh-aaaaaaaa']`);
+    await click(MENUE(BREIT));
+    await clickElement(menueEintrag("Link kopieren"));
     expect(schreibe).toHaveBeenCalledWith("https://dateien.example.test/s/sh-aaaaaaaa");
-    expect(query(`${BREIT} [data-testid='files-share-kopieren-sh-aaaaaaaa']`).textContent).toContain(
-      "Kopiert",
-    );
+    for (let i = 0; i < 40 && !existsPortal(".ant-message-notice"); i++) {
+      await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    }
+    expect(document.body.querySelector(".ant-message")?.textContent).toContain("Link kopiert.");
   });
 });
 
@@ -566,7 +579,7 @@ describe("Querschnittsregeln", () => {
    */
   it("setzt die Knöpfe der Karte in ihren Handlungsbereich", async () => {
     await zeige();
-    const knopf = query(`${SCHMAL} [data-testid='files-share-loeschen-sh-aaaaaaaa']`);
+    const knopf = query(MENUE(SCHMAL));
     expect(knopf.closest(`.${kartenStil.aktionen}`), "Knopf steht nicht im Handlungsbereich").not.toBeNull();
   });
 
@@ -618,8 +631,9 @@ describe("Sortierung und Filter stehen im Spaltenkopf", () => {
   }
 
   function titel(): string[] {
+    // Nur der Titel selbst, ohne die leise Zeile darunter (Typ · Passwort).
     return queryAll("tbody.ant-table-tbody tr.ant-table-row td:first-child").map((td) =>
-      (td.textContent ?? "").trim(),
+      (td.querySelector("span")?.childNodes[0]?.textContent ?? "").trim(),
     );
   }
 
@@ -635,14 +649,16 @@ describe("Sortierung und Filter stehen im Spaltenkopf", () => {
     expect(titel()).toEqual(["Klein", "Groß"]);
   });
 
-  it("filtert den Typ über den Spaltenkopf, mit den vorkommenden Werten", async () => {
+  /* Der Typ hat seit IDA-393 keine eigene Spalte mehr (er steht leise unter dem
+     Titel); derselbe Mechanismus — Werte aus den Zeilen — traegt „Erstellt von". */
+  it("filtert „Erstellt von“ über den Spaltenkopf, mit den vorkommenden Werten", async () => {
     await zeige([
-      zeile({ id: "sh-ordner", titel: "Ordner-Freigabe", typText: "Ordner" }),
-      zeile({ id: "sh-datei", titel: "Datei-Freigabe", typText: "Datei" }),
+      zeile({ id: "sh-ordner", titel: "Ordner-Freigabe", erstelltVonText: "Pia" }),
+      zeile({ id: "sh-datei", titel: "Datei-Freigabe", erstelltVonText: "Ben" }),
     ]);
 
-    const ausloeser = kopf("Typ").querySelector(".ant-table-filter-trigger");
-    expect(ausloeser, "kein Filter-Ausloeser an der Typ-Spalte").not.toBeNull();
+    const ausloeser = kopf("Erstellt von").querySelector(".ant-table-filter-trigger");
+    expect(ausloeser, "kein Filter-Ausloeser an der Spalte").not.toBeNull();
     await zeigerfolge(ausloeser as HTMLElement);
 
     const eintraege = Array.from(
@@ -650,7 +666,7 @@ describe("Sortierung und Filter stehen im Spaltenkopf", () => {
     );
     // AUS DEN ZEILEN, deutsch sortiert — keine gepflegte Liste, also auch keine
     // Option, die keine Zeile trifft.
-    expect(eintraege.map((li) => (li.textContent ?? "").trim())).toEqual(["Datei", "Ordner"]);
+    expect(eintraege.map((li) => (li.textContent ?? "").trim())).toEqual(["Ben", "Pia"]);
 
     await zeigerfolge(eintraege[1] as HTMLElement);
     await zeigerfolge(queryPortal(".ant-table-filter-dropdown-btns .ant-btn-primary"));

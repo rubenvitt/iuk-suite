@@ -145,3 +145,10 @@
     gap: 16px;
   }
 }
+
+/* Die leise zweite Zeile einer Zelle (Abgabelink unter der Zeit, Kategorie unter der Groesze). */
+.leise {
+  display: block;
+  color: var(--fi-muted);
+  font-size: 12px;
+}

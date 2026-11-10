@@ -132,11 +132,16 @@ function AvWiederholen({ fileId }: { fileId: string }) {
  * großzügig verbreitert. `table-layout` bleibt `auto` (keine Spalte trägt
  * `fixed`/`ellipsis`, `scroll.y` ist nicht gesetzt), die Verbreiterung nimmt
  * also keiner Nachbarspalte etwas weg — sie vergrößert nur die Summe.
+ *
+ * IDA-393: bei 1280px hat der Inhalt 984px, und die alte Summe (1020) ragte
+ * hinaus — die Aktionsspalte war abgeschnitten. Jetzt 880: Name 300, Größe 120
+ * („476,8 MiB" braucht keine 160), Zustand 260, Aktion 200 (der Knopf
+ * „Prüfung wiederholen" ist rund 170 breit, mit Zellenrand 194).
  */
-const SPALTE_NAME_PX = 340;
-const SPALTE_GROESSE_PX = 160;
-const SPALTE_ZUSTAND_PX = 280;
-const SPALTE_AKTION_PX = 240;
+const SPALTE_NAME_PX = 300;
+const SPALTE_GROESSE_PX = 120;
+const SPALTE_ZUSTAND_PX = 260;
+const SPALTE_AKTION_PX = 200;
 const DATEI_TABELLE_BREITE_PX =
   SPALTE_NAME_PX + SPALTE_GROESSE_PX + SPALTE_ZUSTAND_PX + SPALTE_AKTION_PX;
 
@@ -159,13 +164,6 @@ export function ShareDateienTabelle({ zeilen }: { zeilen: ShareDateiZeile[] }) {
         sorter: nachText<ShareDateiZeile>((zeile) => zeile.dateiname),
       },
       {
-        key: "groesse",
-        title: "Größe",
-        dataIndex: "groesseText",
-        width: SPALTE_GROESSE_PX,
-        sorter: nachZahl<ShareDateiZeile>((zeile) => zeile.groesseBytes),
-      },
-      {
         key: "zustand",
         title: "Zustand",
         width: SPALTE_ZUSTAND_PX,
@@ -178,9 +176,16 @@ export function ShareDateienTabelle({ zeilen }: { zeilen: ShareDateiZeile[] }) {
           </span>
         ),
       },
+      {
+        key: "groesse",
+        title: "Größe",
+        dataIndex: "groesseText",
+        width: SPALTE_GROESSE_PX,
+        sorter: nachZahl<ShareDateiZeile>((zeile) => zeile.groesseBytes),
+      },
       /* Die Aktion steht in einer EIGENEN Spalte, nicht in der Zustandszelle: der
-         Zustand ist ein Wert, der Knopf eine Handlung — dieselbe Trennung wie in
-         `_ui/PosteingangTabelle.tsx`. Die Zelle bleibt leer, wo es nichts zu tun
+         Zustand ist ein Wert, der Knopf eine Handlung (der Posteingang hat den Platz
+         nicht und stellt ihn unter den Zustand, IDA-393). Die Zelle bleibt leer, wo es nichts zu tun
          gibt; ein „—" behauptete einen Wert, den es hier nicht gibt. Und kein
          `sorter`: eine Spalte, in der fast jede Zelle leer ist, ordnet nichts. */
       {
