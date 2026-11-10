@@ -35,8 +35,9 @@ function verbinde(tag: Dayjs, uhr: Dayjs): number {
  * Zeitspalten: der passt auf dem Telefon nicht in die Breite (Ruben, 01.11.2026). Wer den Beginn
  * verschiebt, verschiebt das Ende mit, die Dauer bleibt.
  */
-export function Zeitfelder({ wert, onChange, ohneLeeren }: {
-  wert: Zeitraum; onChange: (w: Zeitraum) => void; ohneLeeren?: boolean;
+export function Zeitfelder({ wert, onChange, ohneLeeren, fehlerId }: {
+  /** `fehlerId`: Kennung der Fehlermeldung zum Zeitraum; gesetzt, gelten die Eingaben als ungültig. */
+  wert: Zeitraum; onChange: (w: Zeitraum) => void; ohneLeeren?: boolean; fehlerId?: string;
 }) {
   const beruehrung = useBeruehrung();
   const von = wert.von === null ? null : alsDayjs(wert.von);
@@ -60,6 +61,7 @@ export function Zeitfelder({ wert, onChange, ohneLeeren }: {
     allowClear: !ohneLeeren,
     onKeyDown: enterUebernimmtNurDasFeld,
     style: { width: "100%" },
+    ...(fehlerId ? { status: "error" as const, "aria-invalid": true, "aria-describedby": fehlerId } : {}),
   };
   const uhrzeit = { format: "HH:mm", minuteStep: RASTER_MIN, needConfirm: false, showNow: false, allowClear: false } as const;
 
