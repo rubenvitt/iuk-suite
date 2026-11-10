@@ -129,16 +129,17 @@ export function TeilnehmerTabelle({ zeilen }: { zeilen: TeilnehmerZeile[] }) {
   const [sortierung, setSortierung] = useState<SortZustand>({});
 
   function kopieren(text: string, markierung: string, melden = false): void {
-    navigator.clipboard?.writeText(text).then(
+    // Seit IDA-393 steht der Link nicht mehr in der Zeile: geht Kopieren nicht, nennt ihn die Meldung.
+    const nennen = () => { if (melden) void message.info({ content: `Kopieren ging nicht. Link: ${text}`, duration: 15 }); };
+    if (!navigator.clipboard) { nennen(); return; }
+    navigator.clipboard.writeText(text).then(
       () => {
         // Aus dem Menü heraus gibt es keinen Knopf, der „Kopiert" zeigen könnte — dort meldet es die Nachricht.
         if (melden) message.success("Link kopiert.");
         setKopiert(markierung);
         window.setTimeout(() => setKopiert((m) => (m === markierung ? null : m)), 1800);
       },
-      () => {
-        /* Zwischenablage ohne Berechtigung — Text bleibt in der Zeile sichtbar. */
-      },
+      nennen,
     );
   }
 

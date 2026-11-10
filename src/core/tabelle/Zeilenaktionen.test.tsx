@@ -6,7 +6,7 @@ import { mount, unmount } from "@/app/m/qr/_lib/test-dom";
 import { Zeilenaktionen } from "./Zeilenaktionen";
 import { Datentabelle } from "./Datentabelle";
 import { aktionsSpalte } from "./aktionsspalte";
-import { kuerze } from "./Kurzkennung";
+import { kuerze } from "./kuerzen";
 
 /*
  * Die Wirkung — die Zeile bleibt bei 1280px in ihrem Rahmen — misst nur ein echter Browser

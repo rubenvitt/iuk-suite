@@ -13,6 +13,7 @@
 import { App, Button } from "antd";
 import { Icons8Ikone } from "../ikonen/Icons8Ikone";
 import { SCHRIFT } from "../theme/schrift";
+import { kuerze } from "./kuerzen";
 
 export type KurzkennungProps = {
   /** Was kopiert wird — der ganze Wert. */
@@ -28,10 +29,6 @@ export type KurzkennungProps = {
   /** Mit `href`: der gekürzte Wert ist ein Link. */
   href?: string;
 };
-
-export function kuerze(text: string, zeichen: number): string {
-  return text.length > zeichen + 1 ? `${text.slice(0, zeichen)}…` : text;
-}
 
 export function Kurzkennung({ wert, anzeige, zeichen = 12, was, kopiert, href }: KurzkennungProps) {
   const { message } = App.useApp();

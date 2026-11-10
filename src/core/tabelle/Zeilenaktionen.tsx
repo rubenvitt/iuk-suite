@@ -21,7 +21,7 @@
  */
 
 import { useRef, useState, type ReactNode } from "react";
-import { Button, Dropdown, Modal, type MenuProps } from "antd";
+import { App, Button, Dropdown, Modal, type MenuProps } from "antd";
 import { Icons8Ikone, type Icons8Name } from "../ikonen/Icons8Ikone";
 
 export type Zeilenaktion = {
@@ -66,14 +66,24 @@ function Ziel({ aktion }: { aktion: Zeilenaktion }) {
 }
 
 export function Zeilenaktionen({ name, aktionen, haupt, laeuft = false }: ZeilenaktionenProps) {
+  const { message } = App.useApp();
   const [frage, setFrage] = useState<Zeilenaktion | null>(null);
   const knopf = useRef<HTMLButtonElement>(null);
   const sichtbar = aktionen.filter((a) => a.sichtbar !== false);
   const hauptSichtbar = haupt && haupt.sichtbar !== false ? haupt : undefined;
 
+  // Eine Aktion, die wirft (Netz weg, Recht entzogen), meldet sich, statt still liegen zu bleiben.
+  const starte = async (a: Zeilenaktion) => {
+    try {
+      await a.onClick?.();
+    } catch {
+      void message.error(`„${a.label}“ ging nicht. Bitte die Seite neu laden.`);
+    }
+  };
+
   const ausfuehren = (a: Zeilenaktion) => {
     if (a.bestaetigen) setFrage(a);
-    else void a.onClick?.();
+    else void starte(a);
   };
 
   const einzelknopf = (a: Zeilenaktion) => (
@@ -142,7 +152,7 @@ export function Zeilenaktionen({ name, aktionen, haupt, laeuft = false }: Zeilen
         cancelText="Abbrechen"
         okButtonProps={{ danger: frage?.danger }}
         focusable={{ focusTriggerAfterClose: false }}
-        onOk={() => { const a = frage; setFrage(null); if (a) void a.onClick?.(); }}
+        onOk={() => { const a = frage; setFrage(null); if (a) void starte(a); }}
         onCancel={() => setFrage(null)}
         afterClose={() => { if (fokusVerloren()) knopf.current?.focus(); }}
         destroyOnHidden
