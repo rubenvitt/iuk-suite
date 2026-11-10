@@ -41,6 +41,7 @@
 .filter { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 8px 12px; align-items: center; }
 
 .textGelb { color: var(--vl-gelb-text); }
+.textRot { color: var(--vl-rot-text); }
 
 .zwei { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (min-width: 768px) {
@@ -52,6 +53,12 @@
 .zeilen > li + li { border-top: 1px solid var(--iuk-linie); }
 .zeile { display: flex; justify-content: space-between; align-items: center; gap: 6px 12px; flex-wrap: wrap; padding: 10px 0; text-decoration: none; color: inherit; }
 .zeile > div { min-width: 0; overflow-wrap: anywhere; }
+
+/* Bestand je Artikel (IDA-382): Karte am Telefon wie `core/tabelle/spaltenkarte.module.css`, Chargenzeilen darin
+   und in der aufgeklappten Tabellenzeile. */
+.karte { border: 1px solid var(--iuk-linie); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.charge { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+.menge { min-width: 7ch; }
 
 /* QR */
 .qr { width: 160px; height: 160px; background: #fff; padding: 6px; border-radius: 4px; }

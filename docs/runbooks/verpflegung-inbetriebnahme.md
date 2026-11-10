@@ -8,7 +8,7 @@ Lagerbuch. Gebucht wird am Telefon: EAN der Packung scannen, Lagerort über den 
 | Wer | Wie | Was |
 | --- | --- | --- |
 | Helfer ohne Konto | Helfer-Link `/t/<code>` (Link oder QR, von der Verwaltung angelegt) | am Telefon (`/h`) einbuchen, ausgeben, aussondern, unbekannte Packung vorläufig anlegen; jede Buchung trägt „Helfer-Link &lt;Anlass&gt;“ |
-| Zugang | Pocket-ID-Gruppe `verpflegung-nutzer` (`SUITE_ACCESS_GROUP_VERPFLEGUNG`) | dazu Verwaltung: Übersicht, Bestand, MHD-Kontrolle, Buchungen, Artikel (auch vorläufige prüfen) |
+| Zugang | Pocket-ID-Gruppe `verpflegung-nutzer` (`SUITE_ACCESS_GROUP_VERPFLEGUNG`) | dazu Verwaltung: Übersicht, Bestand (mit MHD-Stufen, Ein- und Ausgang), Buchungen, Artikel (auch vorläufige prüfen) |
 | Admin | `verpflegung-admin` (`SUITE_ADMIN_GROUP_VERPFLEGUNG`; der Suite-Admin zählt mit) | dazu Lagerorte, Ortsetiketten und Helfer-Links |
 
 Ein Helfer-Link gilt bis zu einer Woche; die Sitzung am Telefon höchstens 12 Stunden, danach den Link neu
