@@ -29,6 +29,9 @@ export function Feld({ titel, hilfe, fehler, children }: { titel: string; hilfe?
   );
 }
 
+/** Die Feldfehler ohne die genannten Felder — eine Meldung verschwindet, sobald das Feld ausgefüllt ist. */
+const ohne = (f: FeldFehler, ...felder: string[]): FeldFehler => Object.fromEntries(Object.entries(f).filter(([k]) => !felder.includes(k)));
+
 /** Führt eine Action aus und meldet den Fehlersatz; gibt das Ergebnis oder `null` zurück. */
 async function senden<T>(aufruf: () => Promise<ActionErgebnis<T>>, setFehler: (f: FeldFehler) => void, warnen: (t: string) => void): Promise<T | null> {
   try {
@@ -109,14 +112,14 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
   return (
     <div>
       <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
-      <Feld titel="Name" fehler={fehler.name}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Stadtfest Uelzen" maxLength={120} /></Feld>
+      <Feld titel="Name" fehler={fehler.name}><Input value={name} onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setFehler((f) => ohne(f, "name")); }} placeholder="z. B. Stadtfest Uelzen" maxLength={120} /></Feld>
       <Feld titel="Art">
         <Radio.Group value={art} onChange={(e) => setArt(e.target.value as PlanungArt)} options={[{ value: "veranstaltung", label: "Veranstaltung" }, { value: "lage", label: "Lage" }]} />
       </Feld>
       <Feld titel="Ort" fehler={fehler.ort}><Input value={ort} onChange={(e) => setOrt(e.target.value)} maxLength={120} /></Feld>
       <div className={s.feld} role="group" aria-label="Zeitraum">
         <span className={s.feldTitel}>Zeitraum</span>
-        <Zeitfelder wert={zeitraum} onChange={setZeitraum} />
+        <Zeitfelder wert={zeitraum} onChange={(z) => { setZeitraum(z); if (z.von !== null && z.bis !== null) setFehler((f) => ohne(f, "von", "bis")); }} />
         {fehler.bis ?? fehler.von ? <span className={s.feldFehler} role="alert">{fehler.bis ?? fehler.von}</span> : <span className={s.neben}>{planung ? "Bestehende Schichten müssen im neuen Zeitraum liegen." : "Höchstens 14 Tage."}</span>}
       </div>
       {planung ? null : (

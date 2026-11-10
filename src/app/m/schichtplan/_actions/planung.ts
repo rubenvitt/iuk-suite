@@ -94,11 +94,14 @@ export async function einheitVerschiebenAction(planId: string, einheitId: string
 
 // ── Schichten ──────────────────────────────────────────────────────────────
 
-export async function schichtAnlegenAction(planId: string, einheitId: string, zeit: unknown): Promise<ActionErgebnis<PlanungDTO>> {
+/** Liefert mit dem Stand die Kennung der neuen Schicht — für „Rückgängig“ (IDA-385). */
+export async function schichtAnlegenAction(planId: string, einheitId: string, zeit: unknown): Promise<ActionErgebnis<{ planung: PlanungDTO; schichtId: string }>> {
   if (!idSchema.safeParse(einheitId).success) return { ok: false, fehler: UNGUELTIG };
   const z = felder(schichtZeitEingabe, zeit);
   if (!z.ok) return z;
-  return aendere(planId, (id) => { legeSchichtAn(getDb(), id, einheitId, z.wert); });
+  let schichtId = "";
+  const r = await aendere(planId, (id) => { schichtId = legeSchichtAn(getDb(), id, einheitId, z.wert); });
+  return r.ok ? { ok: true, wert: { planung: r.wert, schichtId } } : r;
 }
 
 /** Neue Zeit; mit `einheitId` in eine andere Zeile derselben Planung. */

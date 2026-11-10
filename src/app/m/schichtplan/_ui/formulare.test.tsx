@@ -76,6 +76,8 @@ describe("PlanungFormular und EinheitFormular (Modus 2)", () => {
     const meldungen = Array.from(document.querySelectorAll("[role='alert']")).map((x) => x.textContent);
     expect(meldungen).toEqual(expect.arrayContaining(["Bitte einen Namen eintragen.", "Bitte Beginn und Ende wählen."]));
     expect(planungSpeichernAction).not.toHaveBeenCalled();
+    await fillElement(felder()[0]!, "Stadtfest");
+    expect(Array.from(document.querySelectorAll("[role='alert']")).map((x) => x.textContent)).not.toContain("Bitte einen Namen eintragen.");
   });
 
   it("ein Abschnitt stellt seinen Namen je Planung wieder her", async () => {

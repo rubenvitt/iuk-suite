@@ -97,8 +97,11 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
   }
 
   /** IDA-385: Jede Änderung per Ziehen meldet sich und lässt sich mit einem Klick zurücknehmen. */
-  function meldeMitRueckgaengig(text: string, zurueck: () => void) {
-    const key = `rueckgaengig-${Date.now()}`;
+  // Je Gegenstand (Schicht oder Person) gilt nur die letzte Meldung: eine neuere Änderung ersetzt oder
+  // schließt sie, sonst stellte ein veraltetes „Rückgängig“ einen Stand her, den es so nie gab.
+  const meldung = (gegenstand: string) => `rueckgaengig-${gegenstand}`;
+  function meldeMitRueckgaengig(gegenstand: string, text: string, zurueck: () => void) {
+    const key = meldung(gegenstand);
     void message.open({
       key, type: "success", duration: 8,
       content: (
@@ -113,7 +116,8 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
   const aktionen = {
     zuteilen: (sid: string, k: string, aus?: string) => {
       const { quelle, helferId } = teile(k);
-      aendere(
+      message.destroy(meldung(k));
+      return aendere(
         (q) => ({
           ...q,
           zuordnungen: [
@@ -126,23 +130,39 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     },
     austragen: (sid: string, k: string) => {
       const { quelle, helferId } = teile(k);
-      aendere(
+      message.destroy(meldung(k));
+      return aendere(
         (q) => ({ ...q, zuordnungen: q.zuordnungen.filter((z) => !(z.schichtId === sid && z.quelle === quelle && z.helferId === helferId)) }),
         () => austragenAction(p.id, { schichtId: sid, quelle, helferId }),
       );
     },
-    schichtSetzen: (sid: string, von: number, bis: number, einheitId?: string) => aendere(
-      (q) => ({ ...q, schichten: q.schichten.map((x) => (x.id === sid ? { ...x, von, bis, einheitId: einheitId ?? x.einheitId } : x)) }),
-      () => schichtSetzenAction(p.id, sid, { von, bis }, einheitId),
-    ),
-    schichtAnlegen: (einheitId: string, von: number, bis: number) => aendere(
-      (q) => ({ ...q, schichten: [...q.schichten, { id: `entwurf-${von}-${einheitId}`, einheitId, von, bis }] }),
-      () => schichtAnlegenAction(p.id, einheitId, { von, bis }),
-    ),
-    schichtLoeschen: (sid: string) => aendere(
-      (q) => ({ ...q, schichten: q.schichten.filter((x) => x.id !== sid), zuordnungen: q.zuordnungen.filter((z) => z.schichtId !== sid) }),
-      () => schichtLoeschenAction(p.id, sid),
-    ),
+    schichtSetzen: (sid: string, von: number, bis: number, einheitId?: string) => {
+      message.destroy(meldung(sid));
+      return aendere(
+        (q) => ({ ...q, schichten: q.schichten.map((x) => (x.id === sid ? { ...x, von, bis, einheitId: einheitId ?? x.einheitId } : x)) }),
+        () => schichtSetzenAction(p.id, sid, { von, bis }, einheitId),
+      );
+    },
+    /** Liefert die Kennung der neuen Schicht, oder `null`, wenn sie nicht angelegt wurde. */
+    schichtAnlegen: async (einheitId: string, von: number, bis: number): Promise<string | null> => {
+      let neu: string | null = null;
+      await aendere(
+        (q) => ({ ...q, schichten: [...q.schichten, { id: `entwurf-${von}-${einheitId}`, einheitId, von, bis }] }),
+        () => schichtAnlegenAction(p.id, einheitId, { von, bis }).then((r) => {
+          if (!r.ok) return r;
+          neu = r.wert.schichtId;
+          return { ok: true as const, wert: r.wert.planung };
+        }),
+      );
+      return neu;
+    },
+    schichtLoeschen: (sid: string) => {
+      message.destroy(meldung(sid));
+      return aendere(
+        (q) => ({ ...q, schichten: q.schichten.filter((x) => x.id !== sid), zuordnungen: q.zuordnungen.filter((z) => z.schichtId !== sid) }),
+        () => schichtLoeschenAction(p.id, sid),
+      );
+    },
   };
 
   // Was das Raster per Ziehen auslöst, mit Meldung und „Rückgängig“; Flyin und Knöpfe nehmen `aktionen`.
@@ -151,28 +171,28 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     zuteilen: (sid, k, aus) => {
       const sch = p.schichten.find((x) => x.id === sid);
       const h = helfer.find((x) => x.schluessel === k);
-      aktionen.zuteilen(sid, k, aus);
-      if (!sch || !h) return;
-      meldeMitRueckgaengig(
-        `${name(h)} eingeteilt: ${einheitVon(sid)?.name ?? ""} ${zeitspanne(sch.von, sch.bis)}`,
-        () => (aus ? aktionen.zuteilen(aus, k, sid) : aktionen.austragen(sid, k)),
-      );
+      void aktionen.zuteilen(sid, k, aus).then((ok) => {
+        if (!ok || !sch || !h) return;
+        meldeMitRueckgaengig(
+          k, `${name(h)} eingeteilt: ${einheitVon(sid)?.name ?? ""} ${zeitspanne(sch.von, sch.bis)}`,
+          () => void (aus ? aktionen.zuteilen(aus, k, sid) : aktionen.austragen(sid, k)),
+        );
+      });
     },
     schichtSetzen: (sid, von, bis, einheitId) => {
       const alt = p.schichten.find((x) => x.id === sid);
-      aktionen.schichtSetzen(sid, von, bis, einheitId);
-      if (!alt) return;
       const wohin = einheitId ? ` · ${p.einheiten.find((e) => e.id === einheitId)?.name ?? ""}` : "";
-      meldeMitRueckgaengig(
-        `${bis - von === alt.bis - alt.von ? "Verschoben auf" : "Geändert auf"} ${zeitspanne(von, bis)}${wohin}`,
-        () => aktionen.schichtSetzen(alt.id, alt.von, alt.bis, einheitId ? alt.einheitId : undefined),
-      );
+      void aktionen.schichtSetzen(sid, von, bis, einheitId).then((ok) => {
+        if (!ok || !alt) return;
+        meldeMitRueckgaengig(
+          sid, `${bis - von === alt.bis - alt.von ? "Verschoben auf" : "Geändert auf"} ${zeitspanne(von, bis)}${wohin}`,
+          () => void aktionen.schichtSetzen(alt.id, alt.von, alt.bis, einheitId ? alt.einheitId : undefined),
+        );
+      });
     },
     schichtAnlegen: (einheitId, von, bis) => {
-      const vorher = new Set(p.schichten.map((x) => x.id));
-      void aktionen.schichtAnlegen(einheitId, von, bis).then((neu) => {
-        const id = neu?.schichten.find((x) => !vorher.has(x.id) && x.einheitId === einheitId)?.id;
-        if (id) meldeMitRueckgaengig(`Schicht ${zeitspanne(von, bis)} angelegt`, () => aktionen.schichtLoeschen(id));
+      void aktionen.schichtAnlegen(einheitId, von, bis).then((id) => {
+        if (id) meldeMitRueckgaengig(id, `Schicht ${zeitspanne(von, bis)} angelegt`, () => void aktionen.schichtLoeschen(id));
       });
     },
   };
