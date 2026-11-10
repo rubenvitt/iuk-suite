@@ -176,6 +176,29 @@ describe("vorgangsZeilen — der Server bestimmt den Vorgang", () => {
     expect(bestand("rtw")).toBe(5);
   });
 
+  it("zwei alte Entnahmen derselben Sekunde werden nicht zusammen gegengebucht", () => {
+    const ent = (id: string, menge: number) => ({ id, ts: JETZT, typ: "entnahme" as const,
+      artikelId: "a1", chargeId: "c1", lagerortId: HANDLAGER_ID, menge, quelleTyp: "token" as const,
+      quelleId: "482-137", referenz: null, kommentar: null });
+    t.db.insert(buchungen).values([ent("ent-a", -2), ent("ent-b", -3)]).run();
+    expect(() => inTx((tx) => gegenbuchen(tx, { zeilen: vorgangsZeilen(tx, "ent-a"), quelle: ADMIN })))
+      .toThrow(BuchungAbgewiesen);
+    expect(bestand(HANDLAGER_ID)).toBe(10 - 5);
+  });
+
+  it("eine neue Umlagerung derselben Sekunde faellt aus der Klammer einer alten", () => {
+    const leg = (id: string, ort: string, menge: number) => ({ id, ts: JETZT, typ: "umlagerung" as const,
+      artikelId: "a1", chargeId: "c1", lagerortId: ort, menge, quelleTyp: "oidc" as const, quelleId: "u1",
+      referenz: "umlagerung:rtw", kommentar: null });
+    t.db.insert(buchungen).values([
+      leg(`${S1}:0`, HANDLAGER_ID, -3), leg(`${S1}:1`, "rtw", 3),
+      leg("um-alt-1", HANDLAGER_ID, -2), leg("um-alt-2", "rtw", 2),
+    ]).run();
+    expect(vorgangsZeilen(t.db, "um-alt-1").map((z) => z.id).sort()).toEqual(["um-alt-1", "um-alt-2"]);
+    inTx((tx) => gegenbuchen(tx, { zeilen: vorgangsZeilen(tx, "um-alt-1"), quelle: ADMIN }));
+    expect(bestand("rtw")).toBe(3);
+  });
+
   it("eine alte Umlagerung allein bleibt gegenbuchbar", () => {
     t.db.insert(buchungen).values([
       { id: "um-1", ts: JETZT, typ: "umlagerung", artikelId: "a1", chargeId: "c1", lagerortId: HANDLAGER_ID,

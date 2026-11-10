@@ -65,21 +65,29 @@ export function vorgangsZeilen(db: DB | Tx, zeilenId: string): SendungsZeile[] {
     // der Bereich schliesst sie zusaetzlich am Schluessel aus.
     // (`:` ist 0x3A, `;` 0x3B — dieselbe Bereichsform wie `zeilenDerSendung`.)
     or(lt(buchungen.id, STORNO_PRAEFIX), gte(buchungen.id, "storno;")),
-  )).all();
+  )).all()
+    // Zeilen mit Vorgangskennung gehoeren zu ihrem eigenen Vorgang, nie in die
+    // Klammer einer Altzeile derselben Sekunde.
+    .filter((z) => !SENDUNGS_ZEILE.test(z.id));
 }
 
 /**
- * ⚠️ EINE ALTE UMLAGERUNG DER VERWALTUNG HAT GENAU ZWEI ZEILEN (eine Charge,
- * ein Quellort, ein Ziel). Findet die Klammer in `vorgangsZeilen` mehr, liegen
- * zwei Umlagerungen derselben Sekunde darin, und welche gemeint war, ist nicht
- * mehr zu sagen. Neue Umlagerungen tragen eine Vorgangskennung
- * (`bucheUmlagerung`) und sind nie mehrdeutig.
+ * ⚠️ NUR ALTZEILEN OHNE VORGANGSKENNUNG KOENNEN MEHRDEUTIG SEIN. Ihre Klammer
+ * in `vorgangsZeilen` faengt zwei Vorgaenge derselben Sekunde gemeinsam ein.
+ * Zwei Faelle sind sicher erkennbar:
+ * - Ein Abbuch-Vorgang schreibt je Charge und Ort hoechstens eine Zeile
+ *   (`abbuchen`, ein Teil je Charge). Steht ein Paar doppelt da, sind es zwei.
+ * - Eine alte Umlagerung der Verwaltung hat genau zwei Zeilen (eine Charge,
+ *   ein Quellort, ein Ziel). Mehr sind zwei Umlagerungen.
+ * Welche gemeint war, ist dann nicht mehr zu sagen; neue Vorgaenge tragen eine
+ * Kennung (`<uuid>:n`) und kommen hier nie an.
  */
 export function vorgangMehrdeutig(zeilen: readonly SendungsZeile[]): boolean {
-  if (zeilen.length <= 2) return false;
+  if (zeilen.length <= 1 || zeilen.some((z) => SENDUNGS_ZEILE.test(z.id))) return false;
+  const paare = new Set(zeilen.map((z) => `${z.chargeId}|${z.lagerortId}`));
+  if (paare.size < zeilen.length) return true;
   const erste = zeilen[0]!;
-  if (SENDUNGS_ZEILE.test(erste.id)) return false;
-  return erste.typ === "umlagerung" && (erste.referenz ?? "").startsWith("umlagerung:");
+  return zeilen.length > 2 && erste.typ === "umlagerung" && (erste.referenz ?? "").startsWith("umlagerung:");
 }
 
 /** Ist zu einer dieser Zeilen schon eine Gegenzeile gebucht? */
@@ -110,7 +118,7 @@ export function gegenbuchen(
     throw new BuchungAbgewiesen("Dieser Vorgang lässt sich nicht gegenbuchen.");
   }
   if (vorgangMehrdeutig(zeilen)) {
-    throw new BuchungAbgewiesen("Hier liegen zwei Umlagerungen in derselben Sekunde. Gleiche den Bestand mit einer Korrektur aus.");
+    throw new BuchungAbgewiesen("Hier liegen zwei Vorgänge in derselben Sekunde. Gleiche den Bestand mit einer Korrektur aus.");
   }
   if (schonGegengebucht(tx, zeilen)) {
     throw new BuchungAbgewiesen("Dieser Vorgang ist schon gegengebucht.");
