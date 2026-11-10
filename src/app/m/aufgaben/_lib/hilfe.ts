@@ -227,6 +227,13 @@ export interface HilfeSicht {
   /** Kapitel, die als naechstes helfen. */
   verweise: readonly SichtSchluessel[];
   /**
+   * DER SATZ STATT „Sicht öffnen", wo `sichtbar` fuer die lesende Person `false` sagt (IDA-386):
+   * das Kapitel bleibt lesbar (s. `hilfe/[sicht]/page.tsx`), der Verweis darauf fiele aber auf
+   * 404 bzw. auf einen anderen Einstieg unter `/`. Pflicht fuer jede Sicht mit Rollen-Gate —
+   * `hilfe.test.ts` prueft das gegen alle Rollen.
+   */
+  nurFuer?: string;
+  /**
    * WER DAS KAPITEL IN SEINER UEBERSICHT SIEHT — aus den Praedikaten von `_lib/zugang.ts`,
    * nie aus einer eigenen Rollenabfrage (s. Kopfkommentar).
    */
@@ -362,6 +369,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["zeitplan", "routinen", "aufgabe", "einstellen"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "meine-woche",
+    nurFuer: "Diese Sicht haben nur BuFDis.",
   },
 
   verteilung: {
@@ -458,6 +466,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["verteilen", "freigaben", "personen", "aufgabe"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "verteilung",
+    nurFuer: "Diese Sicht hat nur die Koordination.",
   },
 
   "meine-auftraege": {
@@ -534,6 +543,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["einstellen", "freigaben", "aufgabe", "archiv"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "meine-auftraege",
+    nurFuer: "Diese Sicht haben nur Auftraggeber.",
   },
 
   // ─── Die adressierbaren Sichten ───────────────────────────────────────────────────────────────
@@ -696,6 +706,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["verteilung", "aufgabe", "personen"],
     sichtbar: darfVerteilen,
+    nurFuer: "Diese Sicht hat nur die Koordination.",
   },
 
   freigaben: {
@@ -767,6 +778,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["aufgabe", "verteilung", "meine-auftraege"],
     sichtbar: darfFreigabenSehen,
+    nurFuer: "Diese Sicht haben nur Auftraggeber und die Koordination.",
   },
 
   routinen: {
@@ -828,6 +840,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["meine-woche", "zeitplan"],
     sichtbar: darfRoutinenVerwalten,
+    nurFuer: "Diese Sicht haben nur BuFDis.",
   },
 
   personen: {
@@ -899,6 +912,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     ],
     verweise: ["verteilung", "verteilen"],
     sichtbar: darfPersonenVerwalten,
+    nurFuer: "Diese Sicht hat nur die Koordination.",
   },
 
   zeitplan: {
@@ -1145,11 +1159,17 @@ export function sichtFuerSchluessel(wert: string | undefined): HilfeSicht | null
 /**
  * DIE ADRESSE, AUF DIE EIN KAPITEL VERWEIST — oder `null`, wenn es keine gibt.
  *
+ * `null` AUCH, WO DIE SICHT DIESER PERSON NICHT OFFENSTEHT (IDA-386): dasselbe `sichtbar` wie fuer
+ * das Verzeichnis, also dieselben Praedikate aus `_lib/zugang.ts` wie das Gate der Route — vorher
+ * stand „Sicht öffnen" auf jedem Kapitel und fuehrte z. B. die Koordination auf `/routinen` (404).
+ * Das Kapitel zeigt dann `nurFuer` statt des Verweises.
+ *
  * `eigenerPlan` LOEST AUF DIE LESENDE PERSON AUF und nie auf eine andere: eine Anleitung, die auf
  * einen fremden Zeitplan zeigt, zeigt auf eine Seite, auf der die lesende Person nichts tun kann
  * (`darfPlanAendern` misst die eigene Id) — richtig waere sie, nuetzlich nicht.
  */
-export function zielHref(sicht: HilfeSicht, akteur: Akteur): string | null {
+export function zielHref(sicht: HilfeSicht, akteur: Akteur, heute: string): string | null {
+  if (!sicht.sichtbar(akteur, heute)) return null;
   switch (sicht.ziel.art) {
     case "fest":
       return sicht.ziel.href;
