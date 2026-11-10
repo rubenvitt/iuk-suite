@@ -1,7 +1,7 @@
 "use client";
 
 // src/app/m/radio/admin/(arbeit)/zugaenge/CodeTabelle.tsx
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Modal, Popconfirm, Space, Tag, type TableColumnType } from "antd";
 import { Kartentabelle, nachDatum, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
@@ -189,7 +189,7 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
   const [name, setName] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [offen, setOffen] = useState(false);
-  const [legtAn, setLegtAn] = useState(false);
+  const [legtAn, setLegtAn] = useState(false); const anlegenLaeuft = useRef(false);
   /*
    * ⛔ EIN SAMMELZUSTAND FUER DIE GANZE TABELLE, UND DAS IST GEWOLLT (REVIEW-V20, N5,
    * benannt in Fix-Runde 1): waehrend eine Zeile schaltet, zeigt JEDE Zeile den Spinner und
@@ -214,8 +214,8 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
      * `_actions/` ohnehin oeffnet.
      */
     const sauber = name.trim();
-    if (sauber === "") return;
-    setLegtAn(true);
+    if (sauber === "" || anlegenLaeuft.current) return;
+    anlegenLaeuft.current = true; setLegtAn(true);
     setFehler(null);
     try {
       await erstelleCode(sauber);
@@ -231,7 +231,7 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
        */
       setFehler(CODE_TEXTE.fehlerAnlegen);
     } finally {
-      setLegtAn(false);
+      anlegenLaeuft.current = false; setLegtAn(false);
     }
   };
 
