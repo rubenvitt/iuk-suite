@@ -1,11 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin, E2E_PORT, oeffneMenue, warteAufGestreamteInhalte } from "./fixtures";
+import { devLogin, oeffneMenue, warteAufGestreamteInhalte } from "./fixtures";
 
 /**
  * IDA-391, Teil C: Startseite, Suche und Kopf des Portals am Telefon und am Schreibtisch.
  * Was jsdom nicht sieht — Umbruch, Media Queries, die Kopfzeile am Telefon —, misst dieser Lauf.
  */
-const PORTAL = `http://portal.localtest.me:${E2E_PORT}`;
 
 /** Kacheltitel, in denen ein Wort über zwei Zeilen läuft — also mitten im Wort getrennt ist. */
 async function getrennteWoerter(page: Page): Promise<string[]> {
@@ -55,7 +54,6 @@ test.describe("am Telefon (390px, Touch)", () => {
 
   test("der Kopf nennt auf dem Profil „Profil“, nicht „Übersicht“", async ({ page }) => {
     await devLogin(page, { host: "portal.localtest.me", groups: "", callbackPath: "/profil" });
-    await page.goto(`${PORTAL}/profil`);
     await warteAufGestreamteInhalte(page);
     const ort = page.getByTestId("menue-knopf");
     await expect(ort).toContainText("Profil");

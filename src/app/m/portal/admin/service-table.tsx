@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Button, Dropdown, Modal } from "antd";
+import { Alert, Button, Dropdown, Modal } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Kartentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 import { deleteServiceAction } from "@/app/m/portal/actions";
@@ -71,16 +71,24 @@ export function ServiceTable({
   const [aktion, setAktion] = useState<Aktion | null>(null);
   const [oeffnung, setOeffnung] = useState(0);
   const [loescht, setLoescht] = useState(false);
+  const [loeschFehler, setLoeschFehler] = useState(false);
   const ausloeser = useRef<HTMLElement | null>(null);
-  const schliessen = () => setAktion(null);
+  const schliessen = () => {
+    setLoeschFehler(false);
+    setAktion(null);
+  };
 
   async function loeschen(dienst: ServiceRow) {
     setLoescht(true);
+    setLoeschFehler(false);
     try {
       const daten = new FormData();
       daten.set("id", dienst.id);
       await deleteServiceAction(daten);
-      setAktion(null);
+      schliessen();
+    } catch {
+      // Datenbankfehler oder abgelaufene Sitzung: der Dialog bleibt offen und sagt es.
+      setLoeschFehler(true);
     } finally {
       setLoescht(false);
     }
@@ -194,7 +202,10 @@ export function ServiceTable({
       }}
       onCancel={schliessen}
     >
-      Die Kachel verschwindet für alle. Das lässt sich nicht rückgängig machen.
+      <p style={{ marginBlock: 0 }}>Die Kachel verschwindet für alle. Das lässt sich nicht rückgängig machen.</p>
+      {loeschFehler ? (
+        <Alert type="error" showIcon title="Der Dienst ließ sich nicht löschen." data-testid="dienst-loeschen-fehler" style={{ marginBlockStart: 12 }} />
+      ) : null}
     </Modal>
     </div>
   );

@@ -54,7 +54,12 @@ export function NeuigkeitenListe({
 
   // Sprungmarke auf eine Notiz, die nicht auf der ersten Seite steht: bis dorthin nachladen.
   useEffect(() => {
-    const slug = decodeURIComponent(window.location.hash.slice(1));
+    let slug = "";
+    try {
+      slug = decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return; // kaputte Prozent-Kodierung in der Adresszeile: wie keine Sprungmarke
+    }
     if (!slug || erste.eintraege.some((n) => n.slug === slug)) return;
     const nr = ++anfrage.current;
     ladeNeuigkeitenAction(ALLE_APPS, 0, slug).then((seite) => {
