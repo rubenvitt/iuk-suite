@@ -148,7 +148,7 @@ test("Lager einrichten, mit Zugangscode am Telefon buchen, Buchungen in der Verw
   await handy.goto(url("/h"));
   await expect(handy.locator('[data-rolle="kein-zugang"]')).toHaveText("Kein Zugang.");
   await handy.goto(adresse);
-  await expect(handy.locator('[data-rolle="kein-zugang"]')).toHaveText("Dieser Link gilt nicht mehr.");
+  await expect(handy.locator('[data-rolle="kein-zugang"]')).toHaveText("Dieser Zugangscode gilt nicht mehr.");
   await handyKontext.close();
 });
 
