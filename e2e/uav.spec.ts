@@ -202,7 +202,10 @@ test("anonym führen beide Wege irgendwohin: Code-Feld und Verwaltung (Check 10)
   // wieder auf der Trainingsansicht.
   const verwaltung = page.locator("[data-rolle='uav-verwaltungslink']");
   await expect(verwaltung).toBeVisible();
-  await expect(verwaltung).toHaveAttribute("href", "/api/auth/signin?callbackUrl=%2Fadmin");
+  await expect(verwaltung).toHaveAttribute("href", "/login?callbackUrl=%2Fadmin");
+  // IDA-401: das Vorladen des Links ließ über `/api/auth/signin` zwei RSC-Abrufe
+  // an `/login` offen (Falle 25), die Seite kam nie zur Ruhe.
+  await page.waitForLoadState("networkidle", { timeout: 10_000 });
 
   /*
    * ANONYM IST DER KATALOG LESBAR — Betreiberentscheidung 2026-08-29: „Auf
@@ -231,6 +234,24 @@ test("anonym führen beide Wege irgendwohin: Code-Feld und Verwaltung (Check 10)
   await klickeWennRuhig(page.getByRole("link", { name: "Mit Code anmelden" }));
   await expect(page).toHaveURL(uavUrl("/anmelden"));
   await expect(page.locator("#login-code")).toBeVisible();
+});
+
+/*
+ * IDA-401: der Link führte über `/api/auth/signin`, und Auth.js löste `/admin`
+ * gegen `AUTH_URL` auf — nach der Anmeldung stand man in der Portal-Verwaltung
+ * statt in der Drohnen-Verwaltung.
+ */
+test("die Verwaltung führt über die Anmeldung zurück ins Modul (IDA-401)", async ({ page }) => {
+  await page.goto("about:blank");
+  await page.context().clearCookies();
+  await page.goto(uavUrl("/"));
+  await klickeWennRuhig(page.locator("[data-rolle='uav-verwaltungslink']"));
+  await expect(page).toHaveURL(uavUrl("/login?callbackUrl=%2Fadmin"));
+  await page.waitForLoadState("networkidle");
+  await page.getByLabel("email").fill("dev@localtest.me");
+  await page.getByLabel("groups").fill(UAV_ADMIN_GRUPPE);
+  await page.getByRole("button", { name: "Dev-Login" }).click();
+  await expect(page).toHaveURL(uavUrl("/admin"), { timeout: 20_000 });
 });
 
 test("PWA: Manifest im HTML, sw.js im Modus 'cachen', fremder Host liefert 404 (Check 4)", async ({

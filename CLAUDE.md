@@ -85,6 +85,10 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
     das Element vom Öffnen zurück. Getipptes landet dann woanders. Jsdom und `toBeFocused` sehen das nicht.
     Abhilfe: `autoFocus={false}` und `focusable={{ focusTriggerAfterClose: false }}`, den Fokus nur setzen, wenn er
     frei bzw. verloren ist (Vorbild `kommplan/_ui/fokus.ts`).
+25. **Ein `next/link` auf eine Adresse, die umleitet, hinterlässt über http offene RSC-Abrufe** — die Umleitung
+    verliert `_rsc`, auf `*.localtest.me` rechnet der Browser einen anderen Schlüssel als der Server, und Next lässt
+    die verworfene Antwort ungelesen liegen: `networkidle` kommt nie (in Produktion über https nicht). Anmeldelinks
+    direkt auf `/login?callbackUrl=…`, nie auf `/api/auth/signin`; sonst `prefetch={false}`.
 
 ### Hell/Dunkel und `core`
 
