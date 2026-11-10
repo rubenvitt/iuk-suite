@@ -780,9 +780,14 @@ export const maengel = sqliteTable(
     /** OIDC-`sub` der Person, die erledigt hat. */
     erledigtVon: text("erledigt_von"),
     erledigtVermerk: text("erledigt_vermerk"),
+    /** IDA-377: das Gerät, um das es geht — gesetzt, wenn der Fahrzeug-Check es als fehlend oder defekt meldet. */
+    geraetId: text("geraet_id").references(() => geraete.id),
+    /** IDA-377: der Check, aus dem der Mangel stammt; `null` bei einer Meldung von Hand. */
+    checkId: text("check_id"),
   },
   (t) => [
     index("idx_maengel_lagerort").on(t.lagerortId),
     index("idx_maengel_offen").on(t.erledigtAt, t.createdAt),
+    index("idx_maengel_geraet").on(t.geraetId),
   ],
 );

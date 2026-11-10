@@ -12,12 +12,12 @@ import { CODEFELD_LAENGE, CODEFELD_MUSTER, CODEFELD_PLATZHALTER } from "../_lib/
 import {
   checkNutzlast,
   zaehleAblaufende,
-  GERAET_VORBELEGUNG,
+  geraetBeantwortet,
   type CheckZaehlung,
   type CheckGeraetAntwort,
 } from "../_lib/checkNutzlast";
 import { verfallStatus, type VerfallSchwellen } from "../_lib/domain/verfall";
-import { o2Status } from "../_lib/domain/o2";
+import { druckHoechstBar, druckZuHoch, o2Status } from "../_lib/domain/o2";
 import { obergrenze, ueberschuss } from "../_lib/domain/sollBereich";
 import { chargeText, ampelTon } from "../_lib/format";
 import {
@@ -30,6 +30,7 @@ import {
 import { plombenNummerNorm } from "../_lib/plombe";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
+import { useOffenerVorgang } from "./offenerVorgang";
 import s from "./helfer.module.css";
 
 /**
@@ -543,16 +544,56 @@ export function CheckFlow({
     nachOben(kopf.current);
   }, [ansicht]);
 
-  const geraetE = (id: string): CheckGeraetAntwort => geraeteState[id] ?? GERAET_VORBELEGUNG;
+  /*
+   * IDA-377 — GERAETE UND DRUCK STARTEN LEER. Bis hier stand jedes Geraet auf „vorhanden, In Ordnung"
+   * und jede Flasche auf ihrem Nennfuelldruck (gruen, 100 %), direkt neben „zuletzt gemessen: 40 bar".
+   * Ein Tipp auf „Abschliessen" buchte dann eine volle Flasche, die niemand abgelesen hatte. Jetzt gilt
+   * dasselbe wie beim Zaehlen (DRK-304): erst eine Antwort je Geraet und ein abgelesener Druck je
+   * Flasche, dann geht es weiter. Der letzte Messwert bleibt ein Hinweis, keine Vorbelegung.
+   */
+  const geraetE = (id: string): CheckGeraetAntwort => geraeteState[id] ?? {};
   const setGeraet = (id: string, patch: Partial<CheckGeraetAntwort>) =>
-    setGeraeteState((v) => ({ ...v, [id]: { ...(v[id] ?? GERAET_VORBELEGUNG), ...patch } }));
+    setGeraeteState((v) => ({ ...v, [id]: { ...(v[id] ?? {}), ...patch } }));
+  const geraeteOffen = geraete.filter((g) => !geraetBeantwortet(geraeteState[g.id])).length;
 
-  // Druck-Default = Nennfuelldruck („voll annehmen, Abgelesenes runterstellen", `:136-137`).
-  //
-  // ⚠️ NICHT `letzterDruck`: der letzte Messwert wird ANGEZEIGT, aber er ist
-  // keine Vorbelegung. Sonst schriebe ein durchgeklickter Check den vorigen
-  // Wert fort, ohne dass jemand aufs Manometer gesehen haette.
-  const druckWert = (f: CheckFlasche) => druck[f.id] ?? f.nennfuelldruckBar;
+  /** `undefined` = noch nicht abgelesen. */
+  const druckWert = (f: CheckFlasche): number | undefined => druck[f.id];
+  const druckFalsch = (f: CheckFlasche) => {
+    const d = druckWert(f);
+    return d !== undefined && druckZuHoch(d, f.nennfuelldruckBar);
+  };
+  const flaschenOffen = flaschen.filter((f) => druckWert(f) === undefined).length;
+  const flaschenFalsch = flaschen.filter(druckFalsch).length;
+
+  /*
+   * IDA-377 — DER VORSCHLAG ZUM NACHFUELLEN IST KEINE VORBELEGUNG MEHR. Bis hier stand „geholt" mit der
+   * ganzen Luecke da, und „36 Teile aufs Fahrzeug" war bestaetigt, bevor jemand im Handlager war.
+   * Jetzt startet jede Zeile bei 0; „Alles geholt" uebernimmt den Vorschlag mit einem bewussten Tipp.
+   *
+   * Greedy je Artikel: die Handlager-Verfuegbarkeit ueber die Positionen (Anzeige-Reihenfolge)
+   * verteilen, damit der Vorschlag nicht mehr verspricht, als der Handlager hergibt (1:1, `:222-238`).
+   */
+  const nfVorschlag = (): Record<string, number> => {
+    const rest = new Map<string, number>();
+    for (const p of soll) if (!rest.has(p.artikelId)) rest.set(p.artikelId, p.handlagerBestand);
+    const nf: Record<string, number> = {};
+    for (const p of soll) {
+      const luecke = Math.max(0, p.soll - istWert(p));
+      const uebrig = rest.get(p.artikelId) ?? 0;
+      const nimm = Math.min(luecke, uebrig);
+      nf[p.id] = nimm;
+      rest.set(p.artikelId, uebrig - nimm);
+    }
+    return nf;
+  };
+
+  /*
+   * IDA-377 — EIN OFFENER CHECK HAELT „ABMELDEN" AUF. Offen ist er, sobald etwas eingegeben ist und
+   * solange er nicht abgeschlossen ist; der Knopf im Kopf fragt dann nach (`AbmeldenKnopf`).
+   */
+  const etwasEingegeben = [ist, nachfuell, geraeteState, druck, verfallState, plombenWert, plombeFehlt]
+    .some((z) => Object.keys(z).length > 0);
+  useOffenerVorgang(etwasEingegeben && !ergebnis);
 
   const zaehlung = (): CheckZaehlung => ({
     ist: Object.fromEntries(soll.map((p) => [p.id, istWert(p)])),
@@ -570,6 +611,13 @@ export function CheckFlow({
   });
 
   function abschliessen() {
+    /*
+     * IDA-377 — DER RIEGEL GEHOERT DER FUNKTION, NICHT DEM KNOPF (wie `zurNachfuellung`, DRK-304). Ein
+     * wiederhergestellter Entwurf kann auf einem spaeteren Schritt stehen als dem, der noch offen ist;
+     * dann fuehrt der Tipp dorthin, statt Unbeantwortetes zu senden.
+     */
+    if (geraeteOffen > 0) { setPhase("geraete"); return; }
+    if (flaschenOffen > 0 || flaschenFalsch > 0) { setPhase("sauerstoff"); return; }
     setFehler(null);
     const nutzlast = checkNutzlast({
       fahrzeugId: fahrzeug.id,
@@ -693,6 +741,25 @@ export function CheckFlow({
     const einraeumen = faecher
       .map((fach) => ({ fach, positionen: soll.filter((p) => p.fachLabel === fach && nfWert(p) > 0) }))
       .filter((g) => g.positionen.length > 0);
+    /*
+     * IDA-377 — WARUM ETWAS FEHLT. Bis hier hiess es immer „Das Handlager hatte nicht genug", auch
+     * wenn bewusst nichts geholt wurde und das Handlager voll war. Je Artikel getrennt: was das
+     * Handlager hergegeben haette und nicht geholt wurde, und was es gar nicht hatte.
+     */
+    const ursache = { nichtGeholt: 0, handlagerLeer: 0 };
+    for (const artikelId of new Set(soll.map((p) => p.artikelId))) {
+      const pos = soll.filter((p) => p.artikelId === artikelId);
+      const luecke = pos.reduce((z, p) => z + Math.max(0, p.soll - istWert(p)), 0);
+      const geholt = pos.reduce((z, p) => z + nfWert(p), 0);
+      const machbar = Math.min(luecke, pos[0].handlagerBestand);
+      ursache.nichtGeholt += Math.max(0, machbar - geholt);
+      ursache.handlagerLeer += luecke - machbar;
+    }
+    const inEinheit = inDerEinheit(fahrzeug.einheitenart);
+    const gemeldet = geraete.filter((g) => {
+      const a = geraeteState[g.id];
+      return a?.vorhanden === false || a?.zustand === "Defekt";
+    });
     return (
       <>
         <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Fertig</div>
@@ -747,13 +814,29 @@ export function CheckFlow({
             </p>
           )}
           {ergebnis.offen > 0 && (
-            <p className={s.fussnote}>
-              Das Handlager hatte nicht genug. {ergebnis.offen} Teile fehlen weiterhin{" "}
-              {inDerEinheit(fahrzeug.einheitenart)} – bitte der Verwaltung melden.
+            <p className={s.fussnote} data-rolle="offen-grund">
+              {ursache.handlagerLeer === 0 && ursache.nichtGeholt > 0
+                ? `${ergebnis.offen} Teile fehlen weiterhin ${inEinheit} – sie wurden nicht nachgefüllt.`
+                : ursache.nichtGeholt === 0 && ursache.handlagerLeer > 0
+                  ? `Das Handlager hatte nicht genug. ${ergebnis.offen} Teile fehlen weiterhin ${inEinheit}`
+                    + " – bitte der Verwaltung melden."
+                  : ursache.nichtGeholt > 0
+                    ? `${ergebnis.offen} Teile fehlen weiterhin ${inEinheit}: ${ursache.nichtGeholt} nicht `
+                      + `nachgefüllt, für ${ursache.handlagerLeer} hatte das Handlager nicht genug.`
+                    : `${ergebnis.offen} Teile fehlen weiterhin ${inEinheit}.`}
             </p>
           )}
           {ergebnis.geraeteAuffaellig > 0 && (
-            <p className={s.fussnote}>Fehlende oder defekte Geräte bitte der Verwaltung melden.</p>
+            <p className={s.fussnote} data-rolle="geraete-gemeldet">
+              {/* IDA-377: der Check legt den Mangel selbst an. Ein Server von vor IDA-377 meldet 0. */}
+              {(ergebnis.geraeteGemeldet ?? 0) < ergebnis.geraeteAuffaellig
+                ? "Fehlende oder defekte Geräte bitte der Verwaltung melden."
+                : gemeldet.length === 0
+                  ? "An die Verwaltung gemeldet."
+                  : `An die Verwaltung gemeldet: ${gemeldet
+                    .map((g) => `${g.name} (${geraeteState[g.id]?.vorhanden === false ? "fehlt" : "defekt"})`)
+                    .join(", ")}.`}
+            </p>
           )}
           {ergebnis.flaschenAuffaellig > 0 && (
             <p className={s.fussnote}>
@@ -1144,20 +1227,11 @@ export function CheckFlow({
        */
       if (ungezaehlt > 0) return;
 
-      // Greedy je Artikel: die Handlager-Verfuegbarkeit ueber die Positionen
-      // (Anzeige-Reihenfolge) verteilen, damit der Vorschlag nicht mehr
-      // verspricht, als der Handlager hergibt (1:1, `:222-238`).
-      const rest = new Map<string, number>();
-      for (const p of soll) if (!rest.has(p.artikelId)) rest.set(p.artikelId, p.handlagerBestand);
-      const nf: Record<string, number> = {};
-      for (const p of soll) {
-        const luecke = Math.max(0, p.soll - istWert(p));
-        const uebrig = rest.get(p.artikelId) ?? 0;
-        const nimm = Math.min(luecke, uebrig);
-        nf[p.id] = nimm;
-        rest.set(p.artikelId, uebrig - nimm);
-      }
-      setNachfuell(nf);
+      // IDA-377: was schon als geholt eingetragen ist, bleibt — gekappt an der Luecke, falls sich die
+      // Zaehlung inzwischen geaendert hat. Neu Eingetragenes beginnt bei 0, nicht beim Vorschlag.
+      setNachfuell((alt) => Object.fromEntries(soll
+        .filter((p) => (alt[p.id] ?? 0) > 0)
+        .map((p) => [p.id, Math.min(alt[p.id] ?? 0, Math.max(0, p.soll - istWert(p)))])));
       // IDA-247: vorgeschlagen ist der ganze Ueberschuss ueber „OK bis" — wer
       // weniger in die Kiste legt, stellt es herunter. Ohne aufnehmende Box
       // wird nichts vorgeschlagen; der Schritt nennt den Ueberschuss dann nur.
@@ -1608,6 +1682,18 @@ export function CheckFlow({
 
   // ——— Schritt: Geraete ———
   if (aktivePhase === "geraete") {
+    /*
+     * IDA-377 — „ALLE IN ORDNUNG" IST EIN BEWUSSTER TIPP, KEINE VORBELEGUNG. Er setzt jedes noch
+     * unbeantwortete Geraet auf „vorhanden, In Ordnung" und laesst gegebene Antworten stehen; so bleibt
+     * der Check bei zwanzig heilen Geraeten schnell, und keines steht auf gruen, bevor jemand tippt.
+     */
+    const alleInOrdnung = () =>
+      setGeraeteState((v) => ({
+        ...v,
+        ...Object.fromEntries(geraete
+          .filter((g) => !geraetBeantwortet(v[g.id]))
+          .map((g) => [g.id, { ...(v[g.id] ?? {}), vorhanden: true, zustand: "In Ordnung" as const }])),
+      }));
     return (
       <>
         <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Geräte</div>
@@ -1625,12 +1711,23 @@ export function CheckFlow({
         )}
         <div className={`${s.karte} ${s.kartePad}`}>
           <div className={s.zeileName}>Sind die Geräte da und in Ordnung?</div>
+          {geraeteOffen > 0 && (
+            <button
+              className={`${s.knopf} ${s.knopfGeist}`}
+              type="button"
+              onClick={alleInOrdnung}
+              data-rolle="geraete-alle-ok"
+              style={{ marginTop: 10 }}
+            >
+              {geraeteOffen === geraete.length ? "Alle in Ordnung" : "Übrige in Ordnung"}
+            </button>
+          )}
         </div>
         <div className={s.karte}>
           {geraete.map((g) => {
             const e = geraetE(g.id);
             return (
-              <div className={s.zeile} key={g.id} style={{ alignItems: "flex-start" }}>
+              <div className={s.zeile} key={g.id} style={{ alignItems: "flex-start" }} data-rolle="geraet">
                 <div className={s.zeileHaupt}>
                   <div className={s.zeileName}>{g.name}</div>
                   <div className={s.zeileMeta}>
@@ -1639,27 +1736,28 @@ export function CheckFlow({
                         im gewaehlten wie im ungewaehlten Fall derselbe. */}
                     <button
                       type="button"
-                      aria-pressed={e.vorhanden}
+                      aria-pressed={e.vorhanden === true}
                       data-rolle="geraet-vorhanden"
                       className={s.chipKnopf}
                       onClick={() => setGeraet(g.id, { vorhanden: true })}
                     >
-                      <HelferChip ton={e.vorhanden ? "ok" : "grau"}>
-                        {e.vorhanden && <Ikone name="haken" groesse={13} />}vorhanden
+                      <HelferChip ton={e.vorhanden === true ? "ok" : "grau"}>
+                        {e.vorhanden === true && <Ikone name="haken" groesse={13} />}vorhanden
                       </HelferChip>
                     </button>
                     <button
                       type="button"
-                      aria-pressed={!e.vorhanden}
+                      aria-pressed={e.vorhanden === false}
                       data-rolle="geraet-fehlt"
                       className={s.chipKnopf}
-                      onClick={() => setGeraet(g.id, { vorhanden: false })}
+                      onClick={() => setGeraet(g.id, { vorhanden: false, zustand: undefined })}
                     >
-                      <HelferChip ton={!e.vorhanden ? "rot" : "grau"}>
-                        {!e.vorhanden && <Ikone name="haken" groesse={13} />}fehlt
+                      <HelferChip ton={e.vorhanden === false ? "rot" : "grau"}>
+                        {e.vorhanden === false && <Ikone name="haken" groesse={13} />}fehlt
                       </HelferChip>
                     </button>
-                    {e.vorhanden &&
+                    {/* Ein Zustand sagt zugleich „vorhanden" — ein Tipp statt zwei. */}
+                    {e.vorhanden !== false &&
                       ZUSTAENDE.map((z) => (
                         <button
                           key={z}
@@ -1667,7 +1765,7 @@ export function CheckFlow({
                           aria-pressed={e.zustand === z}
                           data-rolle="geraet-zustand"
                           className={s.chipKnopf}
-                          onClick={() => setGeraet(g.id, { zustand: z })}
+                          onClick={() => setGeraet(g.id, { vorhanden: true, zustand: z })}
                         >
                           <HelferChip ton={e.zustand === z ? zustandTon(z) : "grau"}>
                             {e.zustand === z && <Ikone name="haken" groesse={13} />}
@@ -1693,7 +1791,11 @@ export function CheckFlow({
 
         <div className={s.abschluss} data-rolle="abschlussleiste">
           <div className={s.abschlussInfo}>
-            <b>{geraete.length} Gerät(e)</b>
+            <b>
+              {geraeteOffen > 0
+                ? `Noch ${geraeteOffen} von ${geraete.length} offen`
+                : `${geraete.length} Gerät(e) geprüft`}
+            </b>
             <div>
               {istLetzter ? "Quittieren schließt den Check ab" : `Weiter zu ${PHASE_LABEL[naechste]}`}
             </div>
@@ -1702,7 +1804,7 @@ export function CheckFlow({
             <button
               className={s.abschlussGo}
               type="button"
-              disabled={laeuft}
+              disabled={laeuft || geraeteOffen > 0}
               onClick={abschliessen}
               data-rolle="abschliessen"
             >
@@ -1712,6 +1814,7 @@ export function CheckFlow({
             <button
               className={s.abschlussGo}
               type="button"
+              disabled={geraeteOffen > 0}
               onClick={() => setPhase(naechste)}
               data-rolle="weiter"
             >
@@ -1728,10 +1831,12 @@ export function CheckFlow({
     // ⚠️ `f.wechselAbProzent` KOMMT ALS PROP HEREIN, nicht aus einem Import
     // (DRK-308). Diese Datei ist eine Client-Insel; ein Wert aus einem
     // Servermodul kaeme hier als Client-Referenz an, nicht als Zahl (Falle 6).
-    const zuWechseln = flaschen.filter(
-      (f) => f.nennfuelldruckBar > 0
-        && o2Status(druckWert(f), f.nennfuelldruckBar, f.wechselAbProzent).wechseln,
-    ).length;
+    const zuWechseln = flaschen.filter((f) => {
+      const d = druckWert(f);
+      return d !== undefined && f.nennfuelldruckBar > 0 && !druckFalsch(f)
+        && o2Status(d, f.nennfuelldruckBar, f.wechselAbProzent).wechseln;
+    }).length;
+    const gesperrt = flaschenOffen > 0 || flaschenFalsch > 0;
     return (
       <>
         <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Sauerstoff</div>
@@ -1753,14 +1858,16 @@ export function CheckFlow({
         <div className={s.karte} data-rolle="o2-liste">
           {flaschen.map((f) => {
             const wert = druckWert(f);
+            const zuHoch = druckFalsch(f);
             // Ohne bekannten Nennfuelldruck ist der Fuellstand NICHT BEWERTBAR
             // (§5.12) — `o2Status` gaebe hier „rot / niedrig" zurueck, und die
             // Helferin liefe los, um eine VOLLE Flasche zu tauschen.
-            const st = f.nennfuelldruckBar > 0
+            // IDA-377: ohne abgelesenen oder mit unglaubhaftem Druck gibt es ebenfalls keine Bewertung.
+            const st = f.nennfuelldruckBar > 0 && wert !== undefined && !zuHoch
               ? o2Status(wert, f.nennfuelldruckBar, f.wechselAbProzent)
               : null;
             return (
-              <div className={s.zeile} key={f.id}>
+              <div className={`${s.zeile} ${s.zaehlZeile}`} key={f.id}>
                 {/*
                   ⚠️ DREIWERTIG, NICHT ZWEIWERTIG (Review-Befund 3). `st === null`
                   heisst „nicht bewertbar" (kein Nennfuelldruck hinterlegt) — und
@@ -1783,7 +1890,7 @@ export function CheckFlow({
                 */}
                 <div
                   className={`${s.pruefKreis} ${
-                    st === null ? "" : st.wechseln ? s.pruefKreisFehl : s.pruefKreisOk
+                    zuHoch ? s.pruefKreisFehl : st === null ? "" : st.wechseln ? s.pruefKreisFehl : s.pruefKreisOk
                   }`}
                 />
                 <div className={s.zeileHaupt}>
@@ -1803,7 +1910,11 @@ export function CheckFlow({
                     ) : (
                       <span>zuletzt gemessen: {f.letzterDruck} bar</span>
                     )}
-                    {st ? (
+                    {zuHoch ? (
+                      <HelferChip ton="rot">über {druckHoechstBar(f.nennfuelldruckBar)} bar – bitte prüfen</HelferChip>
+                    ) : wert === undefined ? (
+                      <HelferChip ton="grau">nicht abgelesen</HelferChip>
+                    ) : st ? (
                       <HelferChip ton={ampelTon(st.ampel)}>{st.prozent}%</HelferChip>
                     ) : (
                       <HelferChip ton="grau">nicht bewertbar</HelferChip>
@@ -1822,13 +1933,19 @@ export function CheckFlow({
                 </div>
                 {/* max grosszuegig ueber Nennfuelldruck: eine ueberfuellte
                     Flasche muss ablesbar bleiben (`:401`). */}
-                <Stepper
-                  wert={wert}
-                  min={0}
-                  max={9999}
-                  beschriftung={`Druck ${f.name}`}
-                  setWert={(v) => setDruck((z) => ({ ...z, [f.id]: v }))}
-                />
+                {/* IDA-377: LEER bis zur ersten Eingabe — der Nennfuelldruck ist keine Ablesung.
+                    Eigenes Band wie beim Zaehlen: neben dem Stepper blieben bei 320px rund 50px,
+                    der Flaschenname brach je Wort um und die Metazeile lief unter den Stepper. */}
+                <div className={s.zaehlBand}>
+                  <Stepper
+                    wert={wert ?? 0}
+                    leer={wert === undefined}
+                    min={0}
+                    max={9999}
+                    beschriftung={`Druck ${f.name}`}
+                    setWert={(v) => setDruck((z) => ({ ...z, [f.id]: v }))}
+                  />
+                </div>
               </div>
             );
           })}
@@ -1839,9 +1956,13 @@ export function CheckFlow({
         <div className={s.abschluss} data-rolle="abschlussleiste">
           <div className={s.abschlussInfo}>
             <b>
-              {zuWechseln === 0
-                ? `${flaschen.length} Flasche(n)`
-                : `${zuWechseln} wechseln`}
+              {flaschenOffen > 0
+                ? `Noch ${flaschenOffen} von ${flaschen.length} abzulesen`
+                : flaschenFalsch > 0
+                  ? `${flaschenFalsch} Druck zu hoch`
+                  : zuWechseln === 0
+                    ? `${flaschen.length} Flasche(n)`
+                    : `${zuWechseln} wechseln`}
             </b>
             <div>
               {istLetzter ? "Bestätigen schließt den Check ab" : `Weiter zu ${PHASE_LABEL[naechste]}`}
@@ -1851,7 +1972,7 @@ export function CheckFlow({
             <button
               className={s.abschlussGo}
               type="button"
-              disabled={laeuft}
+              disabled={laeuft || gesperrt}
               onClick={abschliessen}
               data-rolle="abschliessen"
             >
@@ -1861,6 +1982,7 @@ export function CheckFlow({
             <button
               className={s.abschlussGo}
               type="button"
+              disabled={gesperrt}
               onClick={() => setPhase(naechste)}
               data-rolle="weiter"
             >
@@ -1880,6 +2002,7 @@ export function CheckFlow({
     knappheit.set(p.artikelId, e);
   }
   const nfPositionen = soll.filter((p) => Math.max(0, p.soll - istWert(p)) > 0);
+  const vorschlag = nfVorschlag();
   const summe = soll.reduce((z, p) => z + nfWert(p), 0);
   // IDA-247: was ueber „OK bis" liegt, und was davon in die Kiste wandert.
   const zuVielPositionen = soll.filter((p) => zuViel(p) > 0);
@@ -1913,6 +2036,18 @@ export function CheckFlow({
             <div className={s.zeileName}>
               Aus dem Handlager {inDieEinheit(fahrzeug.einheitenart)} legen
             </div>
+            {/* IDA-377: der Vorschlag gilt erst mit diesem Tipp; jede Zeile beginnt bei 0. */}
+            {soll.some((p) => nfWert(p) !== (vorschlag[p.id] ?? 0)) && (
+              <button
+                className={`${s.knopf} ${s.knopfGeist}`}
+                type="button"
+                onClick={() => setNachfuell(vorschlag)}
+                data-rolle="nf-alles"
+                style={{ marginTop: 10 }}
+              >
+                Alles geholt
+              </button>
+            )}
           </div>
           {/*
             NACH ZIEL-FACH GEGLIEDERT (IDA-226), wie der Zaehlschritt. Das
@@ -1943,7 +2078,6 @@ export function CheckFlow({
                               geholt hat — die Buchung folgt der Wirklichkeit, nicht
                               dem Vorschlag (`:461`). */}
                           <Stepper
-                            noText
                             wert={nfWert(p)}
                             min={0}
                             max={luecke}

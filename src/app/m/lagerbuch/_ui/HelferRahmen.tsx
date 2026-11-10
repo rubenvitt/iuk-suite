@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { darf, type Bereich, type Reichweite } from "../_lib/helferBereich";
 import { uhrzeit } from "../_lib/zeit";
-import { beenden } from "../_actions/sitzung";
+import { AbmeldenKnopf } from "./AbmeldenKnopf";
+import { KopfVerdichter } from "./KopfVerdichter";
 import { Restzeit } from "./Restzeit";
 import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
@@ -119,8 +120,9 @@ export function HelferRahmen({
   const jetzt = new Date();
 
   return (
-    <div className={s.rahmen}>
+    <div className={s.rahmen} data-rolle="lb-rahmen">
       <div className={s.streifen} data-rolle="lb-streifen" />
+      <KopfVerdichter />
 
       <header className={s.kopf}>
         <div>
@@ -172,13 +174,11 @@ export function HelferRahmen({
             Prefetch, der die Sitzung beendet, ist genau die Sorte Fehler, die
             niemand reproduziert. Der Sperr- und der Ablauffall gehen ueber
             `/abmelden` (Teil 2, T26), weil ein LAYOUT kein Cookie raeumen kann.
+
+            IDA-377: „Abmelden" statt „Beenden", mit Rueckfrage bei offenem Check —
+            darum eine Client-Insel (`AbmeldenKnopf`), das Formular bleibt.
           */
-          <form action={beenden}>
-            <button className={s.beenden} type="submit">
-              <Ikone name="kreuz" groesse={14} />
-              Beenden
-            </button>
-          </form>
+          <AbmeldenKnopf />
         )}
       </header>
 

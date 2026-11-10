@@ -69,3 +69,16 @@ export function bereinigePunkte(eingabe: readonly unknown[], art: Ortsart): stri
   const gewaehlt = new Set(eingabe.filter((p): p is string => typeof p === "string"));
   return checklisteFuer(art).filter((p) => gewaehlt.has(p));
 }
+
+/**
+ * IDA-377 — der Punkt, unter dem der Fahrzeug-Check ein Gerät meldet: „Ausrüstung fehlt" bzw. der
+ * Geräte-Punkt dieser Ortsart („Gerät im Fahrzeug defekt"). Ein Ort ohne passenden Punkt bekommt
+ * „Etwas anderes" — der Gerätename steht ohnehin an der Meldung.
+ */
+export function punktFuerGeraet(art: Ortsart, fehlt: boolean): string {
+  const liste = PUNKTE[art];
+  const treffer = fehlt
+    ? liste.find((p) => p === "Ausrüstung fehlt")
+    : liste.find((p) => p.startsWith("Gerät") && p.endsWith("defekt"));
+  return treffer ?? SONSTIGES;
+}

@@ -169,6 +169,13 @@
       "when": 1793458800000,
       "tag": "0023_maengel",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1794297600000,
+      "tag": "0024_maengel_geraet",
+      "breakpoints": true
     }
   ]
 }

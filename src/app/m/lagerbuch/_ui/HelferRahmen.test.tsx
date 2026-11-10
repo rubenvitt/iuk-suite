@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import type { ComponentProps } from "react";
 import {
-  mount, hydrate, unmount, query, queryAll, exists, submitForm,
+  mount, hydrate, unmount, query, queryAll, exists, submitForm, click,
 } from "@/app/m/qr/_lib/test-dom";
 
 /**
@@ -16,6 +16,7 @@ const beendenMock = vi.hoisted(() => vi.fn());
 vi.mock("../_actions/sitzung", () => ({ beenden: beendenMock }));
 
 import { HelferRahmen } from "./HelferRahmen";
+import { useOffenerVorgang } from "./offenerVorgang";
 import { VOLLE_REICHWEITE, type Bereich } from "../_lib/helferBereich";
 
 const QUELLE = "src/app/m/lagerbuch/_ui/HelferRahmen.tsx";
@@ -209,20 +210,46 @@ describe("HelferRahmen — der Kopf", () => {
     expect(query("[data-rolle='restzeit']").textContent).toContain("19:00");
   });
 
-  it("rendert den Beenden-Knopf als FORMULAR, nicht als Link — und er ruft die Aktion", async () => {
+  it("rendert den Abmelden-Knopf als FORMULAR, nicht als Link — und er ruft die Aktion", async () => {
     // Ein Link waere vorlade- und prefetch-faehig. Ein Prefetch, der die
     // Sitzung beendet, ist genau die Sorte Fehler, die niemand reproduziert.
     await mount(
       <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     expect(exists("header form button[type='submit']")).toBe(true);
-    expect(query("header form button").textContent).toContain("Beenden");
+    // IDA-377: „Abmelden" statt „Beenden" — neben einem laufenden Check las es sich wie „Check beenden".
+    expect(query("header form button").textContent).toContain("Abmelden");
     // Kein anderer Weg aus dem Kopf heraus: waere der Knopf zusaetzlich oder
     // stattdessen ein `<a href=…>`, blieben die zwei Zeilen darueber gruen.
     expect(exists("header a")).toBe(false);
     // Und das Formular haengt an der Aktion — ein `<form>` ohne `action` sieht
     // in beiden Zeilen darueber identisch aus und tut nichts.
     await submitForm("header form");
+    expect(beendenMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("IDA-377: bei offenem Check fragt „Abmelden“ nach, statt sofort abzumelden", async () => {
+    function OffenerCheck() {
+      useOffenerVorgang(true);
+      return <p />;
+    }
+    await mount(
+      <HelferRahmen aktiv="check" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+        <OffenerCheck />
+      </HelferRahmen>,
+    );
+    await submitForm("header form");
+    expect(beendenMock).not.toHaveBeenCalled();
+    expect(exists("[data-rolle='abmelden-rueckfrage'] [role='alertdialog']")).toBe(true);
+
+    // „Weiter prüfen" schließt die Frage, ohne abzumelden.
+    await click("[data-rolle='abmelden-abbrechen']");
+    expect(exists("[data-rolle='abmelden-rueckfrage']")).toBe(false);
+    expect(beendenMock).not.toHaveBeenCalled();
+
+    // Bestätigt geht das Formular ab.
+    await submitForm("header form");
+    await click("[data-rolle='abmelden-bestaetigen']");
     expect(beendenMock).toHaveBeenCalledTimes(1);
   });
 

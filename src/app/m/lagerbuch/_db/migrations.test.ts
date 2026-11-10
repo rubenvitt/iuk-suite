@@ -325,6 +325,9 @@ const TABELLEN: Record<
     { name: "erledigt_at", typ: "integer", notnull: 0, dflt: null, pk: 0 },
     { name: "erledigt_von", typ: "text", notnull: 0, dflt: null, pk: 0 },
     { name: "erledigt_vermerk", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    // 0024, IDA-377 — das Gerät und der Check, wenn der Fahrzeug-Check den Mangel angelegt hat.
+    { name: "geraet_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "check_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
   ],
 };
 
@@ -375,7 +378,7 @@ const INDIZES: Record<string, string[]> = {
   inventuren: [],
   inventur_positionen: ["idx_inventur_positionen_lauf"],
   plomben: ["idx_plomben_lagerort"],
-  maengel: ["idx_maengel_lagerort", "idx_maengel_offen"],
+  maengel: ["idx_maengel_geraet", "idx_maengel_lagerort", "idx_maengel_offen"],
 };
 
 describe("Indizes — alle bestehenden bleiben, vier kommen dazu", () => {
@@ -475,9 +478,9 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt vierundzwanzig Eintraege in aufsteigender idx-Reihenfolge", () => {
+  it("fuehrt fuenfundzwanzig Eintraege in aufsteigender idx-Reihenfolge", () => {
     expect(journal.entries.map((e) => e.idx))
-      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]);
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -522,6 +525,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
         "0021_demo_einstellung_entfernen",
         "0022_stamm_id",
         "0023_maengel",
+        "0024_maengel_geraet",
       ]);
   });
 

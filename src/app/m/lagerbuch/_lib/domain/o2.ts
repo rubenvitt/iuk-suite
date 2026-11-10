@@ -154,3 +154,20 @@ export function o2Status(
     prozent, ampel, niedrig: rot, wechseln: rot, wechselAbProzent, wechselAbBar,
   };
 }
+
+/**
+ * IDA-377 — DER HÖCHSTE GLAUBHAFTE DRUCK, in Prozent vom Nennfülldruck. Eine frisch gefüllte Flasche
+ * liegt warm ein paar Prozent darüber; 950 bar auf einer 200-bar-Flasche sind ein Vertipper, kein
+ * Füllstand von 475 %. Der Check nimmt so einen Wert nicht an, weder am Gerät noch am Server.
+ */
+export const O2_DRUCK_HOECHST_PROZENT = 110;
+
+/** `true`: der Wert liegt über dem glaubhaften Höchstdruck. Ohne Nennfülldruck gibt es keine Grenze. */
+export function druckZuHoch(druckBar: number, nennfuelldruckBar: number): boolean {
+  return nennfuelldruckBar > 0 && druckBar * 100 > O2_DRUCK_HOECHST_PROZENT * nennfuelldruckBar;
+}
+
+/** Der höchste Wert, den der Check für diese Flasche annimmt (abgerundet), oder `null` ohne Grenze. */
+export function druckHoechstBar(nennfuelldruckBar: number): number | null {
+  return nennfuelldruckBar > 0 ? Math.floor((nennfuelldruckBar * O2_DRUCK_HOECHST_PROZENT) / 100) : null;
+}
