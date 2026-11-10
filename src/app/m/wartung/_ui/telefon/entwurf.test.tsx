@@ -113,7 +113,9 @@ describe("Mangel am Gerät", () => {
     speichereEntwurf(`wartung:mangel:${G}`, { stand: { name: "", text: "Tankdeckel fehlt", bereit: true }, geaendert: Date.now(), pfad: "/", sendung: null });
     await mangel();
     expect(query<HTMLTextAreaElement>("textarea[aria-label='Was ist los?']").value).toBe("Tankdeckel fehlt");
-    expect(queryAll<HTMLInputElement>("input[name='einsatzbereit']").some((r) => r.checked)).toBe(false);
+    const wahl = queryAll<HTMLInputElement>("input[name='einsatzbereit']");
+    expect(wahl).toHaveLength(2);
+    expect(wahl.some((r) => r.checked)).toBe(false);
   });
 
   it("die Wahl bleibt über das Neuladen erhalten", async () => {
