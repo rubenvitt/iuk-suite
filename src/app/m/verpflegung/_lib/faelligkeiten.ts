@@ -2,7 +2,8 @@
  * DIE FRISTEN DES VERPFLEGUNGSLAGERS FÜR „WAS STEHT AN“ IM PORTAL (IDA-316). Das Portal liest weder diese Datenbank
  * noch ihr Schema, nur was hier herausgegeben wird (Muster `lagerbuch/_lib/faelligkeiten.ts`).
  *
- * Herausgegeben wird jede Charge mit roter Ampel: abgelaufen → überfällig, sonst bald. Die Schwellen stehen am
+ * Herausgegeben wird jede Charge mit roter Ampel: abgelaufen → überfällig, läuft heute ab → fällig (IDA-402),
+ * sonst bald. Die Schwellen stehen am
  * Artikel; gerechnet wird wie in den MHD-Stufen des Bestands (`ladeChargen` → `mhd.ts`).
  *
  * TAGESMELDUNG (Entscheidung 2026-11-04 an IDA-316): montags reicht für Konserven, aber nicht für Brot, Joghurt
@@ -51,7 +52,7 @@ export function verpflegungFaelligkeiten(jetzt: Date, db: Leser = getDb()): Fael
       titel: `${a.name} · ${mengeText(c.menge, a.einheit)}`,
       wo: orte.get(c.ortId)?.kurz ?? null,
       zustand: c.status.gesperrt ? `${restText(c.status.tage)}, gesperrt` : restText(c.status.tage),
-      dringlichkeit: c.status.abgelaufen ? "ueberfaellig" : "bald",
+      dringlichkeit: c.status.abgelaufen ? "ueberfaellig" : c.status.tage === 0 ? "faellig" : "bald",
       sortierung: c.mhd,
       // IDA-382: auf die Stufe des Bestands, in der diese Charge steht.
       pfad: `/bestand?stufe=${stufeVon(c)}`,

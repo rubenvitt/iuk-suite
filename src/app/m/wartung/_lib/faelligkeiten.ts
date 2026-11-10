@@ -7,6 +7,7 @@
  *
  * Was herausgegeben wird:
  *   * jede Frist, die nicht im Plan ist (überfällig oder in den nächsten 30 Tagen bzw. 20 Betriebsstunden);
+ *     endet sie heute, ist sie „fällig“ (IDA-402);
  *   * jedes Gerät, das nicht einsatzbereit ist → überfällig; neue „nicht einsatzbereit“-Mängel gehen außerdem
  *     sofort als Push hinaus (`wartungSofortmeldungen`), nicht erst am Montag;
  *   * jede einsatzbereite Materialkiste, in der beim Durchzählen etwas fehlte (IDA-335) → bald.
@@ -66,7 +67,8 @@ export function wartungFaelligkeiten(jetzt: Date, db: Leser = getDb()): Faelligk
   const admins = adminGroupsFor(getModule("wartung"));
   const je = verwalterJeGruppe(db);
   const fuer = (gruppeId: string) => [...(je.get(gruppeId) ?? []), ...admins];
-  const geraete = ladeGeraete(db, { gruppen: null, heute: tagInZone(jetzt.getTime()) });
+  const heute = tagInZone(jetzt.getTime());
+  const geraete = ladeGeraete(db, { gruppen: null, heute });
 
   const ausfaelle = geraete.filter((g) => g.zustand === "defekt").map((g): WartungFaelligkeit => ({
     id: `defekt:${g.id}`,
@@ -85,7 +87,7 @@ export function wartungFaelligkeiten(jetzt: Date, db: Leser = getDb()): Faelligk
     titel: `${f.vorlage.name} · ${g.name}`,
     wo: g.ort,
     zustand: f.text,
-    dringlichkeit: f.stufe === "ueberfaellig" ? "ueberfaellig" : "bald",
+    dringlichkeit: f.stufe === "ueberfaellig" ? "ueberfaellig" : f.faelligAm === heute ? "faellig" : "bald",
     sortierung: f.faelligAm ?? "",
     pfad: `/geraete/${g.id}`,
     sichtbarFuer: fuer(g.gruppeId),

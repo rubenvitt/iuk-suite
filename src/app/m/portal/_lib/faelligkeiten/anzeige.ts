@@ -2,12 +2,12 @@
  * Sortierung und Ortsangabe für „Was steht an" — nur das Portal braucht sie, deshalb hier und nicht
  * neben dem Typ in `core/faelligkeiten.ts`. Kein `"use client"` (Falle 6).
  */
-import type { Dringlichkeit, Faelligkeit } from "@/core/faelligkeiten";
-import type { FaelligkeitsGruppe } from "./sammeln";
+import { DRINGLICHKEITEN, type Dringlichkeit, type Faelligkeit } from "@/core/faelligkeiten";
+import type { FaelligkeitsGruppe, Zaehlung } from "./sammeln";
 
 /** Dringliches zuerst, dann nach `sortierung`, dann nach Titel. Arbeitet auf einer Kopie. */
 export function sortiereFaelligkeiten(liste: readonly Faelligkeit[]): Faelligkeit[] {
-  const rang = (f: Faelligkeit) => (f.dringlichkeit === "ueberfaellig" ? 0 : 1);
+  const rang = (f: Faelligkeit) => DRINGLICHKEITEN.indexOf(f.dringlichkeit);
   return [...liste].sort((a, b) =>
     rang(a) - rang(b)
     || a.sortierung.localeCompare(b.sortierung)
@@ -30,8 +30,21 @@ export function woAnzeige(f: Pick<Faelligkeit, "titel" | "wo">): string | null {
 /** Die Wörter der suiteweiten Wortliste (Abschnitt „Fristen"), klein wie ein Zustand. */
 export const DRINGLICHKEIT_TEXT: Record<Dringlichkeit, string> = {
   ueberfaellig: "überfällig",
+  faellig: "fällig",
   bald: "bald fällig",
 };
+
+/** Einträge je Stufe. Hier und nicht in `sammeln.ts`, weil die Client-Insel sie braucht (`sammeln.ts` zieht die Quellen mit). */
+export function zaehleEintraege(eintraege: readonly Pick<Faelligkeit, "dringlichkeit">[]): Zaehlung {
+  const zaehlung: Zaehlung = { ueberfaellig: 0, faellig: 0, bald: 0 };
+  for (const e of eintraege) zaehlung[e.dringlichkeit] += 1;
+  return zaehlung;
+}
+
+/** Die Zählung in Worten, je Stufe mit Einträgen ein Teil: „2 überfällig", „1 fällig", „3 bald fällig". */
+export function zaehlungTeile(z: Zaehlung): string[] {
+  return DRINGLICHKEITEN.filter((d) => z[d] > 0).map((d) => `${z[d]} ${DRINGLICHKEIT_TEXT[d]}`);
+}
 
 export const ALLE_FAELLIGKEITEN = "alle";
 

@@ -71,9 +71,28 @@ describe("FaelligkeitenListe (IDA-391)", () => {
   it("zählt an den Dringlichkeits-Pillen im gewählten Modul", async () => {
     await mount(<FaelligkeitenListe gruppen={GRUPPEN} />);
     const zahlen = () => queryAll('[aria-label="Dringlichkeit"] button').map((b) => b.textContent);
-    expect(zahlen()).toEqual(["Alle 3", "Überfällig 1", "Bald fällig 2"]);
+    expect(zahlen()).toEqual(["Alle 3", "Überfällig 1", "Fällig 0", "Bald fällig 2"]);
     await waehle("Modul", "Funk");
-    expect(zahlen()).toEqual(["Alle 1", "Überfällig 0", "Bald fällig 1"]);
+    expect(zahlen()).toEqual(["Alle 1", "Überfällig 0", "Fällig 0", "Bald fällig 1"]);
+  });
+
+  it("kennt „fällig“ (heute) als eigene Stufe: Chip, Zähler und Filter (IDA-402)", async () => {
+    const mitHeute: FaelligkeitsGruppe[] = [
+      { ...GRUPPEN[0], eintraege: [f("u1", "ueberfaellig"), f("h1", "faellig"), f("b1", "bald")] },
+      GRUPPEN[1],
+    ];
+    await mount(<FaelligkeitenListe gruppen={mitHeute} />);
+    const chips = queryAll('[data-testid="faellig-lagerbuch"] [data-statuschip]');
+    expect(chips.map((c) => [c.getAttribute("data-statuschip"), c.textContent])).toEqual([
+      ["fehler", "überfällig"], ["warnung", "fällig"], ["warnung", "bald fällig"],
+    ]);
+    expect(query('[data-testid="faellig-lagerbuch"]').textContent).toContain("1 überfällig · 1 fällig · 1 bald fällig");
+
+    await waehle("Dringlichkeit", "Fällig");
+    expect(zeilen()).toHaveLength(1);
+    expect(zeilen()[0]).toContain("Artikel h1");
+    await waehle("Modul", "Funk");
+    expect(query('[data-testid="faellig-leer"]').textContent).toBe("Nichts ist fällig.");
   });
 
   it("zeigt bei nur einem Modul keinen Modulfilter", async () => {
