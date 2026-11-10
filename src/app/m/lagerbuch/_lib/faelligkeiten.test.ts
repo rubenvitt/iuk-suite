@@ -96,6 +96,30 @@ describe("lagerbuchFaelligkeiten — was das Lagerbuch an „Was steht an“ her
     ]);
   });
 
+  it("„fällig“ (IDA-402): ein Verfallsmonat, der heute endet, und eine BZ-Kontrolle, die heute ansteht", () => {
+    const MONATSENDE = new Date("2026-06-30T10:00:00Z");
+    t.db.insert(lagerortVerfall).values([
+      { id: "v1", lagerortId: "rtw-1", artikelId: "a1", verfall: "2026-06", erfasstAt: NOW, quelleTyp: "oidc", quelleId: "sub-1" },
+      { id: "v2", lagerortId: "rtw-1", artikelId: "a2", verfall: "2026-07", erfasstAt: NOW, quelleTyp: "oidc", quelleId: "sub-1" },
+    ]).run();
+    t.db.insert(bzGeraete).values({
+      id: "bz-heute", name: "Gerät heute", barcode: null, lagerortId: "rtw-1", streifenLot: null, level1Label: null, level1Min: null,
+      level1Max: null, level2Label: null, level2Min: null, level2Max: null, aktiv: true, createdAt: NOW,
+    }).run();
+    // 31 Tage Intervall: fällig um 18:00 Ortszeit desselben Tages.
+    t.db.insert(bzKontrollen).values({
+      id: "k1", geraetId: "bz-heute", ts: new Date(MONATSENDE.getTime() - 31 * 86_400_000 + 6 * 3_600_000), quelleTyp: "oidc",
+      quelleId: "sub-1", level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null, kompresseVerfall: null,
+      sticks: 10, lanzetten: 10, batterieGewechselt: false, kommentar: null, bestanden: true, refSnapshot: null,
+    }).run();
+    const liste = lagerbuchFaelligkeiten(MONATSENDE, t.db).map((f) => [f.titel, f.dringlichkeit, f.zustand]);
+    expect(liste).toEqual([
+      ["Verband", "faellig", "läuft heute ab"],
+      ["NaCl", "bald", expect.any(String)],
+      ["Gerät heute", "faellig", "Kontrolle heute fällig"],
+    ]);
+  });
+
   it("BZ (IDA-379): eine nicht bestandene oder stornierte Kontrolle erfüllt die Frist nicht", () => {
     const geraet = (id: string, name: string) => ({
       id, name, barcode: null, lagerortId: "rtw-1", streifenLot: null, level1Label: null, level1Min: null,

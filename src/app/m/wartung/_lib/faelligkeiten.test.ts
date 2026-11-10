@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { eintragSichtbar, sichtSchluessel } from "@/core/faelligkeiten";
 import { merkePerson, verwalterHinzufuegen } from "./personen";
-import { geraetAnlegen, mangelMelden, neueId } from "./schreiben";
+import { ladeGeraet } from "./daten";
+import { plusMonate } from "./fristen";
+import { erledigtEintragen, geraetAnlegen, mangelMelden, neueId } from "./schreiben";
 import { darfWartungFaelligkeitenSehen, vermerkeWartungSofortmeldungen, wartungFaelligkeiten, wartungSofortmeldungen } from "./faelligkeiten";
 import { START } from "./startbestand";
 import { testDb } from "./testDb";
@@ -34,6 +36,20 @@ describe("„Was steht an“ aus der Gerätewartung", () => {
     expect(alle.filter((e) => eintragSichtbar(e, ["wartung-admin"]))).toHaveLength(4);
     expect(alle.filter((e) => eintragSichtbar(e, ["helfer"]))).toHaveLength(0);
     expect(alle.filter((e) => eintragSichtbar(e, sichtSchluessel({ groups: ["wartung-nutzer"], sub: "sub-helfer" })))).toHaveLength(0);
+  });
+
+  it("eine Frist, die heute endet, ist „fällig“ (IDA-402)", () => {
+    const { db, iuk } = zweiGruppen();
+    const heute = "2026-11-03";
+    const staende = ladeGeraet(db, iuk, heute)!.staende.filter((f) => f.vorlage.monate);
+    expect(staende.length).toBeGreaterThan(0);
+    for (const f of staende) {
+      erledigtEintragen(db, iuk, { pruefartId: f.vorlage.id, am: plusMonate(heute, -f.vorlage.monate!), stunden: null, wer: "Helfer A", notiz: "" },
+        { jetzt: JETZT.getTime(), heute, wer: "Helfer A" });
+    }
+    const fristen = wartungFaelligkeiten(JETZT, db).filter((e) => e.id.startsWith(`frist:${iuk}:`));
+    expect(fristen.length).toBe(staende.length);
+    expect(fristen.map((e) => [e.dringlichkeit, e.zustand])).toEqual(staende.map(() => ["faellig", "heute fällig"]));
   });
 
   it("darfSehen: Verwalter und Modul-Admins, nicht jeder Angemeldete", () => {

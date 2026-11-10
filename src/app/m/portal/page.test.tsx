@@ -144,6 +144,6 @@ describe("Portal-Startseite: Kachel „Was steht an“ (IDA-297)", () => {
   it("zeigt Lagerbuch-Admins die Zahlen", async () => {
     authMock.mockResolvedValue({ user: { groups: ["lager-admin"] } } as never);
     const karte = flatten((await PortalPage()) as ReactElement).find((el) => el.type === FaelligkeitenKarte)!;
-    expect((karte.props as { zaehlung: unknown }).zaehlung).toEqual({ ueberfaellig: 1, bald: 0 });
+    expect((karte.props as { zaehlung: unknown }).zaehlung).toEqual({ ueberfaellig: 1, faellig: 0, bald: 0 });
   });
 });

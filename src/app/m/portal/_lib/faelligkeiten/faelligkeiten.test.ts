@@ -103,7 +103,7 @@ describe("neuesThema", () => {
 describe("sammeln", () => {
   const lager: FaelligkeitsQuelle = {
     modul: "lagerbuch", titel: "Lagerbuch", arten: ["Verfall"], darfSehen: (g) => !!g?.includes("lager"),
-    lesen: () => [f({ id: "b", dringlichkeit: "bald" }), f({ id: "a" })],
+    lesen: () => [f({ id: "b", dringlichkeit: "bald" }), f({ id: "h", dringlichkeit: "faellig" }), f({ id: "a" })],
   };
   const kaputt: FaelligkeitsQuelle = {
     modul: "radio", titel: "Funkgeräte", arten: ["Ausleihe"], darfSehen: (g) => !!g?.includes("funk"),
@@ -115,13 +115,13 @@ describe("sammeln", () => {
     expect(sichtbareQuellen(null, [lager, kaputt])).toEqual([]);
   });
 
-  it("sortiert überfällig zuerst, und eine kaputte Quelle reißt die anderen nicht mit", () => {
+  it("sortiert überfällig, dann fällig, dann bald fällig, und eine kaputte Quelle reißt die anderen nicht mit", () => {
     const melden = vi.fn();
     const gruppen = sammle([lager, kaputt], new Date(), (m) => `https://${m}.example`, melden);
-    expect(gruppen[0].eintraege.map((e) => e.id)).toEqual(["a", "b"]);
+    expect(gruppen[0].eintraege.map((e) => e.id)).toEqual(["a", "h", "b"]);
     expect(gruppen[1]).toMatchObject({ modul: "radio", fehler: true, eintraege: [], basisUrl: "https://radio.example" });
     expect(melden).toHaveBeenCalledTimes(1);
-    expect(zaehle(gruppen)).toEqual({ ueberfaellig: 1, bald: 1 });
+    expect(zaehle(gruppen)).toEqual({ ueberfaellig: 1, faellig: 1, bald: 1 });
   });
 });
 
@@ -139,6 +139,14 @@ describe("baueNachricht", () => {
     expect(n.message).toBe("Lagerbuch\n• Verfall: NaCl (RTW 1) — abgelaufen\n\nFunkgeräte\n• Ausleihe: Funkgerät 1 — seit 1 Tag ausgeliehen");
     expect(n.priority).toBe(4);
     expect(n.click).toBe("https://portal.example/faelligkeiten");
+  });
+
+  it("nennt „fällig“ (heute) zwischen überfällig und bald fällig, mit hoher Priorität (IDA-402)", () => {
+    const n = baueNachricht([gruppe({ eintraege: [
+      f({ id: "h", dringlichkeit: "faellig", zustand: "läuft heute ab" }), f({ id: "b", dringlichkeit: "bald" }),
+    ] })], null)!;
+    expect(n.title).toBe("Was steht an: 1 fällig, 1 bald fällig");
+    expect(n.priority).toBe(4);
   });
 
   it("nennt nie eine Person", () => {

@@ -11,10 +11,16 @@
  */
 
 /**
+ * Die drei Stufen der Wortliste (Abschnitt „Fristen"), dringlichste zuerst:
  * `ueberfaellig`: die Frist ist vorbei oder es ist jetzt zu tun (abgelaufen, nie kontrolliert,
- * Flasche unter der Wechselgrenze). `bald`: liegt im Vorwarnfenster des Moduls.
+ * Flasche unter der Wechselgrenze). `faellig`: die Frist endet heute, Kalendertag in der Suite-Zone
+ * (IDA-402) — nur, wo die Quelle einen Tag kennt; eine Dauer oder ein Zustand ohne Datum bleibt bei
+ * den anderen beiden. `bald`: liegt im Vorwarnfenster des Moduls.
  */
-export type Dringlichkeit = "ueberfaellig" | "bald";
+export type Dringlichkeit = "ueberfaellig" | "faellig" | "bald";
+
+/** Die Stufen in ihrer Rangfolge — Sortierung, Zählung und Filter laufen darüber. */
+export const DRINGLICHKEITEN: readonly Dringlichkeit[] = ["ueberfaellig", "faellig", "bald"];
 
 export interface Faelligkeit {
   /** Eindeutig innerhalb des Moduls — Schlüssel für Listen. */

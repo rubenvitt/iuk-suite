@@ -10,10 +10,12 @@
  *
  * Was herausgegeben wird:
  *   * Verfall im Handlager (Chargen) und in Fahrzeugen/Taschen/Entnahmebox (gemeldete Verfälle), beide
- *     nur mit nicht grüner Ampel: abgelaufen → überfällig, rot/gelb → bald.
+ *     nur mit nicht grüner Ampel: abgelaufen → überfällig, Verfallsmonat endet heute → fällig (IDA-402),
+ *     rot/gelb → bald.
  *   * Sauerstoffflaschen, deren letzte Messung die Wechselgrenze erreicht → überfällig. Eine Flasche
  *     ohne Messung ist keine Frist und bleibt draußen; die Verwaltung zeigt sie als „keine Messung".
- *   * BZ-Geräte, deren Kontrolle überfällig ist oder nie stattfand → überfällig; im Warnfenster → bald.
+ *   * BZ-Geräte, deren Kontrolle überfällig ist oder nie stattfand → überfällig; heute fällig → fällig;
+ *     im Warnfenster → bald.
  *     Die Frist läuft nur von einer bestandenen, nicht stornierten Kontrolle (IDA-379).
  *   * Plomben, die angelegt, aber nicht gesetzt sind (Fach offen) → bald.
  *   * Gemeldete Mängel, die noch offen sind → überfällig (IDA-298). Neue Mängel gehen außerdem sofort
@@ -31,6 +33,8 @@ import { bzGeraeteUebersicht } from "./lesepfade/bz";
 import { o2FlaschenUebersicht } from "./lesepfade/o2";
 import { lagerortVerfallListe, verfallListe } from "./lesepfade/verfall";
 import type { Leser } from "./lesepfade/bestand";
+import { istOhneVerfall } from "./konstanten";
+import { heuteIso, monatsEnde } from "./zeit";
 import { verwaltungDetailPfad } from "./verwaltungPfad";
 
 /**
@@ -103,14 +107,25 @@ export function vermerkeLagerbuchSofortmeldungen(ids: readonly string[], jetzt: 
   vermerkeGemeldet(db, ids, jetzt);
 }
 
+/**
+ * Die Stufe einer Verfallszeile. Ein Verfall ist ein Monat und gilt bis zu dessen letztem Tag: an diesem Tag ist er
+ * „fällig“ (Suite-Zone), vorher „bald“.
+ */
+function verfallStufe(e: { abgelaufen: boolean; verfall: string; text: string }, jetzt: Date): Pick<Faelligkeit, "dringlichkeit" | "zustand"> {
+  if (e.abgelaufen) return { dringlichkeit: "ueberfaellig", zustand: e.text };
+  if (!istOhneVerfall(e.verfall) && heuteIso(monatsEnde(e.verfall)) === heuteIso(jetzt)) {
+    return { dringlichkeit: "faellig", zustand: "läuft heute ab" };
+  }
+  return { dringlichkeit: "bald", zustand: e.text };
+}
+
 function verfall(db: Leser, jetzt: Date): Faelligkeit[] {
   const imHandlager = verfallListe(db, jetzt).map((e): LagerbuchFaelligkeit => ({
     id: `charge:${e.chargeId}`,
     art: "Verfall",
     titel: e.chargenNr ? `${e.artikelName} · Charge ${e.chargenNr}` : e.artikelName,
     wo: "Handlager",
-    zustand: e.text,
-    dringlichkeit: e.abgelaufen ? "ueberfaellig" : "bald",
+    ...verfallStufe(e, jetzt),
     sortierung: e.verfall,
     pfad: "/verwaltung/verfall",
   }));
@@ -124,8 +139,7 @@ function verfall(db: Leser, jetzt: Date): Faelligkeit[] {
       art: "Verfall",
       titel: z.artikelName,
       wo: z.lagerortName,
-      zustand: z.text,
-      dringlichkeit: z.abgelaufen ? "ueberfaellig" : "bald",
+      ...verfallStufe(z, jetzt),
       sortierung: z.verfall,
       pfad: "/verwaltung/verfall",
     }));
@@ -152,19 +166,21 @@ function blutzucker(db: Leser, jetzt: Date): Faelligkeit[] {
     .filter((g) => g.aktiv && g.faelligkeit.ampel !== "gruen")
     .map((g): LagerbuchFaelligkeit => {
       const f = g.faelligkeit;
+      // Heute nach dem Kalendertag in der Suite-Zone, nicht nach `tageBisFaellig` (aufgerundete 24 Stunden).
+      const heute = !f.nieGeprueft && !f.ueberfaellig && !!f.faelligAm && heuteIso(f.faelligAm) === heuteIso(jetzt);
       // ⚠️ `nieGeprueft` ZUERST und eigenständig: dort ist `ueberfaellig` false (`domain/bz.ts`).
       const zustand = f.nieGeprueft
         ? (f.nieBestanden ? "noch nie bestanden" : "noch nie kontrolliert")
         : f.ueberfaellig
           ? `Kontrolle seit ${tageDativ(Math.max(1, -(f.tageBisFaellig ?? 0)))} überfällig`
-          : f.tageBisFaellig === 0 ? "Kontrolle heute fällig" : `Kontrolle fällig in ${tageDativ(f.tageBisFaellig ?? 0)}`;
+          : heute || f.tageBisFaellig === 0 ? "Kontrolle heute fällig" : `Kontrolle fällig in ${tageDativ(f.tageBisFaellig ?? 0)}`;
       return {
         id: `bz:${g.id}`,
         art: "BZ-Kontrolle",
         titel: g.name,
         wo: g.lagerortName,
         zustand,
-        dringlichkeit: f.nieGeprueft || f.ueberfaellig ? "ueberfaellig" : "bald",
+        dringlichkeit: f.nieGeprueft || f.ueberfaellig ? "ueberfaellig" : heute ? "faellig" : "bald",
         sortierung: f.faelligAm?.toISOString() ?? "",
         pfad: verwaltungDetailPfad("bz", g.id),
       };

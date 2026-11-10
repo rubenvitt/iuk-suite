@@ -8,7 +8,7 @@
  * Die vollständige Liste ist einen Tipp entfernt (`click` auf die Seite im Portal).
  */
 import type { Faelligkeit } from "@/core/faelligkeiten";
-import { woAnzeige } from "./anzeige";
+import { woAnzeige, zaehlungTeile } from "./anzeige";
 import type { FaelligkeitsGruppe } from "./sammeln";
 import { zaehle } from "./sammeln";
 
@@ -17,7 +17,7 @@ export const ZEILEN_JE_MODUL = 5;
 export interface PushNachricht {
   title: string;
   message: string;
-  /** 4 = hoch, wenn etwas überfällig ist; sonst 3 = normal. */
+  /** 4 = hoch, wenn etwas überfällig oder heute fällig ist; sonst 3 = normal. */
   priority: 3 | 4;
   tags: string[];
   click?: string;
@@ -31,9 +31,10 @@ function zeile(f: Faelligkeit): string {
 
 /** `null`: nichts fällig und keine Quelle ausgefallen — dann wird nichts gesendet. */
 export function baueNachricht(gruppen: readonly FaelligkeitsGruppe[], seitenUrl: string | null): PushNachricht | null {
-  const { ueberfaellig, bald } = zaehle(gruppen);
+  const zaehlung = zaehle(gruppen);
+  const { ueberfaellig, faellig, bald } = zaehlung;
   const ausgefallen = gruppen.filter((g) => g.fehler);
-  if (ueberfaellig + bald === 0 && ausgefallen.length === 0) return null;
+  if (ueberfaellig + faellig + bald === 0 && ausgefallen.length === 0) return null;
 
   const teile: string[] = [];
   for (const g of gruppen) {
@@ -48,11 +49,11 @@ export function baueNachricht(gruppen: readonly FaelligkeitsGruppe[], seitenUrl:
     teile.push([g.titel, ...zeilen].join("\n"));
   }
 
-  const zahlen = [ueberfaellig > 0 && `${ueberfaellig} überfällig`, bald > 0 && `${bald} bald fällig`].filter(Boolean).join(", ");
+  const zahlen = zaehlungTeile(zaehlung).join(", ");
   return {
     title: zahlen ? `Was steht an: ${zahlen}` : "Was steht an",
     message: teile.join("\n\n"),
-    priority: ueberfaellig > 0 ? 4 : 3,
+    priority: ueberfaellig + faellig > 0 ? 4 : 3,
     tags: ["date"],
     ...(seitenUrl ? { click: seitenUrl } : {}),
   };
