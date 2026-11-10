@@ -85,6 +85,7 @@ import suchlageEinsatzVerknuepfen from "@/app/m/portal/_lib/neuigkeiten/notizen/
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
+import nachweisInEinemSchritt from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-11-10-nachweis-in-einem-schritt";
 import checklisteAlsPdf from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-08-16-checkliste-als-pdf";
 import mitCodeEinsteigen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-mit-code-einsteigen";
 import bestandNullAusblenden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-bestand-null-ausblenden";
@@ -241,6 +242,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   anleitungJeAnsicht,
   verteilenZweiAnsichten,
   aufgabenBearbeiten,
+  nachweisInEinemSchritt,
   checklisteAlsPdf,
   mitCodeEinsteigen,
   bestandNullAusblenden,
