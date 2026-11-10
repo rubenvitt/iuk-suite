@@ -27,6 +27,7 @@ import { shareLoeschenAction, type ShareFormZustand } from "../(verwaltung)/acti
  */
 import type { AvSammelwert } from "../_db/queries";
 import { QrDialog } from "./QrDialog";
+import styles from "./sharesTabelle.module.css";
 import { useKopieren } from "./useKopieren";
 
 /**
@@ -187,7 +188,11 @@ function spalten(
       /* IDA-388: der Titel ist der Weg auf die Detailseite (Zugriffsprotokoll,
          Prüfung, Aufstocken). Vorher fuehrte nur „Bearbeiten → Abbrechen" dorthin. */
       render: (_: unknown, zeile: ShareZeile) => (
-        <Link href={`/shares/${zeile.id}`} data-testid={`files-share-detail-${zeile.id}`}>
+        <Link
+          href={`/shares/${zeile.id}`}
+          className={styles.titelLink}
+          data-testid={`files-share-detail-${zeile.id}`}
+        >
           {zeile.titel}
         </Link>
       ),
