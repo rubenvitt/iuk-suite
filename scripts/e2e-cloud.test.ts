@@ -1,15 +1,22 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   CLOUD_CHROMIUM,
+  LOOPBACK_DNS,
+  LOOPBACK_IM_BROWSER,
   OHNE_PROXY,
   cloudHeadlessShell,
   cloudTauglich,
   cloudTauglichUse,
   istCloudSession,
+  loopbackDnsEinrichten,
+  mitPreload,
 } from "../e2e/helpers/cloud";
+
+const nichts = () => {};
 
 /**
  * PLAYWRIGHT IN DER CLOUD-SESSION (DRK-473). Die Wirkung sieht nur ein echter
@@ -62,17 +69,17 @@ describe("cloudTauglich", () => {
   });
 
   it("nimmt wie die CI die Headless-Shell und verzichtet auf den Proxy (DRK-489)", () => {
-    const aus = cloudTauglich({ testDir: "./e2e" }, true, () => SHELL);
-    expect(aus.use?.launchOptions).toEqual({ executablePath: SHELL, args: [OHNE_PROXY] });
+    const aus = cloudTauglich({ testDir: "./e2e" }, true, () => SHELL, nichts);
+    expect(aus.use?.launchOptions).toEqual({ executablePath: SHELL, args: [OHNE_PROXY, LOOPBACK_IM_BROWSER] });
   });
 
   it("nimmt den vollen Chromium für channel: chromium, wie Playwright selbst", () => {
-    const aus = cloudTauglich({ use: { channel: "chromium" } }, true, () => SHELL);
+    const aus = cloudTauglich({ use: { channel: "chromium" } }, true, () => SHELL, nichts);
     expect(aus.use?.launchOptions?.executablePath).toBe(CLOUD_CHROMIUM);
   });
 
   it("fällt ohne vorinstallierte Shell auf den vollen Chromium zurück", () => {
-    const aus = cloudTauglich({ testDir: "./e2e" }, true, () => undefined);
+    const aus = cloudTauglich({ testDir: "./e2e" }, true, () => undefined, nichts);
     expect(aus.use?.launchOptions?.executablePath).toBe(CLOUD_CHROMIUM);
   });
 
@@ -81,9 +88,56 @@ describe("cloudTauglich", () => {
       { use: { baseURL: "http://x", channel: "chromium", launchOptions: { args: ["--a"], slowMo: 5 } } },
       true,
       () => SHELL,
+      nichts,
     );
     expect(aus.use).toMatchObject({ baseURL: "http://x", channel: "chromium" });
-    expect(aus.use?.launchOptions).toEqual({ slowMo: 5, executablePath: CLOUD_CHROMIUM, args: ["--a", OHNE_PROXY] });
+    expect(aus.use?.launchOptions).toEqual({ slowMo: 5, executablePath: CLOUD_CHROMIUM, args: ["--a", OHNE_PROXY, LOOPBACK_IM_BROWSER] });
+  });
+});
+
+describe("Namensauflösung *.localtest.me (IDA-374)", () => {
+  it("richtet sie nur in der Cloud ein", () => {
+    const aufloesen = vi.fn();
+    cloudTauglich({ testDir: "./e2e" }, false, () => undefined, aufloesen);
+    expect(aufloesen).not.toHaveBeenCalled();
+    cloudTauglich({ testDir: "./e2e" }, true, () => undefined, aufloesen);
+    expect(aufloesen).toHaveBeenCalledOnce();
+  });
+
+  it("lädt die Datei im Lauf und reicht sie an Kindprozesse weiter", () => {
+    const env: Record<string, string | undefined> = { NODE_OPTIONS: "--max-old-space-size=8192" };
+    const laden = vi.fn();
+    loopbackDnsEinrichten(env, laden);
+    loopbackDnsEinrichten(env, laden);
+    expect(laden).toHaveBeenCalledWith(LOOPBACK_DNS);
+    expect(env.NODE_OPTIONS).toBe(`--max-old-space-size=8192 --require ${LOOPBACK_DNS}`);
+  });
+
+  it("setzt Pfade mit Leerzeichen in Anführungszeichen", () => {
+    expect(mitPreload(undefined, "/a b/x.cjs")).toBe('--require "/a b/x.cjs"');
+  });
+
+  it("biegt localtest.me auf Loopback und lässt andere Namen beim Resolver", async () => {
+    const dns = await import("node:dns");
+    // Der Spion steht für den echten Resolver; `mockRestore` nimmt die Umbiegung wieder heraus.
+    const echt = vi.spyOn(dns.default, "lookup").mockImplementation(((_n: string, _o: unknown, rueckruf: (...a: unknown[]) => void) =>
+      rueckruf(null, "192.0.2.1", 4)) as never);
+    const geladen = createRequire(LOOPBACK_DNS)(LOOPBACK_DNS) as { istLoopbackName: (n: string) => boolean };
+    expect(geladen.istLoopbackName("feedback.localtest.me")).toBe(true);
+    expect(geladen.istLoopbackName("LOCALTEST.ME.")).toBe(true);
+    expect(geladen.istLoopbackName("localtest.me.example.org")).toBe(false);
+
+    const einzeln = await new Promise((fertig) =>
+      dns.default.lookup("portal.localtest.me", (_f, adresse, familie) => fertig([adresse, familie])),
+    );
+    expect(einzeln).toEqual(["127.0.0.1", 4]);
+    expect(await dns.promises.lookup("qr.localtest.me", { all: true })).toEqual([{ address: "127.0.0.1", family: 4 }]);
+    expect(await dns.promises.lookup("qr.localtest.me", { family: 6 })).toEqual({ address: "::1", family: 6 });
+    expect(echt).not.toHaveBeenCalled();
+
+    dns.default.lookup("example.org", {}, () => {});
+    expect(echt).toHaveBeenCalledWith("example.org", {}, expect.any(Function));
+    echt.mockRestore();
   });
 });
 
@@ -109,7 +163,7 @@ describe("cloudTauglichUse (DRK-503)", () => {
     const aus = cloudTauglichUse({ channel: "chromium", launchOptions: { args: ["--a"] } }, true, () => SHELL);
     expect(aus).toEqual({
       channel: "chromium",
-      launchOptions: { executablePath: CLOUD_CHROMIUM, args: ["--a", OHNE_PROXY] },
+      launchOptions: { executablePath: CLOUD_CHROMIUM, args: ["--a", OHNE_PROXY, LOOPBACK_IM_BROWSER] },
     });
   });
 });
