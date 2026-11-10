@@ -125,7 +125,8 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
   const aktionen = {
     zuteilen: (sid: string, k: string, aus?: string) => {
       const { quelle, helferId } = teile(k);
-      beruehre(k);
+      // Auch die Schichten gelten als geändert: „Rückgängig“ einer Anlage löschte sonst die Einteilung mit.
+      for (const g of [k, sid, ...(aus ? [aus] : [])]) beruehre(g);
       return aendere(
         (q) => ({
           ...q,
@@ -140,6 +141,7 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     austragen: (sid: string, k: string) => {
       const { quelle, helferId } = teile(k);
       beruehre(k);
+      beruehre(sid);
       return aendere(
         (q) => ({ ...q, zuordnungen: q.zuordnungen.filter((z) => !(z.schichtId === sid && z.quelle === quelle && z.helferId === helferId)) }),
         () => austragenAction(p.id, { schichtId: sid, quelle, helferId }),
