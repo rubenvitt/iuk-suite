@@ -1,4 +1,6 @@
+import { headers } from "next/headers";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { oeffentlicheUrl } from "../../../_lib/hostRolle";
 import { grenzen } from "../../../_lib/grenzen";
 import { UploadInsel } from "../../../_ui/UploadInsel";
 
@@ -32,6 +34,9 @@ import { UploadInsel } from "../../../_ui/UploadInsel";
  */
 export default async function NeueFreigabeSeite() {
   const g = grenzen();
+  // Der Link traegt den Host der ROLLE, nicht den des Requests — dieselbe eine
+  // Stelle wie auf der Detailseite (`shares/[id]/page.tsx`).
+  const linkBasis = oeffentlicheUrl("verwaltung", "/s/", await headers());
 
   return (
     <div data-testid="files-neue-freigabe">
@@ -49,6 +54,7 @@ export default async function NeueFreigabeSeite() {
         maxAblaufTage={g.maxAblaufTage}
         maxDateienProShare={g.maxDateienProShare}
         maxDateiBytes={g.maxDateiBytes}
+        linkBasis={linkBasis}
       />
     </div>
   );

@@ -288,7 +288,7 @@ test("4 — die anonyme Abgabe erscheint im Posteingang des anderen Hosts und is
   // abgebende Person gemacht hat, und ohne sie wäre die Ansicht eine
   // Dateiliste statt eines Postfachs.
   await expect(zeile()).toContainText(hinweis);
-  await expect(zeile()).toContainText("dokumente");
+  await expect(zeile()).toContainText("Dokumente");
   // Und der Abgabelink, an dem sie hängt: `token_start` im Klartext.
   await expect(zeile()).toContainText(token.slice(0, 7));
 

@@ -115,15 +115,15 @@ describe("anzeigeKategorie: Toleranz, roher Durchlass", () => {
     expect(anzeigeKategorie("__none__")).toBe("__none__");
   });
 
-  it("gibt auch einen bekannten Wert roh zurueck — keine Beschriftung eingemischt", () => {
+  it("zeigt einen bekannten Wert mit seiner Beschriftung (IDA-388)", () => {
     /*
-     * Beschriftungen gehoeren ins Formular (SCHREIBBARE_KATEGORIEN), nicht in
-     * die Anzeige einer Datenspalte: sonst stuende in derselben Spalte des
-     * Posteingangs "Bilder" neben "berichte", und die Ungleichheit waere eine
-     * Eigenschaft der Anzeigefunktion, nicht der Daten.
+     * Dieselbe Beschriftung wie die Filterleiste daneben. Vorher stand „bilder"
+     * in der Zelle und „Bilder" im Filter — zwei Woerter fuer eine Sache.
      */
-    expect(anzeigeKategorie("bilder")).toBe("bilder");
-    expect(anzeigeKategorie("sonstiges")).toBe("sonstiges");
+    expect(anzeigeKategorie("bilder")).toBe("Bilder");
+    expect(anzeigeKategorie("sonstiges")).toBe("Sonstiges");
+    // Exakter Vergleich, keine Normalisierung: ein Altwert bleibt roh.
+    expect(anzeigeKategorie("Bilder ")).toBe("Bilder ");
   });
 
   it("gibt fuer `null` und `undefined` den benannten Leerwert", () => {

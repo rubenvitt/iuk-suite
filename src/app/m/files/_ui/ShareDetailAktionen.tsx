@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Alert, Button, Input, Popconfirm } from "antd";
 
 import {
@@ -10,6 +10,7 @@ import {
 } from "../(verwaltung)/actions";
 import { QrDialog } from "./QrDialog";
 import styles from "./shareDetailAktionen.module.css";
+import { useKopieren } from "./useKopieren";
 
 /**
  * DIE HANDLUNGEN DER SHARE-DETAILSEITE (Spec §7.3, §7.5, §7.9, §10.2; Plan T41
@@ -82,9 +83,6 @@ export type ShareDetailAktionenProps = {
 
 const START: ShareFormZustand = { ok: false, feldFehler: {}, werte: {} };
 
-/** 2 s: lang genug zum Lesen, kurz genug, dass der Knopf nicht „Kopiert" heißt. */
-const RUECKMELDUNG_MS = 2000;
-
 function fehlerText(zustand: ShareFormZustand): string | null {
   if (zustand.ok) return null;
   const werte = Object.values(zustand.feldFehler);
@@ -101,34 +99,13 @@ export function ShareDetailAktionen({
   hatDownloadLimit,
 }: ShareDetailAktionenProps) {
   const [qrOffen, setQrOffen] = useState(false);
-  const [kopiert, setKopiert] = useState(false);
-  const uhr = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { kopiert, kopieren: kopiereText } = useKopieren();
 
   const [loeschZustand, loeschen] = useActionState(shareLoeschenAction, START);
   const [aufstockZustand, aufstocken] = useActionState(downloadsAufstockenAction, START);
   const loeschFormular = useRef<HTMLFormElement>(null);
 
-  // Ein `setState` nach dem Ausbauen ist eine Warnung ohne Nutzen, und der
-  // Zeitgeber hielte sonst eine Referenz auf die Komponente.
-  useEffect(
-    () => () => {
-      if (uhr.current) clearTimeout(uhr.current);
-    },
-    [],
-  );
-
-  const kopieren = async () => {
-    try {
-      await navigator.clipboard.writeText(oeffentlicheAdresse);
-    } catch {
-      // Ohne Berechtigung (oder ohne sicheren Kontext) bleibt die Adresse
-      // daneben markierbar — deshalb kein Alarm, nur keine Bestätigung.
-      return;
-    }
-    setKopiert(true);
-    if (uhr.current) clearTimeout(uhr.current);
-    uhr.current = setTimeout(() => setKopiert(false), RUECKMELDUNG_MS);
-  };
+  const kopieren = () => kopiereText(oeffentlicheAdresse);
 
   const loeschFehler = fehlerText(loeschZustand);
   const aufstockFehler = fehlerText(aufstockZustand);
@@ -248,6 +225,7 @@ export function ShareDetailAktionen({
               id="zusatzDownloads"
               name="zusatzDownloads"
               type="number"
+              inputMode="numeric"
               min={1}
               step={1}
               defaultValue={10}

@@ -455,6 +455,10 @@
     "kind": "context",
     "via": "aufraeumenAction"
   },
+  "src/app/m/files/(verwaltung)/ablage-actions.ts#aufraeumVorschauAction": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
   "src/app/m/files/(verwaltung)/actions.ts#anlegenAction": {
     "kind": "context",
     "via": "anlegenAction"
