@@ -62,6 +62,7 @@ import wartungFahrzeugwahl from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung
 import wartungKiAssistent from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-ki-assistent";
 import wartungPruefarten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-pruefarten";
 import wartungEntnehmen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-08-entnehmen";
+import wartungMaengelAmQr from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-10-maengel-am-qr-code";
 import wartungVorUndNachDemEinsatz from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-vor-und-nach-dem-einsatz";
 import verpflegungVerpflegungslager from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-04-verpflegungslager";
 import verpflegungBestandJeArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-10-bestand-je-artikel";
@@ -224,6 +225,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   wartungKiAssistent,
   wartungPruefarten,
   wartungEntnehmen,
+  wartungMaengelAmQr,
   wartungVorUndNachDemEinsatz,
   verpflegungVerpflegungslager,
   verpflegungBestandJeArtikel,

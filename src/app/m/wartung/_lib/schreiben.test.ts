@@ -141,6 +141,18 @@ describe("Verwaltung", () => {
     expect(db.select().from(eintrag).where(eq(eintrag.typ, "stunden")).all()).toHaveLength(1);
   });
 
+  it("Stunden korrigieren (IDA-381): nach unten nur als Korrektur, und der Verlauf zeigt es", () => {
+    const { db, id } = mitStromerzeuger();
+    stundenEintragen(db, id, 2315, K);
+    stundenEintragen(db, id, 232, K, undefined, true);
+    expect(db.select().from(geraet).where(eq(geraet.id, id)).get()!.stunden).toBe(232);
+    const e = db.select().from(eintrag).where(eq(eintrag.typ, "stunden")).all().map((x) => [x.titel, x.stunden, x.notiz]);
+    expect(e).toEqual([["Betriebsstunden abgelesen", 2315, ""], ["Betriebsstunden korrigiert", 232, "Vorher 2315 h"]]);
+    // Mit Korrektur, aber nicht kleiner: ein gewöhnliches Ablesen.
+    stundenEintragen(db, id, 240, K, undefined, true);
+    expect(db.select().from(eintrag).where(eq(eintrag.typ, "stunden")).all().at(-1)!.titel).toBe("Betriebsstunden abgelesen");
+  });
+
   it("Stunden ablesen: dieselbe Sendung zweimal bucht einmal (IDA-358)", () => {
     const { db, id } = mitStromerzeuger();
     const sendung = neueId();

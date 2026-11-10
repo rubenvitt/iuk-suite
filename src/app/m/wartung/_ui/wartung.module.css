@@ -150,3 +150,40 @@ a.unterlage:hover { background: var(--iuk-flaeche-aktiv); }
 .planIntervall { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pfeile { display: flex; flex-wrap: nowrap; gap: 4px; }
 .dialogFuss { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+/* IDA-381: „− n +“ am Telefon (`telefon/Zaehler.tsx`); 56px wie die Wahlknöpfe der Telefonseiten. */
+.zaehler { display: inline-flex; align-items: stretch; flex: none; border: 1px solid var(--iuk-linie); border-radius: 8px; background: var(--gw-karte); }
+.zaehlTaste {
+  display: inline-flex; justify-content: center; align-items: center; width: 56px; height: 56px; padding: 0;
+  border: 0; background: transparent; color: inherit; cursor: pointer;
+}
+.zaehlTaste:first-child { border-inline-end: 1px solid var(--iuk-linie); }
+.zaehlTaste:last-child { border-inline-start: 1px solid var(--iuk-linie); }
+.zaehlTaste:disabled { opacity: .35; cursor: default; }
+.zaehlTaste:focus-visible, .zaehlWert:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+.zaehlWert {
+  width: 56px; height: 56px; padding: 0; border: 0; background: transparent; color: inherit; text-align: center;
+  font: 600 20px/1 var(--font-display); font-variant-numeric: tabular-nums;
+}
+.zaehlWert[aria-invalid="true"] { color: var(--gw-rot-text); }
+.zaehlWert:disabled { opacity: .45; }
+/* Offene Mängel am Steckbrief (IDA-381): Kurztext und Tag, auch ohne Anmeldung. */
+.maengelKurz { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.maengelKurz li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; }
+.maengelKurz li > span:first-child { overflow-wrap: anywhere; }
+.inhaltDa { white-space: nowrap; }
+
+/* Betriebsstunden (IDA-381): Rückfrage über dem Knopf, Sprungziele der Fußzeile, Hinweis je Prüfpunkt. */
+.rueckfrage { margin-bottom: 8px; font-weight: 600; overflow-wrap: anywhere; }
+.fussGrund { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; }
+.fussSprung {
+  padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: start; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere;
+}
+.punktHinweis { margin: 4px 0 0; color: var(--iuk-gedaempft); overflow-wrap: anywhere; white-space: pre-line; }
+.punktHinweisZu { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Kicker der Verwaltung ohne Versalien (Haarlinie, IDA-381; `Kicker leise` in `teile.tsx`). Steht nach
+   `.kicker` und gewinnt bei gleicher Spezifität. `kickerTinte`: „Überfällig“ in Tinte, „Bald“ gedämpft. */
+.kickerLeise { text-transform: none; letter-spacing: .01em; }
+.kickerTinte { color: inherit; }

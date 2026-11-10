@@ -88,12 +88,14 @@ function kontext(viewer: Viewer) {
 
 // ---------------------------------------------------------------- Stufe „zugang“
 
-export const stundenEintragenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ viewer }) => {
+/** Ablesen darf jeder mit Modulzugang; nach unten korrigieren (IDA-381) nur, wer die Gruppe des Geräts verwaltet. */
+export const stundenEintragenVorgang = (z: Akteur, geraetId: unknown, eingabe: unknown) => ausfuehren(z, ({ viewer, rechte }) => {
   const e = stundenEingabe.safeParse(eingabe);
   if (!idSchema.safeParse(geraetId).success || !e.success) {
     return { ok: false, fehler: "Bitte ganze Stunden eingeben.", feldFehler: { stunden: "Bitte ganze Stunden eingeben." } };
   }
-  stundenEintragen(getDb(), geraetId as string, e.data.stunden, kontext(viewer), e.data.sendung);
+  if (e.data.korrektur) eigenesGeraet(rechte, geraetId as string);
+  stundenEintragen(getDb(), geraetId as string, e.data.stunden, kontext(viewer), e.data.sendung, e.data.korrektur);
 });
 
 /** Etwas aus einer Kiste mitnehmen (IDA-372) — jeder mit Modulzugang. Wer, steht aus der Anmeldung da. */

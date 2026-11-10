@@ -4,7 +4,8 @@ import { Button } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { getDb } from "../../../_db/client";
 import { ladeEinsatz } from "../../../_lib/daten";
-import { einsatzText, mitAnlassKnopf, unterwegsText } from "../../../_lib/unterwegsText";
+import { mangelKurz } from "../../../_lib/telefon";
+import { einsatzText, mitAnlassKnopf, seitText, unterwegsText } from "../../../_lib/unterwegsText";
 import { loginZiel, verwaltetGruppe } from "../../../_lib/zugang";
 import { ArtZeichen, FristChip, groesseText, Kicker, OrtText, stundenText, ZustandChip } from "../../../_ui/teile";
 import { AnlassKnopf } from "../../../_ui/telefon/AnlassKnopf";
@@ -15,8 +16,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * Der Steckbrief am Gerät — das, was der QR-Code öffnet. Ohne Modulzugang (auch ohne Anmeldung) Kopf, Hinweise,
- * Unterlagen, bei einer Materialkiste ihr Inhalt und „Mangel melden“ (IDA-300, IDA-335); Fristen, Mängeltexte und
- * Prüfung erst mit Zugang (IDA-337).
+ * Unterlagen, bei einer Materialkiste ihr Inhalt, die offenen Mängel und „Mangel melden“ (IDA-300, IDA-335); Fristen
+ * und Prüfung erst mit Zugang (IDA-337). Die offenen Mängel standen bis IDA-381 auch erst mit Zugang da; dann meldete
+ * der Nächste am Gerät denselben Mangel noch einmal. Jetzt stehen sie für jeden als Kurztext mit Tag, ohne Namen und
+ * Foto der meldenden Person.
  */
 export default async function Steckbrief({ params }: { params: Promise<{ id: string }> }) {
   const { g, pruefung, checkliste, punkteJe, offen, unterlagen, unterwegs, rechte, viewer, zugang } = await geraetOeffentlich(params);
@@ -26,6 +29,8 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
   const mitAnlass = mitAnlassKnopf(g);
   const einsatz = g.kiste ? null : ladeEinsatz(getDb(), g.id);
   const verwaltet = zugang && verwaltetGruppe(rechte, g.gruppeId);
+  // Je Posten, was davon da ist, wenn etwas unterwegs ist (IDA-381): „4 von 6 da“ statt „6 ×“.
+  const da = (p: { id: string; soll?: number | null }) => Math.max(0, (p.soll ?? 0) - (unterwegs.jePosition.get(p.id) ?? 0));
   // Die Inhaltsliste steht auch auf dem Etikett der Kiste, also auch ohne Anmeldung (IDA-335).
   const inhalt = g.kiste && (
     <section className={s.karte} aria-label="Inhalt">
@@ -34,7 +39,9 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
         <ul className={s.inhaltListe}>
           {checkliste.map((p) => (
             <li key={p.id} className={s.inhaltPosten} data-rolle="inhalt-posten">
-              <span className={s.soll}>{p.soll} ×</span>
+              {da(p) < (p.soll ?? 0)
+                ? <span className={`${s.soll} ${s.inhaltDa}`} data-rolle="inhalt-da">{da(p)} von {p.soll} da</span>
+                : <span className={s.soll}>{p.soll} ×</span>}
               <span>{p.text}{p.hinweis && <span className={`${s.neben} ${s.klein}`}> · {p.hinweis}</span>}</span>
             </li>
           ))}
@@ -46,6 +53,20 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
         </Button>
       )}
     </section>
+  );
+  // Offene Mängel für jeden, der am Gerät steht (IDA-381), über „Mangel melden“: schon gemeldet, dann nicht doppelt.
+  const maengel = offen.length > 0 && (
+    <div className={s.meldung} style={{ marginBottom: 12 }} role="status" data-rolle="offene-maengel">
+      <strong>{offen.length === 1 ? "1 offener Mangel" : `${offen.length} offene Mängel`}</strong>
+      <ul className={s.maengelKurz}>
+        {offen.map((m) => (
+          <li key={m.id} data-rolle="offener-mangel">
+            <span>{mangelKurz(m.text)}</span>
+            <span className={`${s.klein} ${s.ziffern}`}>{seitText(m.gemeldetAm)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
   const kopf = (
     <section className={s.karte}>
@@ -122,6 +143,7 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
         {anleitung}
         {inhalt}
         <section className={s.karte}>
+          {maengel}
           <div className={s.knopfstapel}>
             <Button type="primary" block href={`/g/${g.id}/mangel`} icon={<Icons8Ikone name="warning" groesse={20} />}>Mangel melden</Button>
             {viewer === null && <Button block href={anmelden}>Anmelden</Button>}
@@ -163,17 +185,13 @@ export default async function Steckbrief({ params }: { params: Promise<{ id: str
       {inhalt}
 
       <section className={s.karte}>
+        {maengel}
         <div className={s.knopfstapel}>
           <Button block href={`/g/${g.id}/mangel`} icon={<Icons8Ikone name="warning" groesse={20} />}>Mangel melden</Button>
           {(g.stunden !== null || g.stundenPflicht) && (
             <Button block href={`/g/${g.id}/stunden`} icon={<Icons8Ikone name="clock" groesse={20} />}>Betriebsstunden eintragen</Button>
           )}
         </div>
-        {offen.length > 0 && (
-          <div className={s.meldung} style={{ marginTop: 12 }} role="status">
-            <strong>{offen.length === 1 ? "1 offener Mangel" : `${offen.length} offene Mängel`}:</strong> {offen[0].text}
-          </div>
-        )}
       </section>
 
       <section className={s.karte}>
