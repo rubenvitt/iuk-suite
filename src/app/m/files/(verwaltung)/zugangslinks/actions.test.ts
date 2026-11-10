@@ -310,7 +310,7 @@ describe("zugangslinkAnlegenAction — Laufzeit in ganzen Stunden, 1 bis 72 (§8
    */
   it.each(
     ["budgetDateien", "budgetMib"].flatMap((feld) =>
-      ["0", "-5", "2.5", "abc"].map((wert) => [feld, wert] as [string, string]),
+      ["0", "-5", "2.5", "abc", "9".repeat(400)].map((wert) => [feld, wert] as [string, string]),
     ),
   )("Budget %s=%j wird abgelehnt, und es entsteht KEINE Zeile", async (feld, wert) => {
     const ergebnis = await anlegen({ [feld]: wert });
@@ -322,6 +322,13 @@ describe("zugangslinkAnlegenAction — Laufzeit in ganzen Stunden, 1 bis 72 (§8
   it("fragt den Speicherplatz in MiB und speichert ihn in Bytes (IDA-388)", async () => {
     expect((await anlegen({ budgetMib: "50" })).ok).toBe(true);
     expect(rohZeilen()[0].budget_bytes).toBe(50 * 1024 * 1024);
+  });
+
+  it("lehnt MiB ab, deren Bytezahl keine genaue Zahl mehr wäre", async () => {
+    const ergebnis = await anlegen({ budgetMib: "8589934592" });
+    expect(ergebnis.ok).toBe(false);
+    if (!ergebnis.ok) expect(ergebnis.fieldErrors.budgetMib).toBeTruthy();
+    expect(rohZeilen()).toHaveLength(0);
   });
 
   it("nach erfolgreichem Anlegen wird die Liste aufgefrischt", async () => {
@@ -491,7 +498,8 @@ describe("kontingentAufstockenAction — dieselbe Zeile, nur gueltige Links (§8
     // nichts getan hat.
     ["mit leeren Feldern", { zusatzDateien: "", zusatzMib: "" }],
     ["ganz ohne die Felder", {}],
-  ])("ohne jeden Zuwachs wird abgelehnt (%s)", async (_wie, felder) => {
+    ["mit zu vielen MiB", { zusatzMib: "9".repeat(400) }],
+  ])("ohne gueltigen Zuwachs wird abgelehnt (%s)", async (_wie, felder) => {
     await legeLink({ id: "zl00000003", budgetDateien: 10, budgetBytes: 1000 });
     const ergebnis = await aufstocken({ id: "zl00000003", ...felder });
     expect(ergebnis.ok).toBe(false);

@@ -19,7 +19,7 @@ vi.mock("../(verwaltung)/ablage-actions", () => ({
 }));
 
 import { AufraeumenKnoepfe } from "./AufraeumenKnoepfe";
-import { click, clickPortal, existsPortal, mount, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
+import { click, clickPortal, exists, existsPortal, mount, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 
 async function warte(): Promise<void> {
   await act(async () => {
@@ -87,5 +87,24 @@ describe("„Jetzt aufräumen“ fragt mit den Zahlen nach", () => {
     expect(queryPortal('[data-testid="files-ablage-rueckfrage"]').textContent).toContain(
       "auch dieser Lauf löscht nichts",
     );
+  });
+
+  it("schickt das Formular mit „Jetzt aufräumen“ nicht ab", async () => {
+    vorschauMock.mockResolvedValue({ satz: "Löscht 1 abgelaufene Freigabe.", trockenlaufErzwungen: false });
+    await mount(<AufraeumenKnoepfe />);
+    const knopf = document.querySelector('[data-testid="files-ablage-aufraeumen"]');
+    expect(knopf?.getAttribute("type")).toBe("button");
+  });
+
+  it("meldet einen gescheiterten Lauf", async () => {
+    vorschauMock.mockResolvedValue({ satz: "Löscht 1 abgelaufene Freigabe.", trockenlaufErzwungen: false });
+    aufraeumenMock.mockRejectedValueOnce(new Error("kaputt"));
+    await mount(<AufraeumenKnoepfe />);
+    await click('[data-testid="files-ablage-aufraeumen"]');
+    await warte();
+    await clickPortal('[data-testid="files-ablage-aufraeumen-bestaetigen"]');
+    await warte();
+
+    expect(exists('[data-testid="files-ablage-aufraeumen-fehler"]')).toBe(true);
   });
 });

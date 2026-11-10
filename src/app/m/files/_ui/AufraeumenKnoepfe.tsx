@@ -43,8 +43,13 @@ export function AufraeumenKnoepfe() {
   const raeumeAuf = () => {
     const daten = new FormData();
     daten.set("modus", "echt");
+    setFehler(null);
     starteRaeumen(async () => {
-      await aufraeumenAction(daten);
+      try {
+        await aufraeumenAction(daten);
+      } catch {
+        setFehler("Das Aufräumen ist fehlgeschlagen. Bitte den Stand prüfen.");
+      }
       setVorschau(null);
     });
   };

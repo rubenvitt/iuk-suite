@@ -84,6 +84,9 @@ const TOKEN_START_LAENGE = 7;
  */
 const GANZZAHL_OHNE_VORZEICHEN = /^\d+$/;
 
+/** Mehr MiB, als sich in Bytes noch genau als `Number` rechnen lassen. */
+const MAX_MIB = Math.floor(Number.MAX_SAFE_INTEGER / BYTES_PRO_MIB);
+
 /**
  * Eine Zahl aus dem Formular, oder `null` mit Feldfehler. `leerErlaubt` trennt
  * die beiden Fälle, die sonst zusammenfielen: ein leeres Budgetfeld heißt
@@ -106,6 +109,11 @@ function zahl(
     return null;
   }
   const wert = Number(roh);
+  // Zwanzig Neunen sind eine „ganze Zahl" und als `Number` ungenau oder `Infinity`.
+  if (!Number.isSafeInteger(wert)) {
+    fieldErrors[feld] = "Der Wert ist zu groß.";
+    return null;
+  }
   if (wert < regel.min || (regel.max !== undefined && wert > regel.max)) {
     fieldErrors[feld] =
       regel.max === undefined
@@ -175,7 +183,7 @@ export async function zugangslinkAnlegenAction(
     // IDA-388: gefragt wird in MiB, gespeichert in Bytes — eine rohe Bytezahl
     // im Formular war Betriebssprache. MiB und nicht MB: die Liste zeigt das
     // Restbudget binaer (`byteText`), und das Feld fragt in derselben Einheit.
-    const budgetMib = zahl(formData, "budgetMib", { min: 1, leerErlaubt: true }, fieldErrors);
+    const budgetMib = zahl(formData, "budgetMib", { min: 1, max: MAX_MIB, leerErlaubt: true }, fieldErrors);
     const budgetBytes = budgetMib === null ? vorgabe.inboxBudgetBytes : budgetMib * BYTES_PRO_MIB;
 
     if (Object.keys(fieldErrors).length > 0 || laufzeitStunden === null) {
@@ -254,7 +262,7 @@ export async function kontingentAufstockenAction(
     if (id === "") fieldErrors.id = "Kein Abgabelink angegeben.";
 
     const zusatzDateien = zahl(formData, "zusatzDateien", { min: 1, leerErlaubt: true }, fieldErrors);
-    const zusatzMib = zahl(formData, "zusatzMib", { min: 1, leerErlaubt: true }, fieldErrors);
+    const zusatzMib = zahl(formData, "zusatzMib", { min: 1, max: MAX_MIB, leerErlaubt: true }, fieldErrors);
     const zusatzBytes = zusatzMib === null ? null : zusatzMib * BYTES_PRO_MIB;
 
     // OHNE diese Prüfung wäre `budget + 0` für SQLite eine geänderte Zeile:
