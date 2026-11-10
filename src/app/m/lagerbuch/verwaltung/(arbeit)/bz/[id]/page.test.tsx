@@ -60,6 +60,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("../../../../_actions/bz", () => ({
   geraetSpeichern: (...args: unknown[]) => mocks.geraetSpeichern(...args),
   setGeraetAktiv: (...args: unknown[]) => mocks.setGeraetAktiv(...args),
+  kontrolleStornieren: vi.fn(),
 }));
 
 vi.mock("../../../../_actions/loeschen", () => ({
@@ -359,7 +360,7 @@ describe("BZ-Geräteblatt als Server Component", () => {
       === "akkuText,akkuTon,ergebnisText,ergebnisTon,id,kommentarText,"
       + "level1MaxDamals,level1MinDamals,level1Ton,level1Wert,"
       + "level2MaxDamals,level2MinDamals,level2Ton,level2Wert,"
-      + "verbrauchText,werText,zeitpunktIso,zeitpunktText"
+      + "storniertText,verbrauchText,werText,zeitpunktIso,zeitpunktText"
     ))).toBe(true);
     expect(istRekursivJsonSicher(props.zeilen)).toBe(true);
     expect(enthaeltDate(props.zeilen)).toBe(false);
@@ -382,6 +383,7 @@ describe("BZ-Geräteblatt als Server Component", () => {
       akkuTon: "gelb",
       werText: "System",
       kommentarText: null,
+      storniertText: null,
     });
     const ohneSnapshot = props.zeilen.find((zeile) => zeile.id === "k-neu")!;
     const kaputt = props.zeilen.find((zeile) => zeile.id === "k-kaputt")!;
@@ -416,6 +418,41 @@ describe("BZ-Geräteblatt als Server Component", () => {
     const seite = bzGeraetInhalt(t.db, "bz-1", NOW);
     expect(textVon(seite)).toContain("3 Einträge");
     expect(textVon(seite)).not.toContain(`Neueste ${BZ_LOGBUCH_GRENZE}`);
+  });
+
+  /**
+   * IDA-379 — eine juengere NICHT bestandene Kontrolle verschiebt „Nächste
+   * Kontrolle" nicht, und eine stornierte zaehlt nicht als „Letzte Kontrolle".
+   */
+  it("rechnet die Kacheln an nicht bestandenen und stornierten Kontrollen vorbei", () => {
+    t.db.insert(bzKontrollen).values([
+      { ...kontrolle({ id: "k-nb", ts: new Date("2026-08-07T08:00:00Z"), refSnapshot: null, kommentar: null }),
+        bestanden: false, batterieGewechselt: false },
+      { ...kontrolle({ id: "k-st", ts: new Date("2026-08-07T09:00:00Z"), refSnapshot: null, kommentar: null }),
+        batterieGewechselt: false },
+    ]).run();
+    t.sqlite.prepare(
+      "update bz_kontrollen set storniert_at = 1786095000, storniert_von = 'test' where id = 'k-st'",
+    ).run();
+
+    const seite = bzGeraetInhalt(t.db, "bz-1", NOW);
+    const kacheln = elementeVomTyp(seite, Kachel);
+    expect(kacheln.slice(0, 2).map((element) => textVon(
+      (element.props as { zahl: ReactNode }).zahl,
+    ))).toEqual(["06.09. 14:00", "07.08. 10:00"]);
+    expect(kacheln.slice(0, 2).map((element) => (element.props as { ton?: string }).ton))
+      .toEqual(["ok", "rot"]);
+
+    const zeilen = (elementeVomTyp(seite, BzLogbuchTabelle)[0].props as {
+      zeilen: BzLogbuchAnzeigeZeile[];
+    }).zeilen;
+    expect(zeilen.map((zeile) => [zeile.id, zeile.storniertText])).toEqual([
+      ["k-st", "storniert 07.08. 11:30 · test"],
+      ["k-nb", null],
+      ["k-neu", null],
+      ["k-alt", null],
+      ["k-kaputt", null],
+    ]);
   });
 
   it("liefert für eine unbekannte ID notFound", () => {

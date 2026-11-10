@@ -101,6 +101,7 @@ describe("inventurLaeufe", () => {
     naechsterLauf();
     await inventurKorrektur({
       kommentar: "Zweiter", umfang: { kategorien: ["Hygiene"], faecher: [] },
+      abdeckung: { erfasst: 2, gesamt: 3 },
       positionen: [{ artikelId: "art-1", ist: 5 }, { artikelId: "art-2", ist: 1 }],
     }, t.db);
 
@@ -112,6 +113,8 @@ describe("inventurLaeufe", () => {
     ]);
     expect(laeufe[0]!.umfang).toEqual({ kategorien: ["Hygiene"], faecher: [], ort: null, ortId: null });
     expect(laeufe[1]!.umfang).toBeNull();
+    // IDA-379 — ohne gesendete Abdeckung (offene alte Seite) bleibt sie leer.
+    expect(laeufe.map((l) => l.abdeckung)).toEqual([{ erfasst: 2, gesamt: 3 }, null]);
     expect(laeufe[0]!.quelleTyp).toBe("oidc");
     expect(laeufe[0]!.quelleId).toBe("u-admin");
   });
@@ -199,13 +202,30 @@ describe("inventurLauf", () => {
     expect(umfangAus('{"kategorien":[],"faecher":[],"ort":"X","ortId":42}')?.ortId).toBeNull();
   });
 
-  it("nennt den Ort zuerst und faellt ohne jede Angabe auf vollstaendig zurueck", () => {
+  it("nennt den Ort zuerst und faellt ohne jede Angabe auf den ganzen Handlager zurueck", () => {
     expect(umfangText({ kategorien: ["Hygiene"], faecher: ["A1"], ort: "Schrank 1", ortId: null }))
       .toBe("Ort Schrank 1, Hygiene, Fach A1");
     expect(umfangText({ kategorien: [], faecher: [], ort: "Nicht zugeordnet", ortId: null }))
       .toBe("Ort Nicht zugeordnet");
-    expect(umfangText({ kategorien: [], faecher: [], ort: null, ortId: null })).toBe("vollständig");
-    expect(umfangText(null)).toBe("vollständig");
+    // IDA-379 — NICHT „vollständig": ohne gespeicherte Abdeckung ist das nicht belegt.
+    expect(umfangText({ kategorien: [], faecher: [], ort: null, ortId: null })).toBe("ganzer Handlager");
+    expect(umfangText(null)).toBe("ganzer Handlager");
+  });
+
+  /**
+   * IDA-379 — „Umfang: vollständig, Positionen 2" stand bei 2 von 14 gezaehlten
+   * Artikeln im Verlauf. Vollstaendig heisst seither: alle Artikel des Umfangs
+   * erfasst, und das ist gespeichert.
+   */
+  it("sagt „2 von 14“ statt „vollständig“, wenn nicht alles gezählt wurde", () => {
+    expect(umfangText(null, undefined, { erfasst: 2, gesamt: 14 })).toBe("2 von 14");
+    expect(umfangText(null, undefined, { erfasst: 14, gesamt: 14 })).toBe("vollständig");
+    expect(umfangText({ kategorien: ["Hygiene"], faecher: [], ort: "Schrank 1", ortId: null }, undefined,
+      { erfasst: 3, gesamt: 5 })).toBe("Ort Schrank 1, Hygiene (3 von 5)");
+    expect(umfangText({ kategorien: ["Hygiene"], faecher: [], ort: null, ortId: null }, undefined,
+      { erfasst: 5, gesamt: 5 })).toBe("Hygiene (vollständig)");
+    // Ein leerer Umfang ist nicht „vollständig gezählt".
+    expect(umfangText(null, undefined, { erfasst: 0, gesamt: 0 })).toBe("0 von 0");
   });
 
   /**

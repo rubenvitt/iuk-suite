@@ -4,7 +4,7 @@ import { Ruhezustand } from "@/core/ruhe";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../_db/client";
 import { ampelTon, fmtVerfall } from "../../../_lib/format";
-import { lagerortVerfallListe, verfallListe } from "../../../_lib/lesepfade/verfall";
+import { lagerortVerfallListe, verfallSeitenListe } from "../../../_lib/lesepfade/verfall";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import {
   HandlagerVerfallTabelle,
@@ -15,6 +15,7 @@ import {
   type OrtVerfallZeile,
 } from "./OrtVerfallTabelle";
 import { zeitFormat } from "@/core/zeit";
+import { ortHref } from "./ortPfad";
 
 export const dynamic = "force-dynamic";
 
@@ -35,14 +36,24 @@ const GEMELDET_FORMAT = zeitFormat("de-DE", {
  * Liegeplaetzen kann ihr Einzelknopf genau einen Schrank ausraeumen. Begruendung des
  * Wechsels im Kopf von `HandlagerVerfallTabelle.tsx`.
  *
+ * ⚠️ SEIT IDA-379 NENNT SIE AUCH, WAS DRAUSSEN LIEGT („liegt ausserdem in:
+ * KTW 1 (6 Stk)", mit Sprung zur Einheit), und fuehrt eine abgelaufene Charge
+ * auch dann, wenn im Handlager nichts mehr von ihr liegt. Vorher fehlte die
+ * ganz, waehrend die Artikel-Schublade „abgelaufen: KTW 1 6" zeigte. Eine
+ * solche Zeile hat keinen Knopf: gebucht wird hier weiter nur der
+ * Handlager-Rest; was draussen liegt, wird auf der Seite der Einheit bzw. der
+ * Entnahmebox ausgesondert — dorthin fuehrt der Sprung.
+ *
  * ⚠️ UND SIE BLEIBT NACH DRINGLICHKEIT SORTIERT, NICHT NACH SCHRANK
  * (DRK-339, offene Frage „nach Schrank filterbar?"). Ein Schrankfilter
  * tauschte die Frage „was ist am dringendsten?" gegen „was ist hier?"; die
  * Suche findet einen Schrank trotzdem, weil sie die Liegeplaetze mitliest.
  *
  * UNTEN, FAHRZEUGE: eine Tabelle (DRK-298). Hier gibt es NICHTS ZU BUCHEN — ein
- * Fahrzeugverfall ist eine Meldung, keine Charge, und `aussondern` bucht
- * ausschliesslich den Handlager-Rest. Was hier gebraucht wird, ist die Antwort
+ * gemeldeter Fahrzeugverfall ist eine Meldung, keine Charge (ein Datum je Ort
+ * und Artikel in `lagerort_verfall`), und `aussondern` bucht ausschliesslich
+ * den Handlager-Rest. Die CHARGE, die draussen liegt, steht seit IDA-379 oben
+ * mit ihren Orten; diese Tabelle bleibt die Sicht der Meldungen. Was hier gebraucht wird, ist die Antwort
  * auf „was ist an DIESEM Fahrzeug faellig?", und dafuer braucht es einen
  * Fahrzeugfilter. Als flache Aufzaehlung standen die Meldungen eines Fahrzeugs
  * ueber die ganze Liste verstreut.
@@ -60,7 +71,7 @@ const GEMELDET_FORMAT = zeitFormat("de-DE", {
  * liefen auseinander.
  */
 export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
-  const chargen = verfallListe(db, jetzt);
+  const chargen = verfallSeitenListe(db, jetzt);
   const gemeldet = lagerortVerfallListe(db, { nurWarnend: true }, jetzt);
   /**
    * ⚠️ DIE AMPEL WIRD HIER AUFGELOEST, NICHT IN DER INSEL. `ampelTon` liegt in
@@ -96,6 +107,13 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
     rest: charge.rest,
     einheit: charge.einheit,
     orte: charge.orte,
+    // Der Link wird HIER aufgeloest: die Insel bekommt Skalare (Falle 9).
+    draussen: charge.draussen.map((ort) => ({
+      id: ort.id,
+      name: ort.name,
+      menge: ort.menge,
+      href: ortHref({ ortId: ort.id, ortTyp: ort.typ }),
+    })),
   }));
 
   return (
@@ -104,9 +122,11 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         titel="Verfall"
       />
 
-      <Card title="Chargen im Handlager" style={{ marginBlockEnd: SPACE.lg }}>
+      {/* IDA-379: „Chargen", nicht mehr „Chargen im Handlager" — die Karte
+          führt auch abgelaufene Chargen, die nur noch draußen liegen. */}
+      <Card title="Chargen" style={{ marginBlockEnd: SPACE.lg }}>
         {chargen.length === 0 ? (
-          <Ruhezustand figur="erledigt" titel="Keine auffällige Charge im Handlager" groesse="klein" />
+          <Ruhezustand figur="erledigt" titel="Keine auffällige Charge" groesse="klein" />
         ) : (
           <HandlagerVerfallTabelle zeilen={chargenZeilen} />
         )}

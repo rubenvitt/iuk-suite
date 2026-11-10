@@ -19,17 +19,30 @@ export const BZ_KONTROLL_INTERVALL_TAGE = 31;
 export const BZ_WARN_TAGE = 5;
 
 export type BzFaelligkeit = {
-  /** letzteKontrolle + 31 Tage; null wenn noch nie geprueft. */
+  /** letzte bestandene Kontrolle + 31 Tage; null wenn es keine gibt. */
   faelligAm: Date | null;
   tageBisFaellig: number | null;
-  /** gruen ok · gelb bald · rot ueberfaellig ODER nie geprueft */
+  /** gruen ok · gelb bald · rot ueberfaellig ODER nie (bestanden) geprueft */
   ampel: Ampel;
   ueberfaellig: boolean;
+  /** Keine Kontrolle, von der eine Frist laeuft — nie geprueft ODER nie bestanden. */
   nieGeprueft: boolean;
+  /**
+   * IDA-379: es GIBT gueltige Kontrollen, aber keine bestandene. Nur fuer den
+   * Text — gezaehlt wird weiter ueber `nieGeprueft`, das in diesem Fall auch
+   * `true` ist („noch nie geprueft" waere hier eine falsche Auskunft).
+   */
+  nieBestanden: boolean;
 };
 
 /**
- * Faelligkeit aus dem Datum der letzten Kontrolle.
+ * Faelligkeit aus dem Datum der letzten BESTANDENEN, nicht stornierten Kontrolle.
+ *
+ * ⚠️ IDA-379: EINE NICHT BESTANDENE KONTROLLE ERFUELLT DIE FRIST NICHT. Vorher
+ * rechnete die Frist von der letzten Kontrolle ueberhaupt — ein leer
+ * abgeschicktes Formular schob „Naechste Kontrolle" um einen Monat. Welche Zeile
+ * zaehlt, entscheidet `fristKontrolle`; `kontrolliert` sagt nur, ob es ueberhaupt
+ * eine gueltige gab (fuer `nieBestanden`).
  *
  * ⚠️ `null` = noch nie geprueft → `ampel: "rot"`, aber `ueberfaellig: FALSE`.
  * DAS IST DIE FALLE DIESER FUNKTION (§5.11): `ueberfaellig === false` heisst hier
@@ -37,21 +50,60 @@ export type BzFaelligkeit = {
  * sonst steht „nicht ueberfaellig" neben einer roten Ampel — beruhigend, obwohl
  * das Geraet der schlechteste Fall im Bestand ist.
  */
-export function bzFaelligkeit(letzteKontrolle: Date | null, now: Date): BzFaelligkeit {
-  if (letzteKontrolle === null) {
+export function bzFaelligkeit(
+  letzteBestandene: Date | null,
+  now: Date,
+  kontrolliert: boolean = letzteBestandene !== null,
+): BzFaelligkeit {
+  if (letzteBestandene === null) {
     return {
       faelligAm: null, tageBisFaellig: null, ampel: "rot",
-      ueberfaellig: false, nieGeprueft: true,
+      ueberfaellig: false, nieGeprueft: true, nieBestanden: kontrolliert,
     };
   }
-  const faelligAm = new Date(letzteKontrolle.getTime() + BZ_KONTROLL_INTERVALL_TAGE * 86_400_000);
+  const faelligAm = new Date(letzteBestandene.getTime() + BZ_KONTROLL_INTERVALL_TAGE * 86_400_000);
   const tageBisFaellig = Math.ceil((faelligAm.getTime() - now.getTime()) / 86_400_000);
   const ueberfaellig = faelligAm.getTime() < now.getTime();
   let ampel: Ampel;
   if (ueberfaellig) ampel = "rot";
   else if (tageBisFaellig <= BZ_WARN_TAGE) ampel = "gelb";
   else ampel = "gruen";
-  return { faelligAm, tageBisFaellig, ampel, ueberfaellig, nieGeprueft: false };
+  return { faelligAm, tageBisFaellig, ampel, ueberfaellig, nieGeprueft: false, nieBestanden: false };
+}
+
+/** Was eine Kontrollzeile fuer die Auswahl unten mitbringen muss. */
+export type BzKontrollStand = {
+  id: string; ts: Date; bestanden: boolean; storniertAt: Date | null;
+};
+
+/** IDA-379: eine stornierte Kontrolle zaehlt nirgends — sie bleibt nur lesbar. */
+export function zaehltKontrolle(k: { storniertAt: Date | null }): boolean {
+  return k.storniertAt === null;
+}
+
+function spaeter(a: BzKontrollStand, b: BzKontrollStand | null): boolean {
+  // id-Tiebreaker bei GLEICHEM `ts` (§5.14.4) — dieselbe Ordnung wie das
+  // Logbuch (`orderBy(desc(ts), desc(id))`).
+  return b === null
+    || a.ts.getTime() > b.ts.getTime()
+    || (a.ts.getTime() === b.ts.getTime() && a.id > b.id);
+}
+
+/**
+ * Die juengste gueltige Kontrolle (`letzte`) und die juengste gueltige
+ * BESTANDENE (`frist`) — von der zweiten laeuft die Faelligkeit.
+ */
+export function fristKontrolle<T extends BzKontrollStand>(
+  kontrollen: readonly T[],
+): { letzte: T | null; frist: T | null } {
+  let letzte: T | null = null;
+  let frist: T | null = null;
+  for (const k of kontrollen) {
+    if (!zaehltKontrolle(k)) continue;
+    if (spaeter(k, letzte)) letzte = k;
+    if (k.bestanden && spaeter(k, frist)) frist = k;
+  }
+  return { letzte, frist };
 }
 
 /** Ob ein Messwert im Referenzbereich liegt. Fehlt IRGENDEIN Wert → null
@@ -104,6 +156,53 @@ export function bewerteKontrolle(g: {
   else if (konfiguriert.length > 0) bestanden = konfiguriert.every((l) => l.wert !== null && l.imB === true);
   else bestanden = true;
   return { level1ImBereich, level2ImBereich, bestanden };
+}
+
+/**
+ * IDA-379 — WELCHE WERTE EINE KONTROLLE MITBRINGEN MUSS.
+ *
+ * ⚠️ GENAU DAS, WAS `bewerteKontrolle` FUER „bestanden" ZAEHLT, plus der
+ * Kompressen-Verfall. Jedes konfigurierte Level (min UND max) ist Pflicht —
+ * ein fehlendes laesst `bestanden` fallen (Regel 2). Ist keines konfiguriert,
+ * genuegt nach Regel 3 irgendein Wert, also ist MINDESTENS EINER Pflicht
+ * (`eines`); sonst waere die Kontrolle leer (Regel 1). Ein nur halb
+ * konfiguriertes Level zaehlt nicht und ist deshalb auch nicht Pflicht.
+ *
+ * Der Kompressen-Verfall zaehlt nicht fuer `bestanden`, ist aber Teil des
+ * Nachweises — ohne ihn ist die Kontrolle unvollstaendig.
+ *
+ * Sticks und Lanzetten sind hier NICHT dabei: 0 ist ein echter Bestand
+ * („nachbestellen"), das Formular belegt sie mit 0 vor, und keiner der beiden
+ * Werte fliesst in eine Bewertung ein.
+ */
+export type BzKontrollPflicht = { level1: boolean; level2: boolean; eines: boolean };
+
+export function bzKontrollPflicht(g: {
+  level1Min: number | null; level1Max: number | null;
+  level2Min: number | null; level2Max: number | null;
+}): BzKontrollPflicht {
+  const level1 = g.level1Min !== null && g.level1Max !== null;
+  const level2 = g.level2Min !== null && g.level2Max !== null;
+  return { level1, level2, eines: !level1 && !level2 };
+}
+
+export const KONTROLLWERT_FEHLT = "Bitte den Messwert eingeben.";
+export const KONTROLLWERT_EINER_FEHLT = "Bitte mindestens einen Messwert eingeben.";
+export const KOMPRESSE_FEHLT = "Bitte Verfallsmonat auswählen.";
+
+/** Die Feldfehler fuer fehlende Pflichtwerte — leer, wenn alles da ist. */
+export function fehlendeKontrollwerte(
+  pflicht: BzKontrollPflicht,
+  w: { level1Wert: number | null; level2Wert: number | null; kompresseVerfall: string | null },
+): Partial<Record<"level1Wert" | "level2Wert" | "kompresseVerfall", string>> {
+  const fehler: Partial<Record<"level1Wert" | "level2Wert" | "kompresseVerfall", string>> = {};
+  if (pflicht.level1 && w.level1Wert === null) fehler.level1Wert = KONTROLLWERT_FEHLT;
+  if (pflicht.level2 && w.level2Wert === null) fehler.level2Wert = KONTROLLWERT_FEHLT;
+  if (pflicht.eines && w.level1Wert === null && w.level2Wert === null) {
+    fehler.level1Wert = KONTROLLWERT_EINER_FEHLT;
+  }
+  if (w.kompresseVerfall === null) fehler.kompresseVerfall = KOMPRESSE_FEHLT;
+  return fehler;
 }
 
 export type BzAkkuKennzahl = {

@@ -269,6 +269,26 @@ function restJeChargeFuerArtikelAn(
 export function restJeChargeUndOrt(
   db: Leser, artikelId: string,
 ): Map<string, Map<string, number>> {
+  return restJeChargeUndOrtWo(db, artikelId);
+}
+
+/**
+ * IDA-379 — DIESELBE VERTEILUNG FUER ALLE ARTIKEL AUF EINMAL, fuer die
+ * Verfall-Seite: „liegt ausserdem in: KTW 1 (6)".
+ *
+ * ⚠️ DIESELBE ABFRAGE WIE `restJeChargeUndOrt`, NUR OHNE ARTIKEL-PRAEDIKAT, und
+ * das ist der Punkt: die Artikel-Schublade zeigt ihre Orte aus genau dieser
+ * Zahl. Rechnete die Verfall-Seite ihre Orte anders (etwa aus den gemeldeten
+ * Verfaellen in `lagerort_verfall`), stuende in der Schublade „abgelaufen:
+ * KTW 1 6" und auf der Verfall-Seite nichts — der Befund, der IDA-379 ausloeste.
+ */
+export function restJeChargeUndOrtAlle(db: Leser): Map<string, Map<string, number>> {
+  return restJeChargeUndOrtWo(db, null);
+}
+
+function restJeChargeUndOrtWo(
+  db: Leser, artikelId: string | null,
+): Map<string, Map<string, number>> {
   const rows = db
     .select({
       chargeId: buchungen.chargeId,
@@ -276,7 +296,8 @@ export function restJeChargeUndOrt(
       summe: sql<number>`sum(${buchungen.menge})`,
     })
     .from(buchungen)
-    .where(eq(buchungen.artikelId, artikelId))
+    // `undefined` heisst bei Drizzle „kein WHERE" — nicht `WHERE false`.
+    .where(artikelId === null ? undefined : eq(buchungen.artikelId, artikelId))
     .groupBy(buchungen.chargeId, buchungen.lagerortId)
     .all();
   const m = new Map<string, Map<string, number>>();

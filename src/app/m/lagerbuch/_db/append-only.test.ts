@@ -86,6 +86,45 @@ describe("bz_kontrollen — der Medizinprodukte-Nachweis (0002, neu mit S2)", ()
   });
 });
 
+/**
+ * IDA-379 — DER STORNO IST DAS EINE UPDATE, DAS 0025 ZULAESST: beide
+ * Vermerkspalten von NULL auf gesetzt, sonst nichts. Jede andere Form bleibt
+ * so gesperrt wie vorher.
+ */
+describe("bz_kontrollen — der Storno-Vermerk (0025)", () => {
+  const STORNO = { storniertAt: new Date("2026-08-07T10:00:00Z"), storniertVon: "sub-1" };
+
+  it("erlaubt genau den Storno-Vermerk", () => {
+    t.db.update(bzKontrollen).set(STORNO)
+      .where(eq(bzKontrollen.id, ids.bzKontrolleId)).run();
+    expect(t.db.select().from(bzKontrollen).get()).toMatchObject({ ...STORNO, bestanden: true });
+  });
+
+  it("blockiert einen Storno, der zugleich einen Messwert aendert", () => {
+    expect(() => t.db.update(bzKontrollen).set({ ...STORNO, bestanden: false })
+      .where(eq(bzKontrollen.id, ids.bzKontrolleId)).run()).toThrow(/append-only/);
+  });
+
+  it("blockiert einen halben Vermerk (Zeit ohne Person)", () => {
+    expect(() => t.db.update(bzKontrollen).set({ storniertAt: STORNO.storniertAt })
+      .where(eq(bzKontrollen.id, ids.bzKontrolleId)).run()).toThrow(/append-only/);
+  });
+
+  it("blockiert einen zweiten Storno und das Zuruecknehmen", () => {
+    t.db.update(bzKontrollen).set(STORNO).where(eq(bzKontrollen.id, ids.bzKontrolleId)).run();
+    expect(() => t.db.update(bzKontrollen).set({ storniertVon: "sub-2" })
+      .where(eq(bzKontrollen.id, ids.bzKontrolleId)).run()).toThrow(/append-only/);
+    expect(() => t.db.update(bzKontrollen).set({ storniertAt: null, storniertVon: null })
+      .where(eq(bzKontrollen.id, ids.bzKontrolleId)).run()).toThrow(/append-only/);
+  });
+
+  it("blockiert DELETE auch nach dem Storno", () => {
+    t.db.update(bzKontrollen).set(STORNO).where(eq(bzKontrollen.id, ids.bzKontrolleId)).run();
+    expect(() => t.db.delete(bzKontrollen).where(eq(bzKontrollen.id, ids.bzKontrolleId)).run())
+      .toThrow(/append-only/);
+  });
+});
+
 describe("o2_messungen — die BEWUSSTE Gegenprobe zu Entscheidung 5 (c)", () => {
   /**
    * Ohne diese drei Zusicherungen ist der Unterschied zwischen „bewusst offen

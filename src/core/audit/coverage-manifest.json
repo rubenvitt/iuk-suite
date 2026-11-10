@@ -791,6 +791,10 @@
     "kind": "context",
     "via": "kontrolleErfassen"
   },
+  "src/app/m/lagerbuch/_actions/bz.ts#kontrolleStornieren": {
+    "kind": "context",
+    "via": "kontrolleStornieren"
+  },
   "src/app/m/lagerbuch/_actions/check.ts#checkAbschluss": {
     "kind": "context",
     "via": "checkAbschluss"
