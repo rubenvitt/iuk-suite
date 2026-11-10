@@ -199,6 +199,21 @@ describe("vorgangsZeilen — der Server bestimmt den Vorgang", () => {
     expect(bestand("rtw")).toBe(3);
   });
 
+  it("zwei alte Entnahmen derselben Sekunde aus verschiedenen Chargen werden abgewiesen", () => {
+    t.db.insert(chargen).values({ id: "c2", artikelId: "a1", chargenNr: "L2", verfall: "2028-06",
+      createdAt: JETZT }).run();
+    t.db.insert(buchungen).values({ id: "seed-2", ts: new Date("2026-10-01T08:00:00Z"), typ: "zugang",
+      artikelId: "a1", chargeId: "c2", lagerortId: HANDLAGER_ID, menge: 5,
+      quelleTyp: "system", quelleId: "seed", referenz: null, kommentar: null }).run();
+    const ent = (id: string, charge: string, menge: number) => ({ id, ts: JETZT, typ: "entnahme" as const,
+      artikelId: "a1", chargeId: charge, lagerortId: HANDLAGER_ID, menge, quelleTyp: "token" as const,
+      quelleId: "482-137", referenz: null, kommentar: null });
+    t.db.insert(buchungen).values([ent("ent-c1", "c1", -2), ent("ent-c2", "c2", -3)]).run();
+    expect(() => inTx((tx) => gegenbuchen(tx, { zeilen: vorgangsZeilen(tx, "ent-c1"), quelle: ADMIN })))
+      .toThrow(BuchungAbgewiesen);
+    expect(bestand(HANDLAGER_ID)).toBe(15 - 5);
+  });
+
   it("eine alte Umlagerung allein bleibt gegenbuchbar", () => {
     t.db.insert(buchungen).values([
       { id: "um-1", ts: JETZT, typ: "umlagerung", artikelId: "a1", chargeId: "c1", lagerortId: HANDLAGER_ID,

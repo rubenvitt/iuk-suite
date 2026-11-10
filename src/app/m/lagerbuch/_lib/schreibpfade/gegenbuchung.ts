@@ -73,21 +73,22 @@ export function vorgangsZeilen(db: DB | Tx, zeilenId: string): SendungsZeile[] {
 
 /**
  * ⚠️ NUR ALTZEILEN OHNE VORGANGSKENNUNG KOENNEN MEHRDEUTIG SEIN. Ihre Klammer
- * in `vorgangsZeilen` faengt zwei Vorgaenge derselben Sekunde gemeinsam ein.
- * Zwei Faelle sind sicher erkennbar:
- * - Ein Abbuch-Vorgang schreibt je Charge und Ort hoechstens eine Zeile
- *   (`abbuchen`, ein Teil je Charge). Steht ein Paar doppelt da, sind es zwei.
- * - Eine alte Umlagerung der Verwaltung hat genau zwei Zeilen (eine Charge,
- *   ein Quellort, ein Ziel). Mehr sind zwei Umlagerungen.
- * Welche gemeint war, ist dann nicht mehr zu sagen; neue Vorgaenge tragen eine
- * Kennung (`<uuid>:n`) und kommen hier nie an.
+ * in `vorgangsZeilen` faengt zwei Vorgaenge derselben Sekunde gemeinsam ein,
+ * und eine Entnahme ueber zwei Chargen sieht dort genauso aus wie zwei
+ * Entnahmen ueber je eine. Eindeutig sind deshalb nur:
+ * - eine einzelne Zeile,
+ * - die zwei Legs einer Umlagerung der Verwaltung (eine Charge, ab und zu,
+ *   netto null).
+ * Alles andere weist `gegenbuchen` ab; der Bestand laesst sich dann mit einer
+ * Korrektur ausgleichen. Neue Vorgaenge tragen eine Kennung (`<uuid>:n`) und
+ * kommen hier nie an.
  */
 export function vorgangMehrdeutig(zeilen: readonly SendungsZeile[]): boolean {
   if (zeilen.length <= 1 || zeilen.some((z) => SENDUNGS_ZEILE.test(z.id))) return false;
-  const paare = new Set(zeilen.map((z) => `${z.chargeId}|${z.lagerortId}`));
-  if (paare.size < zeilen.length) return true;
-  const erste = zeilen[0]!;
-  return zeilen.length > 2 && erste.typ === "umlagerung" && (erste.referenz ?? "").startsWith("umlagerung:");
+  if (zeilen.length > 2) return true;
+  const [a, b] = zeilen as [SendungsZeile, SendungsZeile];
+  const umlagerung = a.typ === "umlagerung" && b.typ === "umlagerung";
+  return !(umlagerung && a.chargeId === b.chargeId && a.menge + b.menge === 0);
 }
 
 /** Ist zu einer dieser Zeilen schon eine Gegenzeile gebucht? */
