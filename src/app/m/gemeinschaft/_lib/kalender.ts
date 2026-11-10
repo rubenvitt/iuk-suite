@@ -7,11 +7,12 @@ import { and, eq, gt, inArray, lt } from "drizzle-orm";
 import type { GemeinschaftSchreiber } from "../_db/client";
 import { anfrage, sperrzeit, vorhaben } from "../_db/schema";
 import type { KalenderEintrag } from "./kalenderTage";
+import { vorhabenPfad } from "./vorhabenTypen";
 
 export function kalenderEintraege(db: GemeinschaftSchreiber, von: number, bis: number): KalenderEintrag[] {
   const events: KalenderEintrag[] = db.select({ id: vorhaben.id, von: vorhaben.von, bis: vorhaben.bis, titel: vorhaben.titel }).from(vorhaben)
     .where(and(eq(vorhaben.art, "event"), lt(vorhaben.von, bis), gt(vorhaben.bis, von))).all()
-    .map((e) => ({ id: e.id, art: "event", von: e.von!, bis: e.bis!, titel: e.titel, href: `/v/${e.id}` }));
+    .map((e) => ({ id: e.id, art: "event", von: e.von!, bis: e.bis!, titel: e.titel, href: vorhabenPfad("event", e.id) }));
   const anfragen: KalenderEintrag[] = db.select({ id: anfrage.id, von: anfrage.von, bis: anfrage.bis, anlass: anfrage.anlass, status: anfrage.status }).from(anfrage)
     .where(and(eq(anfrage.raum, "bar"), inArray(anfrage.status, ["angefragt", "zugesagt"]), lt(anfrage.von, bis), gt(anfrage.bis, von))).all()
     .map((a) => ({

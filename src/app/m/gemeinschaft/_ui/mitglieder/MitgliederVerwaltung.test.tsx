@@ -13,7 +13,7 @@ vi.mock("../../_actions/mitglieder", () => ({
 import { MitgliederVerwaltung } from "./MitgliederVerwaltung";
 
 const ZEILEN: MitgliedZeile[] = [
-  { id: "m1", name: "Jonas Albers", telefon: "0151 1000002", link: "AbCdEfGhIjKlMnOpQrStUv", verantwortlich: [{ id: "v1", titel: "Weihnachtsmarkt-Stand" }], offeneAufgaben: 3 },
+  { id: "m1", name: "Jonas Albers", telefon: "0151 1000002", link: "AbCdEfGhIjKlMnOpQrStUv", verantwortlich: [{ id: "v1", art: "projekt", titel: "Weihnachtsmarkt-Stand" }], offeneAufgaben: 3 },
   { id: "m2", name: "Lea Kaminski", telefon: "", link: "ZyXwVuTsRqPoNmLkJiHgFe", verantwortlich: [], offeneAufgaben: 0 },
 ];
 const BASIS = "https://gemeinschaft.example";
@@ -37,7 +37,7 @@ describe("MitgliederVerwaltung", () => {
     expect(text).toContain("Jonas Albersverantwortlich");
     expect(text).toContain("0151 1000002");
     expect(tabelle.querySelector<HTMLAnchorElement>('a[href="tel:01511000002"]')?.textContent).toBe("0151 1000002");
-    expect(tabelle.querySelector<HTMLAnchorElement>('a[href="/v/v1"]')?.textContent).toBe("Weihnachtsmarkt-Stand");
+    expect(tabelle.querySelector<HTMLAnchorElement>('a[href="/projekte/v1"]')?.textContent).toBe("Weihnachtsmarkt-Stand");
     expect(text).toContain("…/mein/AbCdEf…");
     expect(text).not.toContain("AbCdEfGhIjKlMnOpQrStUv");
     expect(tabelle.querySelector<HTMLAnchorElement>('a[href="https://gemeinschaft.example/mein/AbCdEfGhIjKlMnOpQrStUv"]')).not.toBeNull();

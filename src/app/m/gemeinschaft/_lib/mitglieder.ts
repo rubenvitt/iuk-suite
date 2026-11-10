@@ -39,7 +39,7 @@ export const nichtVergangen = (jetzt: number) => or(eq(vorhaben.art, "projekt"),
 
 export function listeMitglieder(db: GemeinschaftSchreiber, jetzt = Date.now()): MitgliedZeile[] {
   const alle = db.select().from(mitglied).orderBy(asc(mitglied.name)).all();
-  const verantwortlich = db.select({ id: vorhaben.id, titel: vorhaben.titel, wer: vorhaben.verantwortlichId, von: vorhaben.von })
+  const verantwortlich = db.select({ id: vorhaben.id, art: vorhaben.art, titel: vorhaben.titel, wer: vorhaben.verantwortlichId, von: vorhaben.von })
     .from(vorhaben).where(nichtVergangen(jetzt)).orderBy(asc(vorhaben.von), asc(vorhaben.titel)).all();
   const offen = db.select({ wer: zustaendig.mitgliedId })
     .from(zustaendig)
@@ -54,7 +54,7 @@ export function listeMitglieder(db: GemeinschaftSchreiber, jetzt = Date.now()): 
     name: m.name,
     telefon: m.telefon,
     link: m.link,
-    verantwortlich: verantwortlich.filter((v) => v.wer === m.id).map((v) => ({ id: v.id, titel: v.titel })),
+    verantwortlich: verantwortlich.filter((v) => v.wer === m.id).map((v) => ({ id: v.id, art: v.art, titel: v.titel })),
     offeneAufgaben: zahl.get(m.id) ?? 0,
   }));
 }

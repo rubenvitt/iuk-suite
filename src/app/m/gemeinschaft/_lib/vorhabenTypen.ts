@@ -74,6 +74,14 @@ export type FormularDaten = {
   bar: BarEintrag[];
 };
 
+/**
+ * Die Seite eines Vorhabens liegt unter seiner Liste, damit die Seitenleiste „Events“ bzw. „Projekte“ markiert
+ * (IDA-398; die Markierung folgt dem Pfadanfang). Die Art ändert sich nach dem Anlegen nie.
+ */
+export function vorhabenPfad(art: VorhabenArt, id: string): string {
+  return `${art === "event" ? "/events" : "/projekte"}/${id}`;
+}
+
 /** Ein Event ist vorbei, wenn sein Ende vor `jetzt` liegt; ein Projekt ist nie vorbei. */
 export function istVorbei(v: { art: VorhabenArt; bis: number | null }, jetzt: number): boolean {
   return v.art === "event" && v.bis !== null && v.bis <= jetzt;

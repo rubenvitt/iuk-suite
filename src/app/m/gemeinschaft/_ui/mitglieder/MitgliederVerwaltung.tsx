@@ -11,6 +11,7 @@ import {
 import {
   MITGLIED_NAME_MAX, MITGLIED_TELEFON_MAX, persoenlicherLink, type MitgliedZeile, type MitgliederErgebnis,
 } from "../../_lib/mitgliederAnzeige";
+import { vorhabenPfad } from "../../_lib/vorhabenTypen";
 import s from "./mitglieder.module.css";
 
 type Formular = { id: string | null; name: string; telefon: string };
@@ -93,7 +94,7 @@ export function MitgliederVerwaltung({ zeilen, basis }: { zeilen: MitgliedZeile[
           {
             title: "Verantwortlich für", key: "verantwortlich",
             render: (_: unknown, m: MitgliedZeile) => (m.verantwortlich.length
-              ? <span className={s.links}>{m.verantwortlich.map((v) => <a key={v.id} href={`/v/${v.id}`}>{v.titel}</a>)}</span>
+              ? <span className={s.links}>{m.verantwortlich.map((v) => <a key={v.id} href={vorhabenPfad(v.art, v.id)}>{v.titel}</a>)}</span>
               : <span className={s.neben}>—</span>),
           },
           {
