@@ -116,6 +116,7 @@ const ALLE_AUS: AktionsOptionen = {
   wiederaufnehmen: false,
   zurueckziehen: false,
   umverteilen: false,
+  verteilen: false,
   bearbeiten: false,
   nachweisHochladen: false,
 };
@@ -467,6 +468,26 @@ describe("AktionsZone — genau ein Primaerknopf (§7 Nr. 2)", () => {
    * `verteilDaten` NUR, wenn `optionen.umverteilen` gilt, reicht also fuer jede andere Person
    * `null` durch. Ein Modal ohne eine einzige waehlbare Zielperson waere eine Sackgasse.
    */
+  /**
+   * „VERTEILEN" AUS `eingegangen` (IDA-386) — vorher stand fuer die Koordination hier nur „Gerade
+   * steht hier kein Arbeitsschritt an.". Derselbe Knopf wie auf der Fuehrungskarte
+   * (`VerteilenKnopf`), also derselbe Dialog und dieselbe `verteilenAction`.
+   */
+  it("zeigt „Verteilen“ als Primaerknopf, sobald optionen.verteilen gilt", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "eingegangen", zugewiesenAn: null })}
+        optionen={{ ...ALLE_AUS, verteilen: true, zurueckziehen: true, bearbeiten: true }}
+        verteilen={{ bufdis: [], auslastung: [], tage: ["2026-08-17"] }}
+      />,
+    );
+    expect(document.body.textContent).not.toContain("kein Arbeitsschritt");
+    expect(primaere()).toHaveLength(1);
+    expect(primaere()[0]!.textContent).toContain("Verteilen");
+    expect(queryAll("[data-testid='verteilen-a1']")).toHaveLength(1);
+  });
+
   it("laesst „Anders zuweisen“ weg, wenn keine Zielliste durchgereicht wurde", async () => {
     await mount(
       <AktionsZone

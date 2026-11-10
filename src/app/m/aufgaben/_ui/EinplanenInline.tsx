@@ -171,10 +171,10 @@ export function EinplanenInline({
 
   return (
     /*
-     * `data-offen` UND DIE `:has()`-REGEL IM STYLESHEET — identisch zu `ZuweisenInline`: die
-     * Aktionsspur einer Zeile ist ohne Zuwendung durchsichtig, und der Popover-Inhalt liegt im
-     * Portal, wo `:focus-within` an der Zeile nicht mehr greift. Ohne die Marke verschwaende der
-     * Ausloeser unter seinem eigenen geoeffneten Feld, sobald die Maus die Zeile verlaesst.
+     * `data-offen` — identisch zu `ZuweisenInline`: der ablesbare Zustand des Feldes, dessen
+     * Inhalt im Portal liegt. Die `:has()`-Regel, die frueher daran hing, entfiel mit IDA-386
+     * (die Aktionsspur ist seither dauerhaft sichtbar); die Marke bleibt fuer die Tests, weil
+     * antd den Popover-Rumpf nach dem Schliessen im Portal stehen laesst.
      */
     <span className={s.zuweisenHuelle} data-offen={offen ? "true" : undefined}>
       <Popover

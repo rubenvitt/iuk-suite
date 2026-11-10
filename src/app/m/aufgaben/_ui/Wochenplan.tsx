@@ -347,8 +347,8 @@ function EintragZeile({
      *    Begruendung steht bei `.planListe` im Stylesheet.
      *
      *    KEIN INLINE-`style` MEHR: er schluege jede Regel aus der Medienabfrage, und genau eine
-     *    davon braucht diese Form (die Aktionen bleiben unter 768px sichtbar, Touch hat kein
-     *    Hover).
+     *    davon braucht diese Form (die Aktionen stehen unter 768px linksbuendig, fuer den
+     *    Daumen).
      */
     <div className={s.planEintrag}>
       {zeit}
@@ -393,15 +393,15 @@ function EintragZeile({
        */}
       {eintrag.aufgabe ? <Frist aufgabe={eintrag.aufgabe} heute={heute} /> : null}
       {/*
-       * DIE AKTIONEN IN EINER EIGENEN, RECHTSBUENDIGEN ZEILE DES EINTRAGS UND ERST BEI ZUWENDUNG
-       * SICHTBAR (`.planAktion`) — dieselbe Setzung wie die Aktionsspalte der flachen Zeile, aus
-       * demselben Befund: dauerhaft sichtbare Knopfreihen, die im Textfluss herumstehen. Zwei
-       * antd-Knoepfe „Auf"/„Ab" je Eintrag waren bei drei Eintraegen sechs Schaltflaechen in einer
-       * 166px-Spalte.
+       * DIE AKTIONEN IN EINER EIGENEN, RECHTSBUENDIGEN ZEILE DES EINTRAGS (`.planAktion`) —
+       * dieselbe Setzung wie die Aktionsspalte der flachen Zeile. Zwei antd-Knoepfe „Auf"/„Ab" je
+       * Eintrag waren bei drei Eintraegen sechs Schaltflaechen in einer 166px-Spalte; heute sind es
+       * stille Knoepfe (`RangKnoepfe.tsx`).
        *
-       * `opacity` UND NICHT `display`: die Knoepfe bleiben in der Tabreihenfolge, und
-       * `:focus-within` an `.planEintrag` blendet sie ein, sobald der Fokus sie erreicht. Unter
-       * 768px stehen sie dauerhaft offen — Touch hat kein Hover.
+       * DAUERHAFT SICHTBAR SEIT IDA-386, wie `.zeilenAktion`: bis dahin erschienen sie erst bei
+       * Zuwendung (`:hover`/`:focus-within`), und ein Touch-Tablet ab 768px sah sie erst nach
+       * Antippen. Unter 768px stehen sie linksbuendig (Daumen der rechten Hand).
+       *
        */}
       {aktionen ? (
         <div className={s.planAktion}>

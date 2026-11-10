@@ -16,7 +16,7 @@ import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { FreigabeAktionen } from "./FreigabeZone";
 import { NachweisFormular } from "./NachweisFormular";
-import { UmverteilenKnopf } from "./VerteilenDialog";
+import { UmverteilenKnopf, VerteilenKnopf } from "./VerteilenDialog";
 
 /*
  * DIE AKTIONSZONE VON `/a/<id>` (Spec §8.4, Aufgabe 16) — trägt NUR, was diese Person mit dieser
@@ -59,7 +59,7 @@ export function AktionsZone({
   aufgabe: AufgabeRow;
   optionen: AktionsOptionen;
   /**
-   * DIE ZIELE FUER „ANDERS ZUWEISEN" (§7 Nr. 3) — `null` fuer jede Person, die nicht verteilen
+   * DIE ZIELE FUER „VERTEILEN" UND „ANDERS ZUWEISEN" (§7 Nr. 3) — `null` fuer jede Person, die nicht verteilen
    * darf, und dann erscheint der Knopf gar nicht. Die Liste kommt aus `verteilDaten(db, heute)`
    * und damit aus `bufdis()`: eine ausgeschiedene Person ist kein Verteilziel, und dieser Riegel
    * bleibt woertlich (§11.3). Diese Insel baut sie NICHT selbst nach — sie nimmt nur entgegen.
@@ -143,6 +143,20 @@ export function AktionsZone({
         />
       ) : null}
       {/*
+       * VERTEILEN AUS `eingegangen` (IDA-386) — derselbe Dialog wie auf der Fuehrungskarte
+       * (`VerteilenKnopf`), also dieselbe `verteilenAction` mit ihrer eigenen Serverpruefung. Vorher
+       * stand hier fuer die Koordination nur „kein Arbeitsschritt", obwohl genau das der Schritt ist.
+       */}
+      {optionen.verteilen && verteilen !== null ? (
+        <VerteilenKnopf
+          aufgabe={aufgabe}
+          bufdis={verteilen.bufdis}
+          auslastung={verteilen.auslastung}
+          tage={verteilen.tage}
+          primaer={primaerAktion === "verteilen"}
+        />
+      ) : null}
+      {/*
        * ÄNDERN UND ZURUECKZIEHEN STEHEN NICHT HIER, SONDERN IM SEITENKOPF (`a/[id]/page.tsx`,
        * DRK-487): sie verwalten den Auftrag, sie bringen die Arbeit nicht voran. Hier unter
        * „Bearbeitung starten" las sich „Bearbeiten" wie derselbe Schritt.
@@ -167,9 +181,9 @@ export function AktionsZone({
  *     `Popconfirm` — dieselbe Begruendung, die §4.2 fuer den Auftraggeber Rang 3 fuehrt („ein
  *     destruktiver Knopf als Primaeraktion laedt zum Wegdruecken einer Aufgabe ein, die nur auf
  *     Verteilung wartet"). STUENDE ES IN DER LISTE, WAERE ES FUER EINE `eingegangen`-AUFGABE DER
- *     EINZIGE ERLAUBTE EINTRAG — keine der uebrigen Aktionen hat in `TABELLE` eine Zeile aus
- *     `eingegangen` — und damit ausgerechnet die LOESCHENDE Aktion der Primaerknopf. So traegt eine
- *     `eingegangen`-Aufgabe auf `/a/<id>` KEINEN Primaerknopf, was Regel P ausdruecklich zulaesst.
+ *     EINZIGE ERLAUBTE EINTRAG — ausser `verteilen` (nur Koordination) hat keine Aktion in `TABELLE`
+ *     eine Zeile aus `eingegangen` — und damit die LOESCHENDE Aktion der Primaerknopf. Seit IDA-386
+ *     traegt eine `eingegangen`-Aufgabe fuer die Koordination „Verteilen" als Primaerknopf, sonst keinen.
  *
  * DIE RENDERREIHENFOLGE OBEN FOLGT DIESER LISTE. Das ist keine Kosmetik: stuende der Primaerknopf
  * unter zwei Standardknoepfen, waere „der erste erlaubte Eintrag" eine Behauptung ueber eine
@@ -183,6 +197,7 @@ const VORRANG: readonly (keyof AktionsOptionen)[] = [
   "wiederaufnehmen",
   "zuruecksetzen",
   "umverteilen",
+  "verteilen",
 ];
 
 /**
