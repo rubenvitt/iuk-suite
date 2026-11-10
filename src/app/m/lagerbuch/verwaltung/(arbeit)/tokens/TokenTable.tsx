@@ -30,7 +30,7 @@ import { Chip } from "../../../_ui/Chip";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 
-const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
+const STATUS_FEHLER = "Zustand des Zugangscodes konnte nicht geändert werden.";
 
 export type ZielFilter = "fahrzeug" | "artikel" | "liste";
 
@@ -319,6 +319,12 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
 
   const spalten: NonNullable<TableProps<TokenAnzeigeZeile>["columns"]> = [
     {
+      title: "Bezeichnung",
+      dataIndex: "label",
+      sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.label),
+      render: (label: string) => <Zellentext text={label} style={{ maxWidth: "22ch" }} />,
+    },
+    {
       title: "Code",
       dataIndex: "code",
       sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.code),
@@ -329,14 +335,13 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
        * was zu tun ist, nicht nur, was ist.
        */
       /*
-       * IDA-393: der Code GEKÜRZT mit Kopierknopf, die Bezeichnung darunter. Beide standen
-       * bis dahin in eigenen Spalten, und der ungekürzte Code gab seiner Spalte die Breite
-       * seines längsten Werts — bei 1280px lagen Status und Aktionen hinter dem Rand.
+       * IDA-393: der Code GEKÜRZT mit Kopierknopf. Ungekürzt gab er seiner Spalte die
+       * Breite seines längsten Werts — bei 1280px lagen Zustand und Aktionen hinter
+       * dem Rand.
        */
       render: (code: string, zeile) => (
         <div>
           <Kurzkennung wert={code} was="Code" />
-          <div><Zellentext text={zeile.label} style={{ maxWidth: "22ch" }} /></div>
           {zeile.aktiv && !istLangerCode(code) ? (
             <div style={{ ...SCHRIFT.neben, maxWidth: "24ch" }} data-testid="lb-token-alte-form">
               {/* IDA-379 — „kurzer Code" statt „alte Form": die Zeile nennt, was
@@ -345,25 +350,6 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
             </div>
           ) : null}
         </div>
-      ),
-    },
-    {
-      // IDA-393: direkt hinter dem Code. Was an einem gesperrten Code nicht mehr geht, sagt
-      // die Zeile darunter — bis dahin stand es in der Aktionsspalte.
-      title: "Status",
-      dataIndex: "aktiv",
-      sorter: nachJaNein<TokenAnzeigeZeile>((zeile) => zeile.aktiv),
-      filters: STATUS_FILTER.filters,
-      onFilter: STATUS_FILTER.onFilter,
-      render: (aktiv: boolean, zeile) => (
-        <>
-          <Chip ton={aktiv ? "ok" : "rot"}>{aktiv ? "aktiv" : "gesperrt"}</Chip>
-          {aktiv || kannReaktivieren(zeile) ? null : (
-            <div style={SCHRIFT.neben}>
-              {zeile.ersetztText ? `ersetzt am ${zeile.ersetztText}` : "dauerhaft gesperrt"}
-            </div>
-          )}
-        </>
       ),
     },
     {
@@ -445,6 +431,25 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       },
     },
     {
+      // IDA-393: was an einem gesperrten Code nicht mehr geht, sagt die Zeile darunter —
+      // bis dahin stand es in der Aktionsspalte. Spaltenfolge und Wörter: IDA-395.
+      title: "Zustand",
+      dataIndex: "aktiv",
+      sorter: nachJaNein<TokenAnzeigeZeile>((zeile) => zeile.aktiv),
+      filters: STATUS_FILTER.filters,
+      onFilter: STATUS_FILTER.onFilter,
+      render: (aktiv: boolean, zeile) => (
+        <>
+          <Chip ton={aktiv ? "ok" : "rot"}>{aktiv ? "aktiv" : "gesperrt"}</Chip>
+          {aktiv || kannReaktivieren(zeile) ? null : (
+            <div style={SCHRIFT.neben}>
+              {zeile.ersetztText ? `ersetzt am ${zeile.ersetztText}` : "dauerhaft gesperrt"}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
       title: "Zuletzt benutzt",
       dataIndex: "lastUsedText",
       // ⚠️ Ueber `lastUsedIso`, nie ueber den Anzeigetext — Begruendung an der
@@ -509,14 +514,14 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
           },
           // Reaktivieren braucht keine Rueckfrage: es macht nichts unbrauchbar.
           {
-            key: "reaktivieren",
-            label: "Reaktivieren",
+            key: "entsperren",
+            label: "Entsperren",
             onClick: () => statusAendern(zeile),
             sichtbar: !zeile.aktiv && kannReaktivieren(zeile),
           },
         ]}
       />
-    ), ""),
+    ), "Aktionen"),
   ];
 
   // Was WIRKLICH in der Tabelle steht: Suche UND Spaltenfilter. antd wendet
@@ -556,7 +561,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
 
       <Kartentabelle<TokenAnzeigeZeile>
         rowKey="id"
-        aria-label="Zugangs-Codes"
+        aria-label="Zugangscodes"
         dataSource={gefiltert}
         filter={spaltenFilter}
         onFilter={setSpaltenFilter}

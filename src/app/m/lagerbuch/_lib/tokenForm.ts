@@ -64,7 +64,7 @@ export const CODEFELD_MUSTER =
   "[0-9]{3}(-| )?[0-9]{3}|([0-9A-Za-z]{4}(-| )?){6}[0-9A-Za-z]{4}";
 /** 28 Zeichen und sechs Trenner. */
 export const CODEFELD_LAENGE = 34;
-export const CODEFELD_PLATZHALTER = "Code vom Etikett";
+export const CODEFELD_PLATZHALTER = "Zugangscode";
 
 /**
  * Hoechstzahl der Ziehungen in `erzeugeFreienCode` (`_actions/tokens.ts`).
@@ -89,6 +89,6 @@ export const TOKEN_ZIEHUNGEN = 20;
 //
 // §11.2 (d): ein Satz ohne Technik. Kein SQL, kein Fremdschluessel, kein Stack.
 export const TOKEN_LOESCHGRUND =
-  "Zugangs-Codes bleiben als Nachweis erhalten und ihr Code bleibt dauerhaft "
-  + "belegt — sonst erschienen alte Journalzeilen unter dem Label eines neuen "
+  "Zugangscodes bleiben als Nachweis erhalten und ihr Code bleibt dauerhaft "
+  + "belegt — sonst erschienen alte Journalzeilen unter der Bezeichnung eines neuen "
   + "Codes. Du kannst diesen Code stattdessen sperren.";

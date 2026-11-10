@@ -6,7 +6,7 @@ import { LoeschButton } from "./LoeschButton";
 
 const BASIS = {
   name: "111-111",
-  typLabel: "Zugangs-Code",
+  typLabel: "Zugangscode",
   pruefen: async () => ({ loeschbar: true as const }),
   onLoeschen: async () => {},
 };

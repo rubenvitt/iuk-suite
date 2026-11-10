@@ -424,6 +424,30 @@ describe("ArtikelTable: Struktur und Bedienanker", () => {
   });
 
   /**
+   * IDA-380 — AUF DER KARTE STEHT NEBEN DEM NAMEN NUR DER BESTAND. Zwei
+   * Statuschips daneben liessen dem Namen auf 390px eine Buchstabenbreite, und
+   * der Bestand lief aus dem Bild. Die Chips stehen deshalb darunter.
+   */
+  it("stellt auf der Karte den Bestand neben den Namen und die Chips darunter", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    const karte = query("[data-rolle='schmalkarten'] li[data-karte-key='alpha'] article");
+    const [kopf, statuszeile] = Array.from(karte.children);
+    expect(kopf?.textContent).toContain("Alpha-Päckchen");
+    expect(kopf?.textContent).toContain("10 Stk");
+    expect(kopf?.textContent).not.toContain("unter Mindestbestand");
+    expect(statuszeile?.textContent).toBe("unter MindestbestandCharge fällig 03/27");
+  });
+
+  it("legt die Filter der Karten hinter einen Knopf „Filter\"", async () => {
+    // Die Leiste erscheint erst ab `STEUERUNG_AB_ZEILEN` (8) Zeilen.
+    const viele = Array.from({ length: 8 }, (_, i) => ({ ...ZEILEN[0], id: `z${i}`, name: `Z${i}` }));
+    await mount(<ArtikelTable zeilen={viele} fahrzeuge={FAHRZEUGE} />);
+    const leiste = query("[data-rolle='schmalsteuerung']");
+    expect(leiste.querySelector("[data-rolle='filterknopf']")?.textContent).toContain("Filter");
+    expect(leiste.querySelector("[aria-label='Status filtern']")).toBeNull();
+  });
+
+  /**
    * Teil 6 (T165) loest den Vorgriff aus Teil 5 (T129) ein: der Knopf traegt
    * seither weder `disabled` noch den erklaerenden Tooltip. Die Zusicherungen
    * dazu stehen im Block "Excel-Export (§9.4)" weiter unten.

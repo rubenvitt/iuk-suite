@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkNutzlast, zaehleAblaufende, GERAET_VORBELEGUNG,
+import { checkNutzlast, zaehleAblaufende, geraetBeantwortet,
          type CheckZaehlung } from "./checkNutzlast";
 import { ausZivilzeit } from "./zeit";
 
@@ -47,30 +47,39 @@ describe("checkNutzlast — die vier Vorbelegungen (§5.8.1)", () => {
     expect(checkNutzlast({ ...BASIS, z: { ...LEER, ist: { sp2: 1 } } }).positionen).toHaveLength(3);
   });
 
-  it("Geraete sind auf {vorhanden: true, zustand: 'In Ordnung'} vorbelegt", () => {
+  it("IDA-377: ein unbeantwortetes Gerät wird NICHT gesendet — keine Vorbelegung auf „In Ordnung“", () => {
     const n = checkNutzlast({ ...BASIS, z: LEER });
-    expect(GERAET_VORBELEGUNG).toEqual({ vorhanden: true, zustand: "In Ordnung" });
-    expect(n.geraete).toEqual([
-      { geraetId: "g1", vorhanden: true, zustand: "In Ordnung" },
-      { geraetId: "g2", vorhanden: true, zustand: "In Ordnung" },
-    ]);
-    // Dieselbe Schwaeche wie beim Override-Pfad (Review-Fix T43, Runde 2):
-    // `toEqual` normalisiert `bemerkung: undefined` als gleichwertig zu einem
-    // fehlenden Schluessel — ein unbedingtes `bemerkung: a.bemerkung` bliebe
-    // hier sonst unentdeckt, auch fuer den Vorbelegungspfad (keine Bemerkung).
-    expect(n.geraete.every((g) => !("bemerkung" in g))).toBe(true);
+    expect(n.geraete).toEqual([]);
+    // Vorhanden, aber ohne Zustand, ist ebenfalls nicht beantwortet.
+    const halb = checkNutzlast({ ...BASIS, z: { ...LEER, geraete: { g1: { vorhanden: true } } } });
+    expect(halb.geraete).toEqual([]);
   });
 
-  it("Druck ist auf den NENNFUELLDRUCK vorbelegt — je Flasche verschieden", () => {
-    expect(checkNutzlast({ ...BASIS, z: LEER }).flaschen).toEqual([
-      { flascheId: "f1", druckBar: 200 },
-      { flascheId: "f2", druckBar: 300 },
-    ]);
+  it("IDA-377: „fehlt“ ist eine Antwort und trägt keinen Zustand", () => {
+    const n = checkNutzlast({
+      ...BASIS, z: { ...LEER, geraete: { g1: { vorhanden: false, zustand: "In Ordnung" } } },
+    });
+    expect(n.geraete).toEqual([{ geraetId: "g1", vorhanden: false }]);
   });
 
-  it("ein abgelesener Druck von 0 schlaegt die Vorbelegung", () => {
-    expect(checkNutzlast({ ...BASIS, z: { ...LEER, druck: { f1: 0 } } }).flaschen[0])
-      .toEqual({ flascheId: "f1", druckBar: 0 });
+  it("IDA-377: ein nicht abgelesener Druck wird NICHT gesendet — keine Vorbelegung auf den Nennfülldruck", () => {
+    expect(checkNutzlast({ ...BASIS, z: LEER }).flaschen).toEqual([]);
+  });
+
+  it("ein abgelesener Druck von 0 wird gesendet", () => {
+    expect(checkNutzlast({ ...BASIS, z: { ...LEER, druck: { f1: 0 } } }).flaschen)
+      .toEqual([{ flascheId: "f1", druckBar: 0 }]);
+  });
+});
+
+describe("geraetBeantwortet — IDA-377", () => {
+  it("beantwortet ist „fehlt“ oder ein gewählter Zustand", () => {
+    expect(geraetBeantwortet(undefined)).toBe(false);
+    expect(geraetBeantwortet({})).toBe(false);
+    expect(geraetBeantwortet({ vorhanden: true })).toBe(false);
+    expect(geraetBeantwortet({ bemerkung: "x" })).toBe(false);
+    expect(geraetBeantwortet({ vorhanden: false })).toBe(true);
+    expect(geraetBeantwortet({ vorhanden: true, zustand: "Defekt" })).toBe(true);
   });
 });
 
@@ -89,7 +98,7 @@ describe("checkNutzlast — der Geraete-Override-Pfad (Review-Fix T43)", () => {
       z: { ...LEER, geraete: { g1: { vorhanden: false, zustand: "Defekt", bemerkung: "Kabel gerissen" } } },
     });
     expect(n.geraete[0]).toEqual({
-      geraetId: "g1", vorhanden: false, zustand: "Defekt", bemerkung: "Kabel gerissen",
+      geraetId: "g1", vorhanden: false, bemerkung: "Kabel gerissen",
     });
   });
 

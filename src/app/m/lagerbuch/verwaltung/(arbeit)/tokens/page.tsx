@@ -112,7 +112,7 @@ export default function TokensSeite() {
         Aktion im Kopf: die stuende wie „Code anlegen" da (DRK-406).
       */}
       <SeitenKopf
-        titel="Zugangs-Codes"
+        titel="Zugangscodes"
         beschreibung={<>Codes entstehen mit den <Link href="/verwaltung/ortsetiketten">Ortsetiketten</Link>.</>}
       />
       <TokenTable zeilen={zeilen} />
@@ -120,4 +120,4 @@ export default function TokensSeite() {
   );
 }
 
-export const metadata = { title: "Zugangs-Codes" };
+export const metadata = { title: "Zugangscodes" };

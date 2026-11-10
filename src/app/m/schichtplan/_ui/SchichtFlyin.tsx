@@ -8,7 +8,7 @@ import { type EinheitDTO, type PlanHelfer, type PlanungDTO, type SchichtDTO, MIN
 import { zeitspanne } from "../_lib/zeit";
 import { Zeitfelder } from "./Zeitfelder";
 import s from "./schichtplan.module.css";
-import { Chip, name, QualiChips } from "./teile";
+import { Chip, name, oderListe, QualiChips } from "./teile";
 
 const MIN_SCHICHT = MIN_SCHICHT_MIN * MINUTE;
 
@@ -42,7 +42,7 @@ export function SchichtInhalt({ p, a, helfer, sch, e, aktionen, onGeloescht }: {
     belegt.set(schluessel(z.quelle, z.helferId), `${einheitVon.get(t.einheitId)?.name ?? "?"} ${zeitspanne(t.von, t.bis)}`);
   }
   const kandidaten = helfer.filter((h) => !ids.includes(h.schluessel));
-  const deckt = (h: PlanHelfer) => offen.filter((o) => erfuellt(h.qualifikationen, o.quali)).map((o) => o.quali.name);
+  const deckt = (h: PlanHelfer) => offen.filter((o) => erfuellt(h.qualifikationen, o.quali)).map((o) => o.quali.kurz);
   const gruppe = (pred: (h: PlanHelfer) => boolean) => kandidaten.filter(pred).map((h) => {
     const d = deckt(h);
     const b = belegt.get(h.schluessel);
@@ -52,7 +52,7 @@ export function SchichtInhalt({ p, a, helfer, sch, e, aktionen, onGeloescht }: {
       label: (
         <span style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
           <span>{name(h)} <span className={s.neben}>{h.qualifikationen.map((q) => q.kurz).join(", ")}</span></span>
-          {b ? <Chip ton="rot">belegt: {b}</Chip> : d.length ? <Chip ton="ok">deckt {d.join(", ")}</Chip> : null}
+          {b ? <Chip ton="rot">belegt: {b}</Chip> : d.length ? <Chip ton="ok">{d.length > 1 ? `deckt eine: ${oderListe(d)}` : `deckt ${d[0]}`}</Chip> : null}
         </span>
       ),
     };

@@ -63,8 +63,11 @@ import wartungFahrzeugwahl from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung
 import wartungKiAssistent from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-ki-assistent";
 import wartungPruefarten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-pruefarten";
 import wartungEntnehmen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-08-entnehmen";
+import wartungMaengelAmQr from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-10-maengel-am-qr-code";
 import wartungVorUndNachDemEinsatz from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-vor-und-nach-dem-einsatz";
 import verpflegungVerpflegungslager from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-04-verpflegungslager";
+import verpflegungZugangscodes from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-10-verpflegung-zugangscodes";
+import radioZugangscodes from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-11-10-funk-zugangscodes";
 import verpflegungBestandJeArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-10-bestand-je-artikel";
 import unterkunftUndZelteBerechnen from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-01-unterkunft-und-zelte-berechnen";
 import unterkunftBerechnungDrucken from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-03-berechnung-drucken";
@@ -157,6 +160,8 @@ import ortsetikettenFuerSchraenke from "@/app/m/portal/_lib/neuigkeiten/notizen/
 import maengelMelden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-31-maengel-melden";
 import verfallInJedemFach from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-01-verfall-in-jedem-fach";
 import geraeteSchnellwahl from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-04-geraete-schnellwahl";
+import checkOhneVorbelegung from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-check-ohne-vorbelegung";
+import lagerbuchUebersichtUndSpringen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-uebersicht-und-springen";
 import kontrolleStornieren from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-kontrolle-stornieren";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
@@ -225,6 +230,9 @@ const NOTIZEN: readonly Releasenotiz[] = [
   wartungKiAssistent,
   wartungPruefarten,
   wartungEntnehmen,
+  verpflegungZugangscodes,
+  radioZugangscodes,
+  wartungMaengelAmQr,
   wartungVorUndNachDemEinsatz,
   verpflegungVerpflegungslager,
   verpflegungBestandJeArtikel,
@@ -317,6 +325,8 @@ const NOTIZEN: readonly Releasenotiz[] = [
   maengelMelden,
   verfallInJedemFach,
   geraeteSchnellwahl,
+  checkOhneVorbelegung,
+  lagerbuchUebersichtUndSpringen,
   kontrolleStornieren,
   ruecklaufVomFahrzeug,
   checksLaufend,

@@ -29,6 +29,8 @@ test("ab 768px steht die Navigation als Leiste mit Abschnitten", async ({ page }
   const leiste = page.getByTestId("modulleiste");
   await expect(leiste).toBeVisible();
   await expect(leiste.getByTestId("nav-abschnitt")).toHaveText([
+    // IDA-380: die drei Handlungen stehen als eigener Abschnitt zuerst.
+    "Am Regal / am Fahrzeug",
     "Bestand",
     "Einheiten & Geräte",
     "Prüfungen",
@@ -73,6 +75,8 @@ test("unter 768px liegt die Navigation im Drawer, mit denselben Abschnitten", as
 
   const drawer = await oeffneMenue(page);
   await expect(drawer.getByTestId("modulleiste-drawer").getByTestId("nav-abschnitt")).toHaveText([
+    // IDA-380: die drei Handlungen stehen als eigener Abschnitt zuerst.
+    "Am Regal / am Fahrzeug",
     "Bestand",
     "Einheiten & Geräte",
     "Prüfungen",
@@ -160,9 +164,15 @@ test("„Springen zu“ findet Seiten mitten im Wort und mit ausgeschriebenem Um
   await expect(menue.getByTestId("nav-link")).toHaveCount(0);
 
   // Umlaut ausgeschrieben — die Schreibweise ohne Umlauttaste muss dasselbe
-  // finden wie „Prüfungen" (der Abschnitt der vier Seiten).
+  // finden wie „Prüfungen" (der Abschnitt der drei Seiten). „Check durchführen"
+  // steht seit IDA-380 unter „Am Regal / am Fahrzeug" und damit vorn; gefunden
+  // wird er über sein Stichwort.
   await feld.fill("pruef");
-  await expect(seiten).toHaveText([/^Mängel/, /^Checks/, /^Check durchführen/, /^BZ-Kontrolle/]);
+  await expect(seiten).toHaveText([/^Check durchführen/, /^Mängel/, /^Checks/, /^BZ-Kontrolle/]);
+
+  // IDA-380: ein Wort, das nicht im Menü steht, findet die Seite dahinter.
+  await feld.fill("Wareneingang");
+  await expect(seiten).toHaveText([/^Auffüllen/]);
 
   await feld.fill("");
   await expect(menue.getByTestId("nav-link")).toHaveCount(vorher);

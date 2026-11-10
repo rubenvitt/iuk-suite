@@ -58,11 +58,11 @@ test("Demo-Modus: Vorschau zeigt Ausgefilterte nur als Zahl, Übernehmen füllt 
   await expect(tabelle).not.toContainText("Fricke, Timo");
 });
 
-test("Freigabe fürs Einsatztagebuch umschalten; ohne Admin-Gruppe nur lesend", async ({ page, browser }) => {
+test("Bereitstellung fürs Einsatztagebuch umschalten; ohne Admin-Gruppe nur lesend", async ({ page, browser }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   await demoAbgleichen(page);
   await oeffne(page, "/");
-  const schalter = page.getByRole("switch", { name: "Jana Albers fürs Einsatztagebuch freigeben" }).first();
+  const schalter = page.getByRole("switch", { name: "Jana Albers fürs Einsatztagebuch bereitstellen" }).first();
   const vorher = await schalter.getAttribute("aria-checked");
   await klickeWennRuhig(schalter);
   await expect(schalter).toHaveAttribute("aria-checked", vorher === "true" ? "false" : "true");

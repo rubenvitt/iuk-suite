@@ -7,6 +7,7 @@ daneben:
 |---|---|
 | `feedback-oeffentliche-ansicht.md` | Der Entwurf „Der Abendzettel" — Referenz für **öffentliche, login-freie Ansichten** (mobile-first, eigenständig gestaltet, ohne antd) |
 | `feedback-admin.md` | Der Entwurf „Die Lagekarte" — Referenz für **Admin-Arbeitsseiten** (antd, Suite-Chrome, Zustandsführung) |
+| `wortliste.md` | **Ein Wort je Sache** über alle Module, Anrede („du"/„Sie"), verbotene Technikwörter |
 
 Beide entstanden aus Konkurrenzentwürfen mit unabhängiger Jury; sie enthalten Begründungen, nicht nur
 Ergebnisse. Wer eine ähnliche Ansicht baut, liest den passenden Entwurf — nicht um ihn zu kopieren,
@@ -515,6 +516,52 @@ grün, und der Knopf stand trotzdem auf dem Desktop. **Ein Quelltext-Scan findet
 Kaskadenkollision strukturell nicht**, weil er Reihenfolge und Fremd-Stylesheets nicht kennt. Was er
 festhalten kann, ist die Gegenmaßnahme (der Selektor trägt den Präfix); ob sie wirkt, weiß nur der
 Browser. Jede `nurMobil`/`nurDesktop`-Zusage braucht deshalb **beide** Viewports.
+
+## Formulare — vier Regeln (IDA-394)
+
+Aus dem UX-Durchgang vom 10.11.2026: vier Muster, die jedes Modul anders gelöst hatte. Was zentral
+geht, ist gebaut; der Rest ist Regel für jedes neue Formular.
+
+**1. Der Hauptknopf bleibt aktiv.** Ein gesperrter „Speichern“, der nicht sagt warum, ist eine
+Sackgasse — erst recht, wenn der Grund nur im Maus-Tooltip steht (am Telefon gibt es keinen). Der
+Knopf lässt absenden; die Meldung steht **am Feld**, und die Seite springt hin. Jedes antd-`Form`
+tut das von selbst (`scrollToFirstError` in `core/formular/vorgaben.ts`); ein Formular ohne antd-Form
+setzt den Fokus selbst auf das erste fehlerhafte Feld. Wo ein Knopf wirklich gesperrt sein muss
+(etwa während der Speicherung oder bis eine Prüfliste durch ist), steht der Grund **sichtbar daneben**,
+nie nur im `title` oder Tooltip. Vorbild: Fahrzeuge („Typ fehlt“ am Feld nach dem Absenden), und
+für den gesperrten Fall die Prüfung am Gerät in der Gerätewartung („Noch 5 Punkte offen.“ in der
+Fußzeile).
+
+**2. Pflichtfelder tragen das Pflichtzeichen, und nur sie.** antd setzt das `*` selbst aus der Regel
+`required` — Zeichen und Prüfung kommen aus derselben Quelle und können nicht auseinanderlaufen. Kein
+„(optional)“ an den übrigen Feldern, kein `requiredMark={false}`, kein selbst gemaltes Sternchen.
+Ein Formular ohne antd-Form setzt das Zeichen am Label wie antd. Meldungen sagen in Du-Form und mit
+Umlauten, was fehlt („Typ fehlt.“); antds `de_DE` siezt, deshalb stehen die Suite-Meldungen in
+`PRUEFMELDUNGEN` (`core/formular/vorgaben.ts`) und gelten für jedes antd-Form. Keine Browserblase
+(`required`/`pattern` am rohen `<input>` ohne eigene Meldung): ein Formular ohne antd-Form setzt
+`noValidate`, prüft beim Absenden selbst und zeigt die Suite-Meldung am Feld. Vorbild: Funk (`* ISSI`).
+
+**3. Zahlenfelder öffnen die Zifferntastatur, und das Komma ist der Dezimaltrenner.** Für jedes
+antds `InputNumber` erledigt das der Patch an `@rc-component/input-number` (`pnpm-workspace.yaml`):
+ganze Zahlen (`precision={0}` oder ganzzahliger `step`) bekommen `inputMode="numeric"`, alles andere
+`decimal`; darf das Feld negativ werden (`min` unter 0), bleibt die volle Tastatur, denn beide
+Ziffernblöcke haben kein Minus. „231,5“ ist 231,5 und nicht 2315. Ein rohes `type="number"`
+(oder antds `Input` damit) kennt den Patch nicht und trägt `inputMode` selbst;
+`core/formular/zahlenfelder.test.tsx` meldet jedes `<input>`/`<Input>` mit `type="number"` ohne
+`inputMode` (ausgenommen Felder mit Spread und die Ausnahmeliste) und misst die Wirkung des Patches. Ein Code aus Buchstaben und Ziffern ist kein Zahlenfeld. Vorbild: Betriebsstunden der
+Gerätewartung am Gerät.
+
+**4. Umkehrbares wirkt sofort und bietet „Rückgängig“; Unumkehrbares fragt nach und nennt die Folge.**
+Kein Klick, der Daten löscht, abschließt oder sperrt, ohne eins von beidem. Die Rückfrage ist ein
+Dialog der Suite (`Popconfirm` oder `Modal`), nie `window.confirm`; ihr Text nennt in einem Satz,
+was danach anders ist („Es fällt aus Listen und Fristen, der Verlauf bleibt.“). Wo das Rückgängig
+billig ist, ist es der Rückfrage vorzuziehen — eine Rückfrage vor jedem Schritt wird weggeklickt.
+Zerstörende Knöpfe stehen nicht direkt neben harmlosen und nicht als roter Knopf in jeder
+Tabellenzeile (Falle 3). Vorbilder: Kommunikationspläne für „Rückgängig“ („Stelle gelöscht“ mit
+Knopf im Hinweis), Gerätewartung „Ausmustern“ für die Rückfrage mit Folge, Lagerbuch für den
+schweren Fall (Artikel löschen erst nach Abtippen des Namens). Einen gemeinsamen Rückgängig-Baustein
+gibt es noch nicht: der Verlauf der Kommunikationspläne gehört zu ihrem Editor. Das zweite Modul, das
+eine Rückgängig-Meldung baut, hebt sie nach `core` (Regel oben).
 
 ## Was eine Oberfläche zeigen muss, damit sie benutzbar ist
 

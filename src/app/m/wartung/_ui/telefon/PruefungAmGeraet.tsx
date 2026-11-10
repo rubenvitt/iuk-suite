@@ -2,21 +2,24 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Button, Input, InputNumber, Progress, Result } from "antd";
+import { Button, Input, Progress, Result } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { NOTIZ_MAX } from "../../_lib/eingabe";
 import { ERGEBNIS_TEXT, type Zustand } from "../../_lib/fristen";
 import type { SendeAntwort } from "../../_lib/koerper";
+import { KLEINER_TEXT, pruefeStundenEingabe, sprungFrage } from "../../_lib/stunden";
 import type { CheckpunktDTO } from "../../_lib/typen";
 import { Kicker } from "../teile";
 import { FotoWahl, verkleinere } from "./foto";
 import { sendeAnRoute } from "./senden";
+import { StundenFeld } from "./StundenFeld";
 import s from "../wartung.module.css";
 
 type Antwort = { ok: boolean; text: string; foto: File | null };
-type Stand = { stunden: number | null; antworten: Record<string, { ok: boolean; text: string }>; ergebnis: Zustand | null; notiz: string };
+/** `stundenText` seit IDA-381 (der getippte Text); ein älterer Entwurf trägt nur die Zahl in `stunden`. */
+type Stand = { stunden?: number | null; stundenText?: string; antworten: Record<string, { ok: boolean; text: string }>; ergebnis: Zustand | null; notiz: string };
 type Daten = {
   stunden: number | null; ergebnis: Zustand; notiz: string;
   antworten: { punktId: string; ok: boolean; text: string; soll?: number; punkt?: string; hinweis?: string; unterwegs?: number }[];
@@ -47,11 +50,13 @@ export function PruefungAmGeraet({
   /** Entnahme-ID der ganzen Kiste, die dieses Durchzählen zurücklegt. */
   rueckgabe?: string;
 }) {
-  const [stunden, setStunden] = useState<number | null>(null);
+  const [stundenText, setStundenText] = useState("");
   const [antworten, setAntworten] = useState<Record<string, Antwort>>({});
   const [ergebnis, setErgebnis] = useState<Zustand | null>(null);
   const [notiz, setNotiz] = useState("");
-  const [offenerHinweis, setOffenerHinweis] = useState<string | null>(null);
+  const [aufgeklappt, setAufgeklappt] = useState<Record<string, boolean>>({});
+  /** Der Stand, zu dem die Rückfrage vor einem großen Sprung gerade steht (IDA-381). */
+  const [rueckfrage, setRueckfrage] = useState<number | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [fertig, setFertig] = useState<{ ergebnis: Zustand; maengel: number } | null>(null);
   const antwortenRef = useRef(antworten);
@@ -72,11 +77,11 @@ export function PruefungAmGeraet({
   const entwurf = useEntwurf<Stand, Daten, { ergebnis: Zustand; a: SendeAntwort }>({
     schluessel: anlass ? `wartung:pruefung:${geraetId}:${pruefartId}` : `wartung:pruefung:${geraetId}`,
     stand: {
-      stunden, ergebnis, notiz,
+      stundenText, ergebnis, notiz,
       antworten: Object.fromEntries(Object.entries(antworten).map(([k, a]) => [k, { ok: a.ok, text: a.text }])),
     },
     wiederherstellen: (w) => {
-      setStunden(w.stunden);
+      setStundenText(w.stundenText ?? (w.stunden == null ? "" : String(w.stunden)));
       setErgebnis(w.ergebnis);
       setNotiz(w.notiz);
       setAntworten(Object.fromEntries(Object.entries(w.antworten).map(([k, a]) => [k, { ...a, foto: antwortenRef.current[k]?.foto ?? null }])));
@@ -104,17 +109,40 @@ export function PruefungAmGeraet({
   const erledigt = checkliste.filter((c) => antworten[c.id]).length;
   const maengel = checkliste.filter((c) => antworten[c.id] && !antworten[c.id].ok);
   const gewaehlt: Zustand = ergebnis === "ok" && maengel.length > 0 ? "mangel" : ergebnis ?? (maengel.length ? "mangel" : "ok");
-  const stundenFehlt = !kiste && stundenPflicht && stunden === null;
-  const zuKlein = stunden !== null && stundenZuletzt !== null && stunden < stundenZuletzt;
+  const befund = pruefeStundenEingabe(kiste ? "" : stundenText, stundenZuletzt);
+  const stunden = "wert" in befund ? befund.wert : null;
+  const stundenFehlt = !kiste && stundenPflicht && befund.art === "leer";
+  const stundenUngueltig = befund.art === "ungueltig";
+  const zuKlein = befund.art === "kleiner";
   const ohneText = !kiste && maengel.some((c) => !antworten[c.id].text.trim());
   const ohneBemerkung = maengel.length === 0 && gewaehlt !== "ok" && !notiz.trim();
-  const bereit = erledigt === checkliste.length && !stundenFehlt && !zuKlein && !ohneText && !ohneBemerkung;
+  const bereit = erledigt === checkliste.length && !stundenFehlt && !stundenUngueltig && !zuKlein && !ohneText && !ohneBemerkung;
+  const fragtGerade = befund.art === "sprung" && rueckfrage === befund.wert;
+  const offenerPunkt = checkliste.find((c) => !antworten[c.id]);
+  const ohneTextPunkt = kiste ? undefined : maengel.find((c) => !antworten[c.id].text.trim());
+  // IDA-381: was den Knopf sperrt, steht beim Knopf — und führt per Tipp dorthin, oft weit oben auf der Seite.
+  const gruende: { text: string; ziel: string }[] = [
+    stundenFehlt ? { text: "Betriebsstunden fehlen.", ziel: STUNDEN_ID } : null,
+    stundenUngueltig ? { text: "Betriebsstunden sind keine Zahl.", ziel: STUNDEN_ID } : null,
+    befund.art === "kleiner" ? { text: `Betriebsstunden: ${KLEINER_TEXT(befund.zuletzt)}`, ziel: STUNDEN_ID } : null,
+    offenerPunkt
+      ? { text: `Noch ${checkliste.length - erledigt} ${checkliste.length - erledigt === 1 ? (kiste ? "Position" : "Punkt") : (kiste ? "Positionen" : "Punkte")} offen.`, ziel: punktId(offenerPunkt.id) }
+      : null,
+    ohneTextPunkt ? { text: "Bei jedem Mangel beschreiben, was los ist.", ziel: mangelId(ohneTextPunkt.id) } : null,
+    ohneBemerkung ? { text: "Bitte in der Bemerkung beschreiben, was nicht stimmt.", ziel: BEMERKUNG_ID } : null,
+  ].filter((g) => g !== null);
   const setze = (id: string, teil: Partial<Antwort>) =>
     setAntworten((a) => ({ ...a, [id]: { ...(a[id] ?? { ok: true, text: "", foto: null }), ...teil } }));
 
   function senden() {
     if (laeuft || !bereit) return;
+    // Erst die alte Meldung weg, sonst verdeckt sie die Rückfrage im Fuß.
     setFehler(null);
+    if (befund.art === "sprung" && !fragtGerade) {
+      setRueckfrage(befund.wert);
+      return;
+    }
+    setRueckfrage(null);
     entwurf.sende({
       stunden, ergebnis: gewaehlt, notiz,
       rueckgabe,
@@ -151,39 +179,23 @@ export function PruefungAmGeraet({
 
       {!kiste && <section className={s.karte}>
         <Kicker className={s.karteTitel}>Betriebsstunden</Kicker>
-        <InputNumber
-          aria-label="Betriebsstunden am Zähler"
-          value={stunden ?? undefined}
-          onChange={(v) => setStunden(v ?? null)}
-          min={0}
-          precision={0}
-          suffix="h"
-          inputMode="numeric"
-          style={{ width: "100%" }}
-          status={zuKlein ? "warning" : undefined}
-        />
-        <div className={`${s.neben} ${s.klein}`} style={{ marginTop: 4 }} aria-live="polite">
-          {zuKlein ? `Kleiner als der letzte Stand (${stundenZuletzt} h). Bitte noch einmal ablesen.` : stundenZuletzt !== null ? `Zuletzt ${stundenZuletzt} h` : null}
-        </div>
+        <StundenFeld id={STUNDEN_ID} label="Betriebsstunden am Zähler" text={stundenText} setText={setStundenText} befund={befund} zuletzt={stundenZuletzt} />
       </section>}
 
       {checkliste.map((c, i) => {
         const a = antworten[c.id];
         return (
-          <section key={c.id} className={s.karte} data-rolle="pruefpunkt">
+          <section key={c.id} id={punktId(c.id)} className={s.karte} data-rolle="pruefpunkt">
             <div className={s.quer} style={{ alignItems: "flex-start" }}>
               <strong>
                 {c.soll !== undefined ? <span className={s.ziffern}>{c.soll} ×</span> : <span className={s.ziffern}>{i + 1}.</span>} {c.text}
                 {kiste && unterwegs[c.id] > 0 && <span className={s.neben}> (davon {unterwegs[c.id]} unterwegs)</span>}
               </strong>
-              {c.hinweis && !kiste && (
-                <Button type="text" aria-expanded={offenerHinweis === c.id} onClick={() => setOffenerHinweis(offenerHinweis === c.id ? null : c.id)} icon={<Icons8Ikone name="help" groesse={20} />}>
-                  So geht’s
-                </Button>
-              )}
             </div>
             {kiste && c.hinweis && <p className={s.hinweis}>{c.hinweis}</p>}
-            {!kiste && offenerHinweis === c.id && <p className={s.hinweis}>{c.hinweis}</p>}
+            {!kiste && c.hinweis && (
+              <PunktHinweis text={c.hinweis} offen={!!aufgeklappt[c.id]} umschalten={() => setAufgeklappt((a) => ({ ...a, [c.id]: !a[c.id] }))} />
+            )}
             <div className={s.wahl} role="radiogroup" aria-label={c.text}>
               {(["ok", "mangel"] as const).map((wert) => (
                 <label key={wert}>
@@ -201,6 +213,7 @@ export function PruefungAmGeraet({
             {a && !a.ok && (
               <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
                 <Input.TextArea
+                  id={mangelId(c.id)}
                   value={a.text}
                   maxLength={NOTIZ_MAX}
                   onChange={(e) => setze(c.id, { text: e.target.value })}
@@ -239,6 +252,7 @@ export function PruefungAmGeraet({
           placeholder="Bemerkung"
           autoSize={{ minRows: 2 }}
           style={{ marginTop: 12 }}
+          id={BEMERKUNG_ID}
           aria-label="Bemerkung"
           status={ohneBemerkung ? "warning" : undefined}
         />
@@ -246,22 +260,50 @@ export function PruefungAmGeraet({
 
       <div className={s.fuss}>
         <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
-        {(fehler || !bereit) && (
-          <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} aria-live="polite" role={fehler ? "alert" : undefined}>
-            {fehler ?? [
-              stundenFehlt ? "Betriebsstunden fehlen." : null,
-              erledigt < checkliste.length
-                ? `Noch ${checkliste.length - erledigt} ${checkliste.length - erledigt === 1 ? (kiste ? "Position" : "Punkt") : (kiste ? "Positionen" : "Punkte")} offen.`
-                : null,
-              ohneText ? "Bei jedem Mangel beschreiben, was los ist." : null,
-              ohneBemerkung ? "Bitte in der Bemerkung beschreiben, was nicht stimmt." : null,
-            ].filter(Boolean).join(" ")}
+        {fehler ? (
+          <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} aria-live="polite" role="alert">{fehler}</div>
+        ) : !bereit ? (
+          <div className={`${s.neben} ${s.klein} ${s.fussGrund}`} aria-live="polite" data-rolle="pruefung-gruende">
+            {gruende.map((g) => (
+              <button key={g.text} type="button" className={s.fussSprung} onClick={() => springe(g.ziel)}>{g.text}</button>
+            ))}
           </div>
-        )}
+        ) : fragtGerade && befund.art === "sprung" ? (
+          <div className={s.rueckfrage} role="alert" data-rolle="stunden-rueckfrage">{sprungFrage(befund.plus)}</div>
+        ) : null}
         <Button type="primary" block disabled={!bereit} loading={laeuft} onClick={senden}>
-          {kiste ? "Durchzählen abschließen" : "Prüfung abschließen"}
+          {fragtGerade ? "Ja, abschließen" : kiste ? "Durchzählen abschließen" : "Prüfung abschließen"}
         </Button>
       </div>
     </div>
+  );
+}
+
+const STUNDEN_ID = "pruef-stunden";
+const BEMERKUNG_ID = "pruef-bemerkung";
+const punktId = (id: string) => `pruef-punkt-${id}`;
+const mangelId = (id: string) => `pruef-mangel-${id}`;
+
+/** Zum Feld bzw. Prüfpunkt scrollen und ihn fokussieren (IDA-381). */
+function springe(ziel: string) {
+  const el = document.getElementById(ziel);
+  if (!el) return;
+  el.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  const feld = el.matches("input, textarea") ? el : el.querySelector<HTMLElement>("input, textarea");
+  feld?.focus({ preventScroll: true });
+}
+
+/** Ab hier ist ein Hinweis eine Anleitung und wird erst auf Tipp ganz gezeigt; die kurzen stehen offen (IDA-381). */
+const HINWEIS_KURZ = 160;
+
+function PunktHinweis({ text, offen, umschalten }: { text: string; offen: boolean; umschalten: () => void }) {
+  const lang = text.length > HINWEIS_KURZ || text.trim().includes("\n");
+  return (
+    <>
+      <p className={`${s.punktHinweis} ${lang && !offen ? s.punktHinweisZu : ""}`} data-rolle="punkt-hinweis">{text}</p>
+      {lang && (
+        <Button type="link" style={{ paddingInline: 0 }} aria-expanded={offen} onClick={umschalten}>{offen ? "Weniger" : "Mehr"}</Button>
+      )}
+    </>
   );
 }

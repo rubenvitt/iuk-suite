@@ -1,5 +1,5 @@
 /**
- * EINEN MANGEL AM GERÄT MELDEN (IDA-312) — POST, multipart: `text`, `einsatzbereit` (`ja`/`nein`) und
+ * EINEN MANGEL AM GERÄT MELDEN (IDA-312) — POST, multipart: `text`, `einsatzbereit` (`ja`/`nein`, Pflicht) und
  * höchstens ein `foto`, dazu `sendung` (die ID vom Telefon: ein zweites Senden legt nichts doppelt an).
  * Melden darf jeder mit dem QR-Code, auch ohne Anmeldung (IDA-337); dann mit freiwilligem `name` und hinter der
  * Notbremse (`_lib/bremse.ts`). Der Handler riegelt selbst (kein Layout).
@@ -32,8 +32,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (formular === "zu_gross") return antwort(413, { ok: false, fehler: "Das Foto ist zu groß." });
     if (formular === null) return antwort(400, { ok: false, fehler: "Die Meldung kam nicht vollständig an. Bitte noch einmal senden." });
 
+    // Die Einsatzfrage hat keine Vorgabe mehr (IDA-381): fehlt die Antwort, geht nichts still als „einsatzbereit“ durch.
+    const einsatz = formular.get("einsatzbereit");
+    if (einsatz !== "ja" && einsatz !== "nein") {
+      return antwort(400, { ok: false, fehler: "Bitte wählen, ob das Gerät noch raus kann.", feld: "einsatzbereit" });
+    }
     const m = mangelEingabe.safeParse({
-      text: String(formular.get("text") ?? ""), einsatzbereit: formular.get("einsatzbereit") !== "nein", name: String(formular.get("name") ?? ""),
+      text: String(formular.get("text") ?? ""), einsatzbereit: einsatz === "ja", name: String(formular.get("name") ?? ""),
     });
     if (!m.success) return antwort(400, { ok: false, fehler: m.error.issues[0]?.message ?? "Bitte beschreiben, was los ist.", feld: "text" });
 

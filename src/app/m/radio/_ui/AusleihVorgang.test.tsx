@@ -596,7 +596,7 @@ describe("radio-AusleihVorgang: das Ergebnis der Action", () => {
     ausleiheAnlegenMock.mockResolvedValue({
       ok: false,
       grund: "gesperrt",
-      text: "Dieser Zugangs-Code wurde gesperrt.",
+      text: "Dieser Zugangscode wurde gesperrt.",
       betroffen: [],
     });
     await rendere(DREI, ["g-1"], "Max Mustermann");

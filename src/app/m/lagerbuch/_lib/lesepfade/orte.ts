@@ -8,7 +8,7 @@
  */
 import { lagerorte } from "../../_db/schema";
 import { teilbaum, type Lagerbereich, type OrtZeile } from "../domain/orte";
-import { eindeutigeLabels, zaehlOrtLabel } from "../inventurOrt";
+import { ZAEHLORT_WURZEL_LABEL, ZAEHLORT_WURZEL_LABEL_ALT, eindeutigeLabels, zaehlOrtLabel } from "../inventurOrt";
 import { HANDLAGER_ID, istEntnahmebox, type Einheitenart } from "../konstanten";
 import type { Leser } from "./bestand";
 
@@ -181,6 +181,9 @@ export function zaehlBereich(db: Leser, ortId: string | null): Lagerbereich | nu
 export function ortNamensaufloesung(db: Leser): Map<string, string | null> {
   const orte = [
     { id: HANDLAGER_ID, label: zaehlOrtLabel(HANDLAGER_ID, undefined) },
+    // IDA-380: das alte Wort der Wurzel steht in Laeufen von vorher. Heisst ein
+    // Schrank so, wird es mehrdeutig (`null`) — dieselbe Regel wie fuer jeden Namen.
+    { id: HANDLAGER_ID, label: ZAEHLORT_WURZEL_LABEL_ALT },
     ...handlagerSchraenke(db).map((o) => ({ id: o.id, label: zaehlOrtLabel(o.id, o.name) })),
   ];
   const karte = new Map<string, string | null>();
@@ -191,14 +194,14 @@ export function ortNamensaufloesung(db: Leser): Map<string, string | null> {
 /**
  * DRK-313 — DIE BESCHRIFTUNG DER HANDLAGER-WURZEL ALS ZUGANGSZIEL.
  *
- * ⚠️ NICHT `ZAEHLORT_WURZEL_LABEL` („Nicht zugeordnet"), obwohl beide denselben
- * Ort meinen. Eine Zaehlung fragt „was liegt hier?", ein Zugang fragt „wohin
- * lege ich es?" — und auf die zweite Frage ist „Nicht zugeordnet" keine
- * Antwort, sondern eine Zustandsbeschreibung. Die Wurzel ist als Ziel eine
- * bewusste Wahl („ich weiss den Schrank noch nicht"), und der Satz muss das
- * sagen, sonst waehlt niemand sie absichtlich.
+ * Seit IDA-380 DERSELBE WERT wie `ZAEHLORT_WURZEL_LABEL`: bis dahin hiess die
+ * Wurzel beim Zaehlen „Nicht zugeordnet" und hier „Handlager (ohne Schrank)".
+ * Das alte Zaehlwort war als Ziel keine Antwort auf „wohin lege ich es?",
+ * sondern eine Zustandsbeschreibung; „Handlager ohne Schrank" traegt beide
+ * Fragen. Die Wurzel ist als Ziel eine bewusste Wahl („ich weiss den Schrank
+ * noch nicht"), und der Name muss das sagen, sonst waehlt niemand sie.
  */
-export const ZUGANGSZIEL_WURZEL_LABEL = "Handlager (ohne Schrank)";
+export const ZUGANGSZIEL_WURZEL_LABEL = ZAEHLORT_WURZEL_LABEL;
 
 /**
  * DRK-313 — DIE WAEHLBAREN ZIELE EINES ZUGANGS: die Wurzel plus die AKTIVEN

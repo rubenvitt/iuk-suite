@@ -15,10 +15,10 @@ export { Zellentext, type ZellentextProps } from "./Zellentext";
 export { Zeilenaktionen, type Zeilenaktion, type ZeilenaktionenProps } from "./Zeilenaktionen";
 export { Kurzkennung, type KurzkennungProps } from "./Kurzkennung";
 export { aktionsSpalte, AKTIONS_SCHLUESSEL } from "./aktionsspalte";
-export { Schmalkarten, NurSchmal, type SchmalkartenProps } from "./Schmalkarten";
+export { Schmalkarten, NurSchmal, NurBreit, type SchmalkartenProps } from "./Schmalkarten";
 export { Kartentabelle, type KartentabelleProps } from "./Kartentabelle";
 export { Spaltenkarte, kartenName, type SpaltenkarteProps } from "./Spaltenkarte";
-export { Schmalsteuerung, type SchmalsteuerungProps } from "./Schmalsteuerung";
+export { Schmalsteuerung, aktiveFilter, filterknopfText, type SchmalsteuerungProps } from "./Schmalsteuerung";
 export {
   kartenaufbau,
   schluesselAus,

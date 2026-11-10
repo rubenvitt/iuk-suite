@@ -1,14 +1,15 @@
 "use client";
 
-import { Fragment, useMemo, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { App, Button, Input, Segmented, Select } from "antd";
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { App, Button, Input, Popover, Segmented, Select } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import type { Auswertung } from "../_lib/pruefung";
 import { erfuellt } from "../_lib/qualis";
+import { freieLuecke, spurenZahl, verteileSpuren } from "../_lib/spuren";
 import { type EinheitDTO, type PlanHelfer, type PlanungDTO, type Quali, type SchichtDTO, MIN_SCHICHT_MIN, RASTER_MIN, MINUTE, STUNDE, schluessel } from "../_lib/typen";
 import { kurzTag, rasten, stunden, stundeInZone, uhrzeit, zeitspanne } from "../_lib/zeit";
 import s from "./schichtplan.module.css";
-import { anforderungText, Chip, EinheitZeichen, einheitTitel, name, QualiChips, schichtAmpel } from "./teile";
+import { anforderungKurz, anforderungText, Chip, EinheitZeichen, einheitTitel, name, QualiChips, schichtAmpel } from "./teile";
 
 /** Was der Editor für das Raster ausführt (optimistisch, dann Server). */
 export interface RasterAktionen {
@@ -24,6 +25,8 @@ const RASTER = RASTER_MIN * MINUTE;
 const MIN_SCHICHT = MIN_SCHICHT_MIN * MINUTE;
 const MAX_SCHICHT = 24 * STUNDE;
 type Zoom = "eng" | "normal" | "weit";
+/** IDA-385: Beschriftung bricht um, statt aus dem Knopf zu laufen (inline, Falle 5). */
+const UMBRECHEND = { whiteSpace: "normal", height: "auto", minHeight: 44, textAlign: "start", maxWidth: "100%", paddingInline: 8, hyphens: "auto" } as const;
 const PX: Record<Zoom, number> = { eng: 28, normal: 56, weit: 96 };
 
 type Zug =
@@ -40,7 +43,19 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
   oeffneSchicht: (id: string) => void; bearbeiteEinheit: (id: string | "neu") => void;
 }) {
   const { message } = App.useApp();
-  const [zoom, setZoom] = useState<Zoom>(p.bis - p.von > 24 * STUNDE ? "eng" : "normal");
+  const [zoom, setZoomState] = useState<Zoom>(p.bis - p.von > 24 * STUNDE ? "eng" : "normal");
+  const zoomGewaehlt = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const namenRef = useRef<HTMLDivElement>(null);
+  const setZoom = (z: Zoom) => { zoomGewaehlt.current = true; setZoomState(z); };
+  // IDA-385: Passt der Zeitraum bei „Normal“ nicht in die Breite, gleich „Eng“ — sonst endet der
+  // sichtbare Teil mitten im Tag und die späten Schichten brauchen Querscrollen.
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    if (zoomGewaehlt.current || !scroll) return;
+    const platz = scroll.clientWidth - (namenRef.current?.offsetWidth ?? 0);
+    if (((p.bis - p.von) / STUNDE) * PX.normal > platz) setZoomState("eng");
+  }, [p.von, p.bis]);
   const [ziel, setZiel] = useState<string | null>(null);
   const [zug, setZug] = useState<Zug | null>(null);
   const klickSperre = useRef(false);
@@ -148,11 +163,14 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
     aktionen.schichtAnlegen(e.id, von, Math.min(von + e.schichtMin * MINUTE, p.bis));
   }
 
-  /** Für Tastatur und Telefon: eine Schicht der üblichen Länge hinter der letzten anlegen und öffnen. */
+  /**
+   * Für Tastatur und Telefon: eine Schicht der üblichen Länge in die nächste freie Lücke der Zeile
+   * (IDA-385: nie über eine bestehende). Ist die Zeile ganz belegt, wird nichts angelegt.
+   */
   function schichtAnhaengen(e: EinheitDTO) {
-    const letzte = Math.max(p.von, ...p.schichten.filter((x0) => x0.einheitId === e.id).map((x0) => x0.bis));
-    const von = letzte < p.bis ? letzte : p.von;
-    aktionen.schichtAnlegen(e.id, von, Math.min(von + e.schichtMin * MINUTE, p.bis));
+    const frei = freieLuecke(p.schichten.filter((x0) => x0.einheitId === e.id), p, e.schichtMin * MINUTE, MIN_SCHICHT);
+    if (frei) aktionen.schichtAnlegen(e.id, frei.von, frei.bis);
+    else void message.info(`${e.name} ist im ganzen Zeitraum belegt.`);
   }
 
   // Stundenmarken und Tagesbeginne (in der Suite-Zone) für den Kopf.
@@ -171,9 +189,9 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
           <Segmented<Zoom> value={zoom} onChange={setZoom} options={[{ label: "Eng", value: "eng" }, { label: "Normal", value: "normal" }, { label: "Weit", value: "weit" }]} />
         </div>
         <div className={s.raster}>
-          <div className={s.rasterScroll}>
+          <div className={s.rasterScroll} ref={scrollRef}>
             <div className={s.rasterInnen}>
-              <div className={s.rasterKopfLinks}><span className={s.kicker}>Abschnitt / Fahrzeug</span></div>
+              <div className={s.rasterKopfLinks} ref={namenRef}><span className={s.kicker}>Abschnitt / Fahrzeug</span></div>
               <div className={s.rasterKopf} style={{ width: breite }}>
                 <span className={s.tagMarke} style={{ left: 0 }}>{kurzTag(p.von)}</span>
                 {marken.map((m) => (
@@ -186,23 +204,25 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
               {p.einheiten.map((e) => {
                 const eigene = schichten.filter((x0) => x0.einheitId === e.id);
                 const zeilen = Math.max(e.soll, ...eigene.map((x0) => besetzt(x0.id).length)) + 1;
-                const hoehe = Math.max(128, 40 + zeilen * 20);
-                const anf = anforderungText(e);
+                // IDA-385: Überschneiden sich Schichten, liegen sie in Spuren übereinander statt deckungsgleich.
+                const lage = verteileSpuren(eigene);
+                const hoehe = Math.max(128, 40 + zeilen * 20) * spurenZahl(lage);
+                const anf = anforderungKurz(e);
                 return (
                   <Fragment key={e.id}>
-                    <div className={s.einheitZelle} style={{ height: hoehe }}>
+                    <div className={s.einheitZelle} style={{ minHeight: hoehe }}>
                       <button type="button" className={s.einheitName} onClick={() => bearbeiteEinheit(e.id)} title="Abschnitt bearbeiten">
                         <EinheitZeichen e={e} />
                         <span>{einheitTitel(e)}</span>
                       </button>
-                      <span className={s.neben}>Soll {e.soll}{anf ? `, davon ${anf}` : ""}</span>
+                      <span className={s.neben} title={anf ? anforderungText(e) : undefined}>Soll {e.soll}{anf ? ` · ${anf}` : ""}</span>
                       <span className={`${s.neben} ${s.nurBreit}`}>Schichten je {stunden(e.schichtMin * MINUTE)}</span>
                       <Button type="link" style={{ alignSelf: "flex-start", paddingInline: 0 }} onClick={() => schichtAnhaengen(e)}>Schicht anlegen</Button>
                     </div>
                     <div
                       data-spur={e.id}
                       className={`${s.spur} ${s.zeichenbar}`}
-                      style={{ width: breite, height: hoehe, backgroundSize: `${px}px 100%` }}
+                      style={{ width: breite, minHeight: hoehe, backgroundSize: `${px}px 100%` }}
                       onPointerDown={(ev) => zeichneAb(ev, e)}
                       onDoubleClick={(ev) => doppelklick(ev, e)}
                     >
@@ -217,6 +237,7 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
                         const leer = Math.max(0, e.soll - ids.length);
                         const zieht = zug && zug.art !== "zeichnen" && zug.schichtId === sch.id && zug.bewegt;
                         const luecke = a.luecken.find((l) => l.schichtId === sch.id);
+                        const { spur, spuren } = lage.get(sch.id) ?? { spur: 0, spuren: 1 };
                         return (
                           <div
                             key={sch.id}
@@ -225,7 +246,10 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
                             data-schicht={sch.id}
                             aria-label={`${e.name}, ${zeitspanne(sch.von, sch.bis)}, ${ids.length} von ${e.soll} besetzt`}
                             className={`${s.block} ${s[ampel]}${x(sch.bis) - x(sch.von) < SCHMAL_PX ? ` ${s.schmal}` : ""}${ziel === sch.id ? ` ${s.ziel}` : ""}${zieht ? ` ${s.zieht}` : ""}`}
-                            style={{ left: x(sch.von) + 2, width: Math.max(x(sch.bis) - x(sch.von) - 4, 6) }}
+                            style={{
+                              left: x(sch.von) + 2, width: Math.max(x(sch.bis) - x(sch.von) - 4, 6),
+                              top: `calc(${spur} * 100% / ${spuren} + 6px)`, height: `calc(100% / ${spuren} - 12px)`, bottom: "auto",
+                            }}
                             onPointerDown={(ev) => zieheAb(ev, sch, "verschieben")}
                             onClick={() => { if (!klickSperre.current) oeffneSchicht(sch.id); }}
                             onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); oeffneSchicht(sch.id); } }}
@@ -269,7 +293,7 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
                 );
               })}
               <div className={s.einheitZelle} style={{ borderBlockEnd: 0 }}>
-                <Button onClick={() => bearbeiteEinheit("neu")} icon={<Icons8Ikone name="plus" groesse={16} />}>Abschnitt oder Fahrzeug</Button>
+                <Button style={UMBRECHEND} onClick={() => bearbeiteEinheit("neu")} icon={<Icons8Ikone name="plus" groesse={16} />}>Abschnitt oder Fahrzeug</Button>
               </div>
               <div />
             </div>
@@ -277,7 +301,7 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
         </div>
         <Legende />
       </div>
-      <Helferleiste p={p} a={a} helfer={helfer} katalog={katalog} />
+      <Helferleiste p={p} a={a} helfer={helfer} katalog={katalog} zuteilen={aktionen.zuteilen} />
     </div>
   );
 }
@@ -294,7 +318,27 @@ function Legende() {
 
 // ── Helferleiste ───────────────────────────────────────────────────────────
 
-function Helferleiste({ p, a, helfer, katalog }: { p: PlanungDTO; a: Auswertung; helfer: PlanHelfer[]; katalog: Quali[] }) {
+/**
+ * Offene Schichten, in die eine Person passt (IDA-385: Antippen einer Karte in der Helferleiste): nicht
+ * schon dort und zur selben Zeit nirgends sonst eingeteilt; wer eine offene Anforderung deckt, zuerst.
+ */
+function passendeSchichten(p: PlanungDTO, a: Auswertung, h: PlanHelfer): { sch: SchichtDTO; e: EinheitDTO; deckt: boolean }[] {
+  const schicht = new Map(p.schichten.map((x0) => [x0.id, x0]));
+  const einheit = new Map(p.einheiten.map((e) => [e.id, e]));
+  const eigene = p.zuordnungen.filter((z) => schluessel(z.quelle, z.helferId) === h.schluessel).map((z) => schicht.get(z.schichtId)).filter((x0): x0 is SchichtDTO => !!x0);
+  return a.luecken.flatMap((l) => {
+    const sch = schicht.get(l.schichtId);
+    const e = sch ? einheit.get(sch.einheitId) : undefined;
+    if (!sch || !e || eigene.some((x0) => x0.von < sch.bis && x0.bis > sch.von)) return [];
+    return [{ sch, e, deckt: l.braucht.some((b) => erfuellt(h.qualifikationen, b.quali)) }];
+  }).sort((x0, y0) => Number(y0.deckt) - Number(x0.deckt) || x0.sch.von - y0.sch.von);
+}
+
+function Helferleiste({ p, a, helfer, katalog, zuteilen }: {
+  p: PlanungDTO; a: Auswertung; helfer: PlanHelfer[]; katalog: Quali[]; zuteilen: RasterAktionen["zuteilen"];
+}) {
+  const [offen, setOffen] = useState<string | null>(null);
+  const mehrtaegig = p.bis - p.von > 24 * STUNDE;
   const [suche, setSuche] = useState("");
   const [quali, setQuali] = useState<string | null>(null);
   const [nur, setNur] = useState<"alle" | "frei">("alle");
@@ -316,23 +360,47 @@ function Helferleiste({ p, a, helfer, katalog }: { p: PlanungDTO; a: Auswertung;
         {liste.map((h) => {
           const dauer = a.dauer.get(h.schluessel) ?? 0;
           const k = a.jeHelfer.get(h.schluessel) ?? [];
+          const passend = offen === h.schluessel ? passendeSchichten(p, a, h) : [];
           return (
-            <div
+            <Popover
               key={h.schluessel}
-              className={s.helferKarte}
-              data-helfer={h.schluessel}
-              draggable
-              onDragStart={(ev) => { ev.dataTransfer.setData(ZIEHDATEN, h.schluessel); ev.dataTransfer.setData("text/plain", h.schluessel); ev.dataTransfer.effectAllowed = "copyMove"; }}
+              trigger="click"
+              placement="left"
+              open={offen === h.schluessel}
+              onOpenChange={(auf) => setOffen(auf ? h.schluessel : null)}
+              title={name(h)}
+              content={(
+                <div className={s.passend}>
+                  {passend.length === 0 ? <span className={s.neben}>Keine offene Schicht frei.</span> : null}
+                  {passend.slice(0, 8).map(({ sch, e, deckt }) => (
+                    <Button key={sch.id} type="text" block style={{ ...UMBRECHEND, justifyContent: "space-between" }} onClick={() => { setOffen(null); zuteilen(sch.id, h.schluessel); }}>
+                      <span>{einheitTitel(e)} <span className={s.neben}>{zeitspanne(sch.von, sch.bis, mehrtaegig)}</span></span>
+                      {deckt ? <Chip ton="ok">passt</Chip> : null}
+                    </Button>
+                  ))}
+                </div>
+              )}
             >
-              <div className={s.kartenZeile}>
-                <strong style={{ fontSize: 14 }}>{name(h)}</strong>
-                {k.length > 0 ? <Chip ton="rot" title={k.map((x0) => x0.text).join("\n")}>{k.length} Konflikt{k.length > 1 ? "e" : ""}</Chip> : dauer > 0 ? <Chip ton="grau">{stunden(dauer)}</Chip> : null}
+              <div
+                className={s.helferKarte}
+                data-helfer={h.schluessel}
+                role="button"
+                tabIndex={0}
+                aria-haspopup="dialog"
+                draggable
+                onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setOffen(h.schluessel); } }}
+                onDragStart={(ev) => { setOffen(null); ev.dataTransfer.setData(ZIEHDATEN, h.schluessel); ev.dataTransfer.setData("text/plain", h.schluessel); ev.dataTransfer.effectAllowed = "copyMove"; }}
+              >
+                <div className={s.kartenZeile}>
+                  <strong style={{ fontSize: 14 }}>{name(h)}</strong>
+                  {k.length > 0 ? <Chip ton="rot" title={k.map((x0) => x0.text).join("\n")}>{k.length} Konflikt{k.length > 1 ? "e" : ""}</Chip> : dauer > 0 ? <Chip ton="grau">{stunden(dauer)}</Chip> : null}
+                </div>
+                <div className={s.kartenZeile}>
+                  <QualiChips qualis={h.qualifikationen} />
+                  {h.quelle === "temp" ? <Chip ton="temp">Temporär</Chip> : null}
+                </div>
               </div>
-              <div className={s.kartenZeile}>
-                <QualiChips qualis={h.qualifikationen} />
-                {h.quelle === "temp" ? <Chip ton="temp">Temporär</Chip> : null}
-              </div>
-            </div>
+            </Popover>
           );
         })}
         {liste.length === 0 ? <span className={s.neben}>{helfer.length === 0 ? "Im Helfer-Modul steht noch niemand." : "Niemand passt zu diesem Filter."}</span> : null}

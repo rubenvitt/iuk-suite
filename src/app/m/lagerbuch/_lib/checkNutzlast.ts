@@ -10,7 +10,7 @@
  * nur, dass der Server richtig zaehlt, WENN der Wert ankommt. Ob er ankommt,
  * prueft heute nichts.
  *
- * ⚠️ WAS DIE VORBELEGUNGEN KOSTEN, steht hier, damit es niemand spaeter
+ * ⚠️ WAS DIE VORBELEGUNGEN KOSTEN (Geräte und Druck haben seit IDA-377 keine mehr), steht hier, damit es niemand spaeter
  * „entdeckt" (§5.8.1): serverseitig ist „gezaehlt und stimmt" von „nicht
  * gezaehlt" NICHT unterscheidbar. Ein durchgeklickter Check erzeugt einen
  * positiven, plausibel aussehenden Nachweis und — wenn der recorded Bestand
@@ -26,10 +26,18 @@ export type CheckPositionEingabe = { id: string; artikelId: string; soll: number
 export type CheckGeraetEingabe = { id: string };
 export type CheckFlascheEingabe = { id: string; nennfuelldruckBar: number };
 
-export type CheckGeraetAntwort = { vorhanden: boolean; zustand: Zustand; bemerkung?: string };
+/**
+ * Die Antwort zu einem Gerät, wie die Helferin sie gibt. IDA-377: KEINE VORBELEGUNG mehr — bis hier
+ * stand jedes Gerät auf „vorhanden, In Ordnung", und ein durchgetippter Check bezeugte Geräte, die
+ * niemand angesehen hatte. Fehlt der Eintrag oder nur der Zustand eines vorhandenen Geräts, ist es
+ * NICHT BEANTWORTET (`geraetBeantwortet`), und der Check lässt sich nicht abschließen.
+ */
+export type CheckGeraetAntwort = { vorhanden?: boolean; zustand?: Zustand; bemerkung?: string };
 
-/** `CheckFlow.tsx:25`. 1:1 (§5.15, Punkt 4). */
-export const GERAET_VORBELEGUNG: CheckGeraetAntwort = { vorhanden: true, zustand: "In Ordnung" };
+/** Beantwortet heißt: „fehlt" oder ein gewählter Zustand. */
+export function geraetBeantwortet(a: CheckGeraetAntwort | undefined): boolean {
+  return a !== undefined && (a.vorhanden === false || a.zustand !== undefined);
+}
 
 export type CheckZaehlung = {
   ist: Record<string, number | undefined>;
@@ -46,7 +54,7 @@ export type CheckZaehlung = {
 export type CheckNutzlast = {
   fahrzeugId: string;
   positionen: { sollPositionId: string; ist: number; nachfuellMenge: number; boxMenge: number }[];
-  geraete: { geraetId: string; vorhanden: boolean; zustand: Zustand; bemerkung?: string }[];
+  geraete: { geraetId: string; vorhanden: boolean; zustand?: Zustand; bemerkung?: string }[];
   flaschen: { flascheId: string; druckBar: number }[];
   verfaelle: { artikelId: string; verfall: string | null }[];
 };
@@ -97,17 +105,23 @@ export function checkNutzlast(args: {
       // ist serverseitig (`check.ts`) und bleibt es.
       boxMenge: z.box?.[p.id] ?? 0,
     })),
-    geraete: geraete.map((g) => {
-      const a = z.geraete[g.id] ?? GERAET_VORBELEGUNG;
-      return {
-        geraetId: g.id, vorhanden: a.vorhanden, zustand: a.zustand,
+    // IDA-377: was NICHT BEANTWORTET bzw. NICHT ABGELESEN ist, wird NICHT GESENDET — statt als „In
+    // Ordnung" bzw. als voller Nennfülldruck. Die Oberfläche sperrt den Abschluss vorher; hier steht,
+    // was gilt, wenn das je umgangen wird: kein Nachweis für etwas, das niemand angesehen hat.
+    geraete: geraete.flatMap((g) => {
+      const a = z.geraete[g.id];
+      if (!a || !geraetBeantwortet(a)) return [];
+      const vorhanden = a.vorhanden !== false;
+      return [{
+        geraetId: g.id, vorhanden,
+        ...(vorhanden && a.zustand ? { zustand: a.zustand } : {}),
         ...(a.bemerkung ? { bemerkung: a.bemerkung } : {}),
-      };
+      }];
     }),
-    flaschen: flaschen.map((f) => ({
-      flascheId: f.id,
-      druckBar: z.druck[f.id] ?? f.nennfuelldruckBar,
-    })),
+    flaschen: flaschen.flatMap((f) => {
+      const d = z.druck[f.id];
+      return d === undefined ? [] : [{ flascheId: f.id, druckBar: d }];
+    }),
     verfaelle: Object.entries(z.verfaelle)
       // `undefined` = unangetastet und wird GAR NICHT gesendet.
       .filter(([, v]) => v !== undefined)

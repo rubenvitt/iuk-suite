@@ -99,7 +99,7 @@ function pruefeArtikel(db: Leser, id: string): Loeschbarkeit {
   if (inventur) {
     teile.push(plural(inventur, "Inventurposition", "Inventurpositionen"));
   }
-  if (codes) teile.push(plural(codes, "Zugangs-Code", "Zugangs-Codes"));
+  if (codes) teile.push(plural(codes, "Zugangscode", "Zugangscodes"));
   return {
     loeschbar: false,
     grund: verknuepftGrund(teile),
@@ -191,7 +191,7 @@ function pruefeLagerort(db: Leser, id: string): Loeschbarkeit {
   if (bzGer) teile.push(plural(bzGer, "BZ-Gerät", "BZ-Geräten"));
   if (ger) teile.push(plural(ger, "Gerät", "Geräten"));
   if (flaschen) teile.push(plural(flaschen, "O₂-Flasche", "O₂-Flaschen"));
-  if (codes) teile.push(plural(codes, "Zugangs-Code", "Zugangs-Codes"));
+  if (codes) teile.push(plural(codes, "Zugangscode", "Zugangscodes"));
   return {
     loeschbar: false,
     grund: verknuepftGrund(teile),

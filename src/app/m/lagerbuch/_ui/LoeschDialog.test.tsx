@@ -260,7 +260,7 @@ describe("LoeschDialog: Huelle und Beschriftungen", () => {
       <LoeschDialog
         offen
         name="111-111"
-        typLabel="Zugangs-Code"
+        typLabel="Zugangscode"
         deaktivierenLabel="Sperren"
         pruefen={async () => GESPERRT}
         onLoeschen={async () => {}}
@@ -366,7 +366,7 @@ describe("LoeschDialog: Actions", () => {
       <LoeschDialog
         offen
         name="X"
-        typLabel="Zugangs-Code"
+        typLabel="Zugangscode"
         deaktivierenLabel="Sperren"
         pruefen={async () => GESPERRT}
         onLoeschen={async () => {}}
@@ -380,7 +380,7 @@ describe("LoeschDialog: Actions", () => {
     await clickPortal("[data-rolle='deaktivieren']");
     await warte();
     expect(queryPortal(".ant-modal").textContent).toContain(
-      "Zugangs-Code konnte nicht deaktiviert werden.",
+      "Zugangscode konnte nicht deaktiviert werden.",
     );
   });
 
@@ -651,14 +651,14 @@ describe("LoeschButton", () => {
     await mount(
       <LoeschButton
         name="111-111"
-        typLabel="Zugangs-Code"
+        typLabel="Zugangscode"
         nurZeichen
         pruefen={async () => LOESCHBAR}
         onLoeschen={async () => {}}
       />,
     );
     expect(document.querySelector("button")?.getAttribute("aria-label")).toBe(
-      "Zugangs-Code 111-111 löschen",
+      "Zugangscode 111-111 löschen",
     );
   });
 

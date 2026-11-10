@@ -83,7 +83,7 @@ const SEITEN: { pfad: string; anker: (page: Page) => Promise<void> }[] = [
     anker: async (page) => {
       // Kein Testid auf dieser Seite (page.tsx:127) — Textanker statt neuem
       // data-testid in Produktionscode.
-      await expect(page.getByText("Kritische Artikel", { exact: true })).toBeVisible();
+      await expect(page.getByText("Was steht an", { exact: true })).toBeVisible();
     },
   },
   {

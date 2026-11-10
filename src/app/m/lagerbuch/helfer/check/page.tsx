@@ -325,7 +325,7 @@ export default async function CheckSeite({
 
   if (fahrzeuge.length === 0) {
     return (
-      <HelferRahmen aktiv="check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="check" titel="Check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
           // DRK-309: NEUTRAL, weil hier ueber ALLE Einheiten gesprochen wird
           // und es keine gibt — es gibt also auch keine Art zu nennen.
@@ -340,7 +340,7 @@ export default async function CheckSeite({
 
   if (!gewaehlt) {
     return (
-      <HelferRahmen aktiv="check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="check" titel="Check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <FahrzeugWahl
           fahrzeuge={fahrzeuge.map((f) => ({
             id: f.id, name: f.name, kennung: f.kennung,
@@ -431,7 +431,7 @@ export default async function CheckSeite({
 
   if (art === null && vorlage) {
     return (
-      <HelferRahmen aktiv="check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="check" titel="Check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         {uebergangen && <ScanHinweis gescannt={uebergangen} gezeigt={gewaehlt} />}
         <CheckArtWahl
           fahrzeug={{
@@ -471,7 +471,7 @@ export default async function CheckSeite({
   }));
 
   return (
-    <HelferRahmen aktiv="check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+    <HelferRahmen aktiv="check" titel="Check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
       {/*
         ⚠️ VOR DEM FLOW UND NICHT IN IHM — DRK-373. Der Flow ist eine
         Client-Insel mit vier Phasen, die jede ihren eigenen Kopf rendert; ein
