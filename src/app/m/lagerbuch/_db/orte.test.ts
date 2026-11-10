@@ -131,6 +131,9 @@ describe("ortNamensaufloesung", () => {
     expect(karte.get("Schrank 1")).toBe("schrank-1");
     expect(karte.get("GF-Schrank")).toBe("schrank-gf");
     // Die Wurzel ist mit ihrem Auswahlnamen dabei, nicht mit „Handlager".
+    expect(karte.get("Handlager ohne Schrank")).toBe(HANDLAGER_ID);
+    // IDA-380: das alte Wort steht in Laeufen von vorher und zeigt weiter auf
+    // die Wurzel — sonst bekaeme jeder alte Lauf die Kennung angehaengt.
     expect(karte.get("Nicht zugeordnet")).toBe(HANDLAGER_ID);
     // Was es nicht gibt, fehlt — und „fehlt" heisst „traegt nicht mehr".
     expect(karte.has("Schrank 7")).toBe(false);

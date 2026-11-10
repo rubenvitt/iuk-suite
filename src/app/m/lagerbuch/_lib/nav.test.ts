@@ -5,23 +5,33 @@ import { LAGERBUCH_NAV } from "./nav";
 
 describe("LAGERBUCH_NAV: die dreiundzwanzig Ziele", () => {
   it("führt genau die 23 Einträge in Abschnitten, in dieser Reihenfolge", () => {
-    expect(LAGERBUCH_NAV).toEqual([
+    // Die Stichworte stehen im eigenen Fall unten — hier geht es um das, was SICHTBAR ist.
+    expect(LAGERBUCH_NAV.map((e) => {
+      const sichtbar = { ...e };
+      delete sichtbar.stichworte;
+      return sichtbar;
+    })).toEqual([
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
+      // IDA-380: die drei HANDLUNGEN als eigener Abschnitt direkt unter der
+      // Übersicht — sie führen alle drei aus dem Verwaltungsrahmen heraus.
+      // DRK-305: der erste von drei Eintraegen, die NICHT nach /verwaltung fuehren.
+      { key: "entnahme", title: "Entnahme", href: "/helfer", ikon: "entnahme", abschnitt: "Am Regal / am Fahrzeug" },
+      // DRK-313: der zweite — und der einzige Weg in die Auffuellansicht. Er
+      // steht direkt unter „Entnahme", weil beide dieselbe Flaeche in
+      // entgegengesetzter Richtung sind.
+      { key: "auffuellen", title: "Auffüllen", href: "/auffuellen", ikon: "auffuellen", abschnitt: "Am Regal / am Fahrzeug" },
+      // DRK-305: der dritte. `pruefen` ist die HANDLUNG, `checks` unter
+      // „Prüfungen" die Historie — deshalb zwei Zeichen.
+      { key: "pruefen", title: "Check durchführen", href: "/helfer/check", ikon: "pruefen", abschnitt: "Am Regal / am Fahrzeug" },
       { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel", abschnitt: "Bestand" },
       { key: "verfall", title: "Verfall", href: "/verwaltung/verfall", ikon: "verfall", abschnitt: "Bestand" },
       { key: "inventur", title: "Inventur", href: "/verwaltung/inventur", ikon: "inventur", abschnitt: "Bestand" },
       { key: "bestellung", title: "Bestellung", href: "/verwaltung/bestellung", ikon: "bestellung", abschnitt: "Bestand" },
       // DRK-297: die Schraenke des Handlagers.
       { key: "lagerorte", title: "Lagerorte", href: "/verwaltung/lagerorte", ikon: "lagerorte", abschnitt: "Bestand" },
-      // DRK-305: der erste von drei Eintraegen, die NICHT nach /verwaltung fuehren.
-      { key: "entnahme", title: "Entnahme", href: "/helfer", ikon: "entnahme", abschnitt: "Bestand" },
-      // DRK-313: der zweite — und der einzige Weg in die Auffuellansicht. Er
-      // steht direkt unter „Entnahme", weil beide dieselbe Flaeche in
-      // entgegengesetzter Richtung sind.
-      { key: "auffuellen", title: "Auffüllen", href: "/auffuellen", ikon: "auffuellen", abschnitt: "Bestand" },
       // DRK-314: die Kiste in der Halle. Sie steht bei „Bestand", weil sie ein
       // LAGERORT ist und kein Traeger — und sie fuehrt in die VERWALTUNG, anders
-      // als die beiden Helfer-Eintraege daneben.
+      // als die Helfer-Eintraege unter „Am Regal / am Fahrzeug".
       { key: "entnahmebox", title: "Entnahmebox", href: "/verwaltung/entnahmebox", ikon: "entnahmebox", abschnitt: "Bestand" },
       { key: "fahrzeuge", title: "Fahrzeuge & Taschen", href: "/verwaltung/fahrzeuge", ikon: "fahrzeuge", abschnitt: "Einheiten & Geräte" },
       { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen", ikon: "vorlagen", abschnitt: "Einheiten & Geräte" },
@@ -30,9 +40,6 @@ describe("LAGERBUCH_NAV: die dreiundzwanzig Ziele", () => {
       // IDA-298: die gemeldeten Mängel, vor den Checks — sie sind das, was jemand jetzt tun muss.
       { key: "maengel", title: "Mängel", href: "/verwaltung/maengel", ikon: "maengel", abschnitt: "Prüfungen" },
       { key: "checks", title: "Checks", href: "/verwaltung/checks", ikon: "checks", abschnitt: "Prüfungen" },
-      // DRK-305: der dritte. `pruefen` ist die HANDLUNG, `checks` daneben die
-      // Historie — zwei Eintraege im selben Abschnitt, deshalb zwei Zeichen.
-      { key: "pruefen", title: "Check durchführen", href: "/helfer/check", ikon: "pruefen", abschnitt: "Prüfungen" },
       { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz", abschnitt: "Prüfungen" },
       { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
       // IDA-261: die Verdichtung des Journals, deshalb direkt darunter.
@@ -106,8 +113,25 @@ describe("LAGERBUCH_NAV: die dreiundzwanzig Ziele", () => {
       // Die Liste ist genau die Feldmenge von `SuiteNavItem` — kein Eintrag darf
       // etwas tragen, das der Typ nicht vorsieht, insbesondere kein `icon`.
       expect(
-        Object.keys(e).every((k) => ["key", "href", "title", "ikon", "abschnitt"].includes(k)),
+        Object.keys(e).every((k) => ["key", "href", "title", "ikon", "abschnitt", "stichworte"].includes(k)),
       ).toBe(true);
+    }
+  });
+
+  /*
+   * IDA-380 — „Springen zu" fand nur Menünamen. Die Stichworte sind die Wörter,
+   * unter denen jemand sucht, bevor er unsere Beschriftung kennt; diese Fälle
+   * sind die aus dem Befund.
+   */
+  it("führt die Suchwörter aus dem Befund an den fachlich passenden Einträgen", () => {
+    const stichworte = new Map(LAGERBUCH_NAV.map((e) => [e.key, e.stichworte ?? []]));
+    expect(stichworte.get("auffuellen")).toContain("Wareneingang");
+    expect(stichworte.get("verfall")).toContain("aussondern");
+    // Kein Stichwort ist zugleich eine sichtbare Beschriftung — sonst fände die
+    // Suche zwei Ziele für ein Wort, das auf dem Bildschirm genau eines meint.
+    const titel = new Set(LAGERBUCH_NAV.map((e) => e.title.toLowerCase()));
+    for (const [key, woerter] of stichworte) {
+      for (const w of woerter) expect(titel.has(w.toLowerCase()), `${key}: ${w}`).toBe(false);
     }
   });
 

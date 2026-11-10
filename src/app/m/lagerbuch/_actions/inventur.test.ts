@@ -887,7 +887,7 @@ describe("inventurKorrektur — DRK-337: ein Lauf zaehlt genau einen Ort", () =>
     // Bereich wie „ganzer Handlager", und im Verlauf waere beides nicht mehr
     // auseinanderzuhalten.
     expect(JSON.parse(umfangVon(id(wurzel))!))
-      .toEqual({ kategorien: [], faecher: [], ort: "Nicht zugeordnet", ortId: HANDLAGER_ID });
+      .toEqual({ kategorien: [], faecher: [], ort: "Handlager ohne Schrank", ortId: HANDLAGER_ID });
     expect(umfangVon(id(ohneOrt))).toBeNull();
   });
 });

@@ -193,3 +193,14 @@ function ohneKommentare(quelle: string): string {
     })
     .join("\n");
 }
+
+describe("bestandExportZeilen — ohne Verfall (IDA-380)", () => {
+  it("schreibt fuer den Platzhalter 2099-12 „ohne Verfall\" in die Spalte Verfall", () => {
+    const [z] = bestandExportZeilen([{
+      name: "Dreiecktuch", fach: "A1", kategorie: null, bestand: 3, einheit: "Stk",
+      mindestbestand: 1, aktiv: true, unterMindest: false,
+      naechsteCharge: { chargenNr: "ohne", verfall: "2099-12" }, naechsteAblaufText: "ohne Verfall",
+    }]);
+    expect(z!.verfall).toBe("ohne Verfall");
+  });
+});

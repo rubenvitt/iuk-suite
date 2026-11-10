@@ -36,7 +36,8 @@ import { artikel, buchungen, chargen } from "../../_db/schema";
 import type { Lagerbereich } from "../domain/orte";
 import { verfallStatus, verfallSchwellen } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
-import type { Einheitenart } from "../konstanten";
+import { HANDLAGER_ID, type Einheitenart } from "../konstanten";
+import { ZAEHLORT_WURZEL_LABEL } from "../inventurOrt";
 import { handlagerOrte, ortStamm } from "./orte";
 
 /**
@@ -334,7 +335,10 @@ export function verteilungJeCharge(
         const o = stamm.get(ortId);
         return {
           id: ortId,
-          name: o?.name ?? ortId,
+          // IDA-380: die Wurzel heisst hier wie ueberall „Handlager ohne
+          // Schrank" — ihr Stammname „Handlager" klaenge neben „Schrank 1"
+          // nach dem ganzen Bereich.
+          name: ortId === HANDLAGER_ID ? ZAEHLORT_WURZEL_LABEL : o?.name ?? ortId,
           menge,
           zugangshinweis: o?.zugangshinweis ?? null,
           // Ein unbekannter Ort ist kein Ort OHNE Art, sondern gar keine

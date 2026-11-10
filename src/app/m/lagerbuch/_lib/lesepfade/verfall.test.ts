@@ -183,7 +183,7 @@ describe("verfallListe — die Liegeplaetze im Handlager (DRK-339)", () => {
       menge, quelleTyp: "system", quelleId: "t", referenz: null, kommentar: null,
     }).run();
 
-  it("nennt die Wurzel „Nicht zugeordnet“, nicht „Handlager“", () => {
+  it("nennt die Wurzel „Handlager ohne Schrank“, nicht bloß „Handlager“ (IDA-380)", () => {
     /**
      * ⚠️ DER STAMMNAME WAERE HIER IRREFUEHREND. Die Karte heisst „Chargen im
      * Handlager"; ein Chip „Handlager: 3" daneben klaenge nach dem ganzen
@@ -191,7 +191,7 @@ describe("verfallListe — die Liegeplaetze im Handlager (DRK-339)", () => {
      * DRK-337 fuer die Zaehlauswahl bereits entschieden hat.
      */
     expect(orteVon("c-alt")).toEqual([
-      { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 3, zugangshinweis: null },
+      { id: HANDLAGER_ID, name: "Handlager ohne Schrank", menge: 3, zugangshinweis: null },
     ]);
   });
 
@@ -230,9 +230,9 @@ describe("verfallListe — die Liegeplaetze im Handlager (DRK-339)", () => {
    * (Codex-Befund zu PR #173).
    *
    * ⚠️ ZWEI SCHRAENKE DUERFEN HEUTE GLEICH HEISSEN, und ein Schrank namens
-   * „Nicht zugeordnet" kollidiert mit der Wurzel (`inventurOrt.ts` schreibt
+   * „Handlager ohne Schrank" kollidiert mit der Wurzel (`inventurOrt.ts` schreibt
    * genau diese Richtung aus). In der Ortswahl stuenden dann zwei optisch
-   * identische Zeilen „nur Nicht zugeordnet (4 Stk.)" — wer danebengreift,
+   * identische Zeilen „nur Handlager ohne Schrank (4 Stk.)" — wer danebengreift,
    * bucht den falschen Ort leer, und die Zeile daneben verraet nicht, welcher
    * es war.
    */

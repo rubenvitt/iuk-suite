@@ -17,7 +17,7 @@ import { NavIkone } from "@/core/shell/navIkonen";
 import { Nutzermenue } from "@/core/shell/Nutzermenue";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { SEITENWECHSEL } from "@/core/shell/seitenwechselKlassen";
-import type { LauncherEintrag, SuiteNavItem } from "@/core/shell/types";
+import type { LauncherEintrag, Sprungziel, SuiteNavItem } from "@/core/shell/types";
 import { useVerlassenWache } from "@/core/shell/verlassenWache";
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
 import m from "./menue.module.css";
@@ -35,6 +35,8 @@ export interface MenueDaten {
   /** Startseite des Moduls, oder `null` ohne Host. */
   modulHref: string | null;
   nav: SuiteNavItem[];
+  /** Inhalte des Moduls für „Springen zu" (IDA-380), nach den Rechten des Moduls gebaut. */
+  sprungziele?: Sprungziel[];
   eintraege: LauncherEintrag[];
   auswahl: Auswahl;
   bereiche: readonly string[];
@@ -53,6 +55,9 @@ type Ebene = "seiten" | "apps";
 
 /** Stabile Abmeldefunktion für `useSyncExternalStore` — die Antwort ändert sich nie. */
 const NIE_AENDERND = () => () => {};
+
+/** Ein Treffer in DIESEM Modul — Seite oder Inhalt: clientseitig per `next/link`, ohne Neuladen. */
+const imModul = (b: Befehl) => b.gruppe === "Seiten" || b.gruppe === "In diesem Modul";
 
 /**
  * EIN MENÜ, ZWEI EBENEN (IDA-347, Etappe 2; Entwurf `designrichtungen-poc/navigator.tsx`).
@@ -135,9 +140,41 @@ export function Navigator({
     [eintraege, auswahl, bereiche],
   );
   const treffer = useMemo(
-    () => (suche.trim() ? befehle({ eingabe: suche, nav, eintraege, suchHref: daten.suchHref }) : null),
-    [suche, nav, eintraege, daten.suchHref],
+    () => (suche.trim()
+      ? befehle({ eingabe: suche, nav, eintraege, suchHref: daten.suchHref, sprungziele: daten.sprungziele })
+      : null),
+    [suche, nav, eintraege, daten.suchHref, daten.sprungziele],
   );
+
+  /*
+   * DER SCROLLHINWEIS (IDA-380): steht unter der Kante noch etwas, blendet der untere Rand der
+   * Seitenliste aus (`data-mehr-unten`, `menue.module.css`). Bei 1280×720 zeigte die Leiste von 23
+   * Lagerbuch-Einträgen zehn, und nichts sagte, dass es weitergeht.
+   *
+   * ⚠️ DAS ATTRIBUT WIRD AM KNOTEN GESETZT, NICHT ÜBER `useState`: der Wert ändert sich bei jedem
+   * Scrollschritt, und ein Render je Schritt wäre ein Render der ganzen Leiste. React rendert das
+   * Attribut nicht und fasst es deshalb auch nicht an. Gemessen wird beim Scrollen und bei jeder
+   * Größenänderung der Ebene oder ihres Inhalts (Fenster, Schrift, Blatt).
+   */
+  const sucht = treffer !== null;
+  useEffect(() => {
+    const ebeneKnoten = seitenEbene.current;
+    if (!ebeneKnoten) return;
+    const pruefe = () => {
+      const rest = ebeneKnoten.scrollHeight - ebeneKnoten.scrollTop - ebeneKnoten.clientHeight;
+      if (rest > 8) ebeneKnoten.setAttribute("data-mehr-unten", "");
+      else ebeneKnoten.removeAttribute("data-mehr-unten");
+    };
+    pruefe();
+    ebeneKnoten.addEventListener("scroll", pruefe, { passive: true });
+    const beobachter = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pruefe);
+    beobachter?.observe(ebeneKnoten);
+    for (const kind of ebeneKnoten.children) beobachter?.observe(kind);
+    return () => {
+      ebeneKnoten.removeEventListener("scroll", pruefe);
+      beobachter?.disconnect();
+    };
+  }, [sucht]);
 
   function fertig() {
     setSuche("");
@@ -153,7 +190,7 @@ export function Navigator({
   function geheZu(b: Befehl) {
     fertig();
     if (b.extern) window.open(b.href, "_blank", "noopener,noreferrer");
-    else if (b.gruppe === "Seiten") router.push(b.href);
+    else if (imModul(b)) router.push(b.href);
     else window.location.assign(b.href);
   }
 
@@ -231,7 +268,7 @@ export function Navigator({
             return (
               <div key={b.key} className={m.gruppe}>
                 {kopf ? <div className={m.abschnitt}>{kopf}</div> : null}
-                {b.gruppe === "Seiten" ? (
+                {imModul(b) ? (
                   <Link href={b.href} data-testid="befehl" className={m.eintrag} onClick={fertig}>
                     {inhalt}
                   </Link>

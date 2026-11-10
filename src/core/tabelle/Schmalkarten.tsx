@@ -182,6 +182,18 @@ export function NurSchmal({ children, ...rest }: {
   return <div className={stil.nurSchmal} {...rest}>{children}</div>;
 }
 
+/**
+ * Das Gegenstück zu `NurSchmal`: „nur ab 768px" (IDA-380). Ein Bedienelement,
+ * das schmal in der Leiste der `Kartentabelle` steht (`steuerungZusatz`), steht
+ * breit weiter dort, wo es vorher stand — ohne zweiten Breakpoint und aus
+ * demselben Grund als eigenes Element statt als weitergereichte Klasse.
+ */
+export function NurBreit({ children, ...rest }: {
+  children: ReactNode;
+} & { "data-rolle"?: string }) {
+  return <div className={stil.breit} {...rest}>{children}</div>;
+}
+
 export function Schmalkarten<T>({
   zeilen,
   schluessel,

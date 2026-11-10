@@ -180,7 +180,7 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
 
     // 5) Eine im Regal gefundene Charge ergaenzen.
     const menge = breit(page).getByLabel("Menge der neuen Charge", { exact: true });
-    await breit(page).getByLabel("MHD der neuen Charge", { exact: true }).fill(NEU_MHD);
+    await breit(page).getByLabel("Verfall der neuen Charge", { exact: true }).fill(NEU_MHD);
     await breit(page).getByLabel("Chargennummer der neuen Charge", { exact: true }).fill(neueNr);
     await menge.fill(String(NEU_MENGE));
     const ergaenzen = page.getByRole("button", { name: "Charge ergänzen", exact: true });

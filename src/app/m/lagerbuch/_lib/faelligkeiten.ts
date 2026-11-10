@@ -65,8 +65,8 @@ export function lagerbuchFaelligkeiten(jetzt: Date, db: Leser = getDb()): Faelli
 
 const MAENGEL_PFAD = "/verwaltung/maengel";
 
-/** Was im Push und auf der Seite statt des Freitexts steht. */
-function mangelKurz(m: MangelZeile): string {
+/** Was im Push, auf der Seite und auf der Verwaltungsübersicht (`anstehend.ts`) statt des Freitexts steht. */
+export function mangelKurz(m: MangelZeile): string {
   if (m.punkte.length === 0) return "siehe Beschreibung";
   return m.punkte.length === 1 ? m.punkte[0]! : `${m.punkte[0]} und ${m.punkte.length - 1} weitere`;
 }

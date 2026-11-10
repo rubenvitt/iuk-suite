@@ -46,7 +46,7 @@ test.describe("Rücklauf vom Fahrzeug", () => {
     await dialog.getByLabel("Menge").fill("2");
     await klickeWennRuhig(dialog.getByRole("combobox", { name: "Ziel", exact: true }));
     await page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)")
-      .locator(".ant-select-item-option", { hasText: "Handlager (ohne Schrank)" })
+      .locator(".ant-select-item-option", { hasText: "Handlager ohne Schrank" })
       .first()
       .click();
 

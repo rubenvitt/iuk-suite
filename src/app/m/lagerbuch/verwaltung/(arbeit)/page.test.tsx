@@ -234,17 +234,23 @@ describe("kritischeArtikel", () => {
 });
 
 describe("Verwaltungsübersicht", () => {
-  it("zeigt im leeren Zustand fünf Kacheln, zwei Chargenlinks und eine leere Journalinsel", () => {
+  it("zeigt im leeren Zustand neun Kacheln, jede neue mit ihrer Seite, und eine leere Journalinsel", () => {
     const seite = verwaltungInhalt(t.db, new Date("2026-08-07T12:00:00Z"));
     const kacheln = elementeVomTyp(seite, Kachel);
 
-    expect(kacheln).toHaveLength(5);
+    // IDA-380: fünf neue vorn (Mängel, Geräte ×2, Sauerstoff, Checks), die
+    // Journalkachel ist entfallen.
+    expect(kacheln).toHaveLength(9);
     expect(kacheln.map((element) =>
       (element.props as { href?: string }).href ?? null)).toEqual([
+      "/verwaltung/maengel",
+      "/verwaltung/geraete",
+      "/verwaltung/geraete",
+      "/verwaltung/sauerstoff",
+      "/verwaltung/checks",
       null,
       "/verwaltung/verfall",
       "/verwaltung/verfall",
-      null,
       null,
     ]);
     expect(elementeVomTyp(seite, Ruhezustand).map((element) =>
@@ -255,7 +261,7 @@ describe("Verwaltungsübersicht", () => {
     expect(journal.props).toEqual({ zeilen: [] });
   });
 
-  it("ordnet alle fünf Kennzahlen korrekt zu und zeigt die kritischen Artikel als Links", () => {
+  it("ordnet die Bestandskennzahlen korrekt zu und zeigt die kritischen Artikel als Links", () => {
     artikelMit({
       id: "artikel-unter-mindest",
       name: "Kompressen",
@@ -286,7 +292,7 @@ describe("Verwaltungsübersicht", () => {
         href?: string;
       });
 
-    expect(kachelProps).toEqual([
+    expect(kachelProps.slice(5)).toEqual([
       {
         zahl: 1,
         beschriftung: "Artikel unter Mindestbestand",
@@ -309,11 +315,6 @@ describe("Verwaltungsübersicht", () => {
         zahl: 1,
         beschriftung: "unter Mindestbestand, noch nicht bestellt",
         href: "/verwaltung/bestellung",
-      },
-      {
-        zahl: 2,
-        beschriftung: "Buchungen im Journal",
-        href: "/verwaltung/journal",
       },
     ]);
 

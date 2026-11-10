@@ -43,11 +43,11 @@ import { dynamic, verfallSeitenInhalt } from "./page";
  * Wahl an. Die Faelle mit zweien stehen unten in ihrem eigenen Block.
  */
 const EIN_ORT: VerfallOrt[] = [
-  { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 5, zugangshinweis: null },
+  { id: HANDLAGER_ID, name: "Handlager ohne Schrank", menge: 5, zugangshinweis: null },
 ];
 
 const ZWEI_ORTE: VerfallOrt[] = [
-  { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 4, zugangshinweis: null },
+  { id: HANDLAGER_ID, name: "Handlager ohne Schrank", menge: 4, zugangshinweis: null },
   { id: "schrank-gf", name: "GF-Schrank", menge: 6, zugangshinweis: "Schlüssel beim GF" },
 ];
 
@@ -223,7 +223,7 @@ describe("AussondernRow — Ortswahl (DRK-339)", () => {
 
     expect(existsPortal(".ant-radio-group")).toBe(false);
     expect(queryPortal(".ant-popconfirm").textContent).toContain(
-      "aus Nicht zugeordnet als Aussonderung aus (5 Stk.)",
+      "aus Handlager ohne Schrank als Aussonderung aus (5 Stk.)",
     );
   });
 
@@ -242,7 +242,7 @@ describe("AussondernRow — Ortswahl (DRK-339)", () => {
       .map((w) => w.textContent);
     expect(zeilen).toEqual([
       "Alles (10 Stk.)",
-      "nur Nicht zugeordnet (4 Stk.)",
+      "nur Handlager ohne Schrank (4 Stk.)",
       "nur GF-Schrank (6 Stk.)",
     ]);
   });
@@ -346,7 +346,7 @@ describe("AussondernRow — Ortswahl (DRK-339)", () => {
         chargeId="c1"
         bezeichnung="L42 · Kompressen"
         orte={[
-          { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 4, zugangshinweis: null },
+          { id: HANDLAGER_ID, name: "Handlager ohne Schrank", menge: 4, zugangshinweis: null },
           { id: "alle", name: "Altbestand-Schrank", menge: 6, zugangshinweis: null },
         ]}
         einheit="Stk."
@@ -655,8 +655,8 @@ describe("Verfallsseite als Server Component", () => {
        * der Wurzel, also „in keinem Schrank"; der Stammname „Handlager" waere
        * auf einer Karte namens „Chargen im Handlager" keine Auskunft.
        */
-      expect(document.body.textContent).toContain("Nicht zugeordnet: 2 Pkg");
-      expect(document.body.textContent).toContain("Nicht zugeordnet: 3 Pkg");
+      expect(document.body.textContent).toContain("Handlager ohne Schrank: 2 Pkg");
+      expect(document.body.textContent).toContain("Handlager ohne Schrank: 3 Pkg");
       // IDA-238: KEIN Einzelknopf — beide Chargen liegen an EINEM Ort, und dort
       // kann er nichts, was die Auswahl nicht auch kann (Kopf von
       // `HandlagerVerfallTabelle.tsx`). Ausgesondert wird ueber die Auswahl.

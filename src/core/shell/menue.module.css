@@ -194,6 +194,19 @@
     opacity 200ms ease;
 }
 
+/*
+ * DER SCROLLHINWEIS (IDA-380): steht unter der Kante der Seitenliste noch etwas, läuft ihr unterer
+ * Rand aus. Das Attribut setzt `Navigator` beim Scrollen und bei jeder Größenänderung; am Ende der
+ * Liste fällt es weg, und der letzte Eintrag steht wieder voll da.
+ *
+ * Eine MASKE und kein Verlauf in Hintergrundfarbe: die Liste steht am Desktop auf `--iuk-grund`, im
+ * Blatt auf dessen Fläche — eine Maske braucht keine der beiden Farben zu kennen und trägt beide
+ * Modi.
+ */
+.ebene[data-mehr-unten] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
+}
+
 .spur[data-ebene="apps"] > .ebene {
   transform: translateX(-100%);
 }

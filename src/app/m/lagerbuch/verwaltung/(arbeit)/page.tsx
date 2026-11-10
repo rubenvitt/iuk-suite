@@ -7,6 +7,7 @@ import { getDb, type DB } from "../../_db/client";
 import { verfallSchwellen, verfallStatus } from "../../_lib/domain/verfall";
 import { ampelTon, chargeText, type AmpelTon } from "../../_lib/format";
 import { journalZeile } from "../../_lib/journalZeile";
+import { anstehend, CHECK_BEFUND_TAGE, type AnstehendZeile } from "../../_lib/anstehend";
 import { requireLagerbuchHost } from "../../_lib/host";
 import { artikelListe } from "../../_lib/lesepfade/artikel";
 import { kennzahlen } from "../../_lib/lesepfade/bestand";
@@ -100,6 +101,13 @@ export function kritischeReihenfolge(zeilen: readonly KritischeZeile[]): Kritisc
     || a.name.localeCompare(b.name, "de"));
 }
 
+/**
+ * IDA-380 — SO VIELE FRISTEN (Mängel, Geräte, Sauerstoff) STEHEN ÜBER DEN ARTIKELN HÖCHSTENS.
+ * Dieselbe Überlegung wie `KRITISCH_ANZEIGE`: die Übersicht sagt, DASS etwas ansteht und WAS zuerst;
+ * die vollständige Liste steht hinter der Kachel darüber.
+ */
+export const FRISTEN_ANZEIGE = 8;
+
 /** Wohin „alle anzeigen" führt: die Artikelliste mit vorgesetztem Spaltenfilter. */
 const ALLE_UNTER_MINDEST = "/verwaltung/artikel?filter=unter-mindest";
 const ALLE_CHARGE_KRITISCH = "/verwaltung/artikel?filter=charge-kritisch";
@@ -133,12 +141,43 @@ function journalAnzeigeZeilen(
   });
 }
 
+/**
+ * Eine Frist in „Was steht an" — dieselbe Zeilenform wie die Artikel darunter: Name als Link mit
+ * 44-px-Ziel, darunter Art, Ort und der Zustand als Chip (Text, nie nur Farbe).
+ */
+function FristZeile({ zeile }: { zeile: AnstehendZeile }) {
+  return (
+    <li
+      data-art={zeile.art}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: SPACE.md,
+        padding: `${SPACE.xs}px 0 ${SPACE.md}px`,
+        borderBlockEnd: "1px solid var(--lb-linie)",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Link href={zeile.href} style={{ ...SCHRIFT.text, ...ZIEL, fontWeight: 600, overflowWrap: "anywhere" }}>
+          {zeile.titel}
+        </Link>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBlockStart: SPACE.xs }}>
+          <span style={SCHRIFT.neben}>{zeile.art} · {zeile.wo}</span>
+          <Chip ton={zeile.ton}>{zeile.zustand}</Chip>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 export function verwaltungInhalt(db: DB, jetzt: Date) {
   const k = kennzahlen(db, jetzt);
   const kritisch = kritischeReihenfolge(kritischeArtikel(db, jetzt));
   const sichtbar = kritisch.slice(0, KRITISCH_ANZEIGE);
   const anzahlUnterMindest = kritisch.filter((zeile) => zeile.unterMindest).length;
   const anzahlChargeKritisch = kritisch.filter((zeile) => zeile.chargeTon !== null).length;
+  const steht = anstehend(db, jetzt);
+  const fristen = steht.zeilen.slice(0, FRISTEN_ANZEIGE);
   const journal = journalEintraege(db, { grenze: 5 });
   const journalZeilen = journalAnzeigeZeilen(journal.zeilen);
 
@@ -152,6 +191,43 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
       />
 
       <Kennzahlen>
+        {/* IDA-380 — WAS JETZT JEMAND TUN MUSS, VOR DEM BESTAND: gemeldete Mängel,
+            Geräte mit Frist, Sauerstoff und Checks mit Befund. Jede dieser
+            Kacheln führt auf ihre Seite, auch bei null — dort steht, was
+            erledigt ist. Die Zahlen rechnet `_lib/anstehend.ts` mit den
+            Lesepfaden der Zielseiten. Die Kachel „Buchungen im Journal" ist
+            dafür entfallen: eine Gesamtzahl aller Buchungen sagt nicht, was
+            ansteht. */}
+        <Kachel
+          zahl={steht.maengel}
+          beschriftung="offene Mängel"
+          ton={steht.maengel ? "rot" : "ok"}
+          href="/verwaltung/maengel"
+        />
+        <Kachel
+          zahl={steht.geraeteUeberfaellig}
+          beschriftung="Geräte überfällig"
+          ton={steht.geraeteUeberfaellig ? "rot" : "ok"}
+          href="/verwaltung/geraete"
+        />
+        <Kachel
+          zahl={steht.geraeteBald}
+          beschriftung="Geräte fällig oder bald fällig"
+          ton={steht.geraeteBald ? "gelb" : "ok"}
+          href="/verwaltung/geraete"
+        />
+        <Kachel
+          zahl={steht.flaschenWechseln}
+          beschriftung="Sauerstoff: Wechsel fällig"
+          ton={steht.flaschenWechseln ? "rot" : "ok"}
+          href="/verwaltung/sauerstoff"
+        />
+        <Kachel
+          zahl={steht.checksMitBefund}
+          beschriftung={`Checks mit Befund, letzte ${CHECK_BEFUND_TAGE} Tage`}
+          ton={steht.checksMitBefund ? "gelb" : "ok"}
+          href="/verwaltung/checks"
+        />
         {/* IDA-239 — eine Kachel mit Zahl führt zu ihrer Liste: was unter
             dem Mindestbestand liegt, wird über den Bestellvorschlag
             nachgeholt. Bei null gibt es dort nichts zu tun. */}
@@ -178,15 +254,13 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
           beschriftung="unter Mindestbestand, noch nicht bestellt"
           href={k.nichtBestellt > 0 ? "/verwaltung/bestellung" : undefined}
         />
-        <Kachel
-          zahl={k.buchungenGesamt}
-          beschriftung="Buchungen im Journal"
-          href={k.buchungenGesamt > 0 ? "/verwaltung/journal" : undefined}
-        />
       </Kennzahlen>
 
+      {/* IDA-380/IDA-395 — „Was steht an" ist das Wort der Suite für die Sammlung
+          aller Fristen (Wortliste); bis hierher hieß die Karte „Kritische
+          Artikel" und kannte nur den Bestand. */}
       <Card
-        title="Kritische Artikel"
+        title="Was steht an"
         extra={kritisch.length > sichtbar.length ? (
           <span style={SCHRIFT.neben}>
             {sichtbar.length} von {kritisch.length}
@@ -194,9 +268,16 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
         ) : undefined}
         style={{ marginBlockEnd: SPACE.lg }}
       >
-        {kritisch.length === 0 ? (
+        {fristen.length > 0 ? (
+          <ul data-rolle="fristen" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {fristen.map((zeile) => (
+              <FristZeile key={zeile.id} zeile={zeile} />
+            ))}
+          </ul>
+        ) : null}
+        {kritisch.length === 0 && fristen.length === 0 ? (
           <Ruhezustand figur="erledigt" titel="Alles im grünen Bereich" groesse="klein" />
-        ) : (
+        ) : kritisch.length === 0 ? null : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {sichtbar.map((zeile) => (
               <li
