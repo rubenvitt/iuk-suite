@@ -29,7 +29,7 @@ SUITE_HOST_WARTUNG=wartung.iuk-ue.de
 # SUITE_ADMIN_GROUP_WARTUNG=wartung-admin
 ```
 
-Turnstile (IDA-341): sind `TURNSTILE_SITE_KEY` und `TURNSTILE_SECRET` gesetzt, verlangt „Mangel melden" ohne Modulzugang ein
+Turnstile (IDA-341): sind `TURNSTILE_SITE_KEY` und `TURNSTILE_SECRET` gesetzt, verlangt „Mangel melden“ ohne Modulzugang ein
 Turnstile-Token. Der Host muss dann im Cloudflare-Widget als Domain stehen und, falls `TURNSTILE_HOSTNAMES`
 gesetzt ist, auch dort (`wartung.iuk-ue.de`) — sonst scheitert jede Sendung an der Prüfung (`.env.example`).
 
