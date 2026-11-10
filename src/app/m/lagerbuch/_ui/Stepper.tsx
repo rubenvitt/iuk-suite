@@ -36,6 +36,7 @@ export function Stepper({
   beschriftung = "Menge",
   leer = false,
   beiEnter,
+  beiKappung,
   ref,
 }: {
   wert: number;
@@ -68,6 +69,12 @@ export function Stepper({
   leer?: boolean;
   /** Enter im Feld — der Zaehlschritt springt damit in die naechste Zeile. */
   beiEnter?: () => void;
+  /**
+   * IDA-378 — getippt oder per `+` mehr verlangt als `max`. Die Klemme bleibt;
+   * der Aufrufer kann jetzt SAGEN, dass sie gegriffen hat („Nur 115 Pkg.
+   * verfügbar"), statt still eine kleinere Zahl stehen zu lassen.
+   */
+  beiKappung?: () => void;
   /** Das Zahlenfeld selbst (React 19: `ref` ist ein gewoehnliches Prop). */
   ref?: Ref<HTMLInputElement>;
   /**
@@ -133,9 +140,11 @@ export function Stepper({
       return;
     }
     // Anzeige = geklemmter Wert, kein Tippen ueber max.
-    const geklemmt = klemmen(parseInt(nurZiffern, 10));
+    const verlangt = parseInt(nurZiffern, 10);
+    const geklemmt = klemmen(verlangt);
     setDraft(String(geklemmt));
     setWert(geklemmt);
+    if (verlangt > max) beiKappung?.();
   }
 
   /** Zurueck auf den `wert`-Prop; ein leeres oder ungueltiges Feld verwirft die Eingabe. */
@@ -191,6 +200,7 @@ export function Stepper({
         onClick={() => {
           setDraft(null);
           setWert(klemmen(wert + 1));
+          if (wert + 1 > max) beiKappung?.();
         }}
       >
         <Ikone name="plus" groesse={20} staerke={2.5} />

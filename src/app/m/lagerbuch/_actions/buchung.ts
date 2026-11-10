@@ -26,6 +26,10 @@ import {
   ZIEL_COOKIE, ZIEL_UNGUELTIG_TEXT, ZIEL_VERALTET_TEXT, zielAusWert, type EntnahmeZiel,
 } from "../_lib/entnahmeZiel";
 import { cookies } from "next/headers";
+// IDA-378 — Ablaufsperre und Rueckgaengig.
+import { restJeChargeFuerArtikelImBereich } from "../_lib/lesepfade/bestand";
+import { gegenbuchen, rueckgaengigBis } from "../_lib/schreibpfade/gegenbuchung";
+import { zeileGegenbuchbar } from "../_lib/vorgang";
 
 /**
  * DIE FUENF BUCHUNGSWEGE — und warum sie in EINER Datei stehen (H7).
@@ -240,6 +244,12 @@ export async function bucheEntnahme(
     const zielFahrzeug =
       v.zielLagerortId && v.zielLagerortId !== HANDLAGER_ID ? v.zielLagerortId : null;
     let gebucht = 0;
+    /*
+     * IDA-378 — EINE KENNUNG JE VORGANG (`<uuid>:n`, `_lib/schreibpfade/sendung.ts`).
+     * Ohne sie faende die Gegenbuchung im Journal die Legs einer Umlagerung nur
+     * ueber den Zeitstempel, und der kann zwischen den Legs eine Sekunde springen.
+     */
+    const neueId = sendungsIds(crypto.randomUUID());
 
     try {
       db.transaction((tx) => {
@@ -261,6 +271,8 @@ export async function bucheEntnahme(
             quelle,
             kommentar: v.kommentar ?? null,
             referenz: `entnahme-ziel:${zielFahrzeug}`,
+            // IDA-378: Abgelaufenes geht auch aus der Verwaltung nicht aufs Fahrzeug.
+            ohneAbgelaufene: true, neueId,
           }).umgelagert;
         } else {
           gebucht = fefoAbbuchungImBereich(tx, {
@@ -269,6 +281,7 @@ export async function bucheEntnahme(
             quelle,
             kommentar: v.kommentar ?? null,
             referenz: null,
+            ohneAbgelaufene: true, neueId,
           }).gebucht;
         }
       });
@@ -487,6 +500,13 @@ const HelferEntnahmeSchema = z.object({
 });
 
 /**
+ * IDA-378 — `rueckgaengigBis` (ISO) ist das Ende des Fensters, in dem dieselbe
+ * Person die Entnahme am Telefon zuruecknehmen kann; `null` ohne `sendungId`
+ * (eine alte, noch offene Seite), denn ohne sie gibt es nichts zu adressieren.
+ */
+type EntnahmeWert = { gebucht: number; rueckgaengigBis: string | null };
+
+/**
  * DER HELFER-WEG. Einziger Aufrufer: `_ui/Entnahme.tsx` (Teil 4, §7.2) — und
  * zwar per DIREKTEM IMPORT in der Insel (DRK-375). Bis dahin kam sie als PROP
  * aus `a/[artikelId]/page.tsx`; die Begruendung war eine Reihenfolge und ist
@@ -511,7 +531,7 @@ const HelferEntnahmeSchema = z.object({
 export async function bucheEntnahmeHelfer(
   eingabe: unknown,
   db: DB = getDb(),
-): Promise<HelferErgebnis<{ gebucht: number }>> {
+): Promise<HelferErgebnis<EntnahmeWert>> {
   const riegel = await requireHelferSchreibend(db);
   if (!riegel.ok) {
     // Der Grund wandert DURCH, samt seinem fertigen Satz — die Insel darf
@@ -539,7 +559,7 @@ export async function bucheEntnahmeHelfer(
    */
   const bereich = bereichsAbweisung(riegel.zugang, "entnahme");
   if (bereich) return bereich;
-  return withAuditContext({ actor: zugangsAkteur(riegel.zugang) }, async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
+  return withAuditContext({ actor: zugangsAkteur(riegel.zugang) }, async (): Promise<HelferErgebnis<EntnahmeWert>> => {
 
     const geparst = HelferEntnahmeSchema.safeParse(eingabe);
     if (!geparst.success) {
@@ -570,7 +590,10 @@ export async function bucheEntnahmeHelfer(
         if (frueher.some((z) => z.artikelId !== v.artikelId)) {
           return { ok: false, grund: "eingabe", text: "Diese Buchung passt nicht zu diesem Artikel." };
         }
-        return { ok: true, wert: { gebucht: abgangDerSendung(frueher) } };
+        return {
+          ok: true,
+          wert: { gebucht: abgangDerSendung(frueher), rueckgaengigBis: rueckgaengigBis(frueher)?.toISOString() ?? null },
+        };
       }
     }
 
@@ -641,6 +664,25 @@ export async function bucheEntnahmeHelfer(
      */
     const schrankId = aktiverSchrank(db, v.ortId)?.id ?? null;
 
+    /*
+     * IDA-378 — EINE ABGELAUFENE CHARGE GEHT NICHT RAUS, auch nicht ausdruecklich
+     * gewaehlt. Die Insel bietet sie gar nicht an; diese Zeile faengt die offene
+     * alte Seite und die selbst gebaute Anfrage. Ohne Wahl ueberspringt FEFO sie
+     * (`ohneAbgelaufene` unten).
+     */
+    const jetzt = new Date();
+    if (v.chargeId) {
+      const gewaehlt = db.select({ artikelId: chargen.artikelId, verfall: chargen.verfall })
+        .from(chargen).where(eq(chargen.id, v.chargeId)).get();
+      if (gewaehlt && gewaehlt.artikelId === v.artikelId && istAbgelaufen(gewaehlt.verfall, jetzt)) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text: "Diese Charge ist abgelaufen und darf nicht mehr verwendet werden.",
+        };
+      }
+    }
+
     let gebucht = 0;
     db.transaction((tx) => {
       const quelle = journalQuelle(riegel.zugang);
@@ -659,7 +701,7 @@ export async function bucheEntnahmeHelfer(
               ? umlagerungVonOrt(tx, {
                   artikelId: v.artikelId, menge, vonOrt: schrank,
                   nachLagerortId: ziel.lagerortId, quelle, kommentar: null,
-                  referenz: `entnahme-ziel:${ziel.lagerortId}`, neueId,
+                  referenz: `entnahme-ziel:${ziel.lagerortId}`, neueId, ohneAbgelaufene: true,
                   ...(v.chargeId ? { chargeId: v.chargeId } : {}),
                 })
               : umlagerungAusBereich(tx, {
@@ -669,7 +711,7 @@ export async function bucheEntnahmeHelfer(
               nachLagerortId: ziel.lagerortId,
               quelle,
               kommentar: null,
-              referenz: `entnahme-ziel:${ziel.lagerortId}`, neueId,
+              referenz: `entnahme-ziel:${ziel.lagerortId}`, neueId, ohneAbgelaufene: true,
               /*
                * DRK-418 — DIE WAHL GILT IN BEIDEN ZWEIGEN, und der hier ist
                * der, den man vergisst. Beim Ziel-Fahrzeug wandert die Charge
@@ -682,7 +724,7 @@ export async function bucheEntnahmeHelfer(
           : (schrank
             ? fefoAbbuchungAnOrt(tx, {
                 artikelId: v.artikelId, menge, ort: schrank, quelle,
-                kommentar: null, referenz: null, neueId,
+                kommentar: null, referenz: null, neueId, ohneAbgelaufene: true,
                 ...(v.chargeId ? { chargeId: v.chargeId } : {}),
               })
             : fefoAbbuchungImBereich(tx, {
@@ -692,6 +734,7 @@ export async function bucheEntnahmeHelfer(
               kommentar: null,
               referenz: null,
               neueId,
+              ohneAbgelaufene: true,
               /*
                * ⚠️ NUR SETZEN, WENN GEWAEHLT. `AbbuchungArgs.chargeId` ist
                * `string | undefined`; ein durchgereichtes `null` waere ein
@@ -721,11 +764,21 @@ export async function bucheEntnahmeHelfer(
       const name =
         db.select({ name: artikel.name }).from(artikel).where(eq(artikel.id, v.artikelId)).get()
           ?.name ?? "diesem Artikel";
+      // IDA-378 — liegt nur noch Abgelaufenes da, sagt der Satz das; „nichts
+      // mehr" schickte die Person an ein Fach, in dem Packungen liegen.
+      if (nurAbgelaufenes(db, v.artikelId, jetzt)) {
+        return {
+          ok: false,
+          grund: "leer",
+          text: `Von ${name} liegt im Handlager nur noch Abgelaufenes. Bitte der Verwaltung melden.`,
+        };
+      }
       return { ok: false, grund: "leer", text: leerText(name) };
     }
 
     revalidiereBestand();
-    return { ok: true, wert: { gebucht } };
+    const zeilen = v.sendungId ? zeilenDerSendung(db, v.sendungId) : [];
+    return { ok: true, wert: { gebucht, rueckgaengigBis: rueckgaengigBis(zeilen)?.toISOString() ?? null } };
   });
 }
 
@@ -986,4 +1039,79 @@ export async function bucheAuffuellung(
       return { ok: true, wert: { gebucht: v.menge, ziel: ziel.name, chargeId } };
     },
   );
+}
+
+/** IDA-378 — liegt im Handlager Bestand, aber ausschliesslich abgelaufener? */
+function nurAbgelaufenes(db: DB, artikelId: string, jetzt: Date): boolean {
+  const rest = restJeChargeFuerArtikelImBereich(db, artikelId, handlagerOrte(db));
+  const ids = [...rest].filter(([, n]) => n > 0).map(([id]) => id);
+  if (ids.length === 0) return false;
+  const verfall = new Map(db.select({ id: chargen.id, verfall: chargen.verfall }).from(chargen)
+    .where(eq(chargen.artikelId, artikelId)).all().map((c) => [c.id, c.verfall] as const));
+  return ids.every((id) => istAbgelaufen(verfall.get(id) ?? "", jetzt));
+}
+
+const RueckgaengigSchema = z.object({ sendungId: z.string().uuid() });
+
+/** Ein Satz fuer „gibt es nicht / ist keine Entnahme" — die Insel unterscheidet das nicht. */
+const NICHT_ZUZUORDNEN = "Diese Entnahme lässt sich nicht mehr zuordnen.";
+
+/**
+ * IDA-378 — „RÜCKGÄNGIG" NACH EINER ENTNAHME AM TELEFON.
+ *
+ * Adressiert wird die SENDUNG (IDA-358): ihre Zeilen heissen `<sendungId>:n`,
+ * die Gegenbuchung schreibt zu jeder `storno:<id>`
+ * (`_lib/schreibpfade/gegenbuchung.ts`).
+ *
+ * ⚠️ DREI SCHRANKEN, alle serverseitig: derselbe Riegel wie beim Buchen, nur
+ * derselbe ZUGANG (Kärtchen-Code bzw. Konto, verglichen an den Journalzeilen)
+ * und nur 10 Minuten. Ein anderes Kärtchen nimmt keine fremde Entnahme zurück;
+ * was später auffällt, gegenbucht die Verwaltung im Journal.
+ */
+export async function macheEntnahmeRueckgaengig(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<HelferErgebnis<{ zurueck: number }>> {
+  const riegel = await requireHelferSchreibend(db);
+  if (!riegel.ok) {
+    return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
+  }
+  // Dieselbe Reichweite wie das Buchen — Begruendung an `bucheEntnahmeHelfer`.
+  const bereich = bereichsAbweisung(riegel.zugang, "entnahme");
+  if (bereich) return bereich;
+  return withAuditContext({ actor: zugangsAkteur(riegel.zugang) }, async (): Promise<HelferErgebnis<{ zurueck: number }>> => {
+    const geparst = RueckgaengigSchema.safeParse(eingabe);
+    if (!geparst.success) return { ok: false, grund: "eingabe", text: NICHT_ZUZUORDNEN };
+    const zeilen = zeilenDerSendung(db, geparst.data.sendungId);
+    if (zeilen.length === 0 || !zeilen.every(zeileGegenbuchbar)) {
+      return { ok: false, grund: "eingabe", text: NICHT_ZUZUORDNEN };
+    }
+    const quelle = journalQuelle(riegel.zugang);
+    if (!zeilen.every((z) => z.quelleTyp === quelle.quelleTyp && z.quelleId === quelle.quelleId)) {
+      return { ok: false, grund: "eingabe", text: "Rückgängig machen kann nur, wer die Entnahme gebucht hat." };
+    }
+    const bis = rueckgaengigBis(zeilen);
+    if (!bis || bis.getTime() < Date.now()) {
+      return {
+        ok: false,
+        grund: "eingabe",
+        text: "Die 10 Minuten für Rückgängig sind vorbei. Die Verwaltung kann die Entnahme gegenbuchen.",
+      };
+    }
+    /*
+     * Nur die fachliche Absage aus `gegenbuchen` wird zum Satz; ein
+     * Datenbankfehler schlaegt durch (dieselbe Regel wie beim Buchen).
+     */
+    let zurueck = 0;
+    try {
+      db.transaction((tx) => {
+        zurueck = gegenbuchen(tx, { zeilen, quelle }).gegengebucht;
+      });
+    } catch (e) {
+      if (e instanceof BuchungAbgewiesen) return { ok: false, grund: "eingabe", text: e.message };
+      throw e;
+    }
+    revalidiereBestand();
+    return { ok: true, wert: { zurueck } };
+  });
 }

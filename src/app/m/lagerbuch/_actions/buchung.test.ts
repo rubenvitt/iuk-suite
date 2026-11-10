@@ -85,6 +85,7 @@ vi.mock("../_db/client", () => ({
 
 import {
   bucheZugang, bucheEntnahme, bucheEntnahmeHelfer, bucheUmlagerung, bucheAuffuellung,
+  macheEntnahmeRueckgaengig,
 } from "./buchung";
 
 let t: TestDb;
@@ -167,6 +168,17 @@ beforeEach(() => {
 // ⚠️ `t.schliessen()`, NICHT `t.aufraeumen()`: `TestDb` hat genau `db`, `sqlite`
 // und `schliessen` (Befund 11).
 afterEach(() => { t.schliessen(); vi.clearAllMocks(); });
+
+/*
+ * IDA-378 — DIE UHR STEHT AUF `JETZT`. Seit die Entnahme abgelaufene Chargen
+ * ueberspringt, haengt jede FEFO-Zusicherung am Datum; mit der echten Uhr liefe
+ * diese Datei an dem Tag rot, an dem `ch-1` (03/2027) ablaeuft.
+ */
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(JETZT);
+});
+afterEach(() => { vi.useRealTimers(); });
 
 /**
  * DIE PFADE, DIE EINE BUCHUNG AUSRAEUMT — seit DRK-374 die MODULWEITE Liste.
@@ -595,7 +607,9 @@ describe("bucheEntnahmeHelfer", () => {
    */
   function zweiteCharge(): void {
     t.db.insert(chargen).values([
-      { id: "ch-frueh", artikelId: "art-1", chargenNr: "L0", verfall: "2026-01",
+      // IDA-378: 09/2026 statt 01/2026 — eine ABGELAUFENE Charge nimmt FEFO
+      // seither nicht mehr, und der Fall hier ist „verfaellt frueher".
+      { id: "ch-frueh", artikelId: "art-1", chargenNr: "L0", verfall: "2026-09",
         createdAt: JETZT },
     ]).run();
     t.db.insert(buchungen).values([
@@ -1898,8 +1912,10 @@ describe("IDA-358 — eine wiederholte Sendung bucht nicht doppelt", () => {
     const eingabe = { artikelId: "art-1", menge: 3, ziel: VERBRAUCH, sendungId: SENDUNG };
     const erste = await bucheEntnahmeHelfer(eingabe, t.db);
     const zweite = await bucheEntnahmeHelfer(eingabe, t.db);
-    expect(erste).toEqual({ ok: true, wert: { gebucht: 3 } });
-    expect(zweite).toEqual({ ok: true, wert: { gebucht: 3 } });
+    // IDA-378: die Antwort traegt das Rueckgaengig-Fenster, ab der ERSTEN Buchung gerechnet.
+    const fenster = new Date(JETZT.getTime() + 10 * 60_000).toISOString();
+    expect(erste).toEqual({ ok: true, wert: { gebucht: 3, rueckgaengigBis: fenster } });
+    expect(zweite).toEqual(erste);
     expect(geschrieben()).toHaveLength(1);
     expect(geschrieben()[0]!.id).toBe(`${SENDUNG}:0`);
   });
@@ -1907,11 +1923,11 @@ describe("IDA-358 — eine wiederholte Sendung bucht nicht doppelt", () => {
   it("bucheEntnahmeHelfer: die Wiederholung kommt VOR den Pruefungen durch (Ziel-Cookie inzwischen anders)", async () => {
     zielCookie = "tk1|fz:fz-1";
     const eingabe = { artikelId: "art-1", menge: 2, ziel: { art: "fahrzeug", lagerortId: "fz-1" }, sendungId: SENDUNG };
-    expect(await bucheEntnahmeHelfer(eingabe, t.db)).toEqual({ ok: true, wert: { gebucht: 2 } });
+    expect(await bucheEntnahmeHelfer(eingabe, t.db)).toMatchObject({ ok: true, wert: { gebucht: 2 } });
     // Beide Legs tragen die Sendung im Schluessel.
     expect(geschrieben().map((b) => b.id).sort()).toEqual([`${SENDUNG}:0`, `${SENDUNG}:1`]);
     zielCookie = "tk1|verbrauch";
-    expect(await bucheEntnahmeHelfer(eingabe, t.db)).toEqual({ ok: true, wert: { gebucht: 2 } });
+    expect(await bucheEntnahmeHelfer(eingabe, t.db)).toMatchObject({ ok: true, wert: { gebucht: 2 } });
     expect(geschrieben()).toHaveLength(2);
   });
 
@@ -1944,5 +1960,160 @@ describe("IDA-358 — eine wiederholte Sendung bucht nicht doppelt", () => {
     expect(zweite).toEqual(erste);
     expect(geschrieben()).toHaveLength(1);
     expect(t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).all()).toHaveLength(1);
+  });
+});
+
+/**
+ * IDA-378 — ABGELAUFENES GEHT NICHT RAUS. Die Uhr steht auf `JETZT` (06/2026):
+ * `ch-alt` (01/2026) ist abgelaufen und verfaellt FRUEHER als `ch-1` — FEFO
+ * nahme sie also zuerst, wenn sie nicht uebersprungen wuerde.
+ */
+describe("IDA-378 — abgelaufene Chargen sind fuer die Entnahme gesperrt", () => {
+  beforeEach(() => {
+    t.db.insert(chargen).values({ id: "ch-alt", artikelId: "art-1", chargenNr: "L-ALT",
+      verfall: "2026-01", createdAt: JETZT }).run();
+    t.db.insert(buchungen).values({ id: "b-seed-alt", ts: JETZT, typ: "zugang", artikelId: "art-1",
+      chargeId: "ch-alt", lagerortId: HANDLAGER_ID, menge: 4, quelleTyp: "system", quelleId: "seed",
+      referenz: null, kommentar: null }).run();
+  });
+
+  it("FEFO ueberspringt die abgelaufene Charge (Verbrauch)", async () => {
+    const erg = await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 2, ziel: VERBRAUCH }, t.db);
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()).toEqual([expect.objectContaining({ chargeId: "ch-1", menge: -2 })]);
+  });
+
+  it("FEFO ueberspringt sie auch aufs Fahrzeug", async () => {
+    zielCookie = "tk1|fz:fz-1";
+    await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 2, ziel: { art: "fahrzeug", lagerortId: "fz-1" } }, t.db);
+    expect(geschrieben().every((b) => b.chargeId === "ch-1")).toBe(true);
+  });
+
+  it("die Hoechstmenge ist der nicht abgelaufene Rest", async () => {
+    const erg = await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 99, ziel: VERBRAUCH }, t.db);
+    expect(erg).toMatchObject({ ok: true, wert: { gebucht: 10 } });
+  });
+
+  it("eine ausdruecklich gewaehlte abgelaufene Charge wird mit einem Satz abgewiesen", async () => {
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 1, ziel: VERBRAUCH, chargeId: "ch-alt" }, t.db);
+    expect(helferFehler(erg)).toEqual({
+      ok: false, grund: "eingabe", text: "Diese Charge ist abgelaufen und darf nicht mehr verwendet werden.",
+    });
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("liegt nur Abgelaufenes, sagt der Satz das", async () => {
+    t.db.insert(buchungen).values({ id: "b-leer", ts: JETZT, typ: "korrektur", artikelId: "art-1",
+      chargeId: "ch-1", lagerortId: HANDLAGER_ID, menge: -10, quelleTyp: "system", quelleId: "seed",
+      referenz: null, kommentar: null }).run();
+    const erg = await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 1, ziel: VERBRAUCH }, t.db);
+    expect(helferFehler(erg)).toMatchObject({ grund: "leer", text: expect.stringContaining("nur noch Abgelaufenes") });
+  });
+
+  it("die Verwaltung (bucheEntnahme) ueberspringt sie ebenfalls", async () => {
+    const erg = await bucheEntnahme({ artikelId: "art-1", menge: 2 }, t.db);
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()).toEqual([expect.objectContaining({ chargeId: "ch-1", menge: -2 })]);
+  });
+
+  it("bucheEntnahme gibt dem Vorgang eine Kennung — beide Legs teilen sie", async () => {
+    await bucheEntnahme({ artikelId: "art-1", menge: 2, zielLagerortId: "fz-1" }, t.db);
+    const ids = geschrieben().map((b) => b.id).sort();
+    expect(ids).toHaveLength(2);
+    const [kennung] = ids[0]!.split(":");
+    expect(ids).toEqual([`${kennung}:0`, `${kennung}:1`]);
+  });
+});
+
+/**
+ * IDA-378 — RÜCKGÄNGIG AM TELEFON. Zugesichert werden die drei Schranken
+ * (Riegel samt Reichweite, derselbe Zugang, 10 Minuten) und dass danach der
+ * Bestand wieder steht — nicht nur, dass Zeilen entstehen.
+ */
+describe("IDA-378 — macheEntnahmeRueckgaengig", () => {
+  const SENDUNG = "7e2f0a52-93c4-4b1e-9e0a-0123456789ab";
+  const handlager = () => t.db.select().from(buchungen).all()
+    .filter((b) => b.lagerortId === HANDLAGER_ID).reduce((s, b) => s + b.menge, 0);
+
+  async function entnimm(ziel: unknown = VERBRAUCH) {
+    const erg = await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 3, ziel, sendungId: SENDUNG }, t.db);
+    expect(erg.ok).toBe(true);
+  }
+
+  it("nimmt die Entnahme zurueck — der Bestand steht wieder", async () => {
+    await entnimm();
+    expect(handlager()).toBe(7);
+    const erg = await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db);
+    expect(erg).toEqual({ ok: true, wert: { zurueck: 1 } });
+    expect(handlager()).toBe(10);
+    expect(geschrieben().find((b) => b.id === `storno:${SENDUNG}:0`)).toMatchObject({
+      typ: "entnahme", menge: 3, quelleTyp: "token", quelleId: "482-137", referenz: `storno:${SENDUNG}:0`,
+    });
+  });
+
+  it("nimmt auch die Umlagerung aufs Fahrzeug mit beiden Legs zurueck", async () => {
+    zielCookie = "tk1|fz:fz-1";
+    await entnimm({ art: "fahrzeug", lagerortId: "fz-1" });
+    expect(await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db)).toEqual({ ok: true, wert: { zurueck: 2 } });
+    expect(handlager()).toBe(10);
+  });
+
+  it("ein zweites Rückgängig wird abgewiesen", async () => {
+    await entnimm();
+    await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db);
+    const erg = await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db);
+    expect(helferFehler(erg)).toMatchObject({ grund: "eingabe", text: "Dieser Vorgang ist schon gegengebucht." });
+    expect(handlager()).toBe(10);
+  });
+
+  it("nach 10 Minuten nicht mehr", async () => {
+    await entnimm();
+    vi.setSystemTime(new Date(JETZT.getTime() + 10 * 60_000 + 1000));
+    const erg = await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db);
+    expect(helferFehler(erg).text).toContain("10 Minuten");
+    expect(handlager()).toBe(7);
+  });
+
+  it("kurz vor Ablauf noch", async () => {
+    await entnimm();
+    vi.setSystemTime(new Date(JETZT.getTime() + 9 * 60_000));
+    expect((await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db)).ok).toBe(true);
+  });
+
+  it("ein ANDERES Kärtchen nimmt keine fremde Entnahme zurueck", async () => {
+    await entnimm();
+    riegel.mockResolvedValue({ ...ZUGANG_OK, zugang: { ...ZUGANG_OK.zugang, tokenId: "tk2", code: "999-111" } });
+    const erg = await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db);
+    expect(helferFehler(erg)).toMatchObject({ grund: "eingabe", text: "Rückgängig machen kann nur, wer die Entnahme gebucht hat." });
+    expect(handlager()).toBe(7);
+  });
+
+  it("ein gesperrter Code nimmt nichts zurueck und meldet den Grund", async () => {
+    await entnimm();
+    riegel.mockResolvedValue({ ok: false, grund: "gesperrt" });
+    const erg = await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db);
+    expect(helferFehler(erg)).toEqual({ ok: false, grund: "gesperrt", text: RIEGEL_TEXTE.gesperrt });
+    expect(handlager()).toBe(7);
+  });
+
+  it("eine Karte ohne Entnahme-Reichweite nimmt nichts zurueck", async () => {
+    await entnimm();
+    riegel.mockResolvedValue({ ...ZUGANG_OK, zugang: { ...ZUGANG_OK.zugang, reichweite: ["check"] as const } });
+    const erg = await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db);
+    expect(helferFehler(erg).grund).toBe("bereich");
+    expect(handlager()).toBe(7);
+  });
+
+  it("eine unbekannte Sendung ist nicht zuzuordnen", async () => {
+    const erg = await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db);
+    expect(helferFehler(erg)).toMatchObject({ grund: "eingabe", text: "Diese Entnahme lässt sich nicht mehr zuordnen." });
+    expect(helferFehler(await macheEntnahmeRueckgaengig({ sendungId: "kein-uuid" }, t.db)).grund).toBe("eingabe");
+  });
+
+  it("fragt den Admin-Riegel nicht", async () => {
+    await entnimm();
+    adminRiegel.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    expect((await macheEntnahmeRueckgaengig({ sendungId: SENDUNG }, t.db)).ok).toBe(true);
   });
 });

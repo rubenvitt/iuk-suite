@@ -1,7 +1,12 @@
 "use server";
 
 import { z } from "zod";
-import { getDb } from "../_db/client";
+import { withAuditContext, auditActor } from "@/core/audit/server";
+import { getDb, type DB } from "../_db/client";
+import { gegenbuchen, vorgangsZeilen } from "../_lib/schreibpfade/gegenbuchung";
+import { BuchungAbgewiesen } from "../_lib/buchungAbgewiesen";
+import { revalidiereBestand } from "../_lib/revalidierung";
+import type { ActionErgebnis } from "../_lib/actionErgebnis";
 import { JOURNAL_GRENZE, JOURNAL_SUCHE_MAX } from "../_lib/grenzen";
 import { journalEintraege } from "../_lib/lesepfade/journal";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
@@ -92,4 +97,53 @@ export async function naechsteJournalSeite(
   } catch {
     return { ok: false, fehler: ABRUF_FEHLER };
   }
+}
+
+const GegenbuchenSchema = z.object({
+  zeilenIds: z.array(z.string().min(1).max(64)).min(1).max(500),
+});
+
+/**
+ * IDA-378 — „GEGENBUCHEN" IM JOURNAL.
+ *
+ * ⚠️ DER CLIENT NENNT ZEILEN, DER SERVER BESTIMMT DEN VORGANG. Aus der ersten
+ * Zeile loest `vorgangsZeilen` den ganzen Vorgang aus der Datenbank auf; jede
+ * weitere genannte Zeile muss dazugehoeren. Eine gefilterte Journalseite zeigt
+ * oft nur ein Leg einer Umlagerung — gegengebucht werden trotzdem beide.
+ *
+ * Die Gegenzeilen tragen die angemeldete Person als Quelle (`oidc`), nicht die
+ * des Originals: im Journal steht, wer zurueckgenommen hat.
+ */
+export async function gegenbucheVorgang(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<ActionErgebnis<{ gegengebucht: number; ids: string[] }>> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ gegengebucht: number; ids: string[] }>> => {
+    const geparst = GegenbuchenSchema.safeParse(eingabe);
+    if (!geparst.success) return { ok: false, fehler: "Diesen Vorgang gibt es nicht." };
+    const [erste, ...weitere] = geparst.data.zeilenIds;
+    const zeilen = vorgangsZeilen(db, erste!);
+    const ids = new Set(zeilen.map((z) => z.id));
+    if (zeilen.length === 0 || !weitere.every((id) => ids.has(id))) {
+      return { ok: false, fehler: "Diesen Vorgang gibt es nicht." };
+    }
+    let gegengebucht = 0;
+    try {
+      db.transaction((tx) => {
+        gegengebucht = gegenbuchen(tx, {
+          zeilen,
+          quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
+        }).gegengebucht;
+      });
+    } catch (e) {
+      // Sentinel statt `Error` — Begruendung am `catch` von `bucheZugang`.
+      return {
+        ok: false,
+        fehler: e instanceof BuchungAbgewiesen ? e.message : "Gegenbuchung konnte nicht gebucht werden.",
+      };
+    }
+    revalidiereBestand();
+    return { ok: true, wert: { gegengebucht, ids: zeilen.map((z) => z.id) } };
+  });
 }

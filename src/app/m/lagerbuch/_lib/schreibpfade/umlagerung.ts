@@ -57,6 +57,8 @@ export type UmlagerungArgs = {
   nachChargeId?: string;
   /** IDA-358: die IDs BEIDER Legs aus einer Quelle (`sendung.ts`); fehlt sie, `newId()`. */
   neueId?: IdQuelle;
+  /** IDA-378 — wie `AbbuchungArgs.ohneAbgelaufene`: nur die Entnahme aufs Fahrzeug setzt es. */
+  ohneAbgelaufene?: boolean;
   quelle: Quelle;
   kommentar: string | null;
   /** Pflicht, nicht optional: eine Umlagerung ist IMMER Teil eines Vorgangs
@@ -78,6 +80,7 @@ export function umlagerungAusBereich(
     artikelId, menge, bereich: args.vonBereich, quelle, kommentar, referenz,
     typ: "umlagerung",
     ...(args.neueId ? { neueId: args.neueId } : {}),
+    ...(args.ohneAbgelaufene ? { ohneAbgelaufene: true } : {}),
     ...(chargeId ? { chargeId } : {}),
   }));
 }
@@ -95,6 +98,7 @@ export function umlagerungVonOrt(
     artikelId, menge, ort: args.vonOrt, quelle, kommentar, referenz,
     typ: "umlagerung",
     ...(args.neueId ? { neueId: args.neueId } : {}),
+    ...(args.ohneAbgelaufene ? { ohneAbgelaufene: true } : {}),
     ...(chargeId ? { chargeId } : {}),
   }));
 }
