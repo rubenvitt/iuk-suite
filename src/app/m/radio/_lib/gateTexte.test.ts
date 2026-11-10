@@ -29,7 +29,7 @@ import { GATE_GRUENDE, istGateGrund, gateMeldung, type GateGrund } from "./gateT
  */
 const ERWARTET: [GateGrund, number | null, string][] = [
   ["code", 30, "Dieser Code ist unbekannt oder wurde gesperrt. Wende dich an die Leitung."],
-  ["gesperrt", 30, "Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung."],
+  ["gesperrt", 30, "Dieser Zugangscode wurde gesperrt. Wende dich an die Leitung."],
   [
     "abgelaufen",
     30,

@@ -414,21 +414,21 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
   it("trägt sieben Spalten, stabile IDs und die vollständigen sichtbaren Werte", async () => {
     await mount(<App><TokenTable zeilen={ZEILEN} /></App>);
     expect(queryAll("thead th").map((spalte) => spalte.textContent)).toEqual([
+      "Bezeichnung",
       "Code",
       /*
-       * ⚠️ „Ort" STEHT VOR „Bezeichnung" — DRK-406. Das ist keine Kosmetik:
-       * diese Seite wird mit der Frage geöffnet „welchen Code hat das RTW?",
-       * und die Bezeichnung ist der Name von DAMALS (sie wandert bei einer
-       * Umbenennung nicht mit, weil sie im Journal steht).
+       * IDA-395: Bezeichnung · Code · Zustand · Zuletzt benutzt · Aktionen wie
+       * in Verpflegung und Funk (Wortliste „Helferzugang ohne Anmeldung").
+       * „Ort" und „Ziel" sind Zusatzspalten dieses Moduls und stehen hinter
+       * dem Code; „Ort" bleibt vor „Ziel" (DRK-406).
        */
       "Ort",
-      "Bezeichnung",
       "Ziel",
-      "Status",
+      "Zustand",
       "Zuletzt benutzt",
-      "",
+      "Aktionen",
     ]);
-    expect(query("table").getAttribute("aria-label")).toBe("Zugangs-Codes");
+    expect(query("table").getAttribute("aria-label")).toBe("Zugangscodes");
     expect(sichtbareIds()).toEqual(["t1", "t2", "t3"]);
     expect(exists(".ant-pagination")).toBe(false);
     const erste = query("tr[data-row-key='t1']");
@@ -463,7 +463,7 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
     await spaltenFilter("Ziel", "Fahrzeug");
     expect(sichtbareIds()).toEqual(["t2"]);
 
-    await spaltenFilter("Status", "gesperrt");
+    await spaltenFilter("Zustand", "gesperrt");
     expect(sichtbareIds()).toEqual(["t2"]);
 
     await suchen("rtw");
@@ -536,7 +536,7 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     const sperren = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
       .find((knopf) => knopf.textContent === "Sperren");
     const reaktivieren = Array.from(query("tr[data-row-key='t2']").querySelectorAll("button"))
-      .find((knopf) => knopf.textContent === "Reaktivieren");
+      .find((knopf) => knopf.textContent === "Entsperren");
     if (!sperren || !reaktivieren) throw new Error("Statusknöpfe fehlen");
     await clickElement(sperren);
     await bestaetigen();
@@ -548,7 +548,7 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
       [{ id: "t2", aktiv: true }],
     ]);
     expect(sperren.textContent).toBe("Sperren");
-    expect(reaktivieren.textContent).toBe("Reaktivieren");
+    expect(reaktivieren.textContent).toBe("Entsperren");
   });
 
   /*
@@ -623,7 +623,7 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     const sperren = await sperrenKlicken();
 
     const warnung = query(".ant-alert-warning").textContent ?? "";
-    expect(warnung).toContain("Zugangs-Code-Status konnte nicht geändert werden.");
+    expect(warnung).toContain("Zustand des Zugangscodes konnte nicht geändert werden.");
     expect(warnung).not.toContain("SQLITE");
     expect(sperren.textContent).toBe("Sperren");
   });
@@ -680,7 +680,7 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(
       Array.from(query("tr[data-row-key='t2']").querySelectorAll("button"))
         .map((knopf) => knopf.textContent),
-    ).toEqual(["Reaktivieren"]);
+    ).toEqual(["Entsperren"]);
     expect(document.body.textContent).not.toContain("Löschen");
   });
 
@@ -715,7 +715,7 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
    * Fremdschlüssel). Ohne `ersetztText` wäre er von Altbestand nicht zu
    * unterscheiden — das ist der ganze Grund, warum es das Feld gibt.
    */
-  it("bietet Reaktivieren weder am Ortscode noch an einem ersetzten Code an", async () => {
+  it("bietet Entsperren weder am Ortscode noch an einem ersetzten Code an", async () => {
     const gesperrterOrtscode = { ...FAHRZEUG, id: "t9", code: "999-111", aktiv: false };
     const verwaist = {
       ...FAHRZEUG,
@@ -734,9 +734,9 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
       query(`tr[data-row-key='${id}']`).querySelectorAll("button"),
     ).map((knopf) => knopf.textContent);
 
-    expect(knoepfe("t2"), "Altbestand bleibt reaktivierbar").toContain("Reaktivieren");
-    expect(knoepfe("t9")).not.toContain("Reaktivieren");
-    expect(knoepfe("t8")).not.toContain("Reaktivieren");
+    expect(knoepfe("t2"), "Altbestand bleibt reaktivierbar").toContain("Entsperren");
+    expect(knoepfe("t9")).not.toContain("Entsperren");
+    expect(knoepfe("t8")).not.toContain("Entsperren");
 
     // ⚠️ AN SEINER STELLE STEHT EINE AUSKUNFT, KEINE LÜCKE — und am ersetzten
     // Code beantwortet sie die Frage, die am Tresen wirklich gestellt wird.
@@ -979,12 +979,11 @@ describe("TokensSeite", () => {
     expect(mocks.etikettOrte).toHaveBeenCalledWith({ kennung: "token-test-db" });
 
     const kopf = elementeVomTyp(seite, SeitenKopf)[0];
-    expect(kopf.props.titel).toBe("Zugangs-Codes");
+    expect(kopf.props.titel).toBe("Zugangscodes");
     /*
-     * ⚠️ DRK-406 — DER SEITENKOPF TRÄGT KEINE AKTION MEHR. Bis hierher hing
-     * dort „Neuen Code anlegen". Die Zusicherung prüft die ABWESENHEIT, weil
-     * genau das der Auftrag war: ein Code entsteht ab jetzt nur noch als
-     * Ortscode.
+     * ⚠️ DRK-406 — KEIN ANLEGEKNOPF: ein Code entsteht nur als Ortscode. An der
+     * Stelle, an der Verpflegung und Funk „Zugangscode anlegen" tragen, führt
+     * der Kopf deshalb zu den Ortsetiketten (IDA-395).
      */
     expect(kopf.props.aktionen).toBeUndefined();
     // IDA-379 — stattdessen ein Verweis, wo Codes entstehen: kein Knopf, eine Zeile.

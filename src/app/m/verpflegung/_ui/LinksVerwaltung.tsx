@@ -53,35 +53,35 @@ export function LinksVerwaltung({ links }: { links: LinkZeile[] }) {
   return (
     <>
       <Seitenkopf
-        titel="Helfer-Links"
+        titel="Zugangscodes"
         aktionen={
           <Button
             type="primary"
             icon={<Icons8Ikone name="plus" groesse={16} />}
             onClick={() => { setFeldFehler({}); form.setFieldsValue({ name: "", stunden: 12 }); setAnlegen(true); }}
           >
-            Link anlegen
+            Zugangscode anlegen
           </Button>
         }
       />
       <Kartentabelle<LinkZeile>
         rowKey="id"
-        aria-label="Helfer-Links"
+        aria-label="Zugangscodes"
         dataSource={links}
-        leer={{ nichts: "Noch keine Helfer-Links", figur: "verpflegung" }}
+        leer={{ nichts: "Noch keine Zugangscodes", figur: "verpflegung" }}
         karte={{ titel: "name", kennzeichen: ["stand"] }}
         columns={[
-          { title: "Anlass", key: "name", render: (_: unknown, l: LinkZeile) => <strong>{l.name}</strong> },
-          { title: "Stand", key: "stand", render: (_: unknown, l: LinkZeile) => <Chip farbe={STAND[l.stand].farbe}>{STAND[l.stand].text}</Chip> },
+          { title: "Bezeichnung", key: "name", render: (_: unknown, l: LinkZeile) => <strong>{l.name}</strong> },
+          { title: "Zustand", key: "stand", render: (_: unknown, l: LinkZeile) => <Chip farbe={STAND[l.stand].farbe}>{STAND[l.stand].text}</Chip> },
           { title: "Gültig bis", key: "gueltigBis", render: (_: unknown, l: LinkZeile) => <span className={s.ziffern}>{zeitText(l.gueltigBis)}</span> },
           { title: "Zuletzt benutzt", key: "zuletzt", render: (_: unknown, l: LinkZeile) => <span className={s.ziffern}>{l.zuletztAm ? zeitText(l.zuletztAm) : "—"}</span> },
           { title: "Angelegt", key: "angelegt", render: (_: unknown, l: LinkZeile) => <span className={s.neben}>{zeitText(l.angelegtAm)} · {l.angelegtVon}</span> },
           {
-            title: "Aktion", key: "aktion",
+            title: "Aktionen", key: "aktion",
             render: (_: unknown, l: LinkZeile) => l.stand !== "aktiv" ? null : (
               <span className={s.reihe}>
                 <Button onClick={() => setZeige(l.id)}>QR zeigen</Button>
-                <Popconfirm title="Link sperren?" okText="Sperren" cancelText="Abbrechen" onConfirm={() => fuehreAus(() => linkSperrenAction(l.id), "Gesperrt.")}>
+                <Popconfirm title="Zugangscode sperren?" okText="Sperren" cancelText="Abbrechen" onConfirm={() => fuehreAus(() => linkSperrenAction(l.id), "Gesperrt.")}>
                   <Button disabled={laeuft}>Sperren</Button>
                 </Popconfirm>
               </span>
@@ -91,7 +91,7 @@ export function LinksVerwaltung({ links }: { links: LinkZeile[] }) {
       />
       <Modal
         open={anlegen}
-        title="Helfer-Link anlegen"
+        title="Zugangscode anlegen"
         okText="Anlegen"
         cancelText="Abbrechen"
         confirmLoading={laeuft}
@@ -103,11 +103,11 @@ export function LinksVerwaltung({ links }: { links: LinkZeile[] }) {
           form={form}
           layout="vertical"
           requiredMark={false}
-          onFinish={(w) => fuehreAus(() => linkAnlegenAction(w), "Link angelegt.", (r) => { setAnlegen(false); if (r.id) setZeige(r.id); })}
+          onFinish={(w) => fuehreAus(() => linkAnlegenAction(w), "Zugangscode angelegt.", (r) => { setAnlegen(false); if (r.id) setZeige(r.id); })}
         >
           <Form.Item
             name="name"
-            label="Anlass"
+            label="Bezeichnung"
             rules={[{ required: true, message: "Bitte ausfüllen." }]}
             {...(feldFehler.name ? { validateStatus: "error" as const, help: feldFehler.name } : {})}
           >

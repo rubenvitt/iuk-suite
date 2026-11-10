@@ -180,7 +180,7 @@
 }
 /*
  * Der Textblock gibt nach, der Ausstieg nie. `.etikett` traegt die volle
- * Sitzungskennung („Zugang: Token 112-035 · 40-92-5 · UE-RK-379") und
+ * Sitzungskennung („Zugangscode · 40-92-5 · UE-RK-379") und
  * `Restzeit` darunter im Warnfall einen ganzen Satz; ohne `min-width: 0`
  * schoebe deren min-content den „Beenden"-Knopf aus dem Kopf. Und der wird
  * NICHT vom `.inhalt` aufgefangen: `.kopf` liegt auszerhalb, `.rahmen` traegt

@@ -395,7 +395,7 @@ const AUSLEIH_FEHLER = "[data-rolle='radio-ausleih-fehler']";
  */
 const SATZ_CODE_UNBEKANNT_ODER_GESPERRT =
   "Dieser Code ist unbekannt oder wurde gesperrt. Wende dich an die Leitung.";
-const SATZ_GESPERRT = "Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung.";
+const SATZ_GESPERRT = "Dieser Zugangscode wurde gesperrt. Wende dich an die Leitung.";
 
 /**
  * ⬜ T-L2, GEMESSEN STATT ERFUNDEN: der Statuscode, mit dem `redirect()` aus einer SERVER

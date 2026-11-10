@@ -937,7 +937,7 @@ export function CheckFlow({
               maxLength={CODEFELD_LAENGE}
               pattern={CODEFELD_MUSTER}
               placeholder={CODEFELD_PLATZHALTER}
-              aria-label="Zugangs-Code"
+              aria-label="Zugangscode"
               value={erneuerungsCode}
               onChange={(e) => setErneuerungsCode(e.target.value)}
               data-rolle="erneuern-code"

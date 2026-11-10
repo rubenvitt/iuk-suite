@@ -10,7 +10,7 @@ import s from "../_ui/telefon/telefon.module.css";
 export const dynamic = "force-dynamic";
 
 const GRUND: Record<string, string> = {
-  link: "Dieser Link gilt nicht mehr.",
+  link: "Dieser Zugangscode gilt nicht mehr.",
   beendet: "Beendet.",
 };
 

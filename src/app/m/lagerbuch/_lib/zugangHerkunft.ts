@@ -95,15 +95,15 @@ export function zugangsAkteur(zugang: HelferZugang): AuditActor {
  * DAS ETIKETT IM RAHMENKOPF — der einzige Satz, der sagt, wer hier gerade
  * arbeitet.
  *
- * ⚠️ DER CODE STEHT NUR IM TOKEN-FALL DA, und das war schon vorher so: er ist
- * das Secret selbst, aber die Person, die ihn liest, hat das Kärtchen gerade in
- * der Hand. Für das Konto gibt es kein Gegenstück — ein `sub` auf dem Schirm
- * sagt niemandem etwas.
+ * ⚠️ DER CODE STEHT NICHT DA (IDA-395, Wortliste „Helferzugang ohne
+ * Anmeldung"): „Zugangscode · <Bezeichnung>", in allen drei Modulen gleich. Er
+ * ist das Secret selbst; die Bezeichnung reicht. Für das Konto ebenso — ein
+ * `sub` auf dem Schirm sagt niemandem etwas.
  *
  * Ein Name aus Leerzeichen ist kein Name (dieselbe Regel wie in `_lib/konto.ts`
  * und `_db/quelle.ts`); ohne Namen bleibt die Rolle stehen, nicht die Kennung.
  */
 export function sitzungsEtikett(zugang: HelferZugang): string {
-  if (zugang.herkunft === "token") return `Zugang: Token ${zugang.code} · ${zugang.label}`;
+  if (zugang.herkunft === "token") return `Zugangscode · ${zugang.label}`;
   return `Angemeldet: ${zugang.name?.trim() || "Lagerbuch-Verwaltung"}`;
 }

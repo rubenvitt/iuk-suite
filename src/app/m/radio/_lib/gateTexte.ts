@@ -63,12 +63,12 @@ export function istGateGrund(roh: string | null | undefined): roh is GateGrund {
  * `code` und `gesperrt` sind bewusst VERSCHIEDEN formuliert, und der Unterschied ist
  * fachlich, nicht stilistisch (Spec:2382-2383): `code` heisst „unbekannt ODER gesperrt" —
  * mehr weiss der Einloeseweg nicht. `gesperrt` heisst „wir wissen es genau: DIESER
- * Zugangs-Code wurde gesperrt", weil dort eine gueltige Sitzung lief und die Codezeile
+ * Zugangscode wurde gesperrt", weil dort eine gueltige Sitzung lief und die Codezeile
  * gelesen wurde. Zusammengelegt verloere die zweite Lage ihre Auskunft.
  */
 const TEXTE: Record<GateGrund, (sperrSekunden: number | null) => string> = {
   code: () => "Dieser Code ist unbekannt oder wurde gesperrt. Wende dich an die Leitung.",
-  gesperrt: () => "Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung.",
+  gesperrt: () => "Dieser Zugangscode wurde gesperrt. Wende dich an die Leitung.",
   abgelaufen: () =>
     "Dein Zugang ist abgelaufen. Scanne den QR-Code erneut oder melde dich über die Suite an.",
   /**

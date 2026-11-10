@@ -36,7 +36,7 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
  * braucht, wenn ein altes laminiertes Kärtchen verschwindet.
  */
 const LISTENPFAD = "/m/lagerbuch/verwaltung/tokens";
-const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
+const STATUS_FEHLER = "Zustand des Zugangscodes konnte nicht geändert werden.";
 /*
  * ⚠️ ZWEI FAELLE, DIE „Status konnte nicht geändert werden" NICHT ERKLAEREN
  * WUERDE — DRK-406, beide in der Durchsicht gefunden. Keiner von beiden ist ein

@@ -223,7 +223,7 @@ export function Gate({
               autoComplete="off"
               maxLength={CODEFELD_LAENGE}
               placeholder={CODEFELD_PLATZHALTER}
-              aria-label="Zugangs-Code"
+              aria-label="Zugangscode"
             />
             {/*
               `role="alert"`: seit dem Netzfall erscheint dieser Ort auch

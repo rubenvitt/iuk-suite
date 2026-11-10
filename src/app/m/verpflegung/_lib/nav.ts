@@ -14,7 +14,7 @@ export function verpflegungNav(r: Rechte): SuiteNavItem[] {
     { key: "artikel", title: "Artikel", href: "/artikel", ikon: "katalog", abschnitt: "Einrichten" },
     ...(r.admin ? [
       { key: "orte", title: "Lagerorte", href: "/orte", ikon: "lagerorte" as const, abschnitt: "Einrichten" },
-      { key: "links", title: "Helfer-Links", href: "/links", ikon: "tokens" as const, abschnitt: "Einrichten" },
+      { key: "links", title: "Zugangscodes", href: "/links", ikon: "tokens" as const, abschnitt: "Einrichten" },
       // IDA-382: ohne eigenen Eintrag markierte die Seitenleiste auf den Etiketten „Übersicht“.
       { key: "etiketten", title: "Ortsetiketten", href: "/etiketten", ikon: "ortsetiketten" as const, abschnitt: "Einrichten" },
     ] : []),

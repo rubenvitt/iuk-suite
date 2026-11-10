@@ -58,7 +58,7 @@ describe("LAGERBUCH_NAV: die dreiundzwanzig Ziele", () => {
       // Adressen, die Beschriftung ist das, was jemand liest (dieselbe Trennung
       // wie bei „Fahrzeuge & Taschen", DRK-309).
       { key: "etiketten", title: "Artikeletiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
-      { key: "tokens", title: "Zugangs-Codes", href: "/verwaltung/tokens", ikon: "tokens", abschnitt: "Einrichtung" },
+      { key: "tokens", title: "Zugangscodes", href: "/verwaltung/tokens", ikon: "tokens", abschnitt: "Einrichtung" },
       { key: "import", title: "Import", href: "/verwaltung/import", ikon: "import", abschnitt: "Einrichtung" },
     ]);
   });

@@ -127,7 +127,7 @@ export function SitzungErneuern({ grund }: { grund: AusleihGrund | RueckgabeGrun
       ) : (
         <>
           <label className={s.erneuernLabel} htmlFor="radio-erneuern-code">
-            Zugangs-Code erneut eingeben
+            Zugangscode erneut eingeben
           </label>
           <div className={s.erneuernZeile}>
             {/*
@@ -147,8 +147,8 @@ export function SitzungErneuern({ grund }: { grund: AusleihGrund | RueckgabeGrun
               value={code}
               autoComplete="off"
               spellCheck={false}
-              placeholder="Code vom Aufsteller"
-              aria-label="Zugangs-Code"
+              placeholder="Zugangscode"
+              aria-label="Zugangscode"
               data-rolle="radio-erneuern-code"
               onChange={(e) => setCode(e.target.value)}
               onPressEnter={(e) => {
