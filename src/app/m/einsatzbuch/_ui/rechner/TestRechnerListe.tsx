@@ -44,7 +44,7 @@ export function TestRechnerListe({ liste }: { liste: TestRechnerZeile[] }) {
           { title: "Name", key: "name", sorter: nachText<TestRechnerZeile>((r) => r.name), render: (_: unknown, r) => r.name },
           { title: "Eingerichtet", key: "eingerichtet", render: (_: unknown, r) => `${r.eingerichtetAm} von ${r.eingerichtetVon}` },
           { title: "Letzter Kontakt", key: "kontakt", render: (_: unknown, r) => r.letzterKontakt ?? "Noch kein Kontakt" },
-          { title: "Anker bis", key: "anker", render: (_: unknown, r) => (r.ankerBis !== null ? `Block ${r.ankerBis}` : "Noch kein Anker") },
+          { title: "Gemeldet bis", key: "anker", render: (_: unknown, r) => (r.ankerBis !== null ? `Block ${r.ankerBis}` : "Noch nichts gemeldet") },
           {
             title: "Abweichungen",
             key: "abweichungen",

@@ -81,4 +81,24 @@ describe("UrlInput", () => {
     expect(push).not.toHaveBeenCalled();
     expect(loadHistory()).toEqual([]);
   });
+
+  // IDA-390: „drk.de" ohne Schema öffnet auf manchem Telefon keine Seite, sondern zeigt Text.
+  it("ergänzt https:// an einer Adresse ohne Schema", async () => {
+    await fill("#qr-url", "drk.de");
+    await submitForm();
+
+    const url = new URL(push.mock.calls[0][0] as string, "http://qr.localtest.me");
+    expect(url.searchParams.get("data")).toBe("https://drk.de");
+    expect(loadHistory()[0].label).toBe("https://drk.de");
+  });
+
+  it("lässt freien Text ohne https://", async () => {
+    for (const text of ["Treffpunkt Halle 2", "Version 1.2", "Hallo"]) {
+      push.mockClear();
+      await fill("#qr-url", text);
+      await submitForm();
+      const url = new URL(push.mock.calls[0][0] as string, "http://qr.localtest.me");
+      expect(url.searchParams.get("data")).toBe(text);
+    }
+  });
 });

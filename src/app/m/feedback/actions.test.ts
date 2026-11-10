@@ -900,7 +900,7 @@ describe("Tagesregel an Starten, Nachtragen und Bearbeiten (DRK-429)", () => {
     return f;
   }
 
-  it("Feedback starten übernimmt den geplanten Abend desselben Tages", async () => {
+  it("Umfrage starten übernimmt den geplanten Abend desselben Tages", async () => {
     const { startFeedbackAction } = await loadActions();
     const { group, abend } = lage("planned");
 
@@ -921,7 +921,7 @@ describe("Tagesregel an Starten, Nachtragen und Bearbeiten (DRK-429)", () => {
   it.each([
     ["held", "schon einen Dienstabend"],
     ["cancelled", "abgesagter Abend"],
-  ] as const)("Feedback starten meldet einen %s-Abend am Datum", async (status, text) => {
+  ] as const)("Umfrage starten meldet einen %s-Abend am Datum", async (status, text) => {
     const { startFeedbackAction } = await loadActions();
     const { group } = lage(status);
 

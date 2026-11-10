@@ -220,6 +220,8 @@ export function AnzeigeVerwaltung({
         min={KARTEN_ZOOM.min}
         max={KARTEN_ZOOM.max}
         decimalSeparator=","
+        // Halbe Stufen: am Telefon die Zifferntastatur mit Komma, nicht die Buchstaben (IDA-390).
+        inputMode="decimal"
         style={{ width: "100%" }}
         status={feldFehler[feld] ? "error" : undefined}
         aria-describedby={feldFehler[feld] ? `${basis}-${feld}-fehler` : hilfe ? `${basis}-${feld}-hilfe` : undefined}
@@ -437,11 +439,21 @@ export function AnzeigeVerwaltung({
               </div>
             </Card>
 
-            <div style={{ display: "flex", gap: SPACE.md, flexWrap: "wrap", alignItems: "center" }}>
+            {/*
+              IDA-390: Ungespeichertes klebt am unteren Rand. Die Schalter oben wirken sofort auf die
+              Vorschau, „Speichern" stand aber weit darunter außer Sicht. `data-fussleiste` nimmt den
+              schwebenden Rückmeldeknopf zurück, der sonst auf der Leiste läge (`core/rueckmeldung`).
+            */}
+            <div
+              className={v.speicherleiste}
+              data-rolle="speicherleiste"
+              data-klebt={geaendert ? "" : undefined}
+              data-fussleiste={geaendert ? "" : undefined}
+            >
               <Button type="primary" htmlType="submit" loading={laeuft} disabled={!geaendert}>
                 Speichern
               </Button>
-              <span style={SCHRIFT.neben} className={v.gedaempft} role="status">
+              <span style={SCHRIFT.neben} className={geaendert ? v.ungespeichert : v.gedaempft} role="status">
                 {geaendert
                   ? "Ungespeicherte Änderungen"
                   : erfolg
@@ -460,6 +472,9 @@ export function AnzeigeVerwaltung({
             extra={<span style={SCHRIFT.neben} className={v.gedaempft}>mit Beispieldaten</span>}
           >
             <div style={{ display: "grid", gap: SPACE.md }}>
+              <div role="status" className={v.entwurfStatus}>
+                {geaendert ? <span className={v.entwurfMarke} data-rolle="vorschau-entwurf">Entwurf – noch nicht am Monitor</span> : null}
+              </div>
               <Radio.Group
                 aria-label="Beispiellage"
                 value={szenario}

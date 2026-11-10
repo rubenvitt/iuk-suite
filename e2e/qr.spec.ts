@@ -306,12 +306,9 @@ test("qr-admin kann ein Preset anlegen", async ({ page }, testInfo) => {
 });
 
 /**
- * Der Loesch-Pfad. Bis zum antd-Umbau war der Loeschknopf ein
- * `<button type="submit">`; jetzt ist es `<Button danger htmlType="submit">`.
- * Genau das `htmlType` ist der einzige Unterschied zwischen "loescht" und
- * "tut nichts" — antds `Button` faellt ohne es auf `type="button"` zurueck und
- * der Klick waere ein stiller No-op. Kein anderer Test faehrt diesen Pfad, also
- * fiele ein vergessenes `htmlType` durch jedes Gate.
+ * Der Loesch-Pfad, samt Rueckfrage (IDA-390): Knopf unter dem Bearbeiten-
+ * Formular, Bestaetigung im Dialog, danach eine Meldung. Kein anderer Test
+ * faehrt diesen Pfad, also fiele eine wirkungslose Bestaetigung durch jedes Gate.
  *
  * Eigener, eindeutiger Name (nicht "Neues Preset" aus dem Anlege-Test): die
  * E2E laeuft mit `workers:1` gegen eine einmal gewischte DB, alle Tests dieser
@@ -330,11 +327,16 @@ test("qr-admin kann ein Preset loeschen", async ({ page }, testInfo) => {
 
   const row = page.getByTestId("preset-row").filter({ hasText: bezeichnung });
   await expect(row).toHaveCount(1);
-  // Auf die Zielzeile gescopt: "Loeschen" gibt es pro Zeile einmal.
-  await row.getByRole("button", { name: "Löschen" }).click();
+  // Seit IDA-390 steht „Löschen" nicht mehr in der Zeile, sondern abgesetzt unter
+  // dem Bearbeiten-Formular, und fragt mit dem Namen nach.
+  await row.getByTestId("preset-edit").click();
+  await page.getByTestId("preset-delete").click();
+  const rueckfrage = page.getByRole("dialog", { name: `„${bezeichnung}“ löschen?` });
+  await rueckfrage.getByRole("button", { name: "Löschen", exact: true }).click();
   // Die eigentliche Zusicherung: die Zeile ist wirklich weg. Bliebe sie stehen,
-  // waere der Knopf ein No-op (fehlendes htmlType, siehe Kommentar oben).
+  // waere die Bestaetigung ein No-op.
   await expect(row).toHaveCount(0);
+  await expect(page.getByText(`„${bezeichnung}“ gelöscht.`)).toBeVisible();
 });
 
 /**
@@ -373,7 +375,8 @@ test("qr-admin kann ein Preset bearbeiten, ohne es neu anzulegen", async ({ page
    * nach dem Speichern. Genau das prueft der Vergleich, und er prueft es
    * unabhaengig davon, wie der Slug gebildet wird.
    */
-  const idVorDerBearbeitung = (await row.locator("code").innerText()).trim();
+  // Seit IDA-390 steht die id nicht mehr als Text in der Zeile, sondern als Attribut.
+  const idVorDerBearbeitung = await row.getAttribute("data-preset-id");
   await row.getByTestId("preset-edit").click();
 
   // Die Art bleibt beim Bearbeiten gesperrt — ein Wechsel machte den
@@ -390,7 +393,7 @@ test("qr-admin kann ein Preset bearbeiten, ohne es neu anzulegen", async ({ page
   await expect(updated).toHaveCount(1);
   // Dieselbe id wie beim Anlegen: bearbeitet, nicht geloescht und neu angelegt.
   // An der id haengen sortOrder (die Kachelposition) und die Audit-Felder.
-  await expect(updated.locator("code")).toHaveText(idVorDerBearbeitung);
+  await expect(updated).toHaveAttribute("data-preset-id", idVorDerBearbeitung!);
   await expect(page.getByTestId("preset-row").filter({ hasText: vorher })).toHaveCount(0);
 
   await page.goto(`${QR}/`);

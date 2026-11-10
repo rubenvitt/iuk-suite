@@ -143,6 +143,31 @@ describe("qr admin actions: Autorisierungsgrenze", () => {
   });
 });
 
+describe("qr admin actions: Web-Adresse ohne Schema (IDA-390)", () => {
+  it("ergänzt https:// beim Anlegen und beim Ändern", async () => {
+    asAdmin();
+    await createPresetAction(fd({ label: "DRK", kind: "url", value: "drk.de" }));
+    expect(createPreset).toHaveBeenCalledWith(
+      expect.objectContaining({ value: "https://drk.de" }),
+      "u1",
+    );
+    await updatePresetAction(fd({ id: "p1", label: "DRK", kind: "url", value: "drk.de/kurse" }));
+    expect(updatePreset).toHaveBeenCalledWith(
+      "p1",
+      expect.objectContaining({ value: "https://drk.de/kurse" }),
+      "u1",
+    );
+  });
+
+  it("lehnt eine Fehleingabe mit eigener Meldung ab, ohne zu schreiben", async () => {
+    asAdmin();
+    await expect(
+      createPresetAction(fd({ label: "L", kind: "url", value: "drk de" })),
+    ).rejects.toThrow("Das ist keine gültige Web-Adresse.");
+    expect(createPreset).not.toHaveBeenCalled();
+  });
+});
+
 describe("qr admin actions: Adressierung und Nutzlast", () => {
   it("löscht genau die Zeile aus dem Formularfeld id", async () => {
     asAdmin();

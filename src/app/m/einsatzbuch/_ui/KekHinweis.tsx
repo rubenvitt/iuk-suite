@@ -2,25 +2,31 @@
 import { Alert } from "antd";
 import type { Schluesselstatus } from "../_lib/schluessel/status";
 
+/*
+ * IDA-390: Wer das hier sieht, verwaltet das Einsatztagebuch, betreibt aber nicht den Server. Der Text
+ * sagt deshalb, was los ist und was zu tun ist; Variablenname und Befehle stehen im Runbook
+ * „Einsatzbuch-Schlüssel“, die Ursache für die Technik am Element (`data-ursache`).
+ */
+const TECHNIK = "Melde dich bei der Technik.";
+const OHNE_FREIGABE = "Bis dahin kann die Suite keine Einsätze freigeben; Stammdaten und Reader gehen weiter.";
+
 const TEXT: Record<string, { title: string; description: string } | undefined> = {
-  fehlt: { title: "Der Schlüssel-KEK fehlt", description: "EINSATZBUCH_SCHLUESSEL_KEK ist in der Umgebung der Suite nicht gesetzt. Ohne ihn kann die Suite keine Einsätze freigeben; Stammdaten und Reader funktionieren weiter." },
-  ungueltig: { title: "Der Schlüssel-KEK ist ungültig", description: "EINSATZBUCH_SCHLUESSEL_KEK muss 32 Byte in Base64 sein (erzeugen mit openssl rand -base64 32)." },
-  kek_passt_nicht: { title: "Der Schlüssel-KEK passt nicht zum Schlüsselpaar", description: "Mit dem gesetzten KEK lässt sich der private Schlüssel nicht lesen. Stell den richtigen KEK ein oder lege den Schlüssel aus der Notfall-Sicherung neu ab." },
-  entwicklungs_kek: { title: "Der Entwicklungs-KEK ist aktiv", description: "EINSATZBUCH_SCHLUESSEL_KEK ist der Entwicklungs-KEK. Er steht im Repo und taugt nur für die lokale Entwicklung. Setz einen eigenen KEK (openssl rand -base64 32) und lege den Schlüssel damit aus der Notfall-Sicherung neu ab." },
-  // Ohne Paar gibt es nichts aus der Notfall-Sicherung abzulegen: erst ein eigener KEK, dann erzeugen.
-  entwicklungs_kek_ohne_paar: { title: "Der Entwicklungs-KEK ist aktiv", description: "EINSATZBUCH_SCHLUESSEL_KEK ist der Entwicklungs-KEK. Er steht im Repo und taugt nur für die lokale Entwicklung. Setz einen eigenen KEK (openssl rand -base64 32) und erzeuge danach das Schlüsselpaar mit pnpm einsatzbuch:schluessel erzeugen." },
-  paar_fehlt: { title: "Noch kein Schlüsselpaar", description: "Erzeuge es einmalig mit pnpm einsatzbuch:schluessel erzeugen (Runbook „Einsatzbuch-Schlüssel“)." },
+  fehlt: { title: "Die Verschlüsselung ist auf dem Server nicht eingerichtet", description: `${OHNE_FREIGABE} ${TECHNIK}` },
+  ungueltig: { title: "Die Verschlüsselung ist auf dem Server falsch eingerichtet", description: `${OHNE_FREIGABE} ${TECHNIK}` },
+  kek_passt_nicht: { title: "Der Server kann den Schlüssel des Einsatztagebuchs nicht lesen", description: `${OHNE_FREIGABE} ${TECHNIK}` },
+  entwicklungs_kek: { title: "Die Verschlüsselung läuft mit einem Testschlüssel", description: `Der Testschlüssel ist öffentlich bekannt und schützt die Einsätze nicht. ${TECHNIK}` },
+  paar_fehlt: { title: "Das Einsatztagebuch hat noch keinen Schlüssel", description: `${OHNE_FREIGABE} ${TECHNIK}` },
 };
 
 export function KekHinweis({ status }: { status: Schluesselstatus }) {
   // Der Entwicklungs-KEK geht vor: erst ein eigener KEK, dann lohnt der Blick auf das Paar.
   const schluessel =
     status.kek !== "ok" ? status.kek
-    : status.entwicklungsKekInProduktion ? (status.paar === "fehlt" ? "entwicklungs_kek_ohne_paar" : "entwicklungs_kek")
+    : status.entwicklungsKekInProduktion ? "entwicklungs_kek"
     : status.paar === "fehlt" ? "paar_fehlt"
     : status.paar === "kek_passt_nicht" ? "kek_passt_nicht"
     : null;
   const t = schluessel ? TEXT[schluessel] : undefined;
   if (!t) return null;
-  return <Alert type="warning" showIcon title={t.title} description={t.description} data-testid="kek-hinweis" />;
+  return <Alert type="warning" showIcon title={t.title} description={t.description} data-testid="kek-hinweis" data-ursache={schluessel} />;
 }
