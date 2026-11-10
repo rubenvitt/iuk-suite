@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import { createCache, extractStyle, StyleProvider } from "@ant-design/cssinjs";
 import { Button, Checkbox, ConfigProvider } from "antd";
 import { ARBEITSDICHTE, buildTheme } from "@/core/theme/theme";
-import { FEST_HELL } from "./festHell";
+import { FEST_HELL } from "./festHellThema";
 import { FestHell } from "./FestHell";
 
 const DRUCK_CSS = readFileSync("src/app/m/lagerbuch/verwaltung/(druck)/druck.css", "utf8");

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { ConfigProvider } from "antd";
-import { FEST_HELL } from "./festHell";
+import { FEST_HELL } from "./festHellThema";
 
 /**
  * DIE DRUCKFLÄCHEN BLEIBEN HELL, AUCH IM DUNKELMODUS (IDA-380).
