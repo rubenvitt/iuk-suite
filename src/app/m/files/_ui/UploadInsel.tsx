@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 import { loescheEntwurf } from "@/core/entwurf/ablage";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
@@ -11,6 +10,7 @@ import { anlegenAction, type AnlegenErgebnis } from "../(verwaltung)/actions";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
 import { FILES_CHUNK_BYTES } from "../_lib/grenzen";
 import { MIME_ALLOWLIST } from "../_lib/mime";
+import { FreigabeLink } from "./FreigabeLink";
 import css from "./uploadInsel.module.css";
 
 /**
@@ -149,6 +149,12 @@ export interface UploadInselProps {
   readonly maxDateienProShare: number;
   /** `FILES_MAX_DATEI_BYTES`, EINHEIT BYTES — nur fuer den Hinweistext. */
   readonly maxDateiBytes: number;
+  /**
+   * Die öffentliche Adresse OHNE Kennung, z. B. `https://dateien.…/s/` — aus
+   * `oeffentlicheUrl("verwaltung", "/s/", …)` der Seite. Hier entsteht daraus
+   * der Link, der nach dem Hochladen zum Weitergeben dasteht (IDA-388).
+   */
+  readonly linkBasis: string;
 }
 
 const ENTWURF = "files:freigabe:neu";
@@ -157,13 +163,24 @@ export function UploadInsel({
   maxAblaufTage,
   maxDateienProShare,
   maxDateiBytes,
+  linkBasis,
 }: UploadInselProps) {
   const [state, formAction, laeuftAnlegen] = useActionState(anlegenSchritt, START);
   const [auswahl, setAuswahl] = useState<File[]>([]);
   const [eintraege, setEintraege] = useState<Eintrag[]>([]);
-  const [werte, setWerte] = useState<Werte>(LEERE_WERTE);
-  /** Die angelegte Freigabe — nur als Kennung am Markup, ohne Link (siehe unten). */
-  const [shareId, setShareId] = useState<string | null>(null);
+  /* Die Laufzeit steht auf der HOECHSTEN erlaubten Zahl (IDA-388). Der Alt-Defekt
+     war eine KUERZERE Vorbelegung (`useState(1)`, jeder Share nach dem
+     Korrigieren des Titels auf 24 Stunden); die Obergrenze verkuerzt nichts. */
+  const [werte, setWerte] = useState<Werte>(() => ({
+    ...LEERE_WERTE,
+    expiryDays: String(maxAblaufTage),
+  }));
+  /** Die angelegte Freigabe — fuer die Ausgabe des Links nach dem Hochladen. */
+  const [angelegt, setAngelegt] = useState<{
+    shareId: string;
+    titel: string;
+    qrDateiname: string;
+  } | null>(null);
 
   /** `fileId` → die gewaehlte Datei; das Wiederholen braucht sie nach dem Rendern. */
   const dateienRef = useRef(new Map<string, File>());
@@ -367,7 +384,7 @@ export function UploadInsel({
     if (!state.ok) return;
     if (gestartetRef.current === state.shareId) return;
     gestartetRef.current = state.shareId;
-    setShareId(state.shareId);
+    setAngelegt({ shareId: state.shareId, titel: state.titel, qrDateiname: state.qrDateiname });
 
     const paare = state.dateien.map((gemeldet, i) => ({ ...gemeldet, datei: auswahl[i] }));
     setEintraege(
@@ -459,10 +476,11 @@ export function UploadInsel({
           </label>
 
           <label className={css.feld}>
-            <span className={css.beschriftung}>Laufzeit in Tagen</span>
+            <span className={css.beschriftung}>Laufzeit in Tagen (1–{maxAblaufTage})</span>
             <Input
               name="expiryDays"
               type="number"
+              inputMode="numeric"
               min={1}
               max={maxAblaufTage}
               value={werte.expiryDays}
@@ -474,9 +492,6 @@ export function UploadInsel({
               }
             />
           </label>
-          {/* KEINE Vorbelegung fuer die Laufzeit: ein geratener Wert ist genau
-              der Alt-Defekt in gruen — `useState(1)` verkuerzte dort jeden
-              Share auf 24 Stunden, sobald jemand nur den Titel korrigierte. */}
           {!state.ok && state.feldFehler.expiryDays && (
             <p id="fi-expiry-fehler" className={css.fehlermeldung}>
               {state.feldFehler.expiryDays}
@@ -488,6 +503,7 @@ export function UploadInsel({
             <Input
               name="maxDownloads"
               type="number"
+              inputMode="numeric"
               min={1}
               value={werte.maxDownloads}
               onChange={(e) => setWerte((w) => ({ ...w, maxDownloads: e.target.value }))}
@@ -561,10 +577,11 @@ export function UploadInsel({
       {eintraege.length > 0 && (
         <Card>
           <h2>Übertragung</h2>
-          {/* Die Kennung steht als ATTRIBUT da und nicht als Link: `/shares/<id>`
-              (T41) und `/s/<id>` (T40) entstehen erst in Welle 7, ein Link
-              dorthin waere heute ein Einstiegspunkt in einen 404. */}
-          <ul className={css.liste} data-testid="files-upload-liste" data-share-id={shareId ?? ""}>
+          <ul
+            className={css.liste}
+            data-testid="files-upload-liste"
+            data-share-id={angelegt?.shareId ?? ""}
+          >
             {eintraege.map((e) => (
               <li
                 key={e.fileId}
@@ -641,15 +658,14 @@ export function UploadInsel({
                 title="Alle Dateien sind übertragen."
                 description="Die Virenprüfung läuft noch; erst danach ist die Freigabe herunterladbar."
               />
-              {/*
-               * ZURUECK ZUR UEBERSICHT und NICHT auf `/shares/<id>` oder
-               * `/s/<id>`: beide Seiten entstehen erst in Welle 7 und waeren
-               * heute ein Einstiegspunkt in einen 404 — genau die Gegenprobe
-               * aus `docs/design/README.md:238-242`.
-               */}
-              <p>
-                <Link href="/">Zurück zur Übersicht</Link>
-              </p>
+              {angelegt !== null && (
+                <FreigabeLink
+                  shareId={angelegt.shareId}
+                  titel={angelegt.titel}
+                  adresse={`${linkBasis}${angelegt.shareId}`}
+                  qrDateiname={angelegt.qrDateiname}
+                />
+              )}
             </>
           )}
         </Card>

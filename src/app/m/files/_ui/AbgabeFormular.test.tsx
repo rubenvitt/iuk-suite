@@ -695,9 +695,11 @@ describe("AbgabeFormular — der Absende-Knopf als Einstiegspunkt", () => {
     // nicht kleiner, und bei einer mehrteiligen wäre die Antwort ein 404 auf die
     // verworfene Zeile.
     expect(aufrufe).toHaveLength(bisher);
-    // Der Knopf sagt das auch — ein aktiver Knopf, der nichts auslöst, ist auf
-    // einem fremden Handy von „hat nicht reagiert" nicht zu unterscheiden.
-    expect(knopf().disabled).toBe(true);
+    // IDA-388: der Knopf bleibt aktiv und sagt am Dateifeld, was fehlt — ein
+    // gesperrter Knopf, der aussieht wie ein aktiver, war auf einem fremden Handy
+    // von „hat nicht reagiert" nicht zu unterscheiden.
+    expect(knopf().disabled).toBe(false);
+    expect(query('[data-testid="auswahl-fehler"]').textContent).toBe("Bitte andere Dateien auswählen.");
   });
 
   it("weicht nach einem vollständigen Lauf der Erfolgsansicht", async () => {
@@ -745,12 +747,28 @@ describe("AbgabeFormular — der Absende-Knopf als Einstiegspunkt", () => {
     expect(queryAll('[data-testid="abgabe-eintrag"]')).toHaveLength(0);
     expect(query<HTMLTextAreaElement>("#abgabe-hinweis").value).toBe("");
     expect(queryAll<HTMLInputElement>('input[type="radio"]:checked')).toHaveLength(0);
-    expect(knopf().disabled).toBe(true);
+    expect(knopf().disabled).toBe(false);
+  });
+
+  it("meldet ohne Datei „Bitte zuerst Dateien auswählen“ am Dateifeld (IDA-388)", async () => {
+    await mount(<AbgabeFormular token={TOKEN} />);
+    expect(knopf().disabled).toBe(false);
+    await abgeben();
+
+    expect(aufrufe).toHaveLength(0);
+    const fehler = query('[data-testid="auswahl-fehler"]');
+    expect(fehler.textContent).toBe("Bitte zuerst Dateien auswählen.");
+    const feld = query<HTMLInputElement>("#abgabe-dateien");
+    expect(feld.getAttribute("aria-describedby")).toBe(fehler.id);
+    expect(document.activeElement).toBe(feld);
+
+    // Eine Auswahl nimmt die Meldung zurück.
+    await waehle([datei("eins.txt", "text/plain", 10)]);
+    expect(exists('[data-testid="auswahl-fehler"]')).toBe(false);
   });
 
   it("wird durch eine neue Dateiauswahl wieder bedienbar", async () => {
     await ersteEndgueltigAbgelehnt();
-    expect(knopf().disabled).toBe(true);
 
     // Der Weg nach vorn, der den deaktivierten Knopf erst zulässig macht: andere
     // Dateien wählen. Ohne ihn wäre die Seite nach einer Ablehnung tot.

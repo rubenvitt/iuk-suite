@@ -8,6 +8,7 @@ import { nanoid } from "nanoid";
 import { getDb } from "@/app/m/files/_db/client";
 import { zugangslinks } from "@/app/m/files/_db/schema";
 import { requireFilesAccess } from "@/app/m/files/_lib/access";
+import { BYTES_PRO_MIB } from "@/app/m/files/_lib/bytetext";
 import { grenzen } from "@/app/m/files/_lib/grenzen";
 import { erzeugeToken, tokenHash } from "@/app/m/files/_lib/token";
 
@@ -152,7 +153,7 @@ export async function zugangslinkAnlegenAction(
   const viewer = await requireFilesAccess();
   return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<AnlegenErgebnis> => {
 
-    const values = textfelder(formData, ["name", "laufzeitStunden", "budgetDateien", "budgetBytes"]);
+    const values = textfelder(formData, ["name", "laufzeitStunden", "budgetDateien", "budgetMib"]);
     const fieldErrors: Record<string, string> = {};
 
     const name = values.name.trim();
@@ -171,9 +172,11 @@ export async function zugangslinkAnlegenAction(
     const budgetDateien =
       zahl(formData, "budgetDateien", { min: 1, leerErlaubt: true }, fieldErrors) ??
       vorgabe.inboxBudgetDateien;
-    const budgetBytes =
-      zahl(formData, "budgetBytes", { min: 1, leerErlaubt: true }, fieldErrors) ??
-      vorgabe.inboxBudgetBytes;
+    // IDA-388: gefragt wird in MiB, gespeichert in Bytes — eine rohe Bytezahl
+    // im Formular war Betriebssprache. MiB und nicht MB: die Liste zeigt das
+    // Restbudget binaer (`byteText`), und das Feld fragt in derselben Einheit.
+    const budgetMib = zahl(formData, "budgetMib", { min: 1, leerErlaubt: true }, fieldErrors);
+    const budgetBytes = budgetMib === null ? vorgabe.inboxBudgetBytes : budgetMib * BYTES_PRO_MIB;
 
     if (Object.keys(fieldErrors).length > 0 || laufzeitStunden === null) {
       return { ok: false, fieldErrors, values };
@@ -231,7 +234,7 @@ export async function zugangslinkAnlegenAction(
  * `UPDATE` bleibt ein `budget + ?` und kann damit keinen gleichzeitig laufenden
  * Upload überschreiben (dieselbe Regel wie in `_db/zaehler.ts`), und eine
  * absolute Zahl ließe sich versehentlich NACH UNTEN setzen — mitten in einem
- * Vorgang. Die Feldnamen sagen es (`zusatzDateien`, `zusatzBytes`).
+ * Vorgang. Die Feldnamen sagen es (`zusatzDateien`, `zusatzMib`).
  *
  * Beschränkt auf gültige, nicht widerrufene Links: ein widerrufener Link soll
  * durch Aufstocken nicht wieder auferstehen, ein abgelaufener nicht heimlich
@@ -244,14 +247,15 @@ export async function kontingentAufstockenAction(
   const auditViewer = await requireFilesAccess();
   return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ZugangslinkFormState> => {
 
-    const values = textfelder(formData, ["id", "zusatzDateien", "zusatzBytes"]);
+    const values = textfelder(formData, ["id", "zusatzDateien", "zusatzMib"]);
     const fieldErrors: Record<string, string> = {};
 
     const id = values.id.trim();
     if (id === "") fieldErrors.id = "Kein Abgabelink angegeben.";
 
     const zusatzDateien = zahl(formData, "zusatzDateien", { min: 1, leerErlaubt: true }, fieldErrors);
-    const zusatzBytes = zahl(formData, "zusatzBytes", { min: 1, leerErlaubt: true }, fieldErrors);
+    const zusatzMib = zahl(formData, "zusatzMib", { min: 1, leerErlaubt: true }, fieldErrors);
+    const zusatzBytes = zusatzMib === null ? null : zusatzMib * BYTES_PRO_MIB;
 
     // OHNE diese Prüfung wäre `budget + 0` für SQLite eine geänderte Zeile:
     // `changes === 1`, also „hat geklappt" für einen Vorgang, der nichts getan
