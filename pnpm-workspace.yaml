@@ -28,6 +28,13 @@ allowBuilds:
 # Patch haengt einen leeren `error`-Zuhoerer an und stellt damit Nodes eigene Regel wieder her
 # (ohne Zuhoerer kein `error`); wer den Koerper liest, bekommt den Fehler weiter. Bis 16.4 canary
 # unveraendert upstream. `src/next-anfrageabbruch.test.ts` misst die WIRKUNG in einem Kindprozess.
+#
+# Der Patch an @rc-component/input-number (IDA-394) setzt zwei Vorgaben fuer jedes antd-`InputNumber`
+# der Suite, die antd weder hat noch ueber `ConfigProvider` setzen laesst: die Zifferntastatur am
+# Telefon (`inputMode` aus `precision`/`step`/`min`) und das Komma als Dezimaltrenner (ohne wurde
+# „231,5" still 2315). Damit braucht kein Modul etwas dafuer zu tun. Wie beim util-Patch wandert die
+# Version mit antd; `src/core/formular/zahlenfelder.test.tsx` misst die WIRKUNG ueber antd.
 patchedDependencies:
+  '@rc-component/input-number@1.6.2': patches/@rc-component__input-number@1.6.2.patch
   '@rc-component/util@1.13.0': patches/@rc-component__util@1.13.0.patch
   next@16.3.3: patches/next@16.3.3.patch

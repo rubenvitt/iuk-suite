@@ -260,6 +260,7 @@ export function BearbeitenFormular(props: BearbeitenFormularProps) {
             name={ablaufGeaendert ? "expiryDays" : undefined}
             data-testid="files-bearbeiten-ablauf"
             type="number"
+            inputMode="numeric"
             min={1}
             value={tage}
             onChange={(e) => setTage(e.target.value)}
@@ -298,6 +299,7 @@ export function BearbeitenFormular(props: BearbeitenFormularProps) {
             /* IMMER mit `name` — Begruendung im Kopfkommentar. */
             name="maxDownloads"
             type="number"
+            inputMode="numeric"
             min={1}
             value={limit}
             onChange={(e) => setLimit(e.target.value)}
