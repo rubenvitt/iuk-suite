@@ -1,5 +1,10 @@
+import { headers } from "next/headers";
+import { connection } from "next/server";
 import { Button } from "antd";
 import { Ruhezustand } from "@/core/ruhe";
+import { resolveHost } from "@/core/routing";
+import { leseZugangsauskunft, modulWurzelOffen, portalUrl } from "./_lib/zugangsseite";
+import { Zugangszeilen } from "./_lib/Zugangszeilen";
 import styles from "./not-found.module.css";
 
 /**
@@ -23,8 +28,16 @@ import styles from "./not-found.module.css";
  * HAARLINIE (IDA-347, Etappe 3): ein Ruhezustand mit Figur (`core/ruhe`, Lage
  * `fehlt`), der Satz als einzige Ueberschrift, ein Weg zurueck, die Ziffer
  * leise darunter. Status 404 setzt Next.js; die Ziffer ist Schmuck.
+ *
+ * KEINE SCHLEIFE (IDA-392): wer angemeldet ist und die Modulwurzel nicht sehen darf, bekam von
+ * „Zur Startseite" dieselbe Seite wieder. Dann fuehrt der Weg ins Portal (`modulWurzelOffen`), und
+ * darunter steht, mit welchem Konto man angemeldet ist und wen man um einen Zugang fragt.
  */
-export default function NotFound() {
+export default async function NotFound() {
+  await connection();
+  const host = resolveHost(await headers());
+  const auskunft = await leseZugangsauskunft();
+  const zurStartseite = auskunft.gruppen === null || modulWurzelOffen(host, auskunft.gruppen);
   return (
     <main className={styles.seite}>
       <Ruhezustand
@@ -41,11 +54,18 @@ export default function NotFound() {
            *
            * Kein `size` (Falle 4).
            */
-          <Button type="primary" href="/">
-            Zur Startseite
-          </Button>
+          zurStartseite ? (
+            <Button type="primary" href="/">
+              Zur Startseite
+            </Button>
+          ) : (
+            <Button type="primary" href={portalUrl()}>
+              Zum Portal
+            </Button>
+          )
         }
       />
+      <Zugangszeilen auskunft={auskunft} oderZugang />
       <p className={styles.ziffer} aria-hidden="true">
         404
       </p>

@@ -14,7 +14,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
  */
 export function kommplanNav(admin: boolean): SuiteNavItem[] {
   const eintraege: SuiteNavItem[] = [
-    { key: "plaene", title: "Pläne", href: "/", ikon: "plaene" },
+    { key: "plaene", title: "Pläne", href: "/", ikon: "plaene", auffang: true },
     { key: "archiv", title: "Archiv", href: "/archiv", ikon: "archiv" },
   ];
   if (admin) {

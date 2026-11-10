@@ -136,7 +136,7 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
   it("kein href traegt die innere Form /m/radio", () => {
     /*
      * `Spec:4212-4216`: „Zwei Formen desselben Pfades, und sie werden nie vermischt." Der
-     * `href` traegt die AEUSSERE Form, weil `aktiverEintrag` sie per Suffix aufloest
+     * `href` traegt die AEUSSERE Form, weil `aktiverEintrag` sie per Pfadanfang aufloest
      * (`lagerbuch/_lib/nav.ts:6-7`); die INNERE Form `/m/radio/...` gehoert allein
      * `revalidatePath`, das den Router-Cache adressiert und nicht die Adresszeile.
      *

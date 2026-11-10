@@ -169,17 +169,22 @@ export interface SuiteNavItem {
    */
   abschnitt?: string;
   /**
+   * Dieser Eintrag nimmt die Seiten des Moduls auf, die zu KEINEM Eintrag
+   * gehoeren — markiert als Abschnitt (`aria-current="true"`). Nur setzen, wo
+   * das fachlich stimmt: an einer Liste, deren Detailseiten anderswo liegen
+   * (QR-Generator -> `/wifi`, Plaene -> `/p/<id>`), nie an einer „Übersicht",
+   * sonst steht sie auf dem Profil oder dem Etikettendruck hervorgehoben
+   * (IDA-392). Ohne das Feld markiert eine solche Seite nichts. Regel:
+   * `aktiverEintrag` in `SuiteNav.tsx`.
+   */
+  auffang?: boolean;
+  /**
    * Weitere Wörter, unter denen „Springen zu" (`befehle.ts`) diesen Eintrag
    * findet — die Begriffe, die jemand sucht, bevor er die Beschriftung kennt
    * (IDA-380: „Wareneingang" → „Auffüllen"). Nie sichtbar; wer nichts
    * übergibt, bekommt genau die Suche von vorher.
    */
   stichworte?: string[];
-  /**
-   * Pfade UNTER diesem Eintrag (`<href>/…`, etwa eine Akte unter ihrer Liste) markieren ihn mit
-   * (`aria-current="true"`). Opt-in, weil es sonst die Markierung jedes Moduls verschöbe.
-   */
-  unterseiten?: boolean;
 }
 
 /**

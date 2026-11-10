@@ -243,6 +243,11 @@ describe("aktiverEintrag gegen aufgabenNav — die Wurzel gewinnt nicht gegen ei
     const alina = legePerson("dev:alina@test", "bufdi");
     expect(aktiverEintrag("/", aufgabenNav(akteur(alina), HEUTE))).toEqual({ schluessel: "start", genau: true });
   });
+
+  it("/a/<id> faellt als Auffang auf 'start' — die Aufgabe gehoert zur Liste (IDA-392)", () => {
+    const alina = legePerson("dev:alina@test", "bufdi");
+    expect(aktiverEintrag("/a/17", aufgabenNav(akteur(alina), HEUTE))).toEqual({ schluessel: "start", genau: false });
+  });
 });
 
 describe("DIE KERNZUSAGE: jeder Navigationseintrag ist fuer die jeweilige Rolle tatsaechlich erreichbar", () => {

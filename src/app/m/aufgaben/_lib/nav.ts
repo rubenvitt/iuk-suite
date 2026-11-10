@@ -41,7 +41,7 @@ import {
  * `files/_lib/nav.ts`, das ebenfalls ohne auskommt.
  */
 export function aufgabenNav(akteur: Akteur, heute: string): SuiteNavItem[] {
-  const eintraege: SuiteNavItem[] = [{ key: "start", title: "Aufgaben", href: "/" }];
+  const eintraege: SuiteNavItem[] = [{ key: "start", title: "Aufgaben", href: "/", auffang: true }];
 
   eintraege.push({ key: "neu", title: "Aufgabe einstellen", href: "/neu" });
 

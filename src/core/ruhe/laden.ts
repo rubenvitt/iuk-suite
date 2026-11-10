@@ -23,6 +23,7 @@ export const LADER: Record<Figur, () => Promise<{ default: Montiere }>> = {
   lockers: () => import("./figuren/lockers"),
   padlock: () => import("./figuren/padlock"),
   plot: () => import("./figuren/plot"),
+  plug: () => import("./figuren/plug"),
   query: () => import("./figuren/query"),
   rail: () => import("./figuren/rail"),
   relay: () => import("./figuren/relay"),

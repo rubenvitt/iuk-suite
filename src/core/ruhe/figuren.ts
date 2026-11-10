@@ -23,6 +23,7 @@ export const FIGUREN = [
   "lockers",
   "padlock",
   "plot",
+  "plug",
   "query",
   "rail",
   "relay",
@@ -61,6 +62,7 @@ export const LAGE_FIGUR = {
   zugriff: "padlock",
   fehlt: "query",
   erledigt: "format", // jede Zeile rückt gerade
+  stoerung: "plug", // ein gezogener Stecker: der Fehler liegt nicht bei der Person
 } as const satisfies Record<string, Figur>;
 
 export type RuheSchluessel = keyof typeof MODUL_FIGUR | keyof typeof LAGE_FIGUR;

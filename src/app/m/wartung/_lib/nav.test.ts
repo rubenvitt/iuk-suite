@@ -18,9 +18,8 @@ describe("Menümarkierung der Gerätewartung", () => {
     expect(aktiverEintrag(pfad, VERWALTER)).toEqual({ schluessel, genau });
   });
 
-  it("die Übersicht gilt nur exakt, ihre Nachbarn auch darunter", () => {
-    expect(VERWALTER.find((e) => e.href === "/")?.unterseiten).toBeUndefined();
-    expect(VERWALTER.filter((e) => e.href !== "/").every((e) => e.unterseiten)).toBe(true);
+  it("die Übersicht gilt nur exakt: eine Seite ohne Eintrag markiert nichts (IDA-392)", () => {
+    expect(aktiverEintrag("/unbekannt", VERWALTER)).toBeNull();
   });
 
   it("wer nur prüft, hat „Geräte“ auch in der Akte markiert", () => {

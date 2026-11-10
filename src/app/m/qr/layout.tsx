@@ -23,7 +23,7 @@ export default async function QrLayout({ children }: { children: React.ReactNode
       variant={mod.shell}
       moduleKey={mod.key}
       nav={[
-        { key: "start", title: "Generator", href: "/" },
+        { key: "start", title: "Generator", href: "/", auffang: true },
         ...(darfVerwalten ? [{ key: "admin", title: "Schnellzugriffe", href: "/admin" }] : []),
       ]}
     >

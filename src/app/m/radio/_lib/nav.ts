@@ -8,7 +8,7 @@ import type { RadioRolle } from "./rollen";
  * Dieser Wert wird von einer Server Component gelesen und liegt deshalb bewusst in
  * `_lib/` OHNE "use client" (Falle 6). Die hrefs tragen die AEUSSERE Pfadform, damit
  * `aktiverEintrag` sie sowohl gegen aeussere als auch gegen umgeschriebene Pfade per
- * Suffix aufloesen kann (Vorbild `lagerbuch/_lib/nav.ts:1-20`).
+ * Pfadanfang aufloesen kann (Vorbild `lagerbuch/_lib/nav.ts:1-20`).
  *
  * ⛔ EINE FUNKTION UND KEINE KONSTANTE, und der Parameter ist die Rechtestufe
  * (Spec:4203-4210, Spec:4289): „Ohne diesen Parameter sieht eine Person der Updater-Stufe
@@ -59,8 +59,8 @@ const NUR_ADMIN: readonly string[] = ["import", "versionen", "zugaenge"];
  */
 const EINTRAEGE: SuiteNavItem[] = [
   { key: "uebersicht", title: "Übersicht", href: "/admin", ikon: "uebersicht" },
-  // `unterseiten`: Akte und Änderungshistorie (`/admin/geraete/<id>…`) markieren „Geräte" mit.
-  { key: "geraete", title: "Geräte", href: "/admin/geraete", ikon: "geraete", unterseiten: true },
+  // Akte und Änderungshistorie (`/admin/geraete/<id>…`) markieren „Geräte" mit (Pfadanfang, IDA-392).
+  { key: "geraete", title: "Geräte", href: "/admin/geraete", ikon: "geraete" },
   { key: "ausleihen", title: "Ausleihen", href: "/admin/ausleihen", ikon: "ausleihen" },
   // ⚠️ Titel und Pfad gehen hier AUSEINANDER, und beides ist so gewollt: die Flaeche heisst
   // auf dem Bildschirm „Update-Modus" (Spec:4201), ihr Pfad ist `/admin/software`

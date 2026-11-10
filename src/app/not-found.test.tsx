@@ -1,9 +1,35 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { Zugangsauskunft } from "./_lib/zugangsseite";
+
+const mocks = vi.hoisted(() => ({
+  host: "portal.localtest.me:3000",
+  auskunft: { gruppen: null, konto: null, ansprechpartner: null } as Zugangsauskunft,
+}));
+vi.mock("next/server", () => ({ connection: async () => undefined }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: mocks.host }) }));
+vi.mock("./_lib/zugangsseite", async (original) => ({
+  ...(await original<typeof import("./_lib/zugangsseite")>()),
+  leseZugangsauskunft: async () => mocks.auskunft,
+  portalUrl: () => "https://suite.example.org/",
+}));
+
 import NotFound from "./not-found";
+import Forbidden from "./forbidden";
+
+const ANONYM: Zugangsauskunft = { gruppen: null, konto: null, ansprechpartner: null };
+async function seite(
+  komponente: () => Promise<React.ReactElement>,
+  host: string,
+  auskunft: Zugangsauskunft,
+): Promise<string> {
+  mocks.host = host;
+  mocks.auskunft = auskunft;
+  return renderToStaticMarkup(await komponente());
+}
 
 /**
  * DIE SUITEWEITE 404-SEITE.
@@ -34,7 +60,10 @@ const CSS_CODE = ohneKommentare(CSS);
 const TSX_CODE = ohneKommentare(quelle("not-found.tsx"));
 
 describe("404: die Seite sagt, was los ist", () => {
-  const markup = renderToStaticMarkup(<NotFound />);
+  let markup = "";
+  beforeEach(async () => {
+    markup = await seite(NotFound, "portal.localtest.me:3000", ANONYM);
+  });
 
   it("ist ein Ruhezustand mit der Figur fuer \u201enicht gefunden\u201c und dem Satz als Ueberschrift", () => {
     expect(markup).toContain('data-figur="query"');
@@ -58,6 +87,56 @@ describe("404: die Seite sagt, was los ist", () => {
     // `\ssize=` und nicht `size=`: sonst schlaegt die Zusicherung auch bei
     // `fontSize=` an und zeigt auf die falsche Regel.
     expect(TSX_CODE).not.toMatch(/\ssize=/);
+  });
+});
+
+describe("404: keine Schleife ohne Modulzugang (IDA-392)", () => {
+  const OHNE_GRUPPE: Zugangsauskunft = { gruppen: [], konto: "person@example.org", ansprechpartner: "Leitung I&K" };
+
+  it("angemeldet, Modulwurzel verriegelt: der Weg fuehrt ins Portal, nicht zurueck auf `/`", async () => {
+    const markup = await seite(NotFound, "wartung.localtest.me:3000", OHNE_GRUPPE);
+    const links = [...markup.matchAll(/href="([^"]*)"/g)].map((m) => m[1]);
+    expect(links).toEqual(["https://suite.example.org/"]);
+    expect(markup).toContain("Zum Portal");
+  });
+
+  it("angemeldet, Modulwurzel offen: zurueck zur Startseite des Moduls", async () => {
+    const markup = await seite(NotFound, "wartung.localtest.me:3000", { ...OHNE_GRUPPE, gruppen: ["wartung-nutzer"] });
+    expect([...markup.matchAll(/href="([^"]*)"/g)].map((m) => m[1])).toEqual(["/"]);
+  });
+
+  it("nennt Konto und Ansprechpartner, ohne zu verraten, ob die Seite fehlt oder der Zugang", async () => {
+    const markup = await seite(NotFound, "wartung.localtest.me:3000", OHNE_GRUPPE);
+    expect(markup).toContain("Oder dir fehlt der Zugang. Ansprechpartner: Leitung I&amp;K");
+    expect(markup).toContain("Angemeldet als person@example.org");
+    // Die Ueberschrift bleibt der neutrale Satz.
+    expect(markup).toMatch(/<h1[^>]*>Diese Seite gibt es hier nicht\.<\/h1>/);
+  });
+
+  it("ohne gepflegten Ansprechpartner bleibt der Satz ohne Doppelpunkt stehen", async () => {
+    const markup = await seite(NotFound, "wartung.localtest.me", { ...OHNE_GRUPPE, ansprechpartner: null });
+    expect(markup).toContain("Oder dir fehlt der Zugang.</p>");
+    expect(markup).not.toContain("Ansprechpartner");
+  });
+
+  it("nicht angemeldet: keine Zeilen ueber Konto oder Zugang", async () => {
+    const markup = await seite(NotFound, "wartung.localtest.me", ANONYM);
+    expect(markup).not.toContain('data-testid="zugangszeilen"');
+  });
+});
+
+describe("403: Ansprechpartner und Konto (IDA-392)", () => {
+  it("zeigt den Weg ins Portal, den Ansprechpartner und das angemeldete Konto", async () => {
+    const markup = await seite(Forbidden, "aufgaben.localtest.me", {
+      gruppen: [],
+      konto: "person@example.org",
+      ansprechpartner: "Leitung I&K",
+    });
+    expect(markup).toMatch(/<h1[^>]*>Kein Zugriff<\/h1>/);
+    expect([...markup.matchAll(/href="([^"]*)"/g)].map((m) => m[1])).toEqual(["https://suite.example.org/"]);
+    expect(markup).toContain(">Ansprechpartner: Leitung I&amp;K</p>");
+    expect(markup).toContain("Angemeldet als person@example.org");
+    expect(markup).not.toContain("Oder dir fehlt");
   });
 });
 
