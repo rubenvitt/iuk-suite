@@ -441,9 +441,9 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
       <Modal
         open={offen}
         title={CODE_TEXTE.neu}
-        onCancel={() => setOffen(false)}
+        onCancel={() => { if (!legtAn) setOffen(false); }}
         footer={[
-          <Button key="abbrechen" onClick={() => setOffen(false)}>
+          <Button key="abbrechen" disabled={legtAn} onClick={() => setOffen(false)}>
             {CODE_TEXTE.abbrechen}
           </Button>,
           <Button
