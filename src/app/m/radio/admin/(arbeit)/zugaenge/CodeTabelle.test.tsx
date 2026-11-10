@@ -726,12 +726,24 @@ describe("radio-Zugaenge: das Anlegefeld", () => {
     await click('[data-rolle="radio-neucode-anlegen"]');
     await fillElement(eingabe(), "Aufsteller Halle");
     const feld = eingabe();
+    /* Die Anfrage bleibt offen: ein zweites Enter darf keinen zweiten Code anlegen. */
+    let aufloesen!: (wert: { code: string }) => void;
+    erstelleMock.mockReturnValueOnce(
+      new Promise<{ code: string }>((resolve) => {
+        aufloesen = resolve;
+      }),
+    );
     await act(async () => {
-      feld.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }),
-      );
+      for (let i = 0; i < 2; i++) {
+        feld.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }),
+        );
+      }
     });
-    expect(erstelleMock, "Enter legt nicht an").toHaveBeenCalledTimes(1);
+    expect(erstelleMock, "Enter legt nicht genau einmal an").toHaveBeenCalledTimes(1);
+    await act(async () => {
+      aufloesen({ code: "ABCD" });
+    });
   });
 });
 
@@ -802,6 +814,21 @@ describe("radio-Zugaenge: die ZWEI Fehlerpfade — und der Klartext bleibt draus
       expect(refreshMock, `${pfad.action}: nach einem Wurf wurde nachgeladen`).not.toHaveBeenCalled();
     },
   );
+
+  it("ein Schaltfehler bleibt stehen, wenn der Dialog aufgeht und wieder zu", async () => {
+    setzeMock.mockRejectedValue(new Error("kaputt"));
+    await FEHLERPFADE[1]!.ausloesen();
+    await click('[data-rolle="radio-neucode-anlegen"]');
+    expect(
+      document.body.querySelector('[data-rolle="radio-zugaenge-fehler"]'),
+      "der Schaltfehler steht im Dialog",
+    ).toBeNull();
+    await clickPortal(".ant-modal-footer .ant-btn:not(.ant-btn-primary)");
+    expect(
+      queryPortal('[data-rolle="radio-zugaenge-fehler"]').textContent,
+      "das Oeffnen des Dialogs hat den Schaltfehler geloescht",
+    ).toBe("Der Zustand konnte nicht gespeichert werden.");
+  });
 
   it.each(FEHLERPFADE)("$action: der Erfolgsfall laedt die Liste nach", async (pfad) => {
     /*

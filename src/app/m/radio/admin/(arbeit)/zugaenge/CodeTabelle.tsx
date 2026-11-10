@@ -187,8 +187,10 @@ export type CodeTabelleProps = {
 export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [fehler, setFehler] = useState<string | null>(null);
+  /* Getrennt: das Oeffnen des Dialogs loescht nur einen alten Anlegefehler, nie einen Schaltfehler. */
+  const [anlegeFehler, setAnlegeFehler] = useState<string | null>(null);
   const [offen, setOffen] = useState(false);
+  const [schaltFehler, setSchaltFehler] = useState(null as string | null);
   const [legtAn, setLegtAn] = useState(false); const anlegenLaeuft = useRef(false);
   /*
    * ⛔ EIN SAMMELZUSTAND FUER DIE GANZE TABELLE, UND DAS IST GEWOLLT (REVIEW-V20, N5,
@@ -216,7 +218,7 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
     const sauber = name.trim();
     if (sauber === "" || anlegenLaeuft.current) return;
     anlegenLaeuft.current = true; setLegtAn(true);
-    setFehler(null);
+    setAnlegeFehler(null);
     try {
       await erstelleCode(sauber);
       /* ⛔ NUR DER ERFOLGSFALL LEERT — sonst tippt der Bedienende seine Korrektur neu. */
@@ -229,7 +231,7 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
        * NICHT angezeigt — sie koennte einen Klartext-Code tragen (`V20.md:29`). Der Haustext
        * sagt, was zu tun ist; was schiefging, steht im Serverprotokoll.
        */
-      setFehler(CODE_TEXTE.fehlerAnlegen);
+      setAnlegeFehler(CODE_TEXTE.fehlerAnlegen);
     } finally {
       anlegenLaeuft.current = false; setLegtAn(false);
     }
@@ -237,13 +239,13 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
 
   const umschalten = async (id: string, aktiv: boolean) => {
     setSchaltet(true);
-    setFehler(null);
+    setSchaltFehler(null);
     try {
       await setzeCodeAktiv(id, aktiv);
       router.refresh();
     } catch {
       /* ⛔ Dieselbe Sperre wie oben: die gefangene Meldung verlaesst diese Zeile nicht. */
-      setFehler(CODE_TEXTE.fehlerSchalten);
+      setSchaltFehler(CODE_TEXTE.fehlerSchalten);
     } finally {
       setSchaltet(false);
     }
@@ -429,7 +431,7 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
           type="primary"
           icon={<VIkone name="plus" />}
           onClick={() => {
-            setFehler(null);
+            setAnlegeFehler(null);
             setOffen(true);
           }}
           data-rolle="radio-neucode-anlegen"
@@ -468,9 +470,9 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
           onPressEnter={anlegen}
           data-rolle="radio-neucode-eingabe"
         />
-        {offen && fehler !== null && (
+        {offen && anlegeFehler !== null && (
           <p className={s.dialogFehler} role="alert" data-rolle="radio-zugaenge-fehler">
-            {fehler}
+            {anlegeFehler}
           </p>
         )}
       </Modal>
@@ -489,14 +491,14 @@ export function CodeTabelle({ zeilen, titel, children }: CodeTabelleProps) {
         aria-label={CODE_TEXTE.tabelleName}
         leer={{ nichts: CODE_TEXTE.leer, figur: "radio" }}
       />
-      {!offen && fehler !== null && (
+      {!offen && (schaltFehler ?? anlegeFehler) !== null && (
         /*
           ⛔ KEIN `Alert type="error"` UND KEIN ROTTON: `colorError === colorPrimary`
           (`src/core/theme/theme.ts:32-33`) — ein roter Kasten saehe aus wie die
           Primaeraktion (Falle 3). Dieselbe Form wie `versionen/VersionenTabelle.tsx`.
         */
         <p className={s.dialogFehler} role="alert" data-rolle="radio-zugaenge-fehler">
-          {fehler}
+          {schaltFehler ?? anlegeFehler}
         </p>
       )}
     </div>
