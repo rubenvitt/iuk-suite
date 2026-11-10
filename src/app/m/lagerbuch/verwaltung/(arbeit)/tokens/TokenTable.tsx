@@ -322,7 +322,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       title: "Bezeichnung",
       dataIndex: "label",
       sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.label),
-      render: (label: string) => <Zellentext text={label} style={{ maxWidth: "22ch" }} />,
+      render: (label: string) => <Zellentext text={label} style={{ maxWidth: "16ch" }} />,
     },
     {
       title: "Code",
@@ -384,7 +384,8 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
            */
           <Chip ton="grau" zeichen="schluessel">{ART_TEXT[artVon(zeile)]}</Chip>
         ) : (
-          <div>
+          // IDA-393: Lesebreite, sonst schob ein langer Ortsname Zustand und Aktionen hinaus.
+          <div style={{ maxWidth: "18ch" }}>
             <div>{zeile.ortName}</div>
             {zeile.ortMeta ? <div style={SCHRIFT.neben}>{zeile.ortMeta}</div> : null}
           </div>
