@@ -706,7 +706,7 @@ export function ArtikelDrawer({
             />
           </Form.Item>
           {/*
-            IDA-235: der Satz zu „Handlager (ohne Schrank)" stand dauerhaft
+            IDA-235: der Satz zu „Handlager ohne Schrank" stand dauerhaft
             unter dem Feld; er erklaert einen Eintrag der Liste und steht jetzt
             hinter dem „?" am Feldnamen.
           */}
@@ -714,7 +714,7 @@ export function ArtikelDrawer({
             name="zielLagerortId"
             label="Wohin"
             tooltip={{
-              title: "„Handlager (ohne Schrank)“ heißt: noch nicht einsortiert.",
+              title: "„Handlager ohne Schrank“ heißt: noch nicht einsortiert.",
               icon: <Ikone name="info" groesse={14} />,
             }}
             rules={[{ required: true, message: "Bitte einen Ort wählen" }]}

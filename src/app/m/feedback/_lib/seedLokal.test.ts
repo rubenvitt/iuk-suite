@@ -119,7 +119,7 @@ describe("seedLokalFeedback", () => {
     expect(offen!.evening.id).toBe(abendeMitAntworten(nord.id)[0].abend.id);
 
     // Die Ausbildungsgruppe hat bewusst KEINE offene Umfrage — der Zustand, in
-    // dem das Cockpit "Feedback starten" anbietet.
+    // dem das Cockpit "Umfrage starten" anbietet.
     expect(activeSurveyForGroup(db, ausbildung.id)).toBeUndefined();
 
     const statuus = abendeMitAntworten(nord.id).map((a) => a.umfrage.status);

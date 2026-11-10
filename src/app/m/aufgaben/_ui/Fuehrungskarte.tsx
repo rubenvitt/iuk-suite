@@ -542,7 +542,16 @@ function aktionen(
     // ── BuFDi ───────────────────────────────────────────────────────────────────────────────────
     case "bufdiUeberfaellig":
       return {
-        primaer: einzeln ? zustandsaktion(erste, optionen) : null,
+        // IDA-386: bei n > 1 nennt der Satz „die älteste seit …" — und fuehrt jetzt auch hin.
+        // `erste` IST die aelteste (`nachOrdnung`: `faelligAm` aufsteigend), also kein Griff ins
+        // Beliebige (§4.3), sondern genau die Aufgabe, von der der Satz spricht.
+        primaer: einzeln ? (
+          zustandsaktion(erste, optionen)
+        ) : erste !== null ? (
+          <Button type="primary" href={`/a/${erste.id}`}>
+            Älteste öffnen
+          </Button>
+        ) : null,
         sekundaer: [
           einzeln && props.darfPlanAendern ? (
             <PlanKnopf key="heute" aufgabeId={erste.id} tag={props.heute} beschriftung="Auf heute legen" />

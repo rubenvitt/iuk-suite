@@ -65,8 +65,9 @@
 .bedarf thead th.ist { text-align: center; }
 .unten { font-size: 11px; margin-block-start: 4px; }
 
-/* Markiert Werte ohne Quelle und behobene Rechenfehler; Rahmen statt Farbe. */
-.marke { display: inline-block; margin-inline-start: 5px; padding: 0 4px; border: 1px solid #111; border-radius: 3px; font-size: 9px; font-weight: 600; line-height: 13px; vertical-align: 1px; text-transform: uppercase; letter-spacing: 0.04em; }
+/* Markiert Werte ohne Quelle und behobene Rechenfehler; Rahmen statt Farbe. Mit Kurztext (IDA-390), auf Papier
+   gibt es keinen Tooltip; eigene Zeile unter dem Etikett. */
+.marke { display: table; margin-block-start: 1px; padding: 0 4px; border: 1px solid #111; border-radius: 3px; font-size: 9px; font-weight: 600; line-height: 13px; }
 
 @media screen and (max-width: 767.98px) {
   .blatt { padding: 16px; }

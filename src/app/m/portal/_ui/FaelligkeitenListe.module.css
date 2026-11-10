@@ -1,0 +1,36 @@
+/*
+ * „Was steht an" (IDA-391): eigene Klassen statt `.ant-*` (Falle 20), Farben nur aus `--iuk-*`
+ * (Falle 2). Raster mit `minmax(0, 1fr)`, damit lange Titel bei 320px umbrechen statt überzulaufen.
+ */
+.liste { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; max-inline-size: 820px; }
+.filter { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-inline-size: 0; }
+
+.kopf { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-block-end: 8px; }
+.kopf h2 { margin: 0; min-inline-size: 0; overflow-wrap: anywhere; }
+
+.zeilen { list-style: none; margin: 0; padding: 0; }
+.zeilen > li + li { border-block-start: 1px solid var(--iuk-linie); }
+
+.zeile {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-block-size: 44px;
+  padding: 8px;
+  margin-inline: -8px;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+.inhalt { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; overflow-wrap: anywhere; }
+.oben { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.pfeil { color: var(--iuk-gedaempft); transition: transform var(--iuk-feder-dauer, 150ms) var(--iuk-feder, ease); }
+
+a.zeile:hover, a.zeile:focus-visible { background: var(--iuk-flaeche-aktiv); }
+a.zeile:hover .titel, a.zeile:focus-visible .titel { text-decoration: underline; text-underline-offset: 3px; }
+a.zeile:hover .pfeil, a.zeile:focus-visible .pfeil { color: var(--iuk-tinte); transform: translateX(2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pfeil { transition: none; }
+}

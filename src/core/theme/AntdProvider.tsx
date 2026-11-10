@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { App, ConfigProvider } from "antd";
 import deDE from "antd/locale/de_DE";
+import { FORMULAR_VORGABEN } from "@/core/formular/vorgaben";
 import { buildTheme, type ThemeMode, type ThemePreference } from "@/core/theme/theme";
 import {
   resolveThemeMode,
@@ -128,7 +129,7 @@ export function AntdProvider({
 
   return (
     <ThemeModeContext.Provider value={api}>
-      <ConfigProvider theme={buildTheme(mode)} locale={deDE}>
+      <ConfigProvider theme={buildTheme(mode)} locale={deDE} form={FORMULAR_VORGABEN}>
         <App>{children}</App>
       </ConfigProvider>
     </ThemeModeContext.Provider>

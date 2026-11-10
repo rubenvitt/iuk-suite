@@ -12,10 +12,10 @@
  */
 export { Datentabelle, type DatentabelleProps } from "./Datentabelle";
 export { Zellentext, type ZellentextProps } from "./Zellentext";
-export { Schmalkarten, NurSchmal, type SchmalkartenProps } from "./Schmalkarten";
+export { Schmalkarten, NurSchmal, NurBreit, type SchmalkartenProps } from "./Schmalkarten";
 export { Kartentabelle, type KartentabelleProps } from "./Kartentabelle";
 export { Spaltenkarte, kartenName, type SpaltenkarteProps } from "./Spaltenkarte";
-export { Schmalsteuerung, type SchmalsteuerungProps } from "./Schmalsteuerung";
+export { Schmalsteuerung, aktiveFilter, filterknopfText, type SchmalsteuerungProps } from "./Schmalsteuerung";
 export {
   kartenaufbau,
   schluesselAus,

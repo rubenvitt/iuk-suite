@@ -77,7 +77,8 @@ function aufgabe(over: Partial<AufgabeRow> = {}): AufgabeRow {
 
 const ALLE_AUS: AktionsOptionen = {
   starten: false, zuruecksetzen: false, fertig: false, freigeben: false,
-  zurueckweisen: false, wiederaufnehmen: false, zurueckziehen: false, umverteilen: false, bearbeiten: false,
+  zurueckweisen: false, wiederaufnehmen: false, zurueckziehen: false, umverteilen: false, verteilen: false,
+  bearbeiten: false,
   nachweisHochladen: false,
 };
 
@@ -341,17 +342,18 @@ describe("Fuehrungskarte — hoechstens ein Primaerknopf (Regel P)", () => {
   });
 
   /**
-   * BEI n > 1 GREIFT DIE KARTE KEINE AUFGABE HERAUS (§4.3) — und deshalb gibt es dort nur einen
-   * Primaerknopf, wo eine FLAECHE existiert, die n verarbeitet. „Ueberfaellig" ist keine Sammlung
-   * (§3.1), also traegt die Karte dort keinen.
+   * IDA-386: bei n > 1 sagt der Satz „die älteste seit …" — die Karte fuehrt genau dorthin. Die
+   * fuehrende Zeile ist nach `nachOrdnung` die mit der fruehesten Frist, also die aelteste.
    */
-  it("bufdi Rang 1 mit n > 1 traegt keinen Primaerknopf — „ueberfaellig“ ist keine Flaeche", async () => {
+  it("bufdi Rang 1 mit n > 1 traegt „Älteste öffnen“ auf die älteste überfällige Aufgabe", async () => {
     await mount(
-      karte(anlass("bufdiUeberfaellig", [aufgabe(), aufgabe({ id: "a2" })]), {
+      karte(anlass("bufdiUeberfaellig", [aufgabe({ id: "a1" }), aufgabe({ id: "a2" })]), {
         optionen: { ...ALLE_AUS, starten: true },
       }),
     );
-    expect(primaerKnoepfe()).toHaveLength(0);
+    expect(primaerKnoepfe()).toHaveLength(1);
+    expect(primaerKnoepfe()[0]!.textContent).toBe("Älteste öffnen");
+    expect(primaerKnoepfe()[0]!.getAttribute("href")).toBe("/a/a1");
   });
 
   /**

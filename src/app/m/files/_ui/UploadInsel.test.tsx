@@ -59,7 +59,7 @@ import { FILES_CHUNK_BYTES } from "../_lib/grenzen";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
 import { UploadInsel } from "./UploadInsel";
 import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
-import { click, fill, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { click, exists, fill, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 
 // --- Der beobachtete `fetch` -----------------------------------------------
 
@@ -165,12 +165,21 @@ const GROSS = () => datei("bericht.png", CHUNK * 2 + REST, "image/png");
 const START: AnlegenErgebnis = { ok: false, feldFehler: {}, werte: {} };
 
 function erfolg(shareId: string, dateien: { fileId: string; name: string }[]): AnlegenErgebnis {
-  return { ok: true, shareId, dateien };
+  return { ok: true, shareId, dateien, titel: "Uebung Nord", qrDateiname: "Uebung_Nord-qr.png" };
 }
 
 let zustand: AnlegenErgebnis = START;
 
-const insel = () => <UploadInsel maxAblaufTage={7} maxDateienProShare={200} maxDateiBytes={12_582_912} />;
+const LINK_BASIS = "https://dateien.example.test/s/";
+
+const insel = () => (
+  <UploadInsel
+    maxAblaufTage={7}
+    maxDateienProShare={200}
+    maxDateiBytes={12_582_912}
+    linkBasis={LINK_BASIS}
+  />
+);
 
 /**
  * Dateien in ein `<input type="file">` zu legen kann `fill()` aus dem Harness
@@ -674,10 +683,41 @@ describe("Quelltext — die Naht zur Server Component", () => {
     expect(lies("_ui", "UploadInsel.tsx")).not.toMatch(/\bgrenzen\s*\(/);
   });
 
-  it("verlinkt nicht auf Seiten, die es noch nicht gibt (kein Weg in ein `notFound()`)", () => {
-    const beide = lies("_ui", "UploadInsel.tsx") + lies("(verwaltung)", "shares", "neu", "page.tsx");
-    // `/shares/<id>` (T41) und `/s/<id>` (T40) entstehen erst in Welle 7.
-    expect(beide).not.toMatch(/href=\{?["'`]\/s\//);
-    expect(beide).not.toMatch(/\/shares\/\$\{/);
+});
+
+// ---------------------------------------------------------------------------
+
+describe("IDA-388 — Link nach dem Anlegen", () => {
+  it("belegt die Laufzeit mit der Obergrenze vor und nennt sie in der Beschriftung", async () => {
+    await mount(insel());
+    expect(query<HTMLInputElement>('input[name="expiryDays"]').value).toBe("7");
+    expect(query('[data-testid="files-upload-insel"]').textContent).toContain("Laufzeit in Tagen (1–7)");
+  });
+
+  it("zeigt nach dem Hochladen den Link, „Link kopieren“, QR und den Weg zur Freigabe", async () => {
+    await mount(insel());
+    await waehle(datei("eins.txt", 10, "text/plain"));
+    expect(exists('[data-testid="files-neu-link"]')).toBe(false);
+
+    await sendeUndAntworte(erfolg("sh1234abcd", [{ fileId: "fi1234abcd", name: "eins.txt" }]));
+
+    expect(query('[data-testid="files-neu-adresse"]').textContent).toBe(`${LINK_BASIS}sh1234abcd`);
+    expect(query('[data-testid="files-neu-kopieren"]').textContent).toContain("Link kopieren");
+    expect(query('[data-testid="files-neu-qr"]').textContent).toBe("QR");
+    expect(query<HTMLAnchorElement>('[data-testid="files-neu-detail"]').getAttribute("href")).toBe(
+      "/shares/sh1234abcd",
+    );
+  });
+
+  it("kopiert die vollständige Adresse in die Zwischenablage", async () => {
+    const schreibe = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: schreibe }, configurable: true });
+    await mount(insel());
+    await waehle(datei("eins.txt", 10, "text/plain"));
+    await sendeUndAntworte(erfolg("sh1234abcd", [{ fileId: "fi1234abcd", name: "eins.txt" }]));
+
+    await click('[data-testid="files-neu-kopieren"]');
+    expect(schreibe).toHaveBeenCalledWith(`${LINK_BASIS}sh1234abcd`);
+    expect(query('[data-testid="files-neu-kopieren"]').textContent).toContain("Kopiert");
   });
 });

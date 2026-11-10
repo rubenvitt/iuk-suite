@@ -129,8 +129,20 @@
 .kalenderKopf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 12px; }
 .kalenderMonat { font-family: var(--font-display); font-size: 22px; font-weight: 600; min-width: 10ch; }
 .kalenderZelle { display: grid; }
-.punktReihe { display: none; gap: 3px; flex-wrap: wrap; }
-.punkt { width: 8px; height: 8px; border-radius: 50%; border: 1px solid; border-inline-start-width: 1px; }
+.punktReihe { display: none; gap: 4px; flex-wrap: wrap; align-items: center; }
+/*
+ * IDA-387: Punkte am Telefon. Vorher 8px, blass gefüllt, alle mit demselben dunklen Rand — vier Arten, ein Bild.
+ * Jetzt unterscheidet sie die FORM, und die Farbe ist die kräftige Kante der Legende: Event ein Quadrat in Tinte,
+ * vermietet ein voller grüner Kreis, angefragt ein offener Ring, gesperrt ein grauer Balken. So bleiben sie
+ * auch ohne Farbsehen und ohne Legende auseinanderzuhalten. Die Regeln stehen nach `.event`/`.zugesagt`/…
+ * und überschreiben deren Flächen nur für `.punkt`.
+ */
+.punkt { flex: none; width: 10px; height: 10px; border: 0; border-radius: 0; background: none; }
+.punkt.event { background: var(--gp-event-kante); border-radius: 2px; }
+.punkt.zugesagt { background: var(--gp-ok-text); border-radius: 50%; }
+.punkt.angefragt { border: 2px solid var(--gp-gelb-kante); border-radius: 50%; background: none; }
+.punkt.gesperrt { width: 14px; height: 6px; background: var(--gp-grau-text); border-radius: 2px; }
+.legende .punkt { display: none; margin-inline-end: 6px; }
 .tagesliste { display: grid; gap: 8px; }
 .tagesliste .eintrag { font-size: 14px; padding: 8px 10px; white-space: normal; min-height: 44px; margin: 0; }
 
@@ -141,4 +153,21 @@
   /* Im schmalen Raster ist kein Platz für Titel: nur Punkte, die Tagesliste darunter nennt alles. */
   .kalenderZelle .eintrag { display: none; }
   .punktReihe { display: flex; }
+  .legende .punkt { display: inline-block; }
+  .legende .muster { display: none; }
+  /*
+   * Flachere Tageszellen, damit die Tagesliste in den ersten Schirm rückt (IDA-387: 125px je Zelle, Liste ab
+   * ~1170px). antd setzt den Inhaltsbereich auf drei Zeilen Text (`dateContentHeight`, kein Komponenten-Token);
+   * hier genügt eine Punktreihe. Falle 20: `kalenderzelle.test.ts` prüft, dass antd diese Klassen rendert und
+   * der Selektor seinen schlägt.
+   */
+  .kalender.kalender:global(.ant-picker-calendar-full) :global(.ant-picker-panel) :global(.ant-picker-calendar-date) :global(.ant-picker-calendar-date-content) {
+    height: auto;
+    min-height: 14px;
+    overflow: visible;
+  }
+  .kalender.kalender:global(.ant-picker-calendar-full) :global(.ant-picker-panel) :global(.ant-picker-calendar-date) {
+    margin: 0 1px;
+    padding: 2px 4px 4px;
+  }
 }

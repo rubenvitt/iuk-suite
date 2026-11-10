@@ -106,7 +106,8 @@ const BREITE = {
   // Der Chip „je Charge" im Chargenmodus steht dann neben einem gesperrten
   // Stepper und darf umbrechen — dort wird in der aufgeklappten Zeile gezaehlt.
   ist: 210,
-  mhd: 100,
+  // „ohne Verfall" (IDA-380, vorher „12/99") ist der breiteste Chip der Spalte.
+  mhd: 116,
   mindest: 70,
   kategorie: 140,
 } as const;
@@ -378,12 +379,12 @@ export function InventurForm({ zeilen, ortId, orte }: {
       ),
     },
     {
-      title: "MHD",
+      title: "Verfall",
       dataIndex: "chargen",
       width: BREITE.mhd,
       // Die FEFO-naechste Charge MIT Bestand am Zaehlort (IDA-276: `chargen`
-      // traegt auch Chargen, die nur auf „Nicht zugeordnet" liegen). `2099-12`
-      // („ohne Verfall") zeigt wie die Artikelliste schlicht `fmtVerfall`.
+      // traegt auch Chargen, die nur auf „Handlager ohne Schrank" liegen). `2099-12`
+      // zeigt `fmtVerfall` als „ohne Verfall", wie die Artikelliste.
       render: (_wert: unknown, zeile) => {
         const naechste = naechsteCharge(zeile);
         return naechste

@@ -32,7 +32,7 @@ describe("Was steht an", () => {
       ["Joghurt · 6 Packungen", "bald", "MHD"],
       ["Würstchen · 2 Packungen", "bald", "Verbrauchsdatum"],
     ]);
-    expect(f.every((x) => x.pfad === "/mhd" && x.wo === "Kühlschrank")).toBe(true);
+    expect(f.every((x) => x.pfad.startsWith("/bestand?stufe=") && x.wo === "Kühlschrank")).toBe(true);
   });
 
   it("meldet ab 07:00 einmal am Tag, was heute abläuft oder morgen das Verbrauchsdatum erreicht", () => {
@@ -40,7 +40,7 @@ describe("Was steht an", () => {
     expect(verpflegungSofortmeldungen(SECHS, db)).toEqual([]);
     const [m, ...rest] = verpflegungSofortmeldungen(ELF, db);
     expect(rest).toEqual([]);
-    expect(m).toMatchObject({ id: "tag:2026-11-04", art: "MHD heute", titel: "MHD heute: 2 Chargen", pfad: "/mhd" });
+    expect(m).toMatchObject({ id: "tag:2026-11-04", art: "MHD heute", titel: "MHD heute: 2 Chargen", pfad: "/bestand?stufe=kritisch" });
     expect(m.zeilen.join("\n")).toMatch(/Joghurt.*heute/);
     expect(m.zeilen.join("\n")).toMatch(/Würstchen.*morgen/);
     vermerkeVerpflegungSofortmeldungen([m.id], ELF, db);

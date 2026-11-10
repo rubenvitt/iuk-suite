@@ -996,7 +996,7 @@ describe("latestEveningForGroup", () => {
 
   it("entscheidet bei ZWEI Abenden am selben Tag für die jüngere Zeile", () => {
     // Der Gleichstand ist selten, aber herstellbar: `planEvenings` entdoppelt
-    // nur den Planungsweg, „Feedback starten" prüft den Tag gar nicht. Ohne ein
+    // nur den Planungsweg, „Umfrage starten" prüft den Tag gar nicht. Ohne ein
     // zweites Sortierkriterium entschiede die Zeilenreihenfolge von SQLite,
     // welchen der beiden Bögen der Teilnehmer sieht — stumm, und von Lauf zu
     // Lauf verschieden.

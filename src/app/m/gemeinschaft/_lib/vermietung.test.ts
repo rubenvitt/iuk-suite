@@ -5,7 +5,7 @@ import { neueId } from "./kennung";
 import { testDb, type TestDb } from "./testDb";
 import {
   Abgelehnt, anfrageNachCode, anfragenSeit, entferneVertrag, ladeAnfragen, ladeBelegendeEintraege, ladeSperrzeiten, ladeVertragsdatei,
-  legeAnfrageAn, legeSperrzeitAn, legeVertragAb, lehneAb, loescheFaelligeTestanfragen, loescheSperrzeit, NichtGefunden, nimmZusageZurueck, sageZu, setzeVertrag, zieheZurueck,
+  legeAnfrageAn, legeSperrzeitAn, legeVertragAb, lehneAb, macheZusageRueckgaengig, ZUSAGE_RUECKGAENGIG_MS, loescheFaelligeTestanfragen, loescheSperrzeit, NichtGefunden, nimmZusageZurueck, sageZu, setzeVertrag, zieheZurueck,
 } from "./vermietung";
 import type { AnfrageWert } from "./vermietungEingabe";
 import { zeitpunkt } from "./zeit";
@@ -143,6 +143,31 @@ describe("Entscheiden", () => {
     nimmZusageZurueck(db, idVon(db, b), "Wasserschaden in der Bar.", JETZT);
     expect(anfrageNachCode(db, b)).toMatchObject({ status: "abgelehnt", begruendung: "Wasserschaden in der Bar." });
     expect(() => sageZu(db, "unbekannt", JETZT)).toThrow(NichtGefunden);
+  });
+});
+
+describe("Zusage rückgängig (IDA-387)", () => {
+  it("kurz nach dem Zusagen zurück auf offen, ohne Begründung und ohne Absage auf der Statusseite", () => {
+    const db = testDb();
+    const code = legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), false, JETZT);
+    const id = idVon(db, code);
+    sageZu(db, id, JETZT);
+    macheZusageRueckgaengig(db, id, JETZT + ZUSAGE_RUECKGAENGIG_MS);
+    expect(anfrageNachCode(db, code)).toMatchObject({ status: "angefragt", begruendung: "" });
+    expect(ladeAnfragen(db)[0].entschiedenAm).toBeNull();
+    // Danach wieder ganz normal zusagbar.
+    expect(sageZu(db, id, JETZT + ZUSAGE_RUECKGAENGIG_MS)).toEqual({ weitereOffene: 0 });
+  });
+
+  it("nicht mehr nach der Frist, nicht mit Vertrag, nicht ohne Zusage", () => {
+    const db = testDb();
+    const id = idVon(db, legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), false, JETZT));
+    expect(() => macheZusageRueckgaengig(db, id, JETZT)).toThrow(/nicht zugesagt/);
+    sageZu(db, id, JETZT);
+    expect(() => macheZusageRueckgaengig(db, id, JETZT + ZUSAGE_RUECKGAENGIG_MS + 1)).toThrow(/Rückgängig geht nicht mehr/);
+    setzeVertrag(db, id, "verschickt");
+    expect(() => macheZusageRueckgaengig(db, id, JETZT)).toThrow(Abgelehnt);
+    expect(() => macheZusageRueckgaengig(db, "unbekannt", JETZT)).toThrow(NichtGefunden);
   });
 });
 

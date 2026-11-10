@@ -68,6 +68,9 @@ describe("ChecksFilter", () => {
     expect(exists(".ant-picker-range")).toBe(false);
     expect(query<HTMLInputElement>("[aria-label='Zeitraum von']")).toBeTruthy();
     expect(query<HTMLInputElement>("[aria-label='Zeitraum bis']")).toBeTruthy();
+    // IDA-380 — sichtbar „von"/„bis", nicht zweimal antds „Datum auswählen".
+    expect(query<HTMLInputElement>("[aria-label='Zeitraum von']").placeholder).toBe("von");
+    expect(query<HTMLInputElement>("[aria-label='Zeitraum bis']").placeholder).toBe("bis");
 
     const pfad = "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/ChecksFilter.tsx";
     const source = ts.createSourceFile(

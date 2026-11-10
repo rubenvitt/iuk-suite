@@ -166,7 +166,7 @@ const SEITEN = [
     pfad: "/groups/1/evenings/1/auswertung",
   },
   { name: "portal — Dienste verwalten", host: "portal.localtest.me", pfad: "/admin" },
-  { name: "qr — Presets verwalten", host: "qr.localtest.me", pfad: "/admin" },
+  { name: "qr — Schnellzugriffe verwalten", host: "qr.localtest.me", pfad: "/admin" },
 ];
 
 /**
@@ -484,8 +484,9 @@ test.describe("390x844 — das Telefon", () => {
      *
      * `/groups/1/trend` traegt die acht Fragen-Schalter aus `TrendDiagramm.tsx`
      * (gemessen VOR Aufgabe 5: acht Knoepfe mit `h:42`, von 207 bis 279px breit),
-     * `portal/admin` die „Löschen"-Knoepfe aus `service-table.tsx` (gemessen
-     * VORHER: zweimal 70x42, aus dem Seed zwei Dienste).
+     * `portal/admin` die Zeilenknoepfe aus `service-table.tsx` (gemessen
+     * VORHER: zweimal 70x42, aus dem Seed zwei Dienste; seit IDA-391 je ein
+     * Menueknopf statt „Sichtbarkeit"/„Löschen").
      */
     for (const ziel of [
       `http://feedback.localtest.me:${E2E_PORT}/groups/1/trend`,
@@ -537,12 +538,12 @@ test.describe("390x844 — das Telefon", () => {
      * (Belegung D, `.ant-card-head-title` liefert dann nur „DAUERHAFTER
      * ZUGANG"), in der vollen Suite hat `feedback.spec.ts` Gruppe 2 nach B
      * geschoben. Also eine eigene Gruppe: anlegen (Belegung A, „ERSTER
-     * SCHRITT"), Feedback starten, Feedback beenden — danach steht sie in B und
+     * SCHRITT"), Umfrage starten, Feedback beenden — danach steht sie in B und
      * die Karte heiszt „NÄCHSTER SCHRITT".
      *
      * Gemessen bei 390px: VOR Aufgabe 6 brauchte der Titel 140px und bekam 94
      * (`white-space: nowrap; text-overflow: ellipsis` an `.ant-card-head-title`,
-     * das `extra` „Gerade läuft kein Feedback." nahm den Rest der Zeile),
+     * das `extra` „Gerade läuft keine Umfrage." nahm den Rest der Zeile),
      * NACHHER 94 gegen 94. `textContent` traegt in beiden Faellen den vollen
      * Text — die Kuerzung ist rein visuell, nur `scrollWidth`/`clientWidth`
      * zeigt sie.
@@ -550,11 +551,11 @@ test.describe("390x844 — das Telefon", () => {
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
     await eigeneGruppe(page, "Mobil Kartentitel", "mobil-kartentitel");
 
-    await page.getByRole("button", { name: "Feedback starten", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Feedback jetzt beenden" })).toBeVisible();
-    await page.getByRole("button", { name: "Feedback jetzt beenden" }).click();
+    await page.getByRole("button", { name: "Umfrage starten", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Umfrage beenden" })).toBeVisible();
+    await page.getByRole("button", { name: "Umfrage beenden" }).click();
     await page.getByRole("button", { name: "Beenden", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Feedback starten", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Umfrage starten", exact: true })).toBeVisible();
 
     /*
      * `querySelector(".ant-card-head-title")` waere der falsche Griff: die Seite

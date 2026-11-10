@@ -97,7 +97,7 @@ function ChargenFelder({ verfall, nummer, gesperrt, onVerfall, onNummer, zusatz 
         inputMode="numeric"
         pattern="\d{4}-\d{2}"
         placeholder="JJJJ-MM"
-        aria-label={`MHD ${zusatz}`}
+        aria-label={`Verfall ${zusatz}`}
         className={s.monatsfeld}
         disabled={gesperrt}
         value={verfall}

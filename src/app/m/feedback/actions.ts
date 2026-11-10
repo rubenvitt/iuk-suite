@@ -625,7 +625,7 @@ export async function freigebenAction(formData: FormData): Promise<void> {
     // Datum, an dem sie niemand sucht. Der Altbestands-Weg für einen Entwurf an
     // einem gelaufenen Abend bleibt `activateSurveyAction` — der legt keine
     // Umfrage an, sondern startet eine, die es schon gibt.
-    if (eve.status !== "planned") throw new Error("Nur geplante Abende freigeben");
+    if (eve.status !== "planned") throw new Error("Eine Umfrage lässt sich nur für geplante Abende starten");
     const group = getGroup(db, eve.groupId)!;
     const survey = getSurveyByEvening(db, eveningId);
     const hours = survey?.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
@@ -638,7 +638,7 @@ export async function freigebenAction(formData: FormData): Promise<void> {
      * Ausgänge steht an der Funktion.
      */
     const lage = freigabelage(eve.date, hours, jetzt);
-    if (lage === "zuFrueh") throw new Error("Freigabe erst am Tag des Dienstabends");
+    if (lage === "zuFrueh") throw new Error("Die Umfrage lässt sich erst am Tag des Dienstabends starten");
     if (lage === "abgelaufen") throw new Error("Die Frist dieses Abends ist bereits abgelaufen");
     releaseSurveyForEvening(db, { eveningId, closeAfterHours: hours, now: jetzt });
     revalidate();

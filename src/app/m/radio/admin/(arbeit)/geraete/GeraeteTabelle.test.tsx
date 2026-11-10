@@ -646,10 +646,15 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
      */
     const quelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
     expect(quelle, "eine innere Pfadform in der Insel").not.toMatch(/["'`]\/m\/radio\//);
+    // Seit IDA-383 steht die Adresse einmal (`aktenPfad`); Zeile, Zeilenlink und Karte lesen sie.
     expect(
       (quelle.match(/\/admin\/geraete\/\$\{/g) ?? []).length,
-      "die Detailadresse steht nicht an BEIDEN Stellen (Tabellenzweig und mobiler Zweig)",
-    ).toBe(2);
+      "die Detailadresse steht mehr als einmal ausgeschrieben",
+    ).toBe(1);
+    expect(
+      (quelle.match(/aktenPfad\(zeile\.id\)/g) ?? []).length,
+      "die Akte ist nicht von Zeile, Zeilenlink UND Karte erreichbar",
+    ).toBe(3);
     expect(quelle, "der Tabellenzweig traegt kein onRow mehr").toMatch(/onRow=\{/);
   });
 });
@@ -1147,5 +1152,58 @@ describe("radio-Geraeteliste: die breite Darstellung (DRK-472)", () => {
         /useBreakpoint|matchMedia|innerWidth|clientWidth/,
       );
     }
+  });
+});
+
+describe("radio-Geraeteliste: per Tastatur öffnen und Status am Telefon (IDA-383)", () => {
+  it("die erste Spalte trägt einen echten Link auf die Akte", async () => {
+    await mount(<GeraeteTabelle {...eigenschaften()} />);
+    const link = query(`${BREIT} tr[data-row-key="g-1"] a[data-rolle="radio-geraet-link"]`);
+    expect(link.getAttribute("href")).toBe("/admin/geraete/g-1");
+    expect(link.textContent).toBe("Florian 1");
+    expect(
+      queryAll(`${BREIT} tr[data-row-key="g-1"] a[data-rolle="radio-geraet-link"]`).length,
+      "mehr als ein Link je Zeile",
+    ).toBe(1);
+  });
+
+  it("ohne Rufnamenspalte trägt die nächste Spalte den Link", async () => {
+    window.localStorage.setItem(SPALTEN_SPEICHER, JSON.stringify(["issi", "status"]));
+    await mount(<GeraeteTabelle {...eigenschaften()} />);
+    const link = query(`${BREIT} tr[data-row-key="g-1"] a[data-rolle="radio-geraet-link"]`);
+    expect(link.getAttribute("href")).toBe("/admin/geraete/g-1");
+    expect(link.textContent).toBe("1000001");
+  });
+
+  it("die Telefonkarte ist ein Link auf die Akte", async () => {
+    await mount(<GeraeteTabelle {...eigenschaften()} />);
+    const karte = query('[data-karte-key="g-1"] a[data-rolle="radio-geraet-karte"]');
+    expect(karte.getAttribute("href")).toBe("/admin/geraete/g-1");
+  });
+
+  it("die Telefonkarte zeigt jeden Status außer einsatzbereit", async () => {
+    await mount(
+      <GeraeteTabelle
+        {...eigenschaften({
+          zeilen: [
+            zeile({ id: "g-1", status: "Einsatzbereit" }),
+            zeile({ id: "g-2", status: "in Reparatur" }),
+            zeile({ id: "g-3", status: "ausgemustert" }),
+            zeile({ id: "g-4", status: "" }),
+          ],
+          gesamt: 4,
+        })}
+      />,
+    );
+    const status = (id: string) =>
+      exists(`[data-karte-key="${id}"] [data-rolle="radio-karte-status"]`)
+        ? query(`[data-karte-key="${id}"] [data-rolle="radio-karte-status"]`)
+        : null;
+    expect(status("g-1"), "einsatzbereit bleibt ruhig").toBeNull();
+    expect(status("g-4"), "leer ist einsatzbereit").toBeNull();
+    expect(status("g-2")?.textContent).toBe("in Reparatur");
+    expect(status("g-2")?.className).toMatch(/ant-tag-warning/);
+    expect(status("g-3")?.textContent).toBe("ausgemustert");
+    expect(status("g-3")?.className).not.toMatch(/ant-tag-(warning|error|success)/);
   });
 });

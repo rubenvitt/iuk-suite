@@ -267,6 +267,13 @@
   transition: background-color 120ms ease-out;
 }
 
+/* Gesperrt sieht gesperrt aus (IDA-388): vorher gleiche Farbe, volle Deckkraft
+   und Zeiger wie aktiv. Heute gesperrt nur waehrend der Uebertragung. */
+.fp-knopf:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .fp-knopf-leise {
   background: transparent;
   border-color: var(--fp-linie-stark);

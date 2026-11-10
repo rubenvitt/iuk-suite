@@ -200,8 +200,8 @@ describe("EinplanenInline — der Termin in der Zeile", () => {
      * ABGELESEN AN `data-offen`, NICHT AN `existsPortal` — antds `Popover` LAESST seinen Rumpf
      * nach dem Schliessen im Portal stehen (nur versteckt), und ein `existsPortal("form")` waere
      * hier dauerhaft wahr. Dieselbe Ablesestelle, die `ZuweisenInline.test.tsx` fuer denselben
-     * Fall benutzt; sie ist ausserdem genau die Marke, an der die `:has()`-Regel im Stylesheet
-     * haengt.
+     * Fall benutzt (bis IDA-386 hing an ihr ausserdem eine `:has()`-Regel im Stylesheet, die
+     * mit der dauerhaft sichtbaren Aktionsspalte entfiel).
      */
     await rerender(<EinplanenInline aufgabe={{ ...AUFGABE, planDatum: "2026-08-14" }} />);
     expect(queryAll(`.${s.zuweisenHuelle}`)[0]!.getAttribute("data-offen")).toBeNull();

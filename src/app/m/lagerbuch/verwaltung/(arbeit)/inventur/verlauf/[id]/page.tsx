@@ -47,7 +47,7 @@ export function laufDetailInhalt(db: DB, id: string): ReactNode {
       <SeitenKopf
         titel={`Inventur vom ${fmtDatumZeit(kopf.ts)}`}
         zurueck={{ titel: "Verlauf", href: "/verwaltung/inventur/verlauf" }}
-        beschreibung={`${person} · ${kopf.kommentar} · Umfang: ${umfangText(kopf.umfang, ortNamensaufloesung(db))}`}
+        beschreibung={`${person} · ${kopf.kommentar} · Umfang: ${umfangText(kopf.umfang, ortNamensaufloesung(db), kopf.abdeckung)}`}
       />
       <LaufTabelle zeilen={zeilen} />
     </>

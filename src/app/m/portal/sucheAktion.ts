@@ -4,8 +4,8 @@ import { suchbegriff } from "@/core/suche";
 import { sucheUeberall, type ModulErgebnis } from "@/app/m/portal/_lib/suche";
 
 /**
- * Die suiteweite Suche für das Suchfeld der Startseite (IDA-301): dieselbe Abfrage wie `/suche`,
- * nur als Server Action, damit die Treffer beim Tippen unter den Apps erscheinen.
+ * Die suiteweite Suche für „Springen zu“ im Menü jedes Moduls (IDA-301, IDA-391): dieselbe Abfrage
+ * wie `/suche`, nur als Server Action, damit die Treffer beim Tippen unter den Menütreffern stehen.
  *
  * Die Sitzung liest die Action SELBST (`auth()`), nie aus einem Argument: sonst könnte ein
  * Aufrufer sich fremde Gruppen hineinreichen. Die Rechte prüft danach jedes Modul (`suiteSuche`).

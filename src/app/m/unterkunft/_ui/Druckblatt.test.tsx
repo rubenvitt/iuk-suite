@@ -13,7 +13,10 @@ describe("Druckblatt", () => {
       expect(html).toContain(t);
     }
     expect(html.match(/>Ist</g)).toHaveLength(6);
-    expect(html).toContain("Annahme");
+    // IDA-390: die Marken sagen auch auf Papier, was angenommen oder korrigiert ist.
+    expect(html).toContain("Annahme: 2 je Person");
+    expect(html).toContain("korrigiert: 1 je 15 Männer");
+    expect(html).not.toMatch(/Befund|\b[WF]\d\b/);
   });
 
   it("listet bei Räumen jeden Raum mit seinen Plätzen", () => {

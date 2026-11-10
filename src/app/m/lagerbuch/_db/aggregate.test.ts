@@ -4,7 +4,7 @@ import { artikel, buchungen, chargen, lagerorte, newId } from "./schema";
 import {
   bestandJeArtikelImBereich, restJeChargeAnOrt, restJeChargeImBereich,
   bestandJeArtikelUndLagerort, restJeChargeFuerArtikelAnOrt,
-  restJeChargeFuerArtikelImBereich, restJeChargeUndOrt,
+  restJeChargeFuerArtikelImBereich, restJeChargeUndOrt, restJeChargeUndOrtAlle,
   restJeChargeJeOrtImBereich, kennzahlen,
 } from "../_lib/lesepfade/bestand";
 import {
@@ -443,6 +443,19 @@ describe("DRK-297 — Bestand ueber einen Bereich", () => {
   /** Leere Gruppen liefern KEINE Zeile — `?? 0` auf beiden Seiten. */
   it("ein Ort ohne Buchung der Charge fehlt in der Verteilung ganz", () => {
     expect(restJeChargeUndOrt(t.db, "a1").get(CHARGE_GETEILT)?.get("schrank-2")).toBeUndefined();
+  });
+
+  /**
+   * IDA-379 — die Verfall-Seite liest die Verteilung ALLER Artikel auf einmal.
+   * Sie muss je Artikel genau das liefern, was die Artikel-Schublade
+   * (`restJeChargeUndOrt`) zeigt; sonst nennten beide verschiedene Orte.
+   */
+  it("restJeChargeUndOrtAlle ist je Artikel dasselbe wie restJeChargeUndOrt", () => {
+    const alle = restJeChargeUndOrtAlle(t.db);
+    const artikelIds = t.db.select({ id: artikel.id }).from(artikel).all().map((a) => a.id);
+    const jeArtikel = new Map(artikelIds.flatMap((id) => [...restJeChargeUndOrt(t.db, id)]));
+    expect(jeArtikel.size).toBeGreaterThan(0);
+    expect(alle).toEqual(jeArtikel);
   });
 
   /**

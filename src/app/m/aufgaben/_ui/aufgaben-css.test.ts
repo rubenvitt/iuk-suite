@@ -288,6 +288,21 @@ describe("aufgaben.module.css — Aussage 4: die Umschaltung sitzt richtig herum
     ).not.toBeUndefined();
     expect(inMedia![1]).toMatch(/width\s*:\s*100%/);
   });
+
+  /**
+   * IDA-386: DIE ZEILENAKTION IST DAUERHAFT SICHTBAR, AUCH AM DESKTOP. Bis dahin stand sie ohne
+   * Hover auf `opacity: 0` — am Desktop sah auf `/verteilen` niemand, wie man verteilt, und ein
+   * Touch-Tablet ab 768px sah die Aktion erst nach Antippen. Keine Regel, die `.zeilenAktion` oder
+   * `.planAktion` trifft, darf sie ausblenden, und ein Wiedereinblenden bei Zuwendung gibt es nicht.
+   */
+  it.each(["zeilenAktion", "planAktion"])("blendet `.%s` nirgends aus — weder in der Basis noch im 767.98px-Block", (klasse) => {
+    const treffer = ALLE_REGELN.filter((r) => new RegExp(`\\.${klasse}\\b`).test(r.selektor));
+    expect(treffer.length, `.${klasse} fehlt im Stylesheet`).toBeGreaterThan(0);
+    for (const r of treffer) {
+      expect(r.rumpf, `${r.selektor} blendet aus`).not.toMatch(/opacity\s*:|visibility\s*:\s*hidden|display\s*:\s*none/);
+      expect(r.selektor, `${r.selektor} haengt die Sichtbarkeit an Zuwendung`).not.toMatch(/:hover|:focus-within|:has\(/);
+    }
+  });
 });
 
 /**

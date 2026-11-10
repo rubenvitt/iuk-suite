@@ -73,6 +73,17 @@ export type Kartenwunsch = {
    */
   kennzeichen?: readonly string[];
   /**
+   * Spalten, die UNTER DEM TITEL stehen, über die volle Kartenbreite und ohne
+   * Beschriftung — Statuschips, die mehrere werden können (IDA-380).
+   *
+   * ⚠️ DARUM NICHT ALS KENNZEICHEN: die Kennzeichen teilen sich die Kopfzeile
+   * mit dem Titel. Zwei Chips daneben ließen dem Titel auf 390px kaum eine
+   * Handbreit, er brach buchstabenweise um, und die Menge rechts lief aus dem
+   * Schirm (gemessen an der Artikelliste: „B/Z/-/T/e/s/t…"). Was wachsen kann,
+   * steht deshalb hier; die Kopfzeile behält das, was kurz bleibt (eine Menge).
+   */
+  unterTitel?: readonly string[];
+  /**
    * Die Handlungsspalte. Sie steht unten über die volle Breite. Ohne Angabe
    * die Spalte, deren Titel „Aktion" oder „Aktionen" lautet — mehr Raten wäre
    * eine Vermutung über fremde Wörter.
@@ -98,6 +109,7 @@ export type Kartenfach<T> = {
 export type Kartenaufbau<T> = {
   titel: Kartenfach<T> | null;
   kennzeichen: Kartenfach<T>[];
+  unterTitel: Kartenfach<T>[];
   merkmale: Kartenfach<T>[];
   aktionen: Kartenfach<T> | null;
   /**
@@ -203,12 +215,17 @@ export function kartenaufbau<T>(
   const kennzeichen = (wunsch.kennzeichen ?? [])
     .map((schluessel) => hole(schluessel))
     .filter((fach): fach is Kartenfach<T> => fach !== null);
-  const kennzeichenSchluessel = new Set(kennzeichen.map((fach) => fach.schluessel));
+  const unterTitel = (wunsch.unterTitel ?? [])
+    .map((schluessel) => hole(schluessel))
+    .filter((fach): fach is Kartenfach<T> => fach !== null);
+  const kopfSchluessel = new Set(
+    [...kennzeichen, ...unterTitel].map((fach) => fach.schluessel),
+  );
 
   function vergeben(fach: Kartenfach<T>): boolean {
     return aus.has(fach.schluessel)
       || fach.schluessel === aktionen?.schluessel
-      || kennzeichenSchluessel.has(fach.schluessel);
+      || kopfSchluessel.has(fach.schluessel);
   }
 
   const titel = wunsch.titel !== undefined
@@ -222,6 +239,7 @@ export function kartenaufbau<T>(
   return {
     titel,
     kennzeichen,
+    unterTitel,
     merkmale,
     aktionen,
     hinweis: unbekannt.length > 0

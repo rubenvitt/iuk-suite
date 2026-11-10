@@ -1,7 +1,7 @@
 [
   {
     "name": "eimer-1",
-    "specs": "e2e/datumswaehler-schmal.spec.ts e2e/gemeinschaft-mitglieder.spec.ts e2e/kommplan-editor.spec.ts e2e/kommplan.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-check-angemeldet.spec.ts e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts e2e/lagerbuch-statistik.spec.ts e2e/radio-kiosk.spec.ts e2e/schichtplan.spec.ts e2e/seitenwechsel.spec.ts e2e/ueberlauf-mobil.spec.ts"
+    "specs": "e2e/datumswaehler-schmal.spec.ts e2e/gemeinschaft-mitglieder.spec.ts e2e/kommplan-editor.spec.ts e2e/kommplan.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-check-angemeldet.spec.ts e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts e2e/lagerbuch-statistik.spec.ts e2e/radio-kiosk.spec.ts e2e/schichtplan.spec.ts e2e/seitenwechsel.spec.ts e2e/ueberlauf-mobil.spec.ts e2e/wartung-telefon.spec.ts"
   },
   {
     "name": "eimer-2",
@@ -13,7 +13,7 @@
   },
   {
     "name": "eimer-4",
-    "specs": "e2e/keystone.spec.ts e2e/kommplan-teilen.spec.ts e2e/lagerbuch-darstellung.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-ist-bestand.spec.ts e2e/lagerbuch-journal-vorgang.spec.ts e2e/lagerbuch-sammelbearbeitung.spec.ts e2e/mobil-admin.spec.ts e2e/portal-anheften.spec.ts e2e/qr.spec.ts e2e/sitzung-refresh-endgueltig.spec.ts e2e/suche.spec.ts"
+    "specs": "e2e/keystone.spec.ts e2e/kommplan-teilen.spec.ts e2e/lagerbuch-darstellung.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-ist-bestand.spec.ts e2e/lagerbuch-journal-vorgang.spec.ts e2e/lagerbuch-sammelbearbeitung.spec.ts e2e/mobil-admin.spec.ts e2e/portal-anheften.spec.ts e2e/portal-startseite.spec.ts e2e/qr.spec.ts e2e/sitzung-refresh-endgueltig.spec.ts e2e/suche.spec.ts"
   },
   {
     "name": "eimer-5",

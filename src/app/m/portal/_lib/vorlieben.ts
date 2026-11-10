@@ -12,7 +12,7 @@
  */
 import { eq } from "drizzle-orm";
 import { getDb } from "@/app/m/portal/_db/client";
-import { launcherVorlieben } from "@/app/m/portal/_db/schema";
+import { launcherVorlieben, type NeuigkeitenGesehen } from "@/app/m/portal/_db/schema";
 
 export type PortalDb = ReturnType<typeof getDb>;
 
@@ -75,4 +75,25 @@ export function setzeAngeheftet(personId: string, key: string, an: boolean, db: 
   const angeheftet = mitAngeheftet(bisher.angeheftet, key, an);
   schreibe(personId, { angeheftet }, db);
   return { ...bisher, angeheftet };
+}
+
+/** Bis wohin die Person die Neuigkeiten gesehen hat; `null`, wenn sie noch nie auf der Seite war. */
+export function neuigkeitenGesehenVon(personId: string, db: PortalDb = getDb()): NeuigkeitenGesehen | null {
+  const zeile = db.select({ g: launcherVorlieben.neuigkeitenGesehen }).from(launcherVorlieben)
+    .where(eq(launcherVorlieben.personId, personId)).get();
+  return zeile?.g ?? null;
+}
+
+/**
+ * Merkt den Stand nach einem Besuch. Gleicher Stand schreibt nicht (jeder Aufruf der Seite meldet sich).
+ * Eigenes Upsert statt `schreibe`: die Launcher-Listen bleiben unberührt, auch bei einer neuen Zeile.
+ */
+export function merkeNeuigkeitenGesehen(personId: string, stand: NeuigkeitenGesehen, db: PortalDb = getDb()): void {
+  const bisher = neuigkeitenGesehenVon(personId, db);
+  if (bisher && bisher.bis === stand.bis && bisher.schluessel.join("\n") === stand.schluessel.join("\n")) return;
+  const jetzt = new Date();
+  db.insert(launcherVorlieben)
+    .values({ personId, angeheftet: [], zuletzt: [], aktualisiertAm: jetzt, neuigkeitenGesehen: stand })
+    .onConflictDoUpdate({ target: launcherVorlieben.personId, set: { neuigkeitenGesehen: stand, aktualisiertAm: jetzt } })
+    .run();
 }

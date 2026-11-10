@@ -1,21 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { act } from "react";
-import { mount, unmount, query, queryAll, exists, fill } from "@/app/m/qr/_lib/test-dom";
-import type { ModulErgebnis } from "@/app/m/portal/_lib/suche";
-
-// Die Server Action läse Sitzung und Moduldatenbanken; hier zählt nur, was das Feld daraus macht.
-const sucheAktion = vi.hoisted(() => vi.fn<(begriff: string) => Promise<ModulErgebnis[]>>(async () => []));
-vi.mock("@/app/m/portal/sucheAktion", () => ({ sucheAktion }));
+import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 // IDA-338: Anheften und Merken schrieben in die Portal-Datenbank; hier zählt nur der Aufruf.
 const aktionen = vi.hoisted(() => ({
   setzeAngeheftetAction: vi.fn(async (key: unknown, an: unknown) => (an ? ["lagerbuch", key as string] : [])),
   merkeDienstAufrufAction: vi.fn(async () => undefined),
 }));
 vi.mock("@/app/m/portal/actions", () => aktionen);
-
-/** Über die Verzögerung hinaus warten, bis die Module geantwortet haben. */
-const nachDerVerzoegerung = () => act(async () => { await new Promise((r) => setTimeout(r, 300)); });
 import { DiensteRaster } from "@/app/m/portal/_ui/DiensteRaster";
 import type { LauncherEintrag } from "@/core/shell/types";
 
@@ -26,7 +18,6 @@ const EINTRAEGE: LauncherEintrag[] = [
 
 afterEach(async () => {
   await unmount();
-  sucheAktion.mockClear();
 });
 
 describe("DiensteRaster", () => {
@@ -60,12 +51,6 @@ describe("DiensteRaster", () => {
     expect(dienst.querySelector('[data-testid="app-zeichen"]')).toBeNull();
   });
 
-  it("filtert über die Suche", async () => {
-    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
-    await fill('[data-testid="portal-suche"]', "lager");
-    expect(queryAll('[data-testid="service-tile"]').length).toBe(1);
-  });
-
   /*
    * DER DEFEKT, DEN DIESE AUFGABE BEHEBT. Bisher rendert `services.map` über
    * `[]` ein leeres `<Row>` — eine weiße Fläche, die wie ein Ausfall
@@ -77,7 +62,6 @@ describe("DiensteRaster", () => {
     const leer = query('[data-testid="portal-leer"]');
     expect(leer.textContent).toContain("freigeschaltet");
     expect(leer.textContent).toContain("iuk@example.org");
-    expect(exists('[data-testid="portal-suche"]')).toBe(false);
     // Der Leerzustand steigt vor dem Raster aus — kein `portal-grid` in diesem Zweig.
     expect(exists('[data-testid="portal-grid"]')).toBe(false);
   });
@@ -114,57 +98,20 @@ describe("DiensteRaster", () => {
     expect(exists('[data-testid="portal-kontakt"]')).toBe(false);
   });
 
-  it("sagt es, wenn die Suche nichts findet — das ist nicht derselbe Zustand", async () => {
+  it("hat kein eigenes Suchfeld mehr: gesucht wird in „Springen zu“ (IDA-391)", async () => {
     await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
-    await fill('[data-testid="portal-suche"]', "gibtesnicht");
-    // Solange die Module noch gefragt werden, ist „nichts gefunden“ noch nicht wahr.
-    expect(exists('[data-testid="portal-ohne-treffer"]')).toBe(false);
-    await nachDerVerzoegerung();
-    expect(exists('[data-testid="portal-ohne-treffer"]')).toBe(true);
-    // Kein Ansprechpartner-Hinweis: nicht freigeschaltet zu sein und nichts
-    // gefunden zu haben sind zwei verschiedene Lagen.
-    expect(exists('[data-testid="portal-leer"]')).toBe(false);
+    expect(exists('[data-testid="portal-suche"]')).toBe(false);
+    expect(exists("input")).toBe(false);
   });
 
-  it("meldet eine gescheiterte Modulsuche, statt „nichts gefunden“ zu behaupten", async () => {
-    sucheAktion.mockRejectedValueOnce(new Error("offline"));
-    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
-    await fill('[data-testid="portal-suche"]', "gibtesnicht");
-    await nachDerVerzoegerung();
-    expect(exists('[data-testid="portal-suche-fehler"]')).toBe(true);
-    expect(exists('[data-testid="portal-ohne-treffer"]')).toBe(false);
-  });
-
-  it("zeigt unter den Apps die Treffer aus den Modulen, aus demselben Feld (IDA-301)", async () => {
-    sucheAktion.mockResolvedValueOnce([{
-      modul: "fahrzeuge", titel: "Fahrzeuge", icon: "truck", zustand: "treffer", mehr: false,
-      treffer: [{ id: "f1", art: "Fahrzeug", titel: "Rotkreuz Uelzen 11-83-1", merkmale: [], href: "https://f/" }],
-    }]);
-    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
-    await fill('[data-testid="portal-suche"]', " UE-RK 831 ");
-    await nachDerVerzoegerung();
-    expect(sucheAktion).toHaveBeenCalledTimes(1);
-    expect(query('[data-testid="suche-treffer"]').textContent).toContain("Rotkreuz Uelzen 11-83-1");
-    expect(exists('[data-testid="portal-ohne-treffer"]')).toBe(false);
-    expect(query('[data-testid="portal-suche-ueberall"]')?.getAttribute("href")).toBe("/suche?q=UE-RK%20831");
-  });
-
-  it("fragt die Module erst ab zwei Zeichen und nur einmal nach schnellem Tippen", async () => {
-    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
-    await fill('[data-testid="portal-suche"]', "N");
-    await nachDerVerzoegerung();
-    expect(sucheAktion).not.toHaveBeenCalled();
-    expect(queryAll('[data-testid="service-tile"]').length).toBe(1);
-    await fill('[data-testid="portal-suche"]', "La");
-    await fill('[data-testid="portal-suche"]', "Lag");
-    await nachDerVerzoegerung();
-    expect(sucheAktion).toHaveBeenCalledTimes(1);
-    expect(sucheAktion).toHaveBeenCalledWith("Lag");
-  });
-
-  it("zeigt das Kürzel der Befehlspalette im Suchfeld", async () => {
-    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
-    expect(query('[data-testid="portal-suche-kuerzel"]').textContent).toMatch(/^(Strg\+K|⌘K)$/);
+  it("trennt Kacheltitel nicht mitten im Wort (IDA-391)", async () => {
+    await mount(<DiensteRaster eintraege={[{ ...EINTRAEGE[0], version: "1.2.3" }]} ansprechpartner={null} />);
+    const titel = query('[data-testid="kachel-titel"]') as HTMLElement;
+    expect(titel.className).toContain("portal-kachel-titel");
+    // Die Regeln selbst stehen in portal.css; inline darf nichts sie überstimmen.
+    expect(titel.style.hyphens).toBe("");
+    expect(titel.style.overflowWrap).toBe("");
+    expect(query('[data-testid="service-tile"]').parentElement!.className).toBe("portal-kacheln");
   });
 
   describe("viele Einträge (IDA-338)", () => {
@@ -187,6 +134,19 @@ describe("DiensteRaster", () => {
       ]);
       // Die Verwaltung ist ein Zweitlink an ihrer App, keine eigene Zeile.
       expect(queryAll('[data-testid="portal-zeile"]').map((z) => z.textContent)).toEqual(["FunkgeräteVerwaltung", "Lagerbuch"]);
+    });
+
+    it("ohne Angeheftetes zeigt es eine Zeile statt Figur, und „Zuletzt“ allein klappt „Alle“ nicht zu (IDA-391)", async () => {
+      await mount(
+        <DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} auswahl={{ angeheftet: [], zuletzt: ["radio"] }} />,
+      );
+      const leer = query('[data-testid="portal-ohne-angeheftet"]');
+      expect(leer.tagName).toBe("P");
+      expect(leer.textContent).toBe("Noch nichts angeheftet");
+      expect(leer.querySelector('[data-icons8="pin"]')).not.toBeNull();
+      expect(exists('[data-testid="portal-zuletzt"]')).toBe(true);
+      expect(query('[data-testid="portal-alle"]').getAttribute("aria-expanded")).toBe("true");
+      expect(exists('[data-testid="portal-alle-liste"]')).toBe(true);
     });
 
     it("zeigt oben Angeheftet als Kacheln und Zuletzt ohne Doppel, den Rest zugeklappt", async () => {
@@ -246,12 +206,6 @@ describe("DiensteRaster", () => {
         "https://r",
         "https://l",
       ]);
-    });
-
-    it("die Suche zeigt wie bisher alle Treffer als Kacheln", async () => {
-      await mount(<DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} auswahl={{ angeheftet: ["lagerbuch"], zuletzt: [] }} />);
-      await fill('[data-testid="portal-suche"]', "Funk");
-      expect(queryAll('[data-testid="service-tile"]').map((k) => k.textContent)).toEqual(["Funkgeräte", "Funkgeräte-Verwaltung"]);
     });
 
     it("meldet den Klick auf einen Dienst für „Zuletzt“", async () => {

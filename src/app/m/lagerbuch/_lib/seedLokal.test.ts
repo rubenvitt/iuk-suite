@@ -9,10 +9,11 @@ import { ENTNAHMEBOX_ID, HANDLAGER_ID, PSEUDO_VERFALL } from "./konstanten";
 import { ENTNAHMEBOX_PRAEFIX } from "./vorgang";
 import { verfallSchwellen, verfallStatus } from "./domain/verfall";
 import { mtkFaelligkeit } from "./domain/geraet";
-import { bzFaelligkeit } from "./domain/bz";
+import { bzGeraeteUebersicht } from "./lesepfade/bz";
 import { o2Status } from "./domain/o2";
 import { restJeChargeImBereich } from "./lesepfade/bestand";
 import { handlagerOrte } from "./lesepfade/orte";
+import { verfallSeitenListe } from "./lesepfade/verfall";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
 import { parseCheckErgebnis } from "./checkErgebnis";
 import { heuteIso } from "./zeit";
@@ -178,6 +179,19 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     for (const z of jeReferenz) expect(z.summe, z.referenz).toBe(0);
   });
 
+  /**
+   * IDA-379 — lokal muss es eine abgelaufene Charge geben, die im Handlager
+   * NICHTS mehr hat und draussen noch liegt; sonst ist die Zeile ohne Knopf
+   * auf der Verfall-Seite nicht anzusehen.
+   */
+  it("belegt eine abgelaufene Charge, die nur noch ausserhalb des Handlagers liegt", async () => {
+    await seedLokalLagerbuch(t.db);
+
+    const draussen = verfallSeitenListe(t.db).filter((e) => e.abgelaufen && e.rest === 0);
+    expect(draussen.length).toBeGreaterThan(0);
+    for (const e of draussen) expect(e.draussen.length, e.chargenNr).toBeGreaterThan(0);
+  });
+
   it("belegt die Verfallsampel ueber die Chargen im Handlager", async () => {
     const jetzt = new Date();
     await seedLokalLagerbuch(t.db);
@@ -216,13 +230,15 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     expect(geraeteAmpeln).toContain("rot");
     expect(geraeteAmpeln).toContain("gruen");
 
-    // BZ: letzte Kontrolle 27 Tage her → faellig in 4 → gelb (Fenster 5 Tage).
-    const letzte = t.sqlite.prepare(
-      "select geraet_id, max(ts) as ts from bz_kontrollen group by geraet_id",
-    ).all() as { geraet_id: string; ts: number }[];
-    expect(letzte.length).toBeGreaterThan(0);
-    const bzAmpeln = letzte.map((k) => bzFaelligkeit(new Date(k.ts * 1000), jetzt).ampel);
-    expect(bzAmpeln).toContain("gelb");
+    // BZ: letzte BESTANDENE, nicht stornierte Kontrolle vor knapp 27 Tagen →
+    // faellig in 5 → gelb (Fenster 5 Tage). IDA-379: die nicht bestandene und
+    // die stornierte Zeile zaehlen nicht — gerechnet wird ueber den Lesepfad.
+    const bzZeilen = bzGeraeteUebersicht(t.db, jetzt).filter((g) => g.letzteKontrolle !== null);
+    expect(bzZeilen.length).toBeGreaterThan(0);
+    expect(bzZeilen.map((g) => g.faelligkeit.ampel)).toContain("gelb");
+    expect(t.sqlite.prepare(
+      "select count(*) as n from bz_kontrollen where storniert_at is not null",
+    ).get()).toEqual({ n: 1 });
 
     // Ein BZ-Geraet ohne jede Kontrolle → rot bei ueberfaellig: false (§5.11).
     const ohneKontrolle = t.sqlite.prepare(

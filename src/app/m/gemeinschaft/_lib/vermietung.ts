@@ -202,6 +202,27 @@ export function sageZu(db: GemeinschaftDb, id: string, jetzt: number): { weitere
   });
 }
 
+/** So lange nach dem Zusagen lässt sich eine Zusage still auf „angefragt“ zurückstellen (IDA-387). */
+export const ZUSAGE_RUECKGAENGIG_MS = 15 * 60_000;
+
+/**
+ * Eine versehentliche Zusage rückgängig machen (IDA-387): zurück auf „angefragt“, ohne Begründung und ohne
+ * Absage auf der Statusseite. Nur kurz nach dem Zusagen und solange zur Zusage noch kein Dokument entstanden
+ * ist — danach ist es eine echte Entscheidung, und der Weg ist „Zusage zurücknehmen“ mit Begründung.
+ */
+export function macheZusageRueckgaengig(db: GemeinschaftDb, id: string, jetzt: number): void {
+  db.transaction((tx) => {
+    const a = tx.select({ id: anfrage.id, status: anfrage.status, entschiedenAm: anfrage.entschiedenAm, vertrag: anfrage.vertrag }).from(anfrage).where(eq(anfrage.id, id)).get();
+    if (!a) throw new NichtGefunden();
+    if (a.status !== "zugesagt") throw new Abgelehnt("Diese Anfrage ist nicht zugesagt.");
+    const spaet = a.entschiedenAm === null || jetzt - a.entschiedenAm > ZUSAGE_RUECKGAENGIG_MS;
+    const dokument = tx.select({ id: vertragsdokument.anfrageId }).from(vertragsdokument).where(eq(vertragsdokument.anfrageId, id)).get()
+      ?? tx.select({ id: vertragsdatei.anfrageId }).from(vertragsdatei).where(eq(vertragsdatei.anfrageId, id)).get();
+    if (spaet || dokument || a.vertrag !== "offen") throw new Abgelehnt("Rückgängig geht nicht mehr. Nimm die Zusage mit Begründung zurück.");
+    tx.update(anfrage).set({ status: "angefragt", begruendung: "", entschiedenAm: null }).where(eq(anfrage.id, id)).run();
+  });
+}
+
 /** Ablehnen (offene Anfrage) mit Pflichtbegründung. */
 export function lehneAb(db: GemeinschaftDb, id: string, begruendung: string, jetzt: number): void {
   db.transaction((tx) => {

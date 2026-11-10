@@ -12,13 +12,24 @@ import { isValidElement, type ReactElement } from "react";
  * Mock darüber prüfte nur noch den Mock.
  */
 vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
+// Die Datenbank bleibt draußen; was gemerkt wird, prüft `vorlieben.test.ts`.
+vi.mock("@/app/m/portal/_lib/vorlieben", () => ({ neuigkeitenGesehenVon: vi.fn(() => null) }));
+// Die Insel importiert die Server Actions, und die ziehen `next-auth` nach.
+vi.mock("@/app/m/portal/neuigkeiten/actions", () => ({
+  ladeNeuigkeitenAction: vi.fn(),
+  merkeNeuigkeitenGesehenAction: vi.fn(),
+}));
 
 import { auth } from "@/core/auth";
 import NeuigkeitenPage from "@/app/m/portal/neuigkeiten/page";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { NeuigkeitenListe } from "@/app/m/portal/_ui/NeuigkeitenListe";
-import { neuigkeitenFuer } from "@/app/m/portal/_lib/neuigkeiten/auswahl";
-import type { Neuigkeit } from "@/app/m/portal/_lib/neuigkeiten/auswahl";
+import {
+  NEUIGKEITEN_SEITE, appsAus, heuteIso, neuigkeitenFuer, tageZurueck, ERSTBESUCH_TAGE,
+} from "@/app/m/portal/_lib/neuigkeiten/auswahl";
+import type { Neuigkeit, NeuigkeitenSeite } from "@/app/m/portal/_lib/neuigkeiten/auswahl";
+import type { NeuigkeitenGesehen } from "@/app/m/portal/_db/schema";
+import { neuigkeitenGesehenVon } from "@/app/m/portal/_lib/vorlieben";
 
 const authMock = vi.mocked(auth);
 
@@ -34,10 +45,20 @@ function flatten(node: unknown, out: ReactElement[] = []): ReactElement[] {
   return out;
 }
 
-async function insel(): Promise<Neuigkeit[]> {
+interface InselProps {
+  erste: NeuigkeitenSeite;
+  apps: ReturnType<typeof appsAus>;
+  neuSeit: NeuigkeitenGesehen | null;
+  merken: boolean;
+}
+
+async function inselProps(): Promise<InselProps> {
   const baum = flatten((await NeuigkeitenPage()) as ReactElement);
-  const liste = baum.find((el) => el.type === NeuigkeitenListe)!;
-  return (liste.props as { neuigkeiten: Neuigkeit[] }).neuigkeiten;
+  return baum.find((el) => el.type === NeuigkeitenListe)!.props as InselProps;
+}
+
+async function insel(): Promise<Neuigkeit[]> {
+  return (await inselProps()).erste.eintraege;
 }
 
 describe("Neuigkeiten-Seite", () => {
@@ -55,9 +76,31 @@ describe("Neuigkeiten-Seite", () => {
     expect((kopf!.props as { zurueck?: { href: string } }).zurueck?.href).toBe("/");
   });
 
-  it("uebergibt der Insel genau die Auswahl fuer die Gruppen der Sitzung", async () => {
+  it("uebergibt der Insel nur die erste Seite der Auswahl fuer die Gruppen der Sitzung", async () => {
     authMock.mockResolvedValue({ user: { groups: ["aufgaben-nutzer"] } } as never);
-    expect(await insel()).toEqual(neuigkeitenFuer(["aufgaben-nutzer"]));
+    const alle = neuigkeitenFuer(["aufgaben-nutzer"]);
+    const props = await inselProps();
+    // Die echten Notizen sind weit mehr als eine Seite — genau darum geht es (IDA-391).
+    expect(alle.length).toBeGreaterThan(NEUIGKEITEN_SEITE);
+    expect(props.erste).toEqual({ eintraege: alle.slice(0, NEUIGKEITEN_SEITE), weitere: true });
+    expect(props.apps).toEqual(appsAus(alle));
+  });
+
+  it("vergleicht „Neu“ ohne Sitzungsperson gar nicht und ohne gemerkten Besuch mit den letzten Tagen", async () => {
+    authMock.mockResolvedValue({ user: { groups: [] } } as never);
+    expect(await inselProps()).toMatchObject({ neuSeit: null, merken: false });
+
+    authMock.mockResolvedValue({ user: { id: "person-1", groups: [] } } as never);
+    vi.mocked(neuigkeitenGesehenVon).mockReturnValueOnce(null);
+    expect(await inselProps()).toMatchObject({
+      neuSeit: { bis: tageZurueck(heuteIso(), ERSTBESUCH_TAGE), schluessel: [] },
+      merken: true,
+    });
+
+    const stand = { bis: "2026-11-01", schluessel: ["portal/x"] };
+    vi.mocked(neuigkeitenGesehenVon).mockReturnValueOnce(stand);
+    expect((await inselProps()).neuSeit).toEqual(stand);
+    expect(neuigkeitenGesehenVon).toHaveBeenLastCalledWith("person-1");
   });
 
   it("faellt anonym auf `null` zurueck, nicht auf „keine Gruppen“", async () => {
@@ -67,7 +110,7 @@ describe("Neuigkeiten-Seite", () => {
      * in keiner Gruppe" heißt — und das sieht die Notizen zum Portal. Ein
      * `?? []` an dieser Stelle wäre also eine stille Öffnung.
      */
-    expect(await insel()).toEqual(neuigkeitenFuer(null));
-    expect(await insel()).not.toEqual(neuigkeitenFuer([]));
+    expect(await insel()).toEqual(neuigkeitenFuer(null).slice(0, NEUIGKEITEN_SEITE));
+    expect(await insel()).not.toEqual(neuigkeitenFuer([]).slice(0, NEUIGKEITEN_SEITE));
   });
 });

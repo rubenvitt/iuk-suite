@@ -6,7 +6,7 @@ import { fmtTs } from "../../../_lib/zeit";
 type FaelligkeitTextWerte = Pick<
   BzGeraetZeile["faelligkeit"],
   "nieGeprueft" | "ueberfaellig" | "tageBisFaellig"
->;
+> & { nieBestanden?: boolean };
 
 export type BzAnzeigeZeile = {
   id: string;
@@ -44,7 +44,10 @@ export type BzAnzeigeZeile = {
 };
 
 export function faelligText(faelligkeit: FaelligkeitTextWerte): string {
-  if (faelligkeit.nieGeprueft) return "noch nie geprüft";
+  // IDA-379: nur nicht bestandene Kontrollen — die Frist laeuft von keiner.
+  if (faelligkeit.nieGeprueft) {
+    return faelligkeit.nieBestanden ? "noch nie bestanden" : "noch nie geprüft";
+  }
   if (faelligkeit.ueberfaellig) {
     return `überfällig (seit ${Math.abs(faelligkeit.tageBisFaellig ?? 0)} Tagen)`;
   }

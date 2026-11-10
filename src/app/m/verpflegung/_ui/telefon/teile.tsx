@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { einheitText, restKurz, runde, TEILBAR, zahlText, type MhdStatus } from "../../_lib/mhd";
+import type { Zustand } from "../../_lib/bestand";
 import type { ArtikelDTO } from "../../_lib/typen";
 import { Kamera } from "./Kamera";
 import s from "./telefon.module.css";
@@ -65,8 +66,29 @@ export function eanAus(roh: string): string | null {
 
 export type Treffer = { ean: string; artikelId: string | null };
 
-/** Eine Zeile der Artikelliste: was sie zeigt, steht fest; gefiltert wird über Name, Kategorie und EAN. */
-export type ListenZeile = { artikel: ArtikelDTO; bestand: number; ampel: MhdStatus | null };
+/**
+ * Eine Zeile der Artikelliste: was sie zeigt, steht fest; gefiltert wird über Name, Kategorie und EAN. IDA-382: die
+ * Mengen, die gesperrt bzw. abgelaufen sind, stehen als Zahl daneben, nicht das Etikett der schlechtesten Charge;
+ * `ampel` ist die früheste noch gute Charge.
+ */
+export type ListenZeile = { artikel: ArtikelDTO; bestand: number; ampel: MhdStatus | null; zustand: Zustand };
+
+/** „8 von 10 Packungen ausgebbar“ bei gesperrter Ware, sonst „Bestand 10 Packungen“. */
+export function bestandText(bestand: number, z: Zustand, einheit: string): string {
+  if (z.gesperrt <= 0) return `Bestand ${zahlText(bestand)} ${einheitText(bestand, einheit)}`;
+  const frei = runde(bestand - z.gesperrt);
+  return `${zahlText(frei)} von ${zahlText(bestand)} ${einheitText(bestand, einheit)} ausgebbar`;
+}
+
+/** Die Mengenchips daneben: „2 gesperrt“, „4 abgelaufen“. */
+export function ZustandChips({ zustand }: { zustand: Zustand }) {
+  return (
+    <>
+      {zustand.gesperrt > 0 && <span className={`${s.chip} ${s.rot}`} data-rolle="gesperrt">{zahlText(zustand.gesperrt)} gesperrt</span>}
+      {zustand.abgelaufen > 0 && <span className={`${s.chip} ${s.rot}`} data-rolle="abgelaufen">{zahlText(zustand.abgelaufen)} abgelaufen</span>}
+    </>
+  );
+}
 
 const falte = (x: string) => x.toLocaleLowerCase("de").normalize("NFD").replace(/\p{M}/gu, "");
 
@@ -122,7 +144,8 @@ export function ArtikelListe({ zeilen, artikel, onWahl, onTreffer, leerText }: {
               <div className={s.name}>{z.artikel.name}</div>
               <div className={s.meta}>
                 <span className={s.fach}>{z.artikel.kategorie}</span>
-                <span>Bestand {zahlText(z.bestand)} {einheitText(z.bestand, z.artikel.einheit)}</span>
+                <span data-rolle="bestand">{bestandText(z.bestand, z.zustand, z.artikel.einheit)}</span>
+                <ZustandChips zustand={z.zustand} />
                 {z.ampel && z.ampel.ampel !== "ok" && <Ampel status={z.ampel} />}
                 {z.artikel.vorlaeufig && <span className={`${s.chip} ${s.gelb}`}>vorläufig</span>}
               </div>

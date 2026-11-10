@@ -114,7 +114,7 @@ describe("zaehlOrtLabel", () => {
    */
   it("unterscheidet ganzen Handlager, Wurzel und Schrank", () => {
     expect(zaehlOrtLabel(null, undefined)).toBe("Ganzer Handlager");
-    expect(zaehlOrtLabel(HANDLAGER_ID, "Handlager")).toBe("Nicht zugeordnet");
+    expect(zaehlOrtLabel(HANDLAGER_ID, "Handlager")).toBe("Handlager ohne Schrank");
     expect(zaehlOrtLabel("schrank-1", "Schrank 1")).toBe("Schrank 1");
   });
 
@@ -151,7 +151,7 @@ describe("eindeutigeLabels", () => {
   it("laesst eine Liste ohne Dopplung unveraendert", () => {
     const orte = [
       { schluessel: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
-      { schluessel: HANDLAGER_ID, label: "Nicht zugeordnet" },
+      { schluessel: HANDLAGER_ID, label: "Handlager ohne Schrank" },
       { schluessel: "schrank-1", label: "Schrank 1" },
     ];
     expect(eindeutigeLabels(orte)).toEqual(orte);
@@ -177,16 +177,16 @@ describe("eindeutigeLabels", () => {
 
   /**
    * ⚠️ DIE RICHTUNG, AN DIE DER BEFUND NICHT GEDACHT HAT: ein Schrank, den
-   * jemand „Nicht zugeordnet" nennt, kollidiert mit der Wurzel. Dieselbe
+   * jemand „Handlager ohne Schrank" nennt, kollidiert mit der Wurzel. Dieselbe
    * Verwechslung, nur nicht zwischen zwei Schraenken.
    */
   it("schuetzt auch die Wurzel vor einem gleichnamigen Schrank", () => {
     const [wurzel, schrank] = eindeutigeLabels([
-      { schluessel: HANDLAGER_ID, label: "Nicht zugeordnet" },
-      { schluessel: "schrank-frech", label: "Nicht zugeordnet" },
+      { schluessel: HANDLAGER_ID, label: "Handlager ohne Schrank" },
+      { schluessel: "schrank-frech", label: "Handlager ohne Schrank" },
     ]);
-    expect(wurzel!.label).toBe(`Nicht zugeordnet (${HANDLAGER_ID})`);
-    expect(schrank!.label).toBe("Nicht zugeordnet (schrank-frech)");
+    expect(wurzel!.label).toBe(`Handlager ohne Schrank (${HANDLAGER_ID})`);
+    expect(schrank!.label).toBe("Handlager ohne Schrank (schrank-frech)");
   });
 
   /**

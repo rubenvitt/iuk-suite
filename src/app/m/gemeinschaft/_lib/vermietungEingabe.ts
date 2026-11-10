@@ -26,12 +26,22 @@ const uhr = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Bitte eine Uhrzeit w�
 
 const zeitfelder = { vonTag: tag, vonUhr: uhr, bisTag: tag, bisUhr: uhr };
 
+/**
+ * Grob, ob das Kontaktfeld erreichbar aussieht (IDA-387: „abc“ ging durch und stand so auf der Statusseite):
+ * eine E-Mail mit Text vor und nach dem @ und einem Punkt dahinter, oder mindestens sechs Ziffern. Mehr nicht —
+ * „0151 2345678 (abends)“ bleibt gültig.
+ */
+export function istKontakt(s: string): boolean {
+  return /[^\s@]@[^\s@]+\.[^\s@]/.test(s) || (s.match(/\d/g)?.length ?? 0) >= 6;
+}
+
 export const anfrageFelder = z.object({
   ...zeitfelder,
   anlass: text(120, "Bitte den Anlass nennen."),
   personen: z.coerce.number({ message: "Bitte eine Zahl eingeben." }).int("Bitte eine ganze Zahl.").min(1, "Mindestens 1.").max(PERSONEN_MAX, `Höchstens ${PERSONEN_MAX}. Für mehr ist die Bar zu klein.`),
   person: text(120, "Bitte deinen Namen eingeben."),
-  kontakt: z.string().trim().min(3, "Bitte Telefon oder E-Mail eingeben.").max(200, "Höchstens 200 Zeichen."),
+  kontakt: z.string().trim().min(3, "Bitte Telefon oder E-Mail eingeben.").max(200, "Höchstens 200 Zeichen.")
+    .refine(istKontakt, "Bitte eine Telefonnummer oder E-Mail-Adresse eingeben."),
   hinweis: frei(1000).default(""),
   /** Honigtopf: im Formular unsichtbar, ein Mensch lässt es leer. */
   webseite: z.string().max(500).default(""),

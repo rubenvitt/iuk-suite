@@ -95,6 +95,9 @@
 .blockName.konflikt { color: var(--sp-rot-text); font-weight: 600; }
 .blockName.leer { color: var(--iuk-gedaempft); font-style: italic; cursor: inherit; }
 
+/* IDA-385: Lange Namen brechen in der Namensspalte um, statt in die Zeitspalte zu ragen. */
+.einheitZelle { min-width: 0; overflow-wrap: break-word; hyphens: auto; }
+
 /* ── Helferleiste ── */
 .leiste { background: var(--sp-karte); border: 1px solid var(--iuk-linie); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 @media (min-width: 1200px) { .leiste { position: sticky; top: 85px; max-height: calc(100dvh - 101px); } }
@@ -102,7 +105,13 @@
 @media (max-width: 1199px) { .leisteListe { max-height: 360px; } }
 .helferKarte { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border: 1px solid var(--iuk-linie); border-radius: 6px; cursor: grab; background: var(--sp-karte); }
 .helferKarte:active { cursor: grabbing; }
+/* IDA-385: Am Telefon ohne Ziehen keine Funktion — dort teilt die Schicht selbst ein. */
+@media (max-width: 767px) { .leiste { display: none; } }
+.passend { display: flex; flex-direction: column; gap: 2px; max-width: min(360px, 80vw); }
 .kartenZeile { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+
+/* Meldung mit „Rückgängig“ nach dem Ziehen (IDA-385). */
+.meldung { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 
 /* ── Flyins ── */
 .abschnitt { display: flex; flex-direction: column; gap: 8px; margin-block-end: 20px; }

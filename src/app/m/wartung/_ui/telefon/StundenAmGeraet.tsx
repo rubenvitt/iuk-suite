@@ -3,26 +3,39 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { App, Button, InputNumber } from "antd";
+import { App, Button } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { korrekturFrage, pruefeStundenEingabe, sprungFrage } from "../../_lib/stunden";
 import { stundenEintragenAction } from "../../_actions/telefon";
 import { Kicker } from "../teile";
+import { StundenFeld } from "./StundenFeld";
 import s from "../wartung.module.css";
 
-export function StundenAmGeraet({ geraetId, geraetName, zuletzt }: { geraetId: string; geraetName: string; zuletzt: number | null }) {
+/** Vor IDA-381 lag im Entwurf die Zahl (`wert`), seither der getippte Text; ein alter Entwurf kommt so noch an. */
+type Stand = { text?: string; wert?: number | null };
+
+/**
+ * Betriebsstunden ablesen (IDA-381): ein großer Sprung und eine Korrektur nach unten gehen erst nach Rückfrage. Nach
+ * unten korrigieren darf nur, wer die Gruppe des Geräts verwaltet (`darfKorrigieren`; der Server prüft es selbst).
+ */
+export function StundenAmGeraet({ geraetId, geraetName, zuletzt, darfKorrigieren = false }: {
+  geraetId: string; geraetName: string; zuletzt: number | null; darfKorrigieren?: boolean;
+}) {
   const { message } = App.useApp();
   const router = useRouter();
-  const [wert, setWert] = useState<number | null>(null);
+  const [text, setText] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
-  const zuKlein = wert !== null && zuletzt !== null && wert < zuletzt;
+  /** Der Wert, zu dem die Rückfrage gerade steht; ein anderer Wert stellt sie neu. */
+  const [rueckfrage, setRueckfrage] = useState<number | null>(null);
+  const befund = pruefeStundenEingabe(text, zuletzt);
 
   // IDA-358: der abgelesene Stand bleibt auf dem Telefon, bis der Server ihn bestätigt; `sendung` hält Doppelte fern.
-  const entwurf = useEntwurf<{ wert: number | null }, { stunden: number }, Awaited<ReturnType<typeof stundenEintragenAction>>>({
+  const entwurf = useEntwurf<Stand, { stunden: number; korrektur?: true }, Awaited<ReturnType<typeof stundenEintragenAction>>>({
     schluessel: `wartung:stunden:${geraetId}`,
-    stand: { wert },
-    wiederherstellen: (w) => setWert(w.wert),
+    stand: { text },
+    wiederherstellen: (w) => setText(w.text ?? (w.wert == null ? "" : String(w.wert))),
     senden: (d, sendung) => stundenEintragenAction(geraetId, { ...d, sendung }),
     antwort: (r) => {
       if (!r.ok) {
@@ -36,10 +49,24 @@ export function StundenAmGeraet({ geraetId, geraetName, zuletzt }: { geraetId: s
   });
   const laeuft = entwurf.zustand === "sendet";
 
+  const gesperrt = befund.art === "leer" || befund.art === "ungueltig" || (befund.art === "kleiner" && !darfKorrigieren);
+  const frage = befund.art === "sprung" ? sprungFrage(befund.plus) : befund.art === "kleiner" && darfKorrigieren ? korrekturFrage(befund.zuletzt, befund.wert) : null;
+  const fragtGerade = frage !== null && "wert" in befund && rueckfrage === befund.wert;
+
   const speichern = () => {
-    if (wert === null || zuKlein || laeuft) return;
+    if (gesperrt || laeuft || !("wert" in befund)) return;
+    if (frage && !fragtGerade) {
+      setRueckfrage(befund.wert);
+      return;
+    }
     setFehler(null);
-    entwurf.sende({ stunden: wert });
+    setRueckfrage(null);
+    entwurf.sende(befund.art === "kleiner" ? { stunden: befund.wert, korrektur: true } : { stunden: befund.wert });
+  };
+
+  const tippe = (t: string) => {
+    setText(t);
+    setFehler(null);
   };
 
   return (
@@ -50,25 +77,14 @@ export function StundenAmGeraet({ geraetId, geraetName, zuletzt }: { geraetId: s
       </section>
       <section className={s.karte}>
         <Kicker className={s.karteTitel}>Stand am Zähler</Kicker>
-        <InputNumber
-          value={wert ?? undefined}
-          onChange={(v) => setWert(v ?? null)}
-          min={0}
-          precision={0}
-          suffix="h"
-          inputMode="numeric"
-          style={{ width: "100%" }}
-          aria-label="Stand am Zähler"
-          status={zuKlein || fehler ? "warning" : undefined}
-          onPressEnter={speichern}
-        />
-        <div className={`${s.neben} ${s.klein}`} style={{ marginTop: 4 }} aria-live="polite">
-          {fehler ?? (zuKlein ? `Kleiner als der letzte Stand (${zuletzt} h).` : zuletzt !== null ? `Zuletzt ${zuletzt} h` : null)}
-        </div>
+        <StundenFeld id="stunden-feld" label="Stand am Zähler" text={text} setText={tippe} befund={befund} zuletzt={zuletzt} warnen={fehler} onEnter={speichern} />
       </section>
       <div className={s.fuss}>
         <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
-        <Button type="primary" block disabled={wert === null || zuKlein} loading={laeuft} onClick={speichern}>Speichern</Button>
+        {fragtGerade && <div className={s.rueckfrage} role="alert" data-rolle="stunden-rueckfrage">{frage}</div>}
+        <Button type="primary" block disabled={gesperrt} loading={laeuft} onClick={speichern}>
+          {fragtGerade ? (befund.art === "kleiner" ? "Ja, korrigieren" : "Ja, speichern") : befund.art === "kleiner" && darfKorrigieren ? "Korrigieren" : "Speichern"}
+        </Button>
       </div>
     </div>
   );

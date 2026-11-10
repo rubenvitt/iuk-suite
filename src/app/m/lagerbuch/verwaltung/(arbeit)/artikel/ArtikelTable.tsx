@@ -7,6 +7,7 @@ import { SPACE } from "@/core/theme/tokens";
 import {
   angezeigteZeilen,
   Kartentabelle,
+  NurBreit,
   filterAktiv,
   nachDatum,
   nachText,
@@ -535,6 +536,37 @@ export function ArtikelTable({
   // spart.
   const angezeigt = angezeigteZeilen(gefiltert, spalten, spaltenFilter, sortierung);
 
+  /*
+   * DRK-294. Nur, wenn es etwas zu waehlen gibt — ohne vergebene Kategorie
+   * waere das Feld eine leere Liste.
+   *
+   * ⚠️ EIN ELEMENT, ZWEI ORTE (IDA-380): breit im Kopf neben der Suche, schmal
+   * hinter dem Knopf „Filter" der Kartenleiste. Beide lesen und schreiben
+   * denselben Zustand; welches zu sehen ist, entscheidet `NurBreit` bzw.
+   * `NurSchmal` am einzigen Breakpoint der Suite.
+   */
+  const kategorienFeld = kategorien.length > 0 ? (
+    <Select<string[]>
+      mode="multiple"
+      value={sichtbareAuswahl}
+      onChange={kategorienAendern}
+      options={kategorien.map((option) => ({
+        value: option.schluessel,
+        label: option.label,
+      }))}
+      placeholder="Kategorien dauerhaft ausblenden"
+      aria-label="Kategorien dauerhaft ausblenden"
+      // Der Unterschied zum Spaltenfilter derselben Spalte, in einem Satz:
+      // dieser hier bleibt, jener gilt nur fuer den Moment.
+      title={
+        "Für dein Konto gespeichert — diese Kategorien bleiben auch beim "
+        + "nächsten Aufschlagen ausgeblendet"
+      }
+      virtual={false}
+      style={{ minWidth: 240, flex: "1 1 240px", maxWidth: "100%" }}
+    />
+  ) : null;
+
   return (
     <>
       <TabellenVollhoehe
@@ -547,29 +579,9 @@ export function ArtikelTable({
                 onWert={(suche) => setFilter((vorher) => ({ ...vorher, suche }))}
                 platzhalter="Artikel, Fach oder Charge suchen…"
               />
-              {/* DRK-294. Nur, wenn es etwas zu waehlen gibt — ohne vergebene
-                  Kategorie waere das Feld eine leere Liste. */}
-              {kategorien.length > 0 ? (
-                <Select<string[]>
-                  mode="multiple"
-                  value={sichtbareAuswahl}
-                  onChange={kategorienAendern}
-                  options={kategorien.map((option) => ({
-                    value: option.schluessel,
-                    label: option.label,
-                  }))}
-                  placeholder="Kategorien dauerhaft ausblenden"
-                  aria-label="Kategorien dauerhaft ausblenden"
-                  // Der Unterschied zum Spaltenfilter derselben Spalte, in einem Satz:
-                  // dieser hier bleibt, jener gilt nur fuer den Moment.
-                  title={
-                    "Für dein Konto gespeichert — diese Kategorien bleiben auch beim "
-                    + "nächsten Aufschlagen ausgeblendet"
-                  }
-                  virtual={false}
-                  style={{ minWidth: 240 }}
-                />
-              ) : null}
+              {/* IDA-380 — breit steht das Feld hier, schmal in der Filterleiste
+                  der Karten (`steuerungZusatz` unten). */}
+              {kategorienFeld ? <NurBreit>{kategorienFeld}</NurBreit> : null}
               {hatFilter ? (
                 <Button
                   icon={<Ikone name="zuruecksetzen" groesse={16} />}
@@ -705,10 +717,27 @@ export function ArtikelTable({
              */
             karte={{
               titel: "name",
-              kennzeichen: ["aktiv", "bestand"],
+              /*
+               * IDA-380 — NEBEN DEM NAMEN STEHT NUR DER BESTAND, die Status-
+               * chips stehen darunter. Als zwei Kennzeichen neben dem Titel
+               * ließen sie dem Namen auf 390px eine Buchstabenbreite
+               * („B/Z/-/T/e/s/t…"), und der Bestand lief rechts aus dem Bild.
+               */
+              kennzeichen: ["bestand"],
+              unterTitel: ["aktiv"],
               aus: ["mindestbestand"],
             }}
-            kartenHoehe={190}
+            kartenHoehe={210}
+            /*
+             * IDA-380 — sechs Spaltenfilter, die Sortierung und die
+             * Kategorien stünden sonst als neun Felder vor der ersten Karte.
+             * Die Suche bleibt oben offen; der Rest liegt hinter „Filter".
+             */
+            steuerungEingeklappt
+            steuerungZusatz={kategorienFeld ? {
+              inhalt: kategorienFeld,
+              aktiv: sichtbareAuswahl.length > 0 ? 1 : 0,
+            } : undefined}
             leer={{
               nichts: "Noch keine Artikel",
               figur: "lagerbuch",

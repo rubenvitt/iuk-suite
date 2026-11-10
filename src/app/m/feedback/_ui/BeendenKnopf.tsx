@@ -33,7 +33,7 @@ export type BeendenKnopfProps = {
 
 export function BeendenKnopf({
   surveyId,
-  beschriftung = "Feedback jetzt beenden",
+  beschriftung = "Umfrage beenden",
   darstellung = "default",
 }: BeendenKnopfProps) {
   const [laeuft, starte] = useTransition();
@@ -48,7 +48,7 @@ export function BeendenKnopf({
 
   return (
     <Popconfirm
-      title="Feedback beenden?"
+      title="Umfrage beenden?"
       description="Danach kann niemand mehr antworten. Die Auswertung bleibt erhalten."
       okText="Beenden"
       cancelText="Abbrechen"

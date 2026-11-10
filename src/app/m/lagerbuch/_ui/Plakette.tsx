@@ -1,6 +1,7 @@
 import type { Ampel } from "../_lib/domain/verfall";
 import { ampelTon, fmtVerfall } from "../_lib/format";
 import { ampelVar } from "../_lib/ampel";
+import { istOhneVerfall } from "../_lib/konstanten";
 
 /**
  * SVG-Attribute muessen auf Server und Client bytegleich serialisieren.
@@ -66,7 +67,12 @@ export function Plakette({
   // `transparent` zurueck und ist GUELTIGES CSS — der Ring verschwaende
   // einfach. `ampelTon` ist die eine Stelle, die diese Abbildung kennt.
   const farbe = `var(${ampelVar(ampelTon(ampel), "text")})`;
-  const monat = Number(verfall.split("-")[1]);
+  // IDA-380: der Platzhalter `PSEUDO_VERFALL` ist KEIN Dezember. Ohne Verfall
+  // tritt kein Strich hervor, die Mitte zeigt einen Strich statt „12/99", und
+  // das Label nennt den Zustand nur einmal (`statusText` ist dann schon
+  // „ohne Verfall").
+  const ohneVerfall = istOhneVerfall(verfall);
+  const monat = ohneVerfall ? 0 : Number(verfall.split("-")[1]);
 
   const striche = [];
   for (let i = 0; i < 12; i++) {
@@ -94,7 +100,7 @@ export function Plakette({
       height="40"
       viewBox="0 0 40 40"
       role="img"
-      aria-label={`Verfall ${fmtVerfall(verfall)} — ${statusText}`}
+      aria-label={ohneVerfall ? statusText : `Verfall ${fmtVerfall(verfall)} — ${statusText}`}
       style={{ flex: "none" }}
     >
       <circle cx="20" cy="20" r="19" fill="var(--lb-karte)" stroke={farbe} strokeWidth="1.6" />
@@ -111,7 +117,7 @@ export function Plakette({
           fill: "var(--lb-tinte)",
         }}
       >
-        {fmtVerfall(verfall)}
+        {ohneVerfall ? "–" : fmtVerfall(verfall)}
       </text>
     </svg>
   );

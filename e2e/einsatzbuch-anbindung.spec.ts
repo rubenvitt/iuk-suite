@@ -278,7 +278,9 @@ test.describe("Rechnerseite der Einsatztagebuch-Verwaltung", () => {
 
     await expect(page.getByText("Widerrufene echte Rechner")).toBeVisible();
     await expect(page.getByText(name)).toBeVisible();
-    await expect(page.getByText(new RegExp(`Block 1: erwartet a{64}, gemeldet b{64}`))).toBeVisible();
+    const abweichung = page.getByText("Block 1 anders gemeldet als zuvor");
+    await expect(abweichung).toBeVisible();
+    await expect(abweichung).toHaveAttribute("title", new RegExp(`erwartet a{64}, gemeldet b{64}`));
   });
 });
 
@@ -289,7 +291,7 @@ test.describe("Übersicht der Einsatztagebuch-Verwaltung", () => {
 
     await page.goto(url("/"));
     await expect(page.getByText("Echter Rechner", { exact: true })).toBeVisible();
-    await expect(page.getByText("Anker-Abweichungen", { exact: true })).toBeVisible();
+    await expect(page.getByText("Widersprüchliche Meldungen", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Rechner verwalten" })).toHaveAttribute("href", "/rechner");
   });
 });

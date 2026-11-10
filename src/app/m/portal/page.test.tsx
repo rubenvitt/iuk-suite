@@ -109,6 +109,16 @@ describe("Portal-Startseite: Seitenkopf statt eigenem <h1>", () => {
     expect(props.ansprechpartner).toBe("IuK-Gruppe — iuk@example.org");
   });
 
+  it("fuehrt das Portal nicht als eigene Kachel (IDA-391)", async () => {
+    launcherMock.mockResolvedValue([
+      { key: "portal", title: "Portal", href: "https://p", abschnitt: "Apps", extern: false },
+      { key: "qr", title: "QR-Codes", href: "https://q", abschnitt: "Apps", extern: false },
+    ] as never);
+    const baum = flatten((await PortalPage()) as ReactElement);
+    const raster = baum.find((el) => el.type === DiensteRaster)!;
+    expect((raster.props as { eintraege: { key: string }[] }).eintraege.map((e) => e.key)).toEqual(["qr"]);
+  });
+
   it("liest die Liste ueber die Gruppen der Sitzung, anonym ueber null", async () => {
     authMock.mockResolvedValue({ user: { groups: ["a", "b"] } } as never);
     await PortalPage();

@@ -37,6 +37,7 @@ import { listPresets } from "@/app/m/qr/_lib/presets";
 import QrAdminPage from "@/app/m/qr/admin/page";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { PresetForm } from "@/app/m/qr/admin/preset-form";
+import { LoeschKnopf } from "@/app/m/qr/admin/LoeschKnopf";
 import type { Preset } from "@/app/m/qr/_lib/types";
 
 const guardMock = vi.mocked(moduleAdminPageOrNotFound);
@@ -76,7 +77,7 @@ describe("qr/admin: Zugriff und Seitenkopf", () => {
     );
     const kopf = baum.find((el) => el.type === Seitenkopf);
     expect(kopf).toBeDefined();
-    expect((kopf!.props as { titel: string }).titel).toBe("Presets verwalten");
+    expect((kopf!.props as { titel: string }).titel).toBe("Schnellzugriffe verwalten");
     expect(baum.some((el) => el.type === "h1")).toBe(false);
   });
 
@@ -108,5 +109,31 @@ describe("qr/admin: Zugriff und Seitenkopf", () => {
     );
     const formular = baum.find((el) => el.type === PresetForm)!;
     expect((formular.props as { preset?: Preset }).preset).toBeUndefined();
+  });
+
+  /*
+   * IDA-390: „Löschen" stand als großer roter Knopf ohne Rückfrage direkt neben „Bearbeiten"
+   * in jeder Zeile. Jetzt gibt es ihn nur beim Bearbeiten, und die id ist kein sichtbarer Text.
+   */
+  it("bietet Löschen nur beim Bearbeiten an, nicht in der Liste", async () => {
+    listPresetsMock.mockResolvedValue(PRESETS);
+    const liste = flatten((await QrAdminPage({ searchParams: Promise.resolve({}) })) as ReactElement);
+    expect(liste.some((el) => el.type === LoeschKnopf)).toBe(false);
+    expect(liste.some((el) => el.type === "form")).toBe(false);
+
+    const bearbeiten = flatten(
+      (await QrAdminPage({ searchParams: Promise.resolve({ bearbeiten: "p2" }) })) as ReactElement,
+    );
+    const knopf = bearbeiten.filter((el) => el.type === LoeschKnopf);
+    expect(knopf).toHaveLength(1);
+    expect(knopf[0].props).toEqual({ id: "p2", label: "Zwei", kind: "text" });
+  });
+
+  it("zeigt die interne id nicht als Text in der Zeile", async () => {
+    listPresetsMock.mockResolvedValue(PRESETS);
+    const baum = flatten((await QrAdminPage({ searchParams: Promise.resolve({}) })) as ReactElement);
+    expect(baum.some((el) => el.type === "code")).toBe(false);
+    const zeilen = baum.filter((el) => (el.props as Record<string, unknown>)["data-testid"] === "preset-row");
+    expect(zeilen.map((z) => (z.props as Record<string, unknown>)["data-preset-id"])).toEqual(["p1", "p2"]);
   });
 });

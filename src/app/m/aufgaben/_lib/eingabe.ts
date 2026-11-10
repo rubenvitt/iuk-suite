@@ -42,6 +42,23 @@ export function istGueltigeDauerMinuten(n: number): boolean {
   return Number.isInteger(n) && n > 0;
 }
 
+/**
+ * „ZEIT PRO TAG (STUNDEN)" DER PERSONENVERWALTUNG (IDA-386) → Minuten, oder `null`.
+ *
+ * Die Koordination tippt Stunden mit Dezimalkomma („7,8"), gespeichert wird weiter in Minuten
+ * (`personen.sollMinutenTag`). Ein Punkt gilt ebenso („7.8"), weil Telefontastaturen je nach
+ * Spracheinstellung nur ihn anbieten. Gerundet wird auf die ganze Minute; mehr als 24 Stunden
+ * am Tag gibt es nicht, und eine Rundung auf 0 Minuten ist keine Zeit.
+ */
+export function stundenAlsMinuten(roh: string): number | null {
+  const text = roh.trim().replace(",", ".");
+  if (!/^\d+(\.\d+)?$/.test(text)) return null;
+  const stunden = Number(text);
+  if (!Number.isFinite(stunden) || stunden > 24) return null;
+  const minuten = Math.round(stunden * 60);
+  return minuten > 0 ? minuten : null;
+}
+
 export function istGueltigePrioritaet(s: string): s is Prioritaet {
   return (PRIORITAETEN as readonly string[]).includes(s);
 }

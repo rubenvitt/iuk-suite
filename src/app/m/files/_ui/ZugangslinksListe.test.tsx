@@ -418,7 +418,7 @@ describe("Punkt 4 — Kontingent aufstocken steht am Restbudget", () => {
     await zeige();
     await click("[data-testid='files-zugangslink-aufstocken-zl-aaaaaaaa']");
     expect(exists("input[name='zusatzDateien']")).toBe(true);
-    expect(exists("input[name='zusatzBytes']")).toBe(true);
+    expect(exists("input[name='zusatzMib']")).toBe(true);
     expect(query<HTMLInputElement>("input[name='id']").value).toBe("zl-aaaaaaaa");
   });
 

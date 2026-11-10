@@ -1657,7 +1657,7 @@ describe("bucheAuffuellung (DRK-313)", () => {
     );
     // Der Beleg auf dem Schirm nennt diesen Namen; er kommt aus dem SERVER,
     // damit ein umbenannter Ort nicht unter altem Namen quittiert wird.
-    expect(erg).toMatchObject({ ok: true, wert: { ziel: "Handlager (ohne Schrank)" } });
+    expect(erg).toMatchObject({ ok: true, wert: { ziel: "Handlager ohne Schrank" } });
   });
 
   /**
@@ -1669,7 +1669,7 @@ describe("bucheAuffuellung (DRK-313)", () => {
    */
   it("macht zwei gleichnamige Ziele unterscheidbar, statt sie doppelt anzubieten", async () => {
     t.db.insert(lagerorte).values([
-      { id: "schrank-dublette", name: "Handlager (ohne Schrank)", typ: "lager",
+      { id: "schrank-dublette", name: "Handlager ohne Schrank", typ: "lager",
         parentId: HANDLAGER_ID, aktiv: true },
     ]).run();
 
@@ -1685,8 +1685,8 @@ describe("bucheAuffuellung (DRK-313)", () => {
     // Schrank — sonst quittierte er eine Buchung, die genauso gut die andere
     // sein koennte.
     const wert = (erg as { ok: true; wert: { ziel: string } }).wert;
-    expect(wert.ziel).toContain("Handlager (ohne Schrank)");
-    expect(wert.ziel).not.toBe("Handlager (ohne Schrank)");
+    expect(wert.ziel).toContain("Handlager ohne Schrank");
+    expect(wert.ziel).not.toBe("Handlager ohne Schrank");
     expect(wert.ziel).toContain(HANDLAGER_ID);
   });
 

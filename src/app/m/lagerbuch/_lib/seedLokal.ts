@@ -1091,8 +1091,12 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    *        (der laeuft bei `recursive_triggers = 0` still am Trigger vorbei,
    *        gemessen in `_db/append-only.test.ts`).
    *
-   *        Die letzte Kontrolle liegt 27 Tage zurueck → faellig in 4 Tagen →
-   *        GELB (Intervall 31 Tage, Warnfenster 5). */
+   *        IDA-379: die Frist laeuft nur von einer BESTANDENEN, nicht
+   *        stornierten Kontrolle. Vor 27 Tagen schlug Level 2 fehl, zwei
+   *        Stunden spaeter bestand die Wiederholung → faellig in 5 Tagen →
+   *        GELB (Intervall 31 Tage, Warnfenster 5). Die juengste Zeile ist
+   *        eine stornierte Fehleingabe: sie steht durchgestrichen im Logbuch
+   *        und verschiebt nichts. */
   const bzkDa = vorhandeneIds(db.select({ id: bzKontrollen.id }).from(bzKontrollen).all());
   const refSnapshotRtw = JSON.stringify({
     // ⚠️ SIEBEN SCHLUESSEL IN DIESER REIHENFOLGE (`_db/schema.ts:318-323`).
@@ -1113,6 +1117,21 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       sticks: 42, lanzetten: 88, batterieGewechselt: true,
       kommentar: "Level 2 außerhalb — Streifen neu kalibriert, Wiederholung folgt.",
       bestanden: false,
+    },
+    {
+      id: "bzk-rtw1-03", geraetId: "bz-rtw1", ts: new Date(vor(jetzt, 27).getTime() + 2 * 3_600_000),
+      level1Wert: 55, level1ImBereich: true, level2Wert: 305, level2ImBereich: true,
+      sticks: 40, lanzetten: 86, batterieGewechselt: false,
+      kommentar: "Wiederholung nach Kalibrierung.", bestanden: true,
+    },
+    {
+      // Storniert schon beim Anlegen: der Riegel aus 0025 gilt fuer UPDATE,
+      // ein INSERT mit Vermerk ist dieselbe Zeile in einem Schritt.
+      id: "bzk-rtw1-04", geraetId: "bz-rtw1", ts: vor(jetzt, 3),
+      level1Wert: 12, level1ImBereich: false, level2Wert: 30, level2ImBereich: false,
+      sticks: 40, lanzetten: 86, batterieGewechselt: false,
+      kommentar: "Am falschen Gerät erfasst.", bestanden: false,
+      storniertAt: vor(jetzt, 3), storniertVon: SEED_SUB,
     },
   ].filter((k) => !bzkDa.has(k.id));
   for (const k of bzkListe) {
@@ -1199,6 +1218,50 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   ].filter((p) => !plDa.has(p.id));
   for (const p of plombenListe) {
     db.insert(plomben).values({ ...p, aktiv: true, createdAt: vor(jetzt, 30) }).run();
+  }
+
+  /* 16c ── IDA-379: EINE ABGELAUFENE CHARGE, DIE NUR NOCH DRAUSSEN LIEGT. Fünf
+   *         Pflastersets gehen in den Handlager und von dort vollständig in
+   *         den MTW 1 (3) und die Sanitätstasche 1 (2). Im Handlager bleibt
+   *         nichts — genau der Fall, der bis IDA-379 auf der Verfall-Seite
+   *         ganz fehlte, während die Artikel-Schublade ihn zeigte.
+   *
+   *         ⚠️ DERSELBE ARTIKEL AUS DEMSELBEN GRUND WIE `ch-pflaster-alt`:
+   *         `pflaster` kommt in keinem `fefoAbbuchung`-Block und in keiner
+   *         Fahrzeugvorlage vor; eine weitere abgelaufene Charge aendert also
+   *         nicht still, woraus andere Bloecke buchen. Und der Block steht
+   *         HINTER allen anderen Buchungsbloecken, mit fester Quellcharge
+   *         (`chargeId`) — auch das haelt ihn aus jeder FEFO-Wahl heraus.
+   *
+   *         Idempotenzgate: die feste Zugangs-Id fuer Charge und Zugang, die
+   *         Referenz fuer die Umlagerung. */
+  const CH_PFLASTER_DRAUSSEN = "ch-pflaster-draussen";
+  if (!chDa.has(CH_PFLASTER_DRAUSSEN)) {
+    db.insert(chargen).values({
+      id: CH_PFLASTER_DRAUSSEN, artikelId: A.pflaster, chargenNr: "P-2024-140",
+      verfall: m.abgelaufen, createdAt: vor(jetzt, 160),
+    }).run();
+  }
+  const BU_ZG_PFLASTER_DRAUSSEN = "bu-zg-pflaster-draussen";
+  if (!buDa.has(BU_ZG_PFLASTER_DRAUSSEN)) {
+    db.insert(buchungen).values({
+      id: BU_ZG_PFLASTER_DRAUSSEN, ts: vor(jetzt, 160), typ: "zugang",
+      artikelId: A.pflaster, chargeId: CH_PFLASTER_DRAUSSEN, lagerortId: HANDLAGER_ID,
+      menge: 5, quelleTyp: "oidc", quelleId: SEED_SUB,
+      referenz: null, kommentar: "Wareneingang (Demodaten)",
+    }).run();
+  }
+  const REF_PFLASTER_DRAUSSEN = "seed:umlagerung-pflaster-einheiten";
+  if (!journalGebucht(db, REF_PFLASTER_DRAUSSEN)) {
+    db.transaction((tx) => {
+      for (const [nach, menge] of [[MTW, 3], [TASCHE_SAN, 2]] as const) {
+        umlagerungVonOrt(tx, {
+          artikelId: A.pflaster, chargeId: CH_PFLASTER_DRAUSSEN, menge,
+          vonOrt: HANDLAGER_ID, nachLagerortId: nach, quelle: QUELLE_OIDC,
+          kommentar: "Einheiten bestückt", referenz: REF_PFLASTER_DRAUSSEN,
+        });
+      }
+    });
   }
 
   /* 17 ── Zugangs-Codes. FESTE Codes — sie stehen im Protokoll und auf
@@ -1289,6 +1352,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         "gelb zeigen stattdessen AED-MTK, BZ-Kontrolle und O₂-Flasche 2 l",
     `  grün        Chargen mit Verfall ${m.gruen}; „ohne Verfall" = ${PSEUDO_VERFALL}`,
     `  ausgesondert Charge P-2024-091 (Pflasterset) — im Journal unter „Aussonderung“`,
+    "  draußen     Charge P-2024-140 (Pflasterset), abgelaufen, nur in MTW 1 und " +
+      "Sanitätstasche 1 — Verwaltung → Verfall",
     `  Entnahmebox 6 Kühlkompressen aus RTW 1 — Verwaltung → Entnahmebox`,
     `  Gerät rot   Absaugpumpe RTW 1, MTK seit ${tagIso(jetzt, -12)} überfällig`,
     `  Gerät gelb  AED RTW 1, MTK am ${tagIso(jetzt, 18)}`,

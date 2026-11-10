@@ -477,6 +477,15 @@ export const bzKontrollen = sqliteTable(
     // ⚠️ Nachgeprueft: die Spalte wird heute GESCHRIEBEN und NIRGENDS GELESEN;
     // §5.11 macht sie sichtbar, statt sie zu streichen.
     refSnapshot: text("ref_snapshot"),
+    /**
+     * IDA-379 — DER STORNO-VERMERK. Eine Fehleingabe wird nicht geloescht,
+     * sondern storniert: die Zeile bleibt als Nachweis lesbar und zaehlt
+     * nirgends mehr (Faelligkeit, Akku, letzte Kontrolle). Der Riegel aus 0002
+     * laesst seit 0025 genau EIN Update zu — beide Spalten von NULL auf gesetzt,
+     * alles andere unveraendert. `storniertVon` ist die OIDC-`sub`.
+     */
+    storniertAt: integer("storniert_at", { mode: "timestamp" }),
+    storniertVon: text("storniert_von"),
   },
   (t) => [index("idx_bz_kontrollen_geraet_ts").on(t.geraetId, t.ts)],
 );
@@ -717,7 +726,7 @@ export const ausgeblendeteKategorien = sqliteTable(
  * (1:1-Pflicht 12), nur hat die ID jetzt einen Datensatz.
  *
  * `umfang` ist der Filter ZUM ZEITPUNKT DES ABSCHLUSSES, als JSON
- * `{ kategorien: string[]; faecher: string[] }`, `null` = vollstaendig. Er ist
+ * `{ kategorien: string[]; faecher: string[] }`, `null` = ohne Auswahl. Er ist
  * BESCHREIBEND: gebucht werden alle angefassten Positionen, auch ausgeblendete.
  */
 export const inventuren = sqliteTable("inventuren", {
@@ -727,6 +736,13 @@ export const inventuren = sqliteTable("inventuren", {
   quelleId: text("quelle_id").notNull(),
   kommentar: text("kommentar").notNull(),
   umfang: text("umfang"),
+  /**
+   * IDA-379 (0024) — Artikel des Umfangs, die beim Abschluss erfasst waren, und
+   * alle Artikel des Umfangs. Beide `null` bei Laeufen davor: ob die vollstaendig
+   * waren, ist nicht belegt.
+   */
+  erfasst: integer("erfasst"),
+  gesamt: integer("gesamt"),
 });
 
 /**
