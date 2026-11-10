@@ -82,6 +82,7 @@ export function SuchlageVerbindung({ start }: { start: { adresse: string; sperre
               <Input
                 id="einstellung-suchlage-link"
                 value={link}
+                placeholder="https://…/kiosk#…"
                 autoComplete="off"
                 status={feldFehler ? "error" : undefined}
                 aria-describedby={feldFehler ? "einstellung-suchlage-link-fehler" : undefined}

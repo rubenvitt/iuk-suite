@@ -38,8 +38,8 @@ export const dynamic = "force-dynamic";
 
 /*
  * `/a/<id>` — DAS AUFGABENDETAIL (Spec §8.4, Aufgabe 16). Titel · Chip-Zeile (Zustand, Prioritaet,
- * Nachweispflicht) · die Erklaerung UNGEKUERZT · ein Metablock (Auftraggeber, Zugewiesen, Frist,
- * Dauerschaetzung, Pruefer) · der Nachweisbereich · die Aktionszone · der Verlauf als Journal.
+ * Nachweispflicht) · die Erklaerung UNGEKUERZT · die Aktionszone · ein Metablock (Auftraggeber,
+ * Zugewiesen, Frist, Dauerschaetzung, Pruefer) · der Nachweisbereich · der Verlauf als Journal.
  *
  * DAS SICHTRECHT (Spec §7, Brief): eine unbekannte Id bleibt `notFound()` — die Grenze der
  * Erklaerseiten-Ausnahme aus dem Spec-Nachtrag vom 2026-08-14 gilt NUR fuer die eigene, fehlende
@@ -71,8 +71,8 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
   const verlaufListe = verlaufFuer(db, task.id);
   const optionen = aktionsOptionen(task, akteur, heute);
   /*
-   * DIE ZIELE FUER „ANDERS ZUWEISEN" (Oberflaechen-Spec 2026-08-16 §7 Nr. 3, Schritt 6) — GELADEN
-   * NUR, WENN DIE AKTION UEBERHAUPT ERLAUBT IST. `optionen.umverteilen` ist
+   * DIE ZIELE FUER „ANDERS ZUWEISEN" (Oberflaechen-Spec 2026-08-16 §7 Nr. 3, Schritt 6) UND SEIT
+   * IDA-386 FUER „VERTEILEN" AUS `eingegangen` — GELADEN NUR, WENN EINE DER BEIDEN ERLAUBT IST. `optionen.umverteilen` ist
    * `uebergang(task, "umverteilen", akteur, heute).erlaubt` und traegt damit BEIDES: den Zustand
    * (`verteilt`) und `darfVerteilen`. Ein zweites, hier geschriebenes `akteur.istKoordination`
    * waere genau der Nachbau, den §11.3 verbietet — und die Abfrage liefe fuer jede BuFDi auf jeder
@@ -82,7 +82,7 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
    * kommt daraus aus `bufdis()`, nicht aus `aktivePersonen()`. Eine ausgeschiedene Person ist kein
    * Verteilziel, und dieser Riegel bleibt woertlich (§11.3).
    */
-  const verteilZiele = optionen.umverteilen ? verteilDaten(db, heute) : null;
+  const verteilZiele = optionen.umverteilen || optionen.verteilen ? verteilDaten(db, heute) : null;
 
   return (
     <>
@@ -131,6 +131,28 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
 
       <p style={{ ...SCHRIFT.text, marginBlockEnd: SPACE.lg, maxWidth: 640 }}>{task.beschreibung}</p>
 
+      {/*
+       * DIE AKTIONSZONE STEHT VOR DEM METABLOCK (IDA-386): darunter lag „Fertig melden" auf dem
+       * Telefon bei etwa 870px, unter Angaben, die man zum Handeln nicht braucht.
+       */}
+      <section id="aktion" style={{ marginBlockEnd: SPACE.xl }}>
+        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Aktion</h2>
+        <AktionsZone
+          aufgabe={task}
+          optionen={optionen}
+          nachweisMaxBytes={NACHWEIS_MAX_BYTES}
+          verteilen={
+            verteilZiele === null
+              ? null
+              : {
+                  bufdis: verteilZiele.bufdis,
+                  auslastung: verteilZiele.auslastung,
+                  tage: verteilZiele.tage,
+                }
+          }
+        />
+      </section>
+
       <dl
         style={{
           display: "grid",
@@ -174,24 +196,6 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
             </ul>
           )
         ) : null}
-      </section>
-
-      <section id="aktion" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>Aktion</h2>
-        <AktionsZone
-          aufgabe={task}
-          optionen={optionen}
-          nachweisMaxBytes={NACHWEIS_MAX_BYTES}
-          verteilen={
-            verteilZiele === null
-              ? null
-              : {
-                  bufdis: verteilZiele.bufdis,
-                  auslastung: verteilZiele.auslastung,
-                  tage: verteilZiele.tage,
-                }
-          }
-        />
       </section>
 
       <section id="verlauf">

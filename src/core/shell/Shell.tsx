@@ -2,22 +2,25 @@ import { FullShell } from "@/core/shell/FullShell";
 import { KioskShell } from "@/core/shell/KioskShell";
 import { MinimalShell } from "@/core/shell/MinimalShell";
 import type { ShellVariant } from "@/core/registry";
-import type { SuiteNavItem } from "@/core/shell/types";
+import type { Sprungziel, SuiteNavItem } from "@/core/shell/types";
 
 export function Shell({
   variant,
   moduleKey,
   nav,
+  sprungziele,
   children,
 }: {
   variant: ShellVariant;
   moduleKey: string;
   nav?: SuiteNavItem[];
+  /** Inhalte für „Springen zu" (IDA-380) — nur `FullShell` hat das Feld; die anderen Hüllen übergehen sie. */
+  sprungziele?: Sprungziel[];
   children: React.ReactNode;
 }) {
   if (variant === "full")
     return (
-      <FullShell moduleKey={moduleKey} nav={nav}>
+      <FullShell moduleKey={moduleKey} nav={nav} sprungziele={sprungziele}>
         {children}
       </FullShell>
     );

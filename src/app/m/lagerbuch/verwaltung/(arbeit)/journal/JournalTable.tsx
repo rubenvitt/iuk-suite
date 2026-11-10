@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, Flex, Spin, type TableProps } from "antd";
+import { useCallback, useMemo, useState } from "react";
+import { Alert, Button, Flex, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { Kartentabelle, Zellentext } from "@/core/tabelle";
 import { naechsteJournalSeite } from "../../../_actions/journal";
@@ -13,11 +13,12 @@ import type { JournalZeileDTO } from "../../../_lib/journalDTO";
 // Client-Komponente, die den Wert nur re-exportiert. Der Umweg ginge hier zwar
 // (beide Seiten sind Client), aber `page.tsx` liest denselben Modulpfad als
 // Server Component, und zwei Wege zu einem Wert laden zu Falle 6 ein.
-import { deckelText } from "./journalFilterLogik";
+import { deckelText, JOURNAL_SCHRITT } from "./journalFilterLogik";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { fmtTs } from "../../../_lib/zeit";
 import { Chip } from "../../../_ui/Chip";
 import s from "../../../_ui/verwaltung.module.css";
+import { GegenbuchenAktion } from "./GegenbuchenAktion";
 
 export type JournalAnzeigeZeile = {
   id: string;
@@ -44,6 +45,9 @@ export type JournalAnzeigeZeile = {
    *  Antwort in einem append-only Buch, das man spaeter liest, ohne die Liste
    *  daneben zu haben. */
   ortName: string;
+  /** IDA-378 — durchgereicht aus dem Lesepfad (`journalEintraege`). */
+  gegenbuchbar: boolean;
+  gegengebucht: boolean;
 };
 
 /** Die Cursor-Form, wie sie ueber die Server Action reist. */
@@ -95,6 +99,8 @@ export function anzeigeZeile(zeile: JournalZeileDTO): JournalAnzeigeZeile {
     quelleName: zeile.quelleName,
     quelleId: zeile.quelleId,
     ortName: ortZeile(zeile.ortStandort),
+    gegenbuchbar: zeile.gegenbuchbar,
+    gegengebucht: zeile.gegengebucht,
   };
 }
 
@@ -103,16 +109,16 @@ export function anzeigeZeile(zeile: JournalZeileDTO): JournalAnzeigeZeile {
  * einzige des Moduls, und das ist eine Korrektur, keine Auslassung.
  *
  * Das Journal ist SERVERSEITIG GEBLAETTERT: geladen sind zunaechst die neuesten
- * 100 Zeilen, weitere kommen beim Scrollen ueber die Schluesselposition nach.
+ * 100 Zeilen, weitere kommen auf „Weitere laden" ueber die Schluesselposition.
  * Ein clientseitiger Vergleicher sieht deshalb nur das GELADENE PRAEFIX. Wer
  * „Zeit aufsteigend" waehlte, bekaeme nicht die aelteste Buchung, sondern die
  * aelteste UNTER DEN NEUESTEN HUNDERT — eine Aussage ueber den ganzen Bestand,
  * die nur ueber einen Ausschnitt gilt. Dasselbe gilt fuer jede andere Spalte.
  *
  * ⚠️ EIN CLIENTSEITIGER FILTER WAERE HIER SOGAR GEFAEHRLICH. Bleiben nach dem
- * Filtern wenige oder keine Zeilen stehen, steht die Wache am Fussende weiter im
- * Bild; der Beobachter laedt die naechste Seite, die ebenfalls herausfaellt,
- * und wieder eine — bis das ganze Journal in 100er-Schritten durch ist. Jede
+ * Filtern wenige oder keine Zeilen stehen, muesste jeder Druck auf „Weitere
+ * laden" die naechste Seite holen, die ebenfalls herausfaellt, und wieder
+ * eine — bis das ganze Journal in 100er-Schritten durch ist. Jede
  * dieser Anfragen belegt den SYNCHRONEN SQLite-Pfad und blockiert damit die
  * ganze Suite. Genau die Grenze, gegen die der Deckel gebaut ist, waere damit
  * aufgehoben.
@@ -207,6 +213,29 @@ const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
   },
 ];
 
+/**
+ * IDA-378 — DIE AKTIONSSPALTE. Im Client gebaut, weil sie den Stand der Insel
+ * braucht: eine eben gegengebuchte Zeile ist sofort markiert, auch wenn der
+ * Filter die neuen Gegenzeilen ausblendet und die erste Seite deshalb gleich
+ * bleibt (der Ruecksetz-Schluessel unten sieht dann keinen Wechsel).
+ */
+function aktionsSpalte(
+  erledigt: ReadonlySet<string>, beiErfolg: (ids: string[]) => void,
+): NonNullable<TableProps<JournalAnzeigeZeile>["columns"]>[number] {
+  return {
+    title: "Aktion",
+    key: "aktion",
+    render: (_: unknown, zeile: JournalAnzeigeZeile) => (
+      <GegenbuchenAktion
+        zeilenId={zeile.id}
+        gegenbuchbar={zeile.gegenbuchbar}
+        gegengebucht={zeile.gegengebucht || erledigt.has(zeile.id)}
+        beiErfolg={beiErfolg}
+      />
+    ),
+  };
+}
+
 /** Mindestbreite des Journals — Begruendung am Aufruf. */
 const JOURNAL_SCROLL = { x: 960 } as const;
 
@@ -225,7 +254,6 @@ export function JournalTable({
   leertext: string;
 }) {
   const [laedt, setLaedt] = useState(false);
-  const wache = useRef<HTMLDivElement>(null);
 
   /**
    * ⚠️ EIN FILTERWECHSEL SETZT DIE LISTE ZURUECK, und zwar vollstaendig. Der
@@ -293,6 +321,8 @@ export function JournalTable({
     zeilen: ersteZeilen.map(anzeigeZeile),
     cursor: ersterCursor,
     fehler: null as string | null,
+    /** IDA-380 — wie viele der geladenen Zeilen gerade stehen. */
+    sichtbar: JOURNAL_SCHRITT,
   }));
 
   if (stand.schluessel !== schluessel) {
@@ -301,10 +331,20 @@ export function JournalTable({
       zeilen: ersteZeilen.map(anzeigeZeile),
       cursor: ersterCursor,
       fehler: null,
+      sichtbar: JOURNAL_SCHRITT,
     });
   }
 
-  const { zeilen, cursor, fehler } = stand;
+  const { zeilen, cursor, fehler, sichtbar } = stand;
+  const gezeigt = zeilen.slice(0, sichtbar);
+
+  const [erledigt, setErledigt] = useState<ReadonlySet<string>>(() => new Set());
+  const spalten = useMemo(
+    () => [...(SPALTEN ?? []), aktionsSpalte(erledigt, (ids) => {
+      setErledigt((vorher) => new Set([...vorher, ...ids]));
+    })],
+    [erledigt],
+  );
 
   const mehrLaden = useCallback(async () => {
     if (!cursor || laedt) return;
@@ -357,26 +397,28 @@ export function JournalTable({
   }, [cursor, laedt, abrufFilter, schluessel]);
 
   /**
-   * Der Beobachter am Fussende. Er ist absichtlich KEIN Scroll-Zuhoerer: ein
-   * `scroll`-Ereignis feuert je Pixel und muesste selbst entprellt werden,
-   * waehrend `IntersectionObserver` genau einmal meldet, wenn die Wache in Sicht
-   * kommt — und das auch dann richtig, wenn der Bildschirm so hoch ist, dass die
-   * erste Seite ihn nicht fuellt.
+   * IDA-380 — „WEITERE LADEN" STATT NACHLADEN BEIM SCROLLEN.
    *
-   * ⚠️ NACH EINEM FEHLER LAEDT ER NICHT VON SELBST WEITER. Sonst liefe bei einem
-   * abgerissenen Netz eine stille Endlosschleife gegen den Server; stattdessen
-   * steht dann ein Knopf da.
+   * ⚠️ BIS HIER LUD EIN BEOBACHTER AM FUSSENDE VON SELBST NACH, und die Liste
+   * hatte damit kein Ende: am Telefon standen 97 Buchungen als gut 17 000 px
+   * untereinander, und was unter der Liste kam, erreichte niemand. Jetzt
+   * stehen `JOURNAL_SCHRITT` Zeilen, und jeder Druck zeigt die nächsten. Erst
+   * wenn die geladene Portion aufgebraucht ist, fragt der Druck den Server
+   * nach der nächsten — die Portionsgröße (`JOURNAL_GRENZE`) bleibt, wie sie
+   * war, und mit ihr die Begründung für den Deckel.
+   *
+   * ⚠️ NACH EINEM FEHLER LÄDT NICHTS VON SELBST WEITER; „Erneut versuchen"
+   * ist dann der einzige Weg. Das galt schon für den Beobachter und gilt hier
+   * erst recht.
    */
-  useEffect(() => {
-    const knoten = wache.current;
-    if (!knoten || !cursor || fehler) return;
-    if (typeof IntersectionObserver === "undefined") return;
-    const beobachter = new IntersectionObserver((eintraege) => {
-      if (eintraege.some((e) => e.isIntersecting)) void mehrLaden();
-    }, { rootMargin: "200px" });
-    beobachter.observe(knoten);
-    return () => beobachter.disconnect();
-  }, [cursor, fehler, mehrLaden]);
+  const weitere = () => {
+    const naechste = sichtbar + JOURNAL_SCHRITT;
+    setStand((vorher) => (
+      vorher.schluessel === schluessel ? { ...vorher, sichtbar: naechste } : vorher
+    ));
+    if (naechste > zeilen.length && cursor) void mehrLaden();
+  };
+  const mehrDa = sichtbar < zeilen.length || cursor !== null;
 
   return (
     <>
@@ -387,18 +429,18 @@ export function JournalTable({
         300 sichtbaren Zeilen, und derselbe Satz noch, wenn der Cursor laengst
         leer war. Hier liegt der Stand, also auch die Aussage darueber. Dass
         `mehrVorhanden` am Cursor haengt, ist kein Zufall: genau der entscheidet
-        auch, ob die Wache unten noch etwas nachlaedt.
+        auch, ob „Weitere laden" unten noch den Server fragt.
       */}
       <div style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.sm }} data-testid="journal-treffer">
-        {deckelText(zeilen.length, cursor !== null)}
+        {deckelText(gezeigt.length, zeilen.length, cursor !== null)}
       </div>
 
       <Kartentabelle<JournalAnzeigeZeile>
         rowKey="id"
         aria-label="Buchungsjournal"
-        dataSource={zeilen}
+        dataSource={gezeigt}
         leer={{ nichts: leertext }}
-        columns={SPALTEN}
+        columns={spalten}
         /*
          * ⚠️ EINE ZAHL STATT DER VORGABE `max-content` (IDA-241). Unter
          * `max-content` bricht keine Zelle um: Artikel und Ort standen in voller
@@ -410,13 +452,6 @@ export function JournalTable({
         scroll={JOURNAL_SCROLL}
       />
 
-      {/*
-        Die Wache steht UNTER der Tabelle, nicht in ihr: die Tabelle scrollt
-        nicht selbst, die Seite tut es. Ein Beobachter innerhalb eines
-        Tabellenkoerpers ohne eigene Hoehe meldete nie.
-      */}
-      <div ref={wache} data-testid="journal-wache" style={{ minHeight: 1 }} />
-
       {fehler ? (
         <Flex gap={SPACE.md} align="center" wrap style={{ marginBlockStart: SPACE.md }}>
           {/* `type="warning"` statt `type="error"`: Rot traegt in diesem Modul
@@ -426,13 +461,15 @@ export function JournalTable({
         </Flex>
       ) : null}
 
-      {laedt ? (
+      {!fehler && mehrDa ? (
         <Flex justify="center" style={{ marginBlockStart: SPACE.md }}>
-          <Spin size="small" />
+          <Button onClick={weitere} loading={laedt} data-testid="journal-weitere">
+            Weitere laden
+          </Button>
         </Flex>
       ) : null}
 
-      {!cursor && !fehler && zeilen.length > 0 ? (
+      {!mehrDa && !fehler && zeilen.length > 0 ? (
         <Flex justify="center" style={{ marginBlockStart: SPACE.md }}>
           <span style={SCHRIFT.neben}>Keine weiteren Buchungen.</span>
         </Flex>

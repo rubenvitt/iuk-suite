@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { zeitzone } from "@/core/zeit";
-import { verfallStatus, verfallSchwellen, type VerfallSchwellen } from "./verfall";
+import { istAbgelaufen, verfallStatus, verfallSchwellen, type VerfallSchwellen } from "./verfall";
 import { PSEUDO_VERFALL } from "../konstanten";
 import { ausZivilzeit } from "../zeit";
 
@@ -144,5 +144,17 @@ describe("verfallSchwellen — die EINZIGE Bruecke von grenzen() hierher", () =>
   it("liest bei JEDEM Aufruf, nicht beim Import", () => {
     expect(verfallSchwellen({ LAGERBUCH_VERFALL_ROT_TAGE: "7" }).rotTage).toBe(7);
     expect(verfallSchwellen({ LAGERBUCH_VERFALL_ROT_TAGE: "9" }).rotTage).toBe(9);
+  });
+});
+
+describe("istAbgelaufen (IDA-378)", () => {
+  const mitte = ausZivilzeit(2026, 6, 15, 12);
+  it("vergangener Monat ist abgelaufen, der laufende nicht", () => {
+    expect(istAbgelaufen("2026-05", mitte)).toBe(true);
+    expect(istAbgelaufen("2026-06", mitte)).toBe(false);
+    expect(istAbgelaufen("2020-01", mitte)).toBe(true);
+  });
+  it("„ohne Verfall“ läuft nie ab", () => {
+    expect(istAbgelaufen(PSEUDO_VERFALL, ausZivilzeit(2100, 1, 1))).toBe(false);
   });
 });

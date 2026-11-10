@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE } from "./helpers/lagerbuch";
 
 /**
@@ -45,12 +45,16 @@ test("mit der Gruppe steht die Notiz der App da — samt Filter", async ({ page 
     callbackPath: "/neuigkeiten",
   });
 
-  await expect(page.locator('[data-testid="notiz"][data-modul="lagerbuch"]').first()).toBeVisible();
   // Zwei Apps in der Liste, also eine Filterzeile: bei einer einzigen wäre sie
-  // eine Beschriftung und bleibt weg (`NeuigkeitenListe.test.tsx`).
+  // eine Beschriftung und bleibt weg (`NeuigkeitenListe.test.tsx`). Die Lagerbuch-
+  // Notizen stehen nicht zwingend auf der ersten Seite (IDA-391) — der Filter
+  // holt sie per Server Action.
   await expect(page.getByTestId("neuigkeiten-filter")).toBeVisible();
 
+  // Am Rumpf erkannt (`["lagerbuch",0]`): dieselbe Adresse bekommt auch das Gesehen-Merken.
+  const antwort = page.waitForResponse((r) => r.request().method() === "POST" && (r.request().postData() ?? "").includes('"lagerbuch"'));
   await page.getByTestId("neuigkeiten-filter").getByText("Lagerbuch").click();
+  expect((await antwort).ok()).toBe(true);
   await expect(page.locator('[data-testid="notiz"][data-modul="portal"]')).toHaveCount(0);
   await expect(page.locator('[data-testid="notiz"][data-modul="lagerbuch"]').first()).toBeVisible();
 });
@@ -74,4 +78,29 @@ test("die Modulnavigation des Portals führt ohne Adresszeile hin", async ({ pag
   await klickeWennRuhig(page.getByTestId("modulleiste").getByRole("link", { name: "Neuigkeiten" }));
   await page.waitForURL(/\/neuigkeiten$/);
   await expect(page.getByTestId("neuigkeiten")).toBeVisible();
+});
+
+test("am Telefon kommt nur eine Seite, „Ältere anzeigen“ lädt die nächste", async ({ page }) => {
+  /*
+   * IDA-391: alle Notizen auf einmal waren am Telefon über 50 000px hoch. Gezählt wird nach
+   * `warteAufGestreamteInhalte` (Falle 22), sonst stünde jede Karte kurz doppelt im DOM.
+   */
+  await page.setViewportSize({ width: 390, height: 844 });
+  await devLogin(page, { host: "portal.localtest.me", groups: LAGERBUCH_ADMIN_GRUPPE, callbackPath: "/neuigkeiten" });
+  await expect(page.getByTestId("neuigkeiten")).toBeVisible();
+  await warteAufGestreamteInhalte(page);
+
+  const notizen = page.locator('[data-testid="notiz"]');
+  const erste = await notizen.count();
+  expect(erste).toBeGreaterThan(0);
+  expect(erste).toBeLessThanOrEqual(20);
+
+  const antwort = page.waitForResponse((r) => r.request().method() === "POST" && (r.request().postData() ?? "").includes('"alle"'));
+  await page.getByTestId("neuigkeiten-aeltere").click();
+  expect((await antwort).ok()).toBe(true);
+  await expect.poll(() => notizen.count()).toBeGreaterThan(erste);
+
+  // Kein seitlicher Überlauf bei 390px.
+  const breite = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(breite).toBeLessThanOrEqual(0);
 });

@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, Space } from "antd";
+import { Button } from "antd";
 import { Filterchips } from "@/core/filterchips/Filterchips";
 import { Statuschip } from "@/core/status/Statuschip";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { Kartentabelle, nachZahl } from "@/core/tabelle";
+import { Kartentabelle, Zeilenaktionen, nachZahl } from "@/core/tabelle";
 import { konflikte } from "../../_lib/belegung";
 import { anfrageAlsEintrag, sperreAlsEintrag, type AnfrageDTO, type SperrzeitDTO } from "../../_lib/vermietungTypen";
 import { istTestanlass, testLoeschtag } from "../../_lib/testanfrage";
@@ -34,7 +34,8 @@ export function Anfragenliste({ anfragen, sperren, startId }: { anfragen: Anfrag
   const offen = offenId ? alle.find((e) => e.id === offenId) ?? null : null;
   const zahl = (f: Filter) => anfragen.filter((a) => a.status === f).length;
   const liste = anfragen.filter((a) => filter === "alle" || a.status === filter);
-  const ueberschneidet = (a: AnfrageDTO) => konflikte(anfrageAlsEintrag(a), alle).length > 0;
+  const ueberschneidungen = (a: AnfrageDTO) => konflikte(anfrageAlsEintrag(a), alle);
+  const ueberschneidet = (a: AnfrageDTO) => ueberschneidungen(a).length > 0;
 
   return (
     <div className={s.modul}>
@@ -54,7 +55,7 @@ export function Anfragenliste({ anfragen, sperren, startId }: { anfragen: Anfrag
           {
             title: "Wann", key: "wann", sorter: nachZahl<AnfrageDTO>((a) => a.von), defaultSortOrder: "ascend",
             render: (_: unknown, a: AnfrageDTO) => (
-              <div>
+              <div className={s.wann}>
                 {zeitraumText(a.von, a.bis)}
                 {(a.status === "angefragt" || a.status === "zugesagt") && ueberschneidet(a) ? <div><Statuschip ton="warnung">Überschneidung</Statuschip></div> : null}
               </div>
@@ -63,28 +64,29 @@ export function Anfragenliste({ anfragen, sperren, startId }: { anfragen: Anfrag
           {
             title: "Anlass", key: "anlass",
             render: (_: unknown, a: AnfrageDTO) => (
-              <div>
+              <div className={s.anlass}>
                 <Button type="link" style={{ paddingInline: 0, whiteSpace: "normal", textAlign: "start", height: "auto", minHeight: 44 }} onClick={() => setOffenId(a.id)}>{a.anlass}</Button>
+                <div className={s.neben}>{a.personen} {a.personen === 1 ? "Person" : "Personen"}</div>
                 {istTestanlass(a.anlass) ? <div className={s.neben} data-testid="test-hinweis">Wird am {tagText(testLoeschtag(a.eingegangenAm), true)} gelöscht</div> : null}
               </div>
             ),
-          },
-          { title: "Personen", key: "personen", dataIndex: "personen", align: "right" },
-          {
-            title: "Ansprechperson", key: "person",
-            render: (_: unknown, a: AnfrageDTO) => <div>{a.person}<div className={s.neben}>{a.mitglied ? "Mitglied" : "Extern"} · {a.kontakt}</div></div>,
           },
           {
             title: "Stand", key: "stand",
             render: (_: unknown, a: AnfrageDTO) => <div className={s.zeile}><Zustandschip zustand={a.status} />{a.status === "zugesagt" ? <Vertragschip stand={a.vertrag} /> : null}</div>,
           },
           {
+            title: "Ansprechperson", key: "person",
+            render: (_: unknown, a: AnfrageDTO) => <div>{a.person}<div className={s.neben}>{a.mitglied ? "Mitglied" : "Extern"} · {a.kontakt}</div></div>,
+          },
+          {
             title: "Aktion", key: "aktion",
             render: (_: unknown, a: AnfrageDTO) => (a.status === "angefragt" ? (
-              <Space wrap>
-                <Button type="primary" onClick={() => { void entscheidung.zusagen(a); }}>Zusagen</Button>
-                <Button onClick={() => entscheidung.begruenden(a, "ablehnen")}>Ablehnen</Button>
-              </Space>
+              <Zeilenaktionen
+                name={a.anlass}
+                haupt={{ key: "zusagen", label: "Zusagen", onClick: () => { void entscheidung.zusagen(a, ueberschneidungen(a)); } }}
+                aktionen={[{ key: "ablehnen", label: "Ablehnen", onClick: () => entscheidung.begruenden(a, "ablehnen") }]}
+              />
             ) : null),
           },
         ]}

@@ -34,6 +34,8 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * (Begruendung dort).
  */
 export const UAV_NAV: SuiteNavItem[] = [
+  // `/admin/teilnehmer/<id>` markiert „Teilnehmer" mit (Pfadanfang, IDA-392); der
+  // längere `/admin/katalog` gewinnt für seine eigenen Unterseiten.
   { key: "teilnehmer", title: "Teilnehmer", href: "/admin", ikon: "teilnehmer", abschnitt: "Verwaltung" },
   { key: "katalog", title: "Aufgabenkatalog", href: "/admin/katalog", ikon: "katalog", abschnitt: "Verwaltung" },
 

@@ -9,9 +9,9 @@ import { Anfragenliste } from "./Anfragenliste";
 import { Belegungsansicht } from "./Belegungsansicht";
 import { Sperrzeitenliste } from "./Sperrzeitenliste";
 
-const aktion = vi.hoisted(() => ({ zusagen: vi.fn(), ablehnen: vi.fn(), zuruecknehmen: vi.fn(), refresh: vi.fn(), sperreAnlegen: vi.fn() }));
+const aktion = vi.hoisted(() => ({ zusagen: vi.fn(), rueckgaengig: vi.fn(), ablehnen: vi.fn(), zuruecknehmen: vi.fn(), refresh: vi.fn(), sperreAnlegen: vi.fn() }));
 vi.mock("../../_actions/vermietung", () => ({
-  anfrageZusagenAction: aktion.zusagen, anfrageAblehnenAction: aktion.ablehnen, zusageZuruecknehmenAction: aktion.zuruecknehmen,
+  anfrageZusagenAction: aktion.zusagen, zusageRueckgaengigAction: aktion.rueckgaengig, anfrageAblehnenAction: aktion.ablehnen, zusageZuruecknehmenAction: aktion.zuruecknehmen,
   vertragStandAction: vi.fn(), vertragEntfernenAction: vi.fn(), dokumentErstellenAction: vi.fn(), sperrzeitAnlegenAction: aktion.sperreAnlegen, sperrzeitLoeschenAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: aktion.refresh }) }));
@@ -70,17 +70,42 @@ describe("Anfragenliste", () => {
     await mount(<App><Anfragenliste anfragen={ANFRAGEN} sperren={SPERREN} startId={null} /></App>);
     const zeile = queryAll("tr").find((r) => r.textContent?.includes("Vereinstreffen"))!;
     await clickElement(knopfIn(zeile, "Zusagen")!);
+    // IDA-387: bei einer Überschneidung erst die Rückfrage mit Zeitraum und dem, was sich überschneidet.
+    expect(aktion.zusagen).not.toHaveBeenCalled();
+    const frage = queryPortal('[data-testid="zusage-rueckfrage"]');
+    expect(frage.textContent).toContain("Vereinstreffen");
+    expect(frage.textContent).toContain("Zusage „40. Geburtstag“");
+    const ja = Array.from(document.querySelectorAll<HTMLButtonElement>(".ant-modal button")).find((b) => b.textContent === "Zusagen")!;
+    await clickElement(ja);
     await act(async () => {});
     expect(aktion.zusagen).toHaveBeenCalledWith("a2");
     expect(document.body.textContent).toContain("Zusagen geht nicht");
     expect(aktion.refresh).not.toHaveBeenCalled();
   });
 
+  it("IDA-387: ohne Überschneidung sofort zugesagt; „Rückgängig“ im Toast stellt still zurück", async () => {
+    aktion.zusagen.mockResolvedValue({ ok: true, wert: { weitereOffene: 0 } });
+    aktion.rueckgaengig.mockResolvedValue({ ok: true });
+    await mount(<App><Anfragenliste anfragen={ANFRAGEN} sperren={SPERREN} startId={null} /></App>);
+    const zeile = queryAll("tr").find((r) => r.textContent?.includes("Kaffeetrinken"))!;
+    await clickElement(knopfIn(zeile, "Zusagen")!);
+    await act(async () => {});
+    expect(aktion.zusagen).toHaveBeenCalledWith("a3");
+    const rueck = Array.from(document.querySelectorAll<HTMLButtonElement>(".ant-message button")).find((b) => b.textContent === "Rückgängig")!;
+    expect(rueck).toBeTruthy();
+    await clickElement(rueck);
+    await act(async () => {});
+    expect(aktion.rueckgaengig).toHaveBeenCalledWith("a3");
+    expect(aktion.ablehnen).not.toHaveBeenCalled();
+    expect(aktion.zuruecknehmen).not.toHaveBeenCalled();
+  });
+
   it("Ablehnen braucht eine Begründung von mindestens 5 Zeichen", async () => {
     aktion.ablehnen.mockResolvedValue({ ok: true });
     await mount(<App><Anfragenliste anfragen={ANFRAGEN} sperren={SPERREN} startId={null} /></App>);
     const zeile = queryAll("tr").find((r) => r.textContent?.includes("Kaffeetrinken"))!;
-    await clickElement(knopfIn(zeile, "Ablehnen")!);
+    await clickElement(zeile.querySelector<HTMLButtonElement>('button[aria-label="Aktionen für Kaffeetrinken"]')!);
+    await clickElement(Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((e) => e.textContent === "Ablehnen")!);
     const ok = () => Array.from(document.querySelectorAll<HTMLButtonElement>(".ant-modal button")).find((b) => b.textContent === "Ablehnen")!;
     expect(ok().disabled).toBe(true);
     await fillElement(queryPortal<HTMLTextAreaElement>("#begruendung"), "Dienstabend.");

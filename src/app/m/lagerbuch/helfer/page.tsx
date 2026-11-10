@@ -103,6 +103,7 @@ export default async function HelferSeite({
   return (
     <HelferRahmen
       aktiv="entnahme"
+      titel="Entnahme"
       reichweite={zugang.reichweite}
       sitzungsetikett={sitzungsEtikett(zugang)}
       laeuftAb={zugang.laeuftAb}

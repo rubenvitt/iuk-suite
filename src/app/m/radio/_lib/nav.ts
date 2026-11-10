@@ -59,6 +59,7 @@ const NUR_ADMIN: readonly string[] = ["import", "versionen", "zugaenge"];
  */
 const EINTRAEGE: SuiteNavItem[] = [
   { key: "uebersicht", title: "Übersicht", href: "/admin", ikon: "uebersicht" },
+  // Akte und Änderungshistorie (`/admin/geraete/<id>…`) markieren „Geräte" mit (Pfadanfang, IDA-392).
   { key: "geraete", title: "Geräte", href: "/admin/geraete", ikon: "geraete" },
   { key: "ausleihen", title: "Ausleihen", href: "/admin/ausleihen", ikon: "ausleihen" },
   // ⚠️ Titel und Pfad gehen hier AUSEINANDER, und beides ist so gewollt: die Flaeche heisst
@@ -78,7 +79,7 @@ const EINTRAEGE: SuiteNavItem[] = [
   // Nur Admin (Spec:4202-4203); die Seite traegt `requireRadioAdmin()` (Spec:4376), V19.
   { key: "versionen", title: "Softwareversionen", href: "/admin/versionen", ikon: "versionen" },
   // Nur Admin (Spec:4202-4203); die Seite traegt `requireRadioAdmin()` (Spec:4377), V20.
-  { key: "zugaenge", title: "Zugänge", href: "/admin/zugaenge", ikon: "tokens" },
+  { key: "zugaenge", title: "Zugangscodes", href: "/admin/zugaenge", ikon: "tokens" },
 ];
 
 /**

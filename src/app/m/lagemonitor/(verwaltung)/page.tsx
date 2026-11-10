@@ -1,24 +1,32 @@
 import { headers } from "next/headers";
 import { getDb } from "../_db/client";
-import { listeFahrzeuge } from "../_lib/fahrzeuge";
 import { requireLagemonitorHost } from "../_lib/host";
 import { leseKonfiguration } from "../_lib/konfiguration";
 import { listeKategorien } from "../_lib/kategorien";
 import { listeLagekarte } from "../_lib/lagekarte";
-import { listeLinks } from "../_lib/links";
 import { offeneMeldungen } from "../_lib/meldungen";
 import { onlineAdresse } from "../_lib/online";
 import { listeZugaenge } from "../_lib/schluessel";
 import { listeStandorte } from "../_lib/standort";
 import { requireLagemonitorVerwaltung } from "../_lib/zugang";
-import { AnzeigeVerwaltung } from "../_ui/AnzeigeVerwaltung";
+import { MeldungenSeite } from "../_ui/MeldungenSeite";
 
 export const dynamic = "force-dynamic";
 
-/** Die Anzeige des Lagemonitors. Die Riegel stehen hier noch einmal: eine Route Group ist keine Sicherheitsgrenze. */
+/** Die Meldungen des Lagemonitors, Startseite (IDA-396). Die Riegel stehen hier noch einmal: eine Route Group ist keine Sicherheitsgrenze. */
 export default async function LagemonitorSeite() {
   requireLagemonitorHost(await headers());
   await requireLagemonitorVerwaltung();
   const db = getDb();
-  return <AnzeigeVerwaltung konfiguration={leseKonfiguration(db)} zugaenge={listeZugaenge(db)} meldungen={offeneMeldungen(db)} kategorien={listeKategorien(db)} links={listeLinks(db)} online={onlineAdresse()} fahrzeuge={listeFahrzeuge(db)} standorte={listeStandorte(db)} lagekarte={listeLagekarte(db)} />;
+  return (
+    <MeldungenSeite
+      konfiguration={leseKonfiguration(db)}
+      meldungen={offeneMeldungen(db)}
+      kategorien={listeKategorien(db)}
+      online={onlineAdresse()}
+      zugaenge={listeZugaenge(db)}
+      standorte={listeStandorte(db).je}
+      lagekarte={listeLagekarte(db).liste}
+    />
+  );
 }

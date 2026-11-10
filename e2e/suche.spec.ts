@@ -45,12 +45,21 @@ test("findet ein Fahrzeug über sein Kennzeichen, nur mit Zugang zum Modul", asy
   await expect(treffer).toHaveAttribute("href", url(FAHRZEUGE, "/"));
   await expect(darf.getByTestId("suche-eingabe")).toHaveValue(kennzeichen.toLowerCase());
 
-  // Dasselbe aus dem Suchfeld der Startseite: die Treffer stehen unter den Apps.
-  await darf.goto(url(PORTAL, "/"));
+  // Dasselbe aus „Springen zu“ (IDA-391), und zwar in einem ANDEREN Modul als dem Portal: die
+  // Treffer stehen unter den Menütreffern und führen ins Modul.
+  await darf.goto(url(FAHRZEUGE, "/"));
   await darf.waitForLoadState("networkidle");
   await warteAufGestreamteInhalte(darf);
-  await darf.getByTestId("portal-suche").fill(kennzeichen);
-  await expect(darf.getByTestId("suche-treffer").filter({ hasText: funkrufname })).toHaveCount(1);
+  const springen = darf.getByTestId("befehlspalette-eingabe");
+  await klickeWennRuhig(springen);
+  await springen.pressSequentially(kennzeichen);
+  const inhalt = darf.getByTestId("befehl").filter({ hasText: funkrufname });
+  await expect(inhalt).toHaveCount(1);
+  await expect(inhalt).toHaveAttribute("href", url(FAHRZEUGE, "/"));
+  await expect(darf.getByTestId("befehl").filter({ hasText: "Alle Treffer zeigen" })).toHaveAttribute(
+    "href",
+    url(PORTAL, `/suche?q=${encodeURIComponent(kennzeichen)}`),
+  );
   await darf.close();
 
   // Ohne Zugang: kein Abschnitt, kein Treffer, sondern „nichts gefunden“.
@@ -69,7 +78,7 @@ test("ein Zeichen ist zu kurz; die Leiste führt zur Suche", async ({ page }) =>
   await expect(page.getByRole("link", { name: "Suche", exact: true }).first()).toBeVisible();
 });
 
-test("Strg+K springt nach „Springen zu“: springen und in die Suche weiterreichen (IDA-303)", async ({ page }) => {
+test("Strg+K springt nach „Springen zu“: springen, und ohne Treffer sagt es das (IDA-303)", async ({ page }) => {
   await devLogin(page, { host: PORTAL, groups: "", callbackPath: "/" });
   await page.goto(url(PORTAL, "/"));
   await page.waitForLoadState("networkidle");
@@ -88,9 +97,9 @@ test("Strg+K springt nach „Springen zu“: springen und in die Suche weiterrei
   await klickeWennRuhig(feld);
   await expect(feld).toBeFocused();
   await expect(feld).toHaveValue("");
+  // Ohne Gruppen findet auch die Inhaltssuche nichts (IDA-391): erst wenn die Module geantwortet
+  // haben, steht „Keine Treffer“ da — vorher die Zeile, dass gesucht wird.
   await feld.pressSequentially("UE-RK 831");
-  await expect(page.getByTestId("befehl")).toHaveText(["In allen Modulen nach „UE-RK 831“ suchen"]);
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(url(PORTAL, "/suche?q=UE-RK%20831"));
-  await expect(page.getByTestId("suche-eingabe")).toHaveValue("UE-RK 831");
+  await expect(page.getByText("Keine Treffer")).toBeVisible();
+  await expect(page.getByTestId("befehl")).toHaveCount(0);
 });

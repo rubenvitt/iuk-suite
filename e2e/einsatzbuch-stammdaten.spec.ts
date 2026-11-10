@@ -17,7 +17,7 @@ import { E2E_VORGEBAUT } from "./helpers/server";
  * die hängt von `NODE_ENV` ab, also von `E2E_VORGEBAUT` (`e2e/helpers/server.ts`):
  * - `next dev` (lokal, `E2E_VORGEBAUT` ungesetzt) läuft mit `NODE_ENV=development` — kein Hinweis.
  * - der vorgebaute Stand (`E2E_VORGEBAUT=1`; so fährt die CI, Job `e2e`) läuft mit
- *   `NODE_ENV=production` — `entwicklungsKekInProduktion: true`, „Der Entwicklungs-KEK ist aktiv“
+ *   `NODE_ENV=production` — `entwicklungsKekInProduktion: true`, „Die Verschlüsselung läuft mit einem Testschlüssel“
  *   (`KekHinweis.tsx`) steht auf der Übersicht. Der erste Testfall unten prüft deshalb je nach
  *   `E2E_VORGEBAUT` das eine oder das andere.
  *
@@ -51,7 +51,7 @@ test("Übersicht, Stammdaten und Einstellungen antworten mit 200; der Entwicklun
   const hinweis = page.getByTestId("kek-hinweis");
   if (E2E_VORGEBAUT) {
     await expect(hinweis).toHaveCount(1);
-    await expect(hinweis).toContainText("Der Entwicklungs-KEK ist aktiv");
+    await expect(hinweis).toHaveAttribute("data-ursache", "entwicklungs_kek");
   } else {
     await expect(hinweis).toHaveCount(0);
   }
@@ -69,13 +69,19 @@ test("Stammdaten-Durchlauf: Fahrzeug anlegen, bearbeiten, deaktivieren; Personal
   const zeile = page.getByRole("table", { name: "Fahrzeuge" }).locator("[data-row-key]", { hasText: kennung });
   await expect(zeile).toBeVisible();
 
-  await zeile.getByRole("button", { name: "Bearbeiten" }).click();
+  // IDA-393: Bearbeiten und (De-)Aktivieren stehen im Aktionsmenü der Zeile.
+  const menue = zeile.getByRole("button", { name: `Aktionen für ${kennung}` });
+  await menue.click();
+  await page.getByRole("menuitem", { name: "Bearbeiten" }).click();
   await page.getByLabel("Funkrufname", { exact: true }).fill(`Rotkreuz Probe ${kennung} neu`);
   await page.getByRole("button", { name: "Speichern" }).click();
   await expect(zeile).toContainText("neu");
-  await zeile.getByRole("button", { name: "Deaktivieren" }).click();
+  await menue.click();
+  await page.getByRole("menuitem", { name: "Deaktivieren" }).click();
   await expect(zeile).toContainText("inaktiv");
-  await expect(zeile.getByRole("button", { name: "Aktivieren" })).toBeVisible();
+  await menue.click();
+  await expect(page.getByRole("menuitem", { name: "Aktivieren" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   await page.getByRole("tab", { name: /Personal/ }).click();
   await expect(page).toHaveURL(/reiter=personal/);

@@ -21,7 +21,8 @@ export interface AmGeraet {
   checkliste: CheckpunktDTO[];
   /** Je Prüfung am Gerät die Zahl ihrer Punkte. */
   punkteJe: Record<string, number>;
-  offen: Pick<MangelDTO, "id" | "text" | "einsatzbereit">[];
+  /** Ohne Meldenden und Foto: das steht auch öffentlich am Steckbrief (IDA-381). Neueste zuerst. */
+  offen: Pick<MangelDTO, "id" | "text" | "einsatzbereit" | "gemeldetAm">[];
   unterlagen: UnterlageDTO[];
   /** Was gerade aus der Kiste unterwegs ist (IDA-372). */
   unterwegs: Unterwegs;
@@ -46,6 +47,22 @@ export function ladeAmGeraet(db: Pick<WartungDb, "select">, id: string, heute: s
     checkliste = pruefung ? gilt(pruefung.vorlage.id) : alle;
     punkteJe = Object.fromEntries(selbst.map((pid) => [pid, gilt(pid).length]));
   }
-  const offen = ladeMaengel(db, { gruppen: null, geraetId: id, offen: true }).map((m) => ({ id: m.id, text: m.text, einsatzbereit: m.einsatzbereit }));
+  const offen = ladeMaengel(db, { gruppen: null, geraetId: id, offen: true }).map((m) => ({
+    id: m.id, text: m.text, einsatzbereit: m.einsatzbereit, gemeldetAm: m.gemeldetAm,
+  }));
   return { g, pruefung, checkliste, punkteJe, offen, unterlagen: ladeUnterlagen(db, id), unterwegs: unterwegsStand(db, id) };
+}
+
+export const MANGEL_KURZ_MAX = 80;
+
+/**
+ * Der Mangel als Kurztext für den Steckbrief (IDA-381): eine Zeile, höchstens `MANGEL_KURZ_MAX` Zeichen, gekürzt an
+ * einer Wortgrenze mit „…“. Wer am Gerät steht, soll sehen, ob das schon gemeldet ist — nicht den ganzen Bericht.
+ */
+export function mangelKurz(text: string, max = MANGEL_KURZ_MAX): string {
+  const zeile = text.replace(/\s+/g, " ").trim();
+  if (zeile.length <= max) return zeile;
+  const schnitt = zeile.slice(0, max - 1);
+  const wort = schnitt.lastIndexOf(" ");
+  return `${(wort > max / 2 ? schnitt.slice(0, wort) : schnitt).replace(/[\s,.;:–-]+$/, "")}…`;
 }

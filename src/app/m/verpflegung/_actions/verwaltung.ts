@@ -5,14 +5,15 @@ import type { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
 import {
-  artikelEingabe, aussonderEingabe, eanSchema, feldFehlerAus, idSchema, linkEingabe, ortEingabe,
+  artikelEingabe, ausgabeEingabe, aussonderEingabe, eanSchema, eingangEingabe, feldFehlerAus, idSchema, linkEingabe,
+  ortEingabe,
 } from "../_lib/eingabe";
 import { heute } from "../_lib/heute";
 import { schlageNach } from "../_lib/lebensmittel";
-import { mengeText } from "../_lib/mhd";
+import { datumLang, mengeText } from "../_lib/mhd";
 import {
-  Abgelehnt, artikelAendern, artikelAktiv, artikelAnlegen, aussondern, linkAnlegen, linkSperren, ortAendern, ortAktiv,
-  ortAnlegen,
+  Abgelehnt, artikelAendern, artikelAktiv, artikelAnlegen, ausgabe, aussondern, eingang, linkAnlegen, linkSperren, ortAendern,
+  ortAktiv, ortAnlegen,
 } from "../_lib/schreiben";
 import type { Ergebnis, Fund } from "../_lib/typen";
 import { anzeigename, requireAktion, type Stufe, type Viewer } from "../_lib/zugang";
@@ -80,6 +81,26 @@ export async function aussondernAction(eingabe: unknown): Promise<Ergebnis> {
   return schreibe("zugang", (viewer) => {
     const r = aussondern(getDb(), e.wert, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer), linkId: null });
     return { ok: true, text: `${mengeText(r.menge, r.einheit)} ${r.name} ausgesondert.` };
+  });
+}
+
+/** IDA-382: Eingang am Schreibtisch, dieselbe Buchung wie am Telefon unter dem Namen der angemeldeten Person. */
+export async function eingangAction(eingabe: unknown): Promise<Ergebnis> {
+  const e = geprueft(eingangEingabe, eingabe);
+  if (!e.ok) { await requireAktion("zugang"); return e.ergebnis; }
+  return schreibe("zugang", (viewer) => {
+    eingang(getDb(), e.wert, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer), linkId: null });
+    return { ok: true, text: `Eingebucht (MHD ${datumLang(e.wert.mhd)}).` };
+  });
+}
+
+/** IDA-382: Ausgabe am Schreibtisch, auf die gewählte Charge. */
+export async function ausgabeAction(eingabe: unknown): Promise<Ergebnis> {
+  const e = geprueft(ausgabeEingabe, eingabe);
+  if (!e.ok) { await requireAktion("zugang"); return e.ergebnis; }
+  return schreibe("zugang", (viewer) => {
+    const r = ausgabe(getDb(), e.wert, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer), linkId: null });
+    return { ok: true, text: `${mengeText(r.menge, r.einheit)} ${r.name} ausgegeben.` };
   });
 }
 

@@ -73,19 +73,27 @@ const SPALTEN: NonNullable<TableProps<SauerstoffAnzeigeZeile>["columns"]> = [
     title: "Flasche",
     dataIndex: "name",
     sorter: nachText<SauerstoffAnzeigeZeile>((zeile) => zeile.name),
+    // IDA-393: der Standort steht UNTER dem Namen — nebeneinander war die Spalte 427px breit.
     render: (wert: string, zeile) => (
-      <span>
+      <>
         <Link
           href={verwaltungDetailPfad("sauerstoff", zeile.id)}
           style={{ fontWeight: 600 }}
         >
           {wert}
         </Link>
-        <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
-          {standortZeile(zeile.lagerortStandort)}
-        </span>
-      </span>
+        <div style={SCHRIFT.neben}>{standortZeile(zeile.lagerortStandort)}</div>
+      </>
     ),
+  },
+  {
+    // IDA-393: direkt hinter dem Namen, damit „inaktiv" bei 1280px nicht hinter dem Rand liegt.
+    title: "Status",
+    dataIndex: "aktiv",
+    sorter: nachJaNein<SauerstoffAnzeigeZeile>((zeile) => zeile.aktiv),
+    filters: STATUS_FILTER.filters,
+    onFilter: STATUS_FILTER.onFilter,
+    render: (wert: boolean) => wert ? null : <Chip ton="grau">inaktiv</Chip>,
   },
   {
     title: "Druck",
@@ -106,15 +114,18 @@ const SPALTEN: NonNullable<TableProps<SauerstoffAnzeigeZeile>["columns"]> = [
     render: (_: unknown, zeile) => zeile.status === null ? (
       <Chip ton="grau">keine Messung</Chip>
     ) : (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: SPACE.sm }}>
-        <Progress
-          percent={zeile.status.prozent}
-          showInfo={false}
-          style={{ width: 80 }}
-        />
-        <Chip ton={ampelTon(zeile.status.ampel)}>
-          {zeile.status.prozent} %
-        </Chip>
+      // IDA-393: der Wechselhinweis steht UNTER Balken und Prozent, nicht daneben.
+      <Flex vertical gap={SPACE.xs} align="flex-start">
+        <span style={{ display: "inline-flex", alignItems: "center", gap: SPACE.sm }}>
+          <Progress
+            percent={zeile.status.prozent}
+            showInfo={false}
+            style={{ width: 80 }}
+          />
+          <Chip ton={ampelTon(zeile.status.ampel)}>
+            {zeile.status.prozent} %
+          </Chip>
+        </span>
         {/* ⚠️ DER HINWEIS NENNT SEINEN GRENZWERT (DRK-308). Er ist je Flasche
             einstellbar; ohne die Zahl daneben liesse ein roter Chip offen, ab
             wann er gilt, und man muesste die Stammdaten aufschlagen, um ihn zu
@@ -124,7 +135,7 @@ const SPALTEN: NonNullable<TableProps<SauerstoffAnzeigeZeile>["columns"]> = [
             Wechsel fällig – ab {zeile.status.wechselAbBar} bar
           </Chip>
         ) : null}
-      </span>
+      </Flex>
     ),
   },
   {
@@ -147,19 +158,13 @@ const SPALTEN: NonNullable<TableProps<SauerstoffAnzeigeZeile>["columns"]> = [
     dataIndex: "groesseLiter",
     sorter: nachZahl<SauerstoffAnzeigeZeile>((zeile) => zeile.groesseLiter),
     render: (wert: number | null, zeile) => (
-      <span style={SCHRIFT.neben}>
-        {wert === null ? "" : `${wert} l · `}
-        Nenndruck {zeile.nennfuelldruckBar} bar · Wechsel ab {zeile.wechselAbProzent} %
-      </span>
+      // IDA-393: eine Angabe je Zeile statt einer 260px langen Kette.
+      <div style={SCHRIFT.neben}>
+        {wert === null ? null : <div>{wert} l</div>}
+        <div>Nenndruck {zeile.nennfuelldruckBar} bar</div>
+        <div>Wechsel ab {zeile.wechselAbProzent} %</div>
+      </div>
     ),
-  },
-  {
-    title: "Status",
-    dataIndex: "aktiv",
-    sorter: nachJaNein<SauerstoffAnzeigeZeile>((zeile) => zeile.aktiv),
-    filters: STATUS_FILTER.filters,
-    onFilter: STATUS_FILTER.onFilter,
-    render: (wert: boolean) => wert ? null : <Chip ton="grau">inaktiv</Chip>,
   },
 ];
 

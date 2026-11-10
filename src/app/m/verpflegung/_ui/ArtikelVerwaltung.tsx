@@ -8,7 +8,7 @@ import { fingerabdruck } from "@/core/entwurf/ablage";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { Kartentabelle, nachText, trifftWert, werteAlsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachText, trifftWert, werteAlsFilter, Zeilenaktionen } from "@/core/tabelle";
 import { artikelAendernAction, artikelAktivAction, artikelAnlegenAction, nachschlagenAction } from "../_actions/verwaltung";
 import { EINHEITEN, KATEGORIEN, MHD_ART_TEXT, mengeText, zahlText, type MhdArt } from "../_lib/mhd";
 import type { ArtikelDTO } from "../_lib/typen";
@@ -129,9 +129,14 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
         }}
         karte={{ titel: "name", kennzeichen: ["stand"] }}
         columns={[
-          { title: "Artikel", key: "name", defaultSortOrder: "ascend", sorter: nachText<ArtikelDTO>((a) => a.name), render: (_: unknown, a: ArtikelDTO) => <strong>{a.name}</strong> },
+          { title: "Artikel", key: "name", defaultSortOrder: "ascend", sorter: nachText<ArtikelDTO>((a) => a.name), // IDA-393: die EAN als leise zweite Zeile unter dem Namen statt als eigene Spalte.
+            render: (_: unknown, a: ArtikelDTO) => (
+              <div>
+                <strong>{a.name}</strong>
+                {a.ean ? <div className={`${s.mono} ${s.neben}`}>{a.ean}</div> : null}
+              </div>
+            ) },
           { title: "Stand", key: "stand", render: (_: unknown, a: ArtikelDTO) => (a.vorlaeufig ? <Chip farbe="gelb">vorläufig</Chip> : a.aktiv ? <Chip farbe="ok">geprüft</Chip> : <Chip farbe="grau">inaktiv</Chip>) },
-          { title: "EAN", key: "ean", render: (_: unknown, a: ArtikelDTO) => <span className={s.mono}>{a.ean ?? "—"}</span> },
           {
             title: "Kategorie", key: "kategorie", filters: werteAlsFilter(zeilen, (a) => a.kategorie), onFilter: trifftWert<ArtikelDTO>((a) => a.kategorie),
             render: (_: unknown, a: ArtikelDTO) => a.kategorie,
@@ -145,22 +150,34 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
             render: (_: unknown, a: ArtikelDTO) => {
               const b = bestand[a.id] ?? 0;
               const knapp = a.mindest !== null && b < a.mindest;
-              return <span className={`${s.ziffern} ${knapp ? s.textGelb : ""}`}>{a.mindest !== null ? `${zahlText(b)} / ${mengeText(a.mindest, a.einheit)}` : mengeText(b, a.einheit)}</span>;
+              // IDA-382: der Mindestbestand trägt sein Wort, statt als „18 / 12“ unbeschriftet daneben zu stehen.
+              return (
+                <span className={`${s.ziffern} ${knapp ? s.textGelb : ""}`}>
+                  {mengeText(b, a.einheit)}{a.mindest !== null && <span className={s.neben}> · Mindestbestand {zahlText(a.mindest)}</span>}
+                </span>
+              );
             },
           },
           {
             title: "Aktion", key: "aktion",
-            render: (_: unknown, a: ArtikelDTO) => (
-              <span className={s.reihe}>
-                <Button onClick={() => oeffne(a)}>{a.vorlaeufig ? "Prüfen" : "Bearbeiten"}</Button>
-                <Button
-                  disabled={laeuft}
-                  onClick={() => fuehreAus(() => artikelAktivAction(a.id, !a.aktiv), a.aktiv ? "Deaktiviert." : "Wieder aktiv.")}
-                >
-                  {a.aktiv ? "Deaktivieren" : "Aktivieren"}
-                </Button>
-              </span>
-            ),
+            render: (_: unknown, a: ArtikelDTO) => {
+              const oeffnen = { key: "oeffnen", label: a.vorlaeufig ? "Prüfen" : "Bearbeiten", onClick: () => oeffne(a) };
+              return (
+                <Zeilenaktionen
+                  name={a.name}
+                  laeuft={laeuft}
+                  haupt={a.vorlaeufig ? oeffnen : undefined}
+                  aktionen={[
+                    ...(a.vorlaeufig ? [] : [oeffnen]),
+                    {
+                      key: "aktiv",
+                      label: a.aktiv ? "Deaktivieren" : "Aktivieren",
+                      onClick: () => fuehreAus(() => artikelAktivAction(a.id, !a.aktiv), a.aktiv ? "Deaktiviert." : "Wieder aktiv."),
+                    },
+                  ]}
+                />
+              );
+            },
           },
         ]}
       />

@@ -116,7 +116,7 @@ export function linkAnlegen(db: VerpflegungDb, e: { name: string; stunden: numbe
 /** Sperren wirkt sofort: jeder Zugriff liest den Link (`_lib/helfer.ts`). Links werden nie gelöscht. */
 export function linkSperren(db: VerpflegungDb, id: string): void {
   const r = db.update(helferLink).set({ aktiv: false }).where(eq(helferLink.id, id)).run();
-  if (r.changes === 0) throw new Abgelehnt("Diesen Link gibt es nicht mehr.");
+  if (r.changes === 0) throw new Abgelehnt("Diesen Zugangscode gibt es nicht mehr.");
 }
 
 // ---------------------------------------------------------------- Bestand

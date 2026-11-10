@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Button } from "antd";
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { listPresets } from "@/app/m/qr/_lib/presets";
 import { PresetForm } from "@/app/m/qr/admin/preset-form";
-import { deletePresetAction } from "@/app/m/qr/actions";
+import { LoeschKnopf } from "@/app/m/qr/admin/LoeschKnopf";
 import { RAHMEN } from "@/app/m/qr/_lib/style";
 import { SPACE, TAP } from "@/core/theme/tokens";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -35,7 +34,7 @@ export default async function QrAdminPage({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl }} data-testid="qr-admin">
-      <Seitenkopf titel="Presets verwalten" />
+      <Seitenkopf titel="Schnellzugriffe verwalten" />
       {/* Server-Komponente: Überschriften als schlichtes HTML, kein
           `Typography.Title` — `X.Y` auf einem antd-Import ergäbe hier einen 500er
           (Global Constraints). Aus demselben Grund bleibt die Liste ein
@@ -55,6 +54,9 @@ export default async function QrAdminPage({
             <li
               key={p.id}
               data-testid="preset-row"
+              // Die id ist Technik (aus der Bezeichnung abgeleitet) und steht nicht mehr als Text
+              // in der Zeile (IDA-390); e2e liest sie hier ab.
+              data-preset-id={p.id}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -64,14 +66,10 @@ export default async function QrAdminPage({
                 borderRadius: 8,
                 padding: SPACE.sm,
                 /*
-                 * `flexWrap` ist der eigentliche Fix. Die Zeile hat rechts einen
-                 * festen Block („Bearbeiten" 96px + „Loeschen" 86px = 182px);
-                 * links steht Label plus Slug, und ein Flex-Kind hat per Vorgabe
-                 * `min-width: auto` — es kann also weder schrumpfen noch
-                 * umbrechen. Mit dem kurzen Seed-Preset faellt das nicht auf
-                 * (356px Inhalt in 356px Kasten); mit einem realistischen Namen
-                 * plus Slug sprang die Zeile auf 427px und das Dokument auf
-                 * 444px, der „Loeschen"-Knopf stand auszerhalb.
+                 * `flexWrap`: rechts steht „Bearbeiten" (96px), links die
+                 * Bezeichnung; ein Flex-Kind hat per Vorgabe `min-width: auto`
+                 * und kann weder schrumpfen noch umbrechen. Mit einem langen
+                 * Namen sprang die Zeile sonst über die Seitenbreite.
                  */
                 flexWrap: "wrap",
               }}
@@ -84,63 +82,44 @@ export default async function QrAdminPage({
                   /* Ohne `minWidth: 0` schrumpft der Block nicht unter seine
                      Inhaltsbreite — `flexWrap` allein reichte dann nicht. */
                   minWidth: 0,
-                  flexWrap: "wrap",
+                  overflowWrap: "anywhere",
                 }}
               >
                 <span aria-hidden="true">{p.icon}</span>
-                {p.label}{" "}
-                {/* Der Slug ist eine Nutzereingabe ohne Leerzeichen; ohne
-                    `anywhere` ist er ein einziges, unteilbares Wort. */}
-                {/* `--iuk-gedaempft` statt `opacity`: Deckkraft dimmt den
-                    Kontrast unprüfbar mit und hat keinen Dunkelzweig
-                    (globale Randbedingung, Durchgang Aufgabe 13). */}
-                <code
-                  style={{
-                    color: "var(--iuk-gedaempft)",
-                    overflowWrap: "anywhere",
-                    minWidth: 0,
-                  }}
-                >
-                  {p.id}
-                </code>
+                {p.label}
               </span>
-              <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
-                {/* Ein Link, kein Formular: das Bearbeiten aendert nichts, es
-                    waehlt nur aus, welches Preset das Formular unten zeigt. */}
-                <Link
-                  href={`/admin?bearbeiten=${encodeURIComponent(p.id)}`}
-                  data-testid="preset-edit"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    minHeight: TAP,
-                    paddingInline: SPACE.md,
-                    border: RAHMEN,
-                    borderRadius: 8,
-                  }}
-                >
-                  Bearbeiten
-                </Link>
-                <form action={deletePresetAction}>
-                  <input type="hidden" name="id" value={p.id} />
-                  <Button danger htmlType="submit">
-                    Löschen
-                  </Button>
-                </form>
-              </span>
+              {/* Ein Link, kein Formular: das Bearbeiten aendert nichts, es
+                  waehlt nur aus, welcher Eintrag das Formular unten zeigt.
+                  „Löschen" steht nicht mehr hier, sondern abgesetzt unter dem
+                  Bearbeiten-Formular (`LoeschKnopf`). */}
+              <Link
+                href={`/admin?bearbeiten=${encodeURIComponent(p.id)}`}
+                data-testid="preset-edit"
+                aria-label={`${p.label} bearbeiten`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: TAP,
+                  paddingInline: SPACE.md,
+                  border: RAHMEN,
+                  borderRadius: 8,
+                }}
+              >
+                Bearbeiten
+              </Link>
             </li>
           ))}
         </ul>
         {presets.length === 0 && (
           <p style={{ color: "var(--iuk-gedaempft)" }}>
-            Noch keine Presets angelegt.
+            Noch keine Schnellzugriffe angelegt.
           </p>
         )}
       </section>
 
       <section style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>
-          {editing ? `Preset „${editing.label}“ bearbeiten` : "Neues Preset anlegen"}
+          {editing ? `„${editing.label}“ bearbeiten` : "Neuen Schnellzugriff anlegen"}
         </h2>
         {/* `key`: wechselt der Admin von einem Preset direkt zum naechsten,
             bliebe der State des vorigen Formulars sonst stehen — React haelt
@@ -151,9 +130,16 @@ export default async function QrAdminPage({
             Abbrechen
           </Link>
         )}
+        {/* Abgesetzt vom Formular und von „Abbrechen": zerstörende Knöpfe stehen nicht neben
+            harmlosen (IDA-390). Die Rückfrage nennt den Namen. */}
+        {editing && (
+          <div style={{ borderTop: RAHMEN, paddingTop: SPACE.lg, marginTop: SPACE.lg }}>
+            <LoeschKnopf id={editing.id} label={editing.label} kind={editing.kind} />
+          </div>
+        )}
       </section>
     </div>
   );
 }
 
-export const metadata = { title: "Presets verwalten" };
+export const metadata = { title: "Schnellzugriffe verwalten" };

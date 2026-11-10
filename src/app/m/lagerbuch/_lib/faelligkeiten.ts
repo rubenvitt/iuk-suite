@@ -14,6 +14,7 @@
  *   * Sauerstoffflaschen, deren letzte Messung die Wechselgrenze erreicht → überfällig. Eine Flasche
  *     ohne Messung ist keine Frist und bleibt draußen; die Verwaltung zeigt sie als „keine Messung".
  *   * BZ-Geräte, deren Kontrolle überfällig ist oder nie stattfand → überfällig; im Warnfenster → bald.
+ *     Die Frist läuft nur von einer bestandenen, nicht stornierten Kontrolle (IDA-379).
  *   * Plomben, die angelegt, aber nicht gesetzt sind (Fach offen) → bald.
  *   * Gemeldete Mängel, die noch offen sind → überfällig (IDA-298). Neue Mängel gehen außerdem sofort
  *     als Push hinaus (`lagerbuchSofortmeldungen`), nicht erst am Montag.
@@ -65,8 +66,8 @@ export function lagerbuchFaelligkeiten(jetzt: Date, db: Leser = getDb()): Faelli
 
 const MAENGEL_PFAD = "/verwaltung/maengel";
 
-/** Was im Push und auf der Seite statt des Freitexts steht. */
-function mangelKurz(m: MangelZeile): string {
+/** Was im Push, auf der Seite und auf der Verwaltungsübersicht (`anstehend.ts`) statt des Freitexts steht. */
+export function mangelKurz(m: MangelZeile): string {
   if (m.punkte.length === 0) return "siehe Beschreibung";
   return m.punkte.length === 1 ? m.punkte[0]! : `${m.punkte[0]} und ${m.punkte.length - 1} weitere`;
 }
@@ -153,7 +154,7 @@ function blutzucker(db: Leser, jetzt: Date): Faelligkeit[] {
       const f = g.faelligkeit;
       // ⚠️ `nieGeprueft` ZUERST und eigenständig: dort ist `ueberfaellig` false (`domain/bz.ts`).
       const zustand = f.nieGeprueft
-        ? "noch nie kontrolliert"
+        ? (f.nieBestanden ? "noch nie bestanden" : "noch nie kontrolliert")
         : f.ueberfaellig
           ? `Kontrolle seit ${tageDativ(Math.max(1, -(f.tageBisFaellig ?? 0)))} überfällig`
           : f.tageBisFaellig === 0 ? "Kontrolle heute fällig" : `Kontrolle fällig in ${tageDativ(f.tageBisFaellig ?? 0)}`;

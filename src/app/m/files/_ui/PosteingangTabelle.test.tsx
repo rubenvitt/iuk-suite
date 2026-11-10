@@ -222,17 +222,30 @@ async function waehle(id: string, wo: "tabelle" | "karte" = "tabelle"): Promise<
 /** Das Kopf-Kaestchen der Auswahlspalte. */
 const ALLE_KREUZCHEN = `${BREIT} thead .ant-table-selection-column input`;
 
-/** Den Bestaetigungsknopf EINES offenen Popconfirm im Portal finden. */
+/** Den Bestaetigungsknopf EINES offenen Popconfirm (Sammelaktion) oder Dialogs (Zeile) finden. */
 function bestaetigung(beschriftung: string): HTMLElement {
   const knopf = Array.from(
-    document.body.querySelectorAll<HTMLElement>(".ant-popconfirm .ant-btn"),
+    document.body.querySelectorAll<HTMLElement>(".ant-popconfirm .ant-btn, .ant-modal .ant-btn"),
   ).find((k) => k.textContent === beschriftung);
-  if (!knopf) throw new Error(`Kein Bestaetigungsknopf „${beschriftung}“ im Popconfirm`);
+  if (!knopf) throw new Error(`Kein Bestaetigungsknopf „${beschriftung}“ im Popconfirm/Dialog`);
   return knopf;
 }
 
 function popconfirmText(): string {
   return document.body.querySelector(".ant-popconfirm")?.textContent ?? "";
+}
+
+/** Das Zeilenmenue (IDA-393) in der Tabelle oeffnen und einen Eintrag holen. */
+async function oeffneMenue(dateiname: string): Promise<void> {
+  await click(`${BREIT} button[aria-label='Aktionen für ${dateiname}']`);
+}
+
+function menueEintrag(text: string): HTMLElement {
+  const eintrag = Array.from(document.body.querySelectorAll<HTMLElement>("[role='menuitem']")).find(
+    (e) => e.textContent === text,
+  );
+  if (!eintrag) throw new Error(`Kein Menueeintrag „${text}“`);
+  return eintrag;
 }
 
 const FEHLERTEXT = "Bitte mindestens eine Abgabe auswählen.";
@@ -262,20 +275,27 @@ function abgeschickteIds(): string[] {
 // ---------------------------------------------------------------------------
 
 describe("Punkt 1 — Spalten und Vorgabesortierung", () => {
-  it("zeigt genau die acht Spalten aus §8.6 in ihrer Reihenfolge", async () => {
+  /*
+   * Die acht Angaben aus §8.6 stehen alle in der Zeile; seit IDA-393 aber in
+   * sechs Spalten: der Abgabelink leise unter der Zeit, die Kategorie leise
+   * unter der Groesze, der AV-Status direkt hinter dem Dateinamen.
+   */
+  it("zeigt die acht Angaben aus §8.6 in sechs Spalten, in ihrer Reihenfolge", async () => {
     await zeige();
-    // Die AUSWAHLspalte (antds `rowSelection`) steht davor und ist keine der
-    // acht: sie traegt keinen Wert der Abgabe, sondern die Mehrfachauswahl.
+    // Die AUSWAHLspalte (antds `rowSelection`) steht davor und ist keine davon:
+    // sie traegt keinen Wert der Abgabe, sondern die Mehrfachauswahl.
     expect(spaltenTitel().slice(1)).toEqual([
       "Zeit",
       "Dateiname",
-      "Größe",
-      "Kategorie",
-      "Hinweis",
       "AV-Status",
-      "Abgabelink",
+      "Größe",
+      "Hinweis",
       "Aktionen",
     ]);
+    const zeile = query(`${BREIT} tr[data-row-key="aaaaaaaaaa"]`);
+    const zellen = Array.from(zeile.querySelectorAll("td")).slice(1);
+    expect(zellen[0]!.querySelector("[data-spalte='abgabelink']")).not.toBeNull();
+    expect(zellen[3]!.querySelector("[data-spalte='kategorie']")).not.toBeNull();
   });
 
   it("sortiert neueste zuerst, unabhaengig von der Reihenfolge der Eingabe", async () => {
@@ -486,16 +506,18 @@ describe("Punkt 4 — AV-Zustand mit Symbol UND Text", () => {
    */
   it("sperrt den Download, solange die Zeile nicht freigegeben ist", async () => {
     await zeige([MITTE]);
-    const knopf = query(`${BREIT} [data-testid='files-inbox-download-bbbbbbbbbb']`);
-    expect(knopf.getAttribute("aria-disabled")).toBe("true");
-    expect(knopf.getAttribute("href")).toBeNull();
+    await oeffneMenue("plan.pdf");
+    const eintrag = menueEintrag("Herunterladen");
+    expect(eintrag.getAttribute("aria-disabled")).toBe("true");
+    expect(eintrag.querySelector("a")).toBeNull();
   });
 
   it("verlinkt den Download einer freigegebenen Zeile auf `/api/inbox/<id>`", async () => {
     await zeige([NEU]);
-    expect(
-      query(`${BREIT} [data-testid='files-inbox-download-aaaaaaaaaa']`).getAttribute("href"),
-    ).toBe("/api/inbox/aaaaaaaaaa");
+    await oeffneMenue("lage.txt");
+    expect(menueEintrag("Herunterladen").querySelector("a")?.getAttribute("href")).toBe(
+      "/api/inbox/aaaaaaaaaa",
+    );
   });
 });
 
@@ -530,8 +552,9 @@ describe("Punkt 5 — Leerzustand", () => {
 describe("Punkt 6 — Loeschen mit Bestaetigung und Groesze", () => {
   it("fragt vor dem Loeschen nach und nennt Name und Groesze", async () => {
     await zeige([NEU]);
-    await click(`${BREIT} [data-testid='files-inbox-loeschen-aaaaaaaaaa']`);
-    const text = popconfirmText();
+    await oeffneMenue("lage.txt");
+    await clickElement(menueEintrag("Löschen"));
+    const text = document.body.querySelector(".ant-modal")?.textContent ?? "";
     expect(text).toContain("lage.txt");
     // Die GROESZE gehoert in die Rueckfrage (§8.6): ohne sie sagt „wird
     // geloescht" nicht, was verloren geht.
@@ -540,7 +563,8 @@ describe("Punkt 6 — Loeschen mit Bestaetigung und Groesze", () => {
 
   it("schickt erst NACH der Bestaetigung ab — und dann mit genau dieser ID", async () => {
     await zeige([NEU]);
-    await click(`${BREIT} [data-testid='files-inbox-loeschen-aaaaaaaaaa']`);
+    await oeffneMenue("lage.txt");
+    await clickElement(menueEintrag("Löschen"));
     expect(abschicken).not.toHaveBeenCalled();
     await clickElement(bestaetigung("Löschen"));
     expect(abgeschickteIds()).toEqual([NEU.id]);

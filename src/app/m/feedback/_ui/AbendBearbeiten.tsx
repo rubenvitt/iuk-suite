@@ -154,7 +154,7 @@ function BearbeitenFormular({
         <span style={T.meta}>
           {lage === "held"
             ? "Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit."
-            : "Das Feedback gibst du weiterhin am Abend selbst frei."}
+            : "Die Umfrage startest du weiterhin am Abend selbst."}
         </span>
       </label>
       <label style={FELD}>
@@ -170,6 +170,7 @@ function BearbeitenFormular({
           <span style={T.kicker}>Teilnehmerzahl</span>
           <Input
             type="number"
+            inputMode="numeric"
             name="participantCount"
             min={0}
             defaultValue={feldWert(state, "participantCount", abend.teilnehmer?.toString() ?? "")}

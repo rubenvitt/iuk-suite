@@ -260,10 +260,14 @@ test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
   const schritt = (name: string) => page.locator("[data-rolle='schritt']").filter({ hasText: name });
   await weiter.click();
   await expect(page.getByText("Aus dem Handlager aufs Fahrzeug legen")).toBeVisible();
+  // IDA-377: „geholt" startet bei 0; der Vorschlag gilt erst mit diesem Tipp.
+  await page.locator("[data-rolle='nf-alles']").click();
   await bild(page, bilder, "c5-nachfuellen", [schritt("Nachfüllen"), page.getByRole("button", { name: /^geholt .* erhöhen$/ }).first()], schritt("Nachfüllen"));
 
   await weiter.click();
   await expect(page.getByText("Sind die Geräte da und in Ordnung?")).toBeVisible();
+  // IDA-377: nichts ist vorgewählt; „Alle in Ordnung" ist der bewusste Tipp.
+  await page.locator("[data-rolle='geraete-alle-ok']").click();
   const vorhanden = page.locator("[data-rolle='geraet-vorhanden']").first();
   await expect(vorhanden).toHaveAttribute("aria-pressed", "true");
   await bild(page, bilder, "c6-geraete", [[vorhanden, page.getByRole("button", { name: "In Ordnung" }).first()]], schritt("Geräte"));
@@ -272,6 +276,8 @@ test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
   await expect(page.getByText("Welchen Druck zeigt das Manometer?")).toBeVisible();
   const druck = page.getByRole("textbox", { name: /^Druck O₂/ }).first();
   const abschliessen = page.locator("[data-rolle='abschliessen']");
+  // IDA-377: der Druck startet leer.
+  for (const feld of await page.locator("[data-rolle='o2-liste'] input[type='text']").all()) await feld.fill("180");
   await bild(page, bilder, "c7-sauerstoff", [druck, abschliessen], schritt("Sauerstoff"));
 
   await abschliessen.click();

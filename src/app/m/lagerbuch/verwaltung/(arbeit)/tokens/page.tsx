@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getDb } from "../../../_db/client";
 import { einheitMeta, standortMeta } from "../../../_lib/konstanten";
 import { etikettOrte } from "../../../_lib/lesepfade/ortEtiketten";
@@ -104,12 +105,19 @@ export default function TokensSeite() {
 
   return (
     <>
+      {/*
+        IDA-379 — DIE SEITE SAGT, WO EIN CODE ENTSTEHT, in einer Zeile mit
+        Verweis, ohne Erklaerprosa. Bis hierher stand nirgends, dass der Weg zu
+        einem neuen Code ueber die Ortsetiketten fuehrt. Ein Verweis, KEINE
+        Aktion im Kopf: die stuende wie „Code anlegen" da (DRK-406).
+      */}
       <SeitenKopf
-        titel="Zugangs-Codes"
+        titel="Zugangscodes"
+        beschreibung={<>Codes entstehen mit den <Link href="/verwaltung/ortsetiketten">Ortsetiketten</Link>.</>}
       />
       <TokenTable zeilen={zeilen} />
     </>
   );
 }
 
-export const metadata = { title: "Zugangs-Codes" };
+export const metadata = { title: "Zugangscodes" };

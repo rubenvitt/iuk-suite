@@ -17,7 +17,7 @@ type EnvLike = Record<string, string | undefined>;
  * Wer was darf (Entscheidungen 2026-11-01 an IDA-311, 2026-11-04 an IDA-316):
  * - Am Telefon buchen (ein-, ausbuchen, aussondern, unbekannte Ware vorläufig anlegen): wer einen gültigen
  *   Helfer-Link geöffnet hat, ohne Anmeldung — oder wer angemeldet Zugang hat. Deshalb `requiresAuth: false`.
- * - Die Verwaltung (Bestand, MHD-Kontrolle, Buchungen, Artikel): der Modulzugang (`verpflegung-nutzer`,
+ * - Die Verwaltung (Bestand mit MHD-Stufen, Buchungen, Artikel): der Modulzugang (`verpflegung-nutzer`,
  *   `verpflegung-admin`).
  * - Lagerorte und Helfer-Links: Modul-Admins (`SUITE_ADMIN_GROUP_VERPFLEGUNG`, Vorgabe `verpflegung-admin`;
  *   der Suite-Admin zählt nach `isModuleAdmin` mit). Ein Link öffnet das Lager für jeden, der ihn hat.
@@ -110,7 +110,7 @@ export async function telefonZugang(): Promise<TelefonZugang | null> {
 
 async function telefonZugangOhneHost(): Promise<TelefonZugang | null> {
   const link = await linkAusCookie(getDb(), (await cookies()).get(HELFER_COOKIE)?.value, Date.now());
-  if (link) return { art: "link", wer: `Helfer-Link ${link.name}`, linkId: link.id, laeuftAb: link.laeuftAb };
+  if (link) return { art: "link", wer: `Zugangscode · ${link.name}`, linkId: link.id, laeuftAb: link.laeuftAb };
   const viewer = (await auth())?.user;
   if (viewer && hatVerpflegungZugang(viewer.groups)) return { art: "konto", viewer, wer: anzeigename(viewer), linkId: null, laeuftAb: null };
   return null;

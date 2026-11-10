@@ -106,7 +106,13 @@ export type NavIkonName =
   // Haarlinie Etappe 3: die Kommunikationspläne. KEINE geliehenen Namen — `vorlagen` (layout) meint im
   // lagerbuch Checklisten-Vorlagen, `journal` (history) eine Buchungshistorie; ein Plan ist ein Baum aus
   // Stellen (das Zeichen des Moduls), das Archiv die abgelegten Pläne, die Bibliothek die Stammstellen.
-  | "plaene" | "archiv" | "bibliothek";
+  | "plaene" | "archiv" | "bibliothek"
+  // IDA-391: die Portal-Navigation. Geliehen, wo die Bedeutung trägt: Übersicht `uebersicht`,
+  // „Was steht an" `kalender` (kommende Termine), Verwaltung `einstellungen`, Audit-Log `journal`
+  // (Historie). Neu, weil kein Name die Sache trägt: `suche`, `neuigkeiten` (Megafon: Bekanntmachung),
+  // `serverwartung` (der Server, nicht `rechner` — das ist das Gerät der Einsatzstelle) und `rechte`
+  // (Schlüssel: Zugang; `tokens` meint im lagerbuch Zugangscodes und gäbe einen falschen Begriff).
+  | "suche" | "neuigkeiten" | "serverwartung" | "rechte";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.
@@ -172,4 +178,31 @@ export interface SuiteNavItem {
    * `aktiverEintrag` in `SuiteNav.tsx`.
    */
   auffang?: boolean;
+  /**
+   * Weitere Wörter, unter denen „Springen zu" (`befehle.ts`) diesen Eintrag
+   * findet — die Begriffe, die jemand sucht, bevor er die Beschriftung kennt
+   * (IDA-380: „Wareneingang" → „Auffüllen"). Nie sichtbar; wer nichts
+   * übergibt, bekommt genau die Suche von vorher.
+   */
+  stichworte?: string[];
+}
+
+/**
+ * Ein Ziel INNERHALB eines Moduls, das „Springen zu" findet, ohne in der
+ * Navigation zu stehen — ein Artikel, ein Fahrzeug (IDA-380). Das Modul baut
+ * die Liste serverseitig und nach seinen eigenen Rechten (`Shell`,
+ * Prop `sprungziele`); das Menü zeigt sie erst ab zwei getippten Zeichen.
+ *
+ * NUR SERIALISIERBARES (Falle 9): die Liste reist über die RSC-Grenze in den
+ * Navigator.
+ */
+export interface Sprungziel {
+  key: string;
+  titel: string;
+  /** Zweite Zeile, z. B. „Artikel" oder „Fahrzeug". */
+  hinweis?: string;
+  /** Pfad im Modul, äußere Form wie bei `SuiteNavItem.href`. */
+  href: string;
+  /** Weitere Suchwörter (Kennung, Kategorie), nie sichtbar. */
+  stichworte?: string[];
 }

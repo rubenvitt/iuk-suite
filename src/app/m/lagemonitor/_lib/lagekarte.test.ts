@@ -137,7 +137,7 @@ describe("Drahtformat mapObjects", () => {
     expect(objekte.map((o) => o.name)).toEqual(["Nord", "Süd", "Wache 9", "Wache 10"]);
     expect(objekte[1]).toEqual({ id: expect.stringMatching(/^lk-/), kind: "area", name: "Süd", color: "teal", ring: [...QUADRAT, QUADRAT[0]], lat: 52.95, lon: 10.55 });
     expect(objekte[2]).toEqual({ id: expect.stringMatching(/^lk-/), kind: "point", name: "Wache 9", symbol: SVG, lat: 52.9, lon: 10.5 });
-    expect(JSON.stringify(objekte)).not.toMatch(/At"|angelegt|geaendert/);
+    expect(JSON.stringify(objekte)).not.toMatch(/At":|angelegt|geaendert/);
   });
 
   it("ein Punkt mit unbekanntem Zeichen geht mit symbol null hinaus; ist kommplan nicht lesbar, auch", () => {

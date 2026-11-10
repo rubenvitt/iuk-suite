@@ -29,7 +29,13 @@ allowBuilds:
 # (ohne Zuhoerer kein `error`); wer den Koerper liest, bekommt den Fehler weiter. Bis 16.4 canary
 # unveraendert upstream. `src/next-anfrageabbruch.test.ts` misst die WIRKUNG in einem Kindprozess.
 #
-# Der Patch an `@rc-component/input-number` (IDA-392): die Stepper jedes Zahlenfeldes heissen
+# Der Patch an @rc-component/input-number (IDA-394) setzt zwei Vorgaben fuer jedes antd-`InputNumber`
+# der Suite, die antd weder hat noch ueber `ConfigProvider` setzen laesst: die Zifferntastatur am
+# Telefon (`inputMode` aus `precision`/`step`/`min`) und das Komma als Dezimaltrenner (ohne wurde
+# „231,5" still 2315). Damit braucht kein Modul etwas dafuer zu tun. Wie beim util-Patch wandert die
+# Version mit antd; `src/core/formular/zahlenfelder.test.tsx` misst die WIRKUNG ueber antd.
+#
+# Derselbe Patch (IDA-392) benennt die Stepper: sie heissen
 # ab Werk „Increase Value"/„Decrease Value", hart kodiert in `StepHandler.js` (es/ und lib/).
 # Weder antds `InputNumber` noch dessen `locale` reicht einen Namen durch, und ein eigenes
 # `upHandler`-Zeichen landet nur IM benannten Element. Der Patch ersetzt die beiden Literale

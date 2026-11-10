@@ -91,7 +91,7 @@ const ERWARTET_AUSLEIHE: [AusleihMeldung, string][] = [
     { grund: "sitzung" },
     "Dein Zugang ist abgelaufen. Gib den Code erneut ein — deine Eingaben bleiben stehen.",
   ],
-  [{ grund: "gesperrt" }, "Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung."],
+  [{ grund: "gesperrt" }, "Dieser Zugangscode wurde gesperrt. Wende dich an die Leitung."],
 ];
 
 const ERWARTET_RUECKGABE: [RueckgabeMeldung, string][] = [
@@ -109,7 +109,7 @@ const ERWARTET_RUECKGABE: [RueckgabeMeldung, string][] = [
     { grund: "sitzung" },
     "Dein Zugang ist abgelaufen. Gib den Code erneut ein — deine Eingaben bleiben stehen.",
   ],
-  [{ grund: "gesperrt" }, "Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung."],
+  [{ grund: "gesperrt" }, "Dieser Zugangscode wurde gesperrt. Wende dich an die Leitung."],
 ];
 
 describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
@@ -317,7 +317,7 @@ describe("radio-Konfliktsprache: ein Satz je Ausgang", () => {
      * eine leicht abgewandelte Zweitfassung finden.
      */
     expect(QUELLE, "der gesperrt-Satz steht ein zweites Mal in meldungen.ts").not.toContain(
-      "Zugangs-Code wurde gesperrt",
+      "Zugangscode wurde gesperrt",
     );
   });
 

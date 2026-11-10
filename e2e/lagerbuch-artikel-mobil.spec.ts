@@ -143,6 +143,12 @@ test.describe("Artikelliste auf dem Telefon (DRK-451)", () => {
 
     const leiste = page.locator('[data-rolle="schmalsteuerung"]');
     await expect(leiste).toBeVisible();
+    // IDA-380: die Felder liegen hinter dem Knopf „Filter" — zu, bis man ihn drückt.
+    await expect(leiste.getByLabel("Sortierung")).toHaveCount(0);
+    const knopf = leiste.locator('[data-rolle="filterknopf"]');
+    await expect(knopf).toHaveAttribute("aria-expanded", "false");
+    await knopf.click();
+    await expect(knopf).toHaveAttribute("aria-expanded", "true");
     await expect(leiste.getByLabel("Sortierung")).toBeVisible();
 
     const vorher = await page.locator(KARTEN).locator("li").count();
@@ -163,6 +169,43 @@ test.describe("Artikelliste auf dem Telefon (DRK-451)", () => {
     await leiste.getByRole("button", { name: "Filter zurücksetzen" }).click();
     await expect.poll(async () => page.locator(KARTEN).locator("li").count()).toBe(vorher);
   });
+
+  /*
+   * IDA-380 — ZWEI STATUSCHIPS NEBEN DEM NAMEN liessen ihm eine
+   * Buchstabenbreite („B/Z/-/T/e/s/t…"), und der Bestand lief rechts aus dem
+   * Bild. Gemessen wird an jeder Karte, nicht an der ersten: der Fehler traf
+   * genau die Artikel mit zwei Chips.
+   */
+  for (const breite of [390, 320]) {
+    test(`bei ${breite}px bricht kein Name buchstabenweise um, und der Bestand steht im Bild`, async ({ page }) => {
+      await page.setViewportSize({ width: breite, height: 844 });
+      await artikelseite(page);
+
+      const befund = await page.evaluate(() => {
+        const karten = Array.from(
+          document.querySelectorAll<HTMLElement>('[data-rolle="schmalkarten"] li article'),
+        );
+        return {
+          anzahl: karten.length,
+          fehler: karten.flatMap((karte) => {
+            const kopf = karte.firstElementChild as HTMLElement;
+            const name = kopf.querySelector("button");
+            const bestand = kopf.lastElementChild as HTMLElement;
+            // Die Breite der Titelspalte, nicht des Knopfs: ein kurzer Name
+            // ist schmal, ohne gequetscht zu sein.
+            const namensBreite = name?.parentElement?.getBoundingClientRect().width ?? 0;
+            const rechts = bestand.getBoundingClientRect().right;
+            const probleme: string[] = [];
+            if (namensBreite < 80) probleme.push(`Name ${namensBreite}px: ${name?.textContent}`);
+            if (rechts > window.innerWidth) probleme.push(`Bestand endet bei ${rechts}px: ${name?.textContent}`);
+            return probleme;
+          }),
+        };
+      });
+      expect(befund.anzahl, "ohne Karten misst der Test nichts").toBeGreaterThan(0);
+      expect(befund.fehler).toEqual([]);
+    });
+  }
 
   test("die Werkzeugleiste bleibt erreichbar", async ({ page }) => {
     await artikelseite(page);

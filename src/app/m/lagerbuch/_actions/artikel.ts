@@ -41,7 +41,29 @@ const CreateSchema = z.object({
     .int()
     .min(0, "Mindestbestand darf nicht negativ sein"),
   kategorie: KategorieFeld,
+  /** IDA-378 — die Warnung „gibt es schon" ist mit „Trotzdem anlegen" beantwortet. */
+  dublettBestaetigt: z.literal(true).optional(),
 });
+
+/**
+ * IDA-378 — GLEICHNAMIGE ARTIKEL, verglichen ohne Gross-/Kleinschreibung und
+ * ohne Leerzeichen am Rand. In JS und nicht per SQL-`lower()`: das faltet nur
+ * ASCII, „Ärmel" und „ärmel" waeren dort zwei Namen. Deaktivierte zaehlen mit —
+ * wer einen stillgelegten Artikel neu anlegt, will ihn meist reaktivieren.
+ */
+function gleichnamige(db: DB, name: string): { name: string; aktiv: boolean }[] {
+  const schluessel = (text: string) => text.trim().toLocaleLowerCase("de");
+  const gesucht = schluessel(name);
+  return db.select({ name: artikel.name, aktiv: artikel.aktiv }).from(artikel).all()
+    .filter((zeile) => schluessel(zeile.name) === gesucht);
+}
+
+/** Der Satz zur Dublette: Name, und ob es den Artikel nur deaktiviert gibt. */
+function dublettenSatz(treffer: { name: string; aktiv: boolean }[]): string {
+  const name = treffer[0]!.name;
+  const deaktiviert = treffer.every((zeile) => !zeile.aktiv) ? " (deaktiviert)" : "";
+  return `„${name}“ gibt es schon${deaktiviert}.`;
+}
 
 const UpdateSchema = z.object({
   name: z.string().trim().min(1, "Name darf nicht leer sein").optional(),
@@ -71,18 +93,34 @@ function validierungsFehler(
   };
 }
 
+/**
+ * `dublette: true` heisst: nichts angelegt, weil es den Namen schon gibt — die
+ * Oberflaeche zeigt `fehler` als Warnung und bietet „Trotzdem anlegen" an
+ * (dann mit `dublettBestaetigt: true`).
+ */
+type AnlegenErgebnis =
+  | ActionErgebnis<{ id: string }>
+  | { ok: false; fehler: string; dublette: true };
+
 export async function createArtikel(
   eingabe: unknown,
   db: DB = getDb(),
-): Promise<ActionErgebnis<{ id: string }>> {
+): Promise<AnlegenErgebnis> {
   const auditViewer = await requireLagerbuchAdmin();
-  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<AnlegenErgebnis> => {
 
     let v: z.output<typeof CreateSchema>;
     try {
       v = CreateSchema.parse(eingabe);
     } catch (e) {
       return validierungsFehler(e);
+    }
+
+    if (!v.dublettBestaetigt) {
+      const treffer = gleichnamige(db, v.name);
+      if (treffer.length > 0) {
+        return { ok: false, fehler: dublettenSatz(treffer), dublette: true };
+      }
     }
 
     const id = newId();

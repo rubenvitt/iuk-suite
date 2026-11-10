@@ -79,6 +79,19 @@ export const launcherVorlieben = sqliteTable("launcher_vorlieben", {
   angeheftet: text("angeheftet", { mode: "json" }).$type<string[]>().notNull().$defaultFn(() => []),
   zuletzt: text("zuletzt", { mode: "json" }).$type<string[]>().notNull().$defaultFn(() => []),
   aktualisiertAm: integer("aktualisiert_am", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  /**
+   * Bis wohin die Person die Neuigkeiten gesehen hat (IDA-391): das jüngste Notizdatum beim letzten
+   * Besuch und die Notizen genau dieses Tages. Die Schlüssel braucht es, weil eine Notiz nur ein Datum
+   * trägt — eine zweite Notiz vom selben Tag, nach dem Besuch ausgerollt, wäre sonst nie „neu".
+   * `null`: noch nie auf der Seite gewesen (siehe `neuigkeiten/auswahl.ts`, `vergleichsStand`).
+   */
+  neuigkeitenGesehen: text("neuigkeiten_gesehen", { mode: "json" }).$type<NeuigkeitenGesehen>(),
 });
+
+/** `bis` als `YYYY-MM-DD`, `schluessel` als `<modul>/<slug>`. */
+export interface NeuigkeitenGesehen {
+  bis: string;
+  schluessel: string[];
+}
 
 export type LauncherVorlieben = typeof launcherVorlieben.$inferSelect;

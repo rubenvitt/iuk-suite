@@ -33,6 +33,9 @@
 
 .neben { font-size: 12px; color: var(--iuk-gedaempft); }
 .zeile { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Lesebreite in der Anfragenliste (IDA-393): `max-content` legte Zeitraum und Anlass sonst auf eine Zeile. */
+.wann { max-width: 26ch; }
+.anlass { max-width: 30ch; }
 
 /* Chips: `Statuschip` aus `core/status` (Haarlinie, Etappe 3). */
 

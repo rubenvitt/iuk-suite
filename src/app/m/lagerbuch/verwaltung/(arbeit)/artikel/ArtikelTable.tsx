@@ -7,6 +7,7 @@ import { SPACE } from "@/core/theme/tokens";
 import {
   angezeigteZeilen,
   Kartentabelle,
+  NurBreit,
   filterAktiv,
   nachDatum,
   nachText,
@@ -91,20 +92,20 @@ const KATEGORIEN_SPEICHERFEHLER =
  * rc-table auf `table-layout: fixed` (`docs/design/README.md`) — die Spalten
  * stehen dann GENAU so breit, wie es hier steht, und nicht mehr so breit wie
  * ihr Inhalt. Die Zahlen sind deshalb am Inhalt entlang gewaehlt und die Summe
- * bewusst klein gehalten: 1120 + 32 fuer die Auswahlspalte = 1152.
+ * bewusst klein gehalten: 860 + 32 fuer die Auswahlspalte = 892. Bis IDA-393 waren es
+ * 1120 und damit bei 1280px (984px Inhalt) rund 260px zu viel — Fach und Kategorie
+ * stehen seither als leise zweite Zeile unter dem Namen statt in eigenen Spalten.
  *
  * ⚠️ SIE GELTEN ERST AB `VIRTUELL_AB_ZEILEN` (150). Darunter bleibt die Tabelle
  * gewoehnlich und misst wie bisher nach Inhalt — eine kleine Installation sieht
  * von dieser Aenderung also gar nichts.
  */
 const BREITE = {
-  artikel: 230,
-  fach: 90,
-  kategorie: 150,
+  artikel: 240,
   bestand: 120, // Haarlinie: der Kopf steht in Geist statt Barlow Condensed; 110 ließ „Bestand“ neben Sortier- und Filterzeichen nur 3 px Luft
   mindest: 90, // 80 brach den Kopf bei 1280px in „MI N." (IDA-241); Wort und zwei Zeichen brauchen 81
   verfall: 210,
-  status: 230, // gibt die 10 px an „Bestand“, die Summe bleibt 1120
+  status: 200, // „unter Mindestbestand" mit Zeichen braucht rund 165; die Chips brechen untereinander um
 } as const;
 
 /** Die fachliche Ordnung der Ampel — rot zuerst, nicht alphabetisch. */
@@ -158,6 +159,8 @@ export function ArtikelTable({
 }) {
   const [filter, setFilter] = useState<ArtikelFilterZustand>(LEERER_FILTER);
   const [offenerArtikel, setOffenerArtikel] = useState<string | null>(startArtikel ?? null);
+  /** IDA-378 — der eben angelegte Artikel: seine Schublade oeffnet auf „Buchen". */
+  const [neuAngelegt, setNeuAngelegt] = useState<string | null>(null);
   /*
    * Ein neuer Wunsch aus der Adresse (Link auf dieselbe Seite mit anderem
    * Artikel) öffnet dessen Schublade — im Rendern abgeglichen, nicht im Effekt
@@ -370,49 +373,84 @@ export function ArtikelTable({
       width: BREITE.artikel,
       sorter: nachText<ArtikelAnzeigeZeile>((zeile) => zeile.name),
       sortOrder: sortierung.spalte === "name" ? sortierung.richtung : null,
-      render: (wert: string, zeile) => (
-        /*
-         * ⚠️ DER NAME BRICHT UM, STATT UEBER DIE FACH-SPALTE ZU LAUFEN (IDA-241).
-         * antds `Button` setzt `white-space: nowrap` und eine feste Hoehe; unter
-         * `table-layout: fixed` (virtuell) ragte ein langer Name ueber den
-         * Fachrahmen daneben. `minHeight` haelt die 44 der Arbeitsdichte.
-         */
-        <Button
-          type="link"
-          style={NAMENSKNOPF}
-          onClick={() => setOffenerArtikel(zeile.id)}
-        >
-          {wert}
-        </Button>
-      ),
-    },
-    {
-      title: "Fach",
-      dataIndex: "fach",
-      width: BREITE.fach,
-      // `nachText` sortiert Ziffernfolgen numerisch — „Fach 2" vor „Fach 10".
-      sorter: nachText<ArtikelAnzeigeZeile>((zeile) => zeile.fach),
-      sortOrder: sortierung.spalte === "fach" ? sortierung.richtung : null,
-      filteredValue: spaltenFilter.fach ?? null,
+      /*
+       * IDA-393 — FACH UND KATEGORIE STEHEN UNTER DEM NAMEN, nicht in eigenen Spalten: bei
+       * 1280px ragte die Tabelle sonst 260px aus ihrem Rahmen. Der Fachfilter wandert mit in
+       * diesen Spaltenkopf — wer ein Fach abarbeitet, braucht ihn. ⚠️ Sein Zustand steht
+       * damit unter dem Schlüssel dieser Spalte (`name`); ein eigener `key` hier verböge die
+       * Sortierung, die über denselben Schlüssel läuft. Kategorien blendet das Feld über der
+       * Tabelle aus.
+       */
+      filteredValue: spaltenFilter.name ?? null,
       filters: werteAlsFilter(zeilen, (zeile) => zeile.fach),
       filterSearch: true,
       onFilter: trifftWert<ArtikelAnzeigeZeile>((zeile) => zeile.fach),
-      render: (wert: string) => <span className={s.fach}>{wert}</span>,
+      render: (wert: string, zeile) => (
+        <>
+          {/*
+           * ⚠️ DER NAME BRICHT UM, STATT UEBER DIE SPALTE DANEBEN ZU LAUFEN (IDA-241).
+           * antds `Button` setzt `white-space: nowrap` und eine feste Hoehe; unter
+           * `table-layout: fixed` (virtuell) ragte ein langer Name ueber den
+           * Rahmen daneben. `minHeight` haelt die 44 der Arbeitsdichte.
+           */}
+          <Button
+            type="link"
+            style={NAMENSKNOPF}
+            onClick={() => setOffenerArtikel(zeile.id)}
+          >
+            {wert}
+          </Button>
+          <div style={SCHRIFT.neben}>
+            <span className={s.fach}>{zeile.fach}</span>
+            {zeile.kategorie ? ` · ${zeile.kategorie}` : null}
+          </div>
+        </>
+      ),
     },
     {
-      title: "Kategorie",
-      dataIndex: "kategorie",
-      width: BREITE.kategorie,
-      sorter: nachText<ArtikelAnzeigeZeile>((zeile) => zeile.kategorie),
-      sortOrder: sortierung.spalte === "kategorie" ? sortierung.richtung : null,
-      filteredValue: spaltenFilter.kategorie ?? null,
-      filters: werteAlsFilter(zeilen, (zeile) => zeile.kategorie, {
-        ohneWertLabel: "ohne Kategorie",
-      }),
-      filterSearch: true,
-      onFilter: trifftWert<ArtikelAnzeigeZeile>((zeile) => zeile.kategorie),
-      render: (wert: string | null) => (
-        wert ?? <span style={SCHRIFT.neben}>–</span>
+      title: "Status",
+      dataIndex: "aktiv",
+      width: BREITE.status,
+      /**
+       * ⚠️ HIER STEHT NUR NOCH DER LEBENSZUSTAND — aktiv oder inaktiv. Die
+       * uebrigen Praedikate der alten Knopfleiste liegen auf DEN SPALTEN, um
+       * die es jeweils geht (Bestand, Min., Verfall), und das ist kein
+       * Ordnungssinn: antd verodert mehrere Werte EINER Spalte und verundet
+       * ZWISCHEN Spalten. Laegen alle sechs hier, waere „aktiv UND unter
+       * Mindestbestand" nicht mehr moeglich — mit den alten, unabhaengigen
+       * Haken war genau das der Normalfall. Begruendung vollstaendig in
+       * `_lib/artikelFilter.ts`. IDA-393: direkt hinter dem Namen.
+       */
+      ...zustandsFilter<ArtikelAnzeigeZeile>(ARTIKEL_STATUS_ZUSTAENDE),
+      filteredValue: spaltenFilter.aktiv ?? null,
+      sortOrder: sortierung.spalte === "aktiv" ? sortierung.richtung : null,
+      // Rot zuerst: der Fall, der Aufmerksamkeit verlangt, gehoert nach oben.
+      sorter: (a, b) => {
+        const rang = (zeile: ArtikelAnzeigeZeile) => {
+          if (zeile.unterMindest) return 0;
+          if (zeile.naechsteAmpel) return 1 + AMPEL_RANG.indexOf(zeile.naechsteAmpel);
+          return AMPEL_RANG.length + 1;
+        };
+        return rang(a) - rang(b);
+      },
+      render: (_wert: boolean, zeile) => (
+        // 6 liegt nicht auf der SPACE-Skala; bleibt Literal.
+        <Flex gap={6} wrap>
+          {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
+          {zeile.aktiv && !zeile.unterMindest && !zeile.naechsteAblaufText
+            ? <Chip ton="ok">ok</Chip>
+            : null}
+          {zeile.unterMindest
+            ? <Chip ton="rot" zeichen="warnung">unter Mindestbestand</Chip>
+            : null}
+          {zeile.naechsteAblaufText && zeile.naechsteAmpel
+            ? (
+              <Chip ton={ampelTon(zeile.naechsteAmpel)}>
+                Charge {zeile.naechsteAblaufText}
+              </Chip>
+            )
+            : null}
+        </Flex>
       ),
     },
     {
@@ -471,52 +509,6 @@ export function ArtikelTable({
           : <Chip ton="grau">leer</Chip>
       ),
     },
-    {
-      title: "Status",
-      dataIndex: "aktiv",
-      width: BREITE.status,
-      /**
-       * ⚠️ HIER STEHT NUR NOCH DER LEBENSZUSTAND — aktiv oder inaktiv. Die
-       * uebrigen Praedikate der alten Knopfleiste liegen auf DEN SPALTEN, um
-       * die es jeweils geht (Bestand, Min., Verfall), und das ist kein
-       * Ordnungssinn: antd verodert mehrere Werte EINER Spalte und verundet
-       * ZWISCHEN Spalten. Laegen alle sechs hier, waere „aktiv UND unter
-       * Mindestbestand" nicht mehr moeglich — mit den alten, unabhaengigen
-       * Haken war genau das der Normalfall. Begruendung vollstaendig in
-       * `_lib/artikelFilter.ts`.
-       */
-      ...zustandsFilter<ArtikelAnzeigeZeile>(ARTIKEL_STATUS_ZUSTAENDE),
-      filteredValue: spaltenFilter.aktiv ?? null,
-      sortOrder: sortierung.spalte === "aktiv" ? sortierung.richtung : null,
-      // Rot zuerst: der Fall, der Aufmerksamkeit verlangt, gehoert nach oben.
-      sorter: (a, b) => {
-        const rang = (zeile: ArtikelAnzeigeZeile) => {
-          if (zeile.unterMindest) return 0;
-          if (zeile.naechsteAmpel) return 1 + AMPEL_RANG.indexOf(zeile.naechsteAmpel);
-          return AMPEL_RANG.length + 1;
-        };
-        return rang(a) - rang(b);
-      },
-      render: (_wert: boolean, zeile) => (
-        // 6 liegt nicht auf der SPACE-Skala; bleibt Literal.
-        <Flex gap={6} wrap>
-          {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
-          {zeile.aktiv && !zeile.unterMindest && !zeile.naechsteAblaufText
-            ? <Chip ton="ok">ok</Chip>
-            : null}
-          {zeile.unterMindest
-            ? <Chip ton="rot" zeichen="warnung">unter Mindestbestand</Chip>
-            : null}
-          {zeile.naechsteAblaufText && zeile.naechsteAmpel
-            ? (
-              <Chip ton={ampelTon(zeile.naechsteAmpel)}>
-                Charge {zeile.naechsteAblaufText}
-              </Chip>
-            )
-            : null}
-        </Flex>
-      ),
-    },
   ], [zeilen, spaltenFilter, sortierung]);
 
   /**
@@ -533,6 +525,37 @@ export function ArtikelTable({
   // spart.
   const angezeigt = angezeigteZeilen(gefiltert, spalten, spaltenFilter, sortierung);
 
+  /*
+   * DRK-294. Nur, wenn es etwas zu waehlen gibt — ohne vergebene Kategorie
+   * waere das Feld eine leere Liste.
+   *
+   * ⚠️ EIN ELEMENT, ZWEI ORTE (IDA-380): breit im Kopf neben der Suche, schmal
+   * hinter dem Knopf „Filter" der Kartenleiste. Beide lesen und schreiben
+   * denselben Zustand; welches zu sehen ist, entscheidet `NurBreit` bzw.
+   * `NurSchmal` am einzigen Breakpoint der Suite.
+   */
+  const kategorienFeld = kategorien.length > 0 ? (
+    <Select<string[]>
+      mode="multiple"
+      value={sichtbareAuswahl}
+      onChange={kategorienAendern}
+      options={kategorien.map((option) => ({
+        value: option.schluessel,
+        label: option.label,
+      }))}
+      placeholder="Kategorien dauerhaft ausblenden"
+      aria-label="Kategorien dauerhaft ausblenden"
+      // Der Unterschied zum Spaltenfilter derselben Spalte, in einem Satz:
+      // dieser hier bleibt, jener gilt nur fuer den Moment.
+      title={
+        "Für dein Konto gespeichert — diese Kategorien bleiben auch beim "
+        + "nächsten Aufschlagen ausgeblendet"
+      }
+      virtual={false}
+      style={{ minWidth: 240, flex: "1 1 240px", maxWidth: "100%" }}
+    />
+  ) : null;
+
   return (
     <>
       <TabellenVollhoehe
@@ -545,29 +568,9 @@ export function ArtikelTable({
                 onWert={(suche) => setFilter((vorher) => ({ ...vorher, suche }))}
                 platzhalter="Artikel, Fach oder Charge suchen…"
               />
-              {/* DRK-294. Nur, wenn es etwas zu waehlen gibt — ohne vergebene
-                  Kategorie waere das Feld eine leere Liste. */}
-              {kategorien.length > 0 ? (
-                <Select<string[]>
-                  mode="multiple"
-                  value={sichtbareAuswahl}
-                  onChange={kategorienAendern}
-                  options={kategorien.map((option) => ({
-                    value: option.schluessel,
-                    label: option.label,
-                  }))}
-                  placeholder="Kategorien dauerhaft ausblenden"
-                  aria-label="Kategorien dauerhaft ausblenden"
-                  // Der Unterschied zum Spaltenfilter derselben Spalte, in einem Satz:
-                  // dieser hier bleibt, jener gilt nur fuer den Moment.
-                  title={
-                    "Für dein Konto gespeichert — diese Kategorien bleiben auch beim "
-                    + "nächsten Aufschlagen ausgeblendet"
-                  }
-                  virtual={false}
-                  style={{ minWidth: 240 }}
-                />
-              ) : null}
+              {/* IDA-380 — breit steht das Feld hier, schmal in der Filterleiste
+                  der Karten (`steuerungZusatz` unten). */}
+              {kategorienFeld ? <NurBreit>{kategorienFeld}</NurBreit> : null}
               {hatFilter ? (
                 <Button
                   icon={<Ikone name="zuruecksetzen" groesse={16} />}
@@ -596,7 +599,13 @@ export function ArtikelTable({
               >
                 {exportLaeuft ? "Erzeuge…" : "Excel-Liste"}
               </Button>
-              <NeuArtikel kategorien={kategorien.map((option) => option.label)} />
+              <NeuArtikel
+                kategorien={kategorien.map((option) => option.label)}
+                onAngelegt={(id) => {
+                  setNeuAngelegt(id);
+                  setOffenerArtikel(id);
+                }}
+              />
             </Flex>
             {ausgewaehlt.length > 0 ? (
               <Flex
@@ -697,10 +706,27 @@ export function ArtikelTable({
              */
             karte={{
               titel: "name",
-              kennzeichen: ["aktiv", "bestand"],
+              /*
+               * IDA-380 — NEBEN DEM NAMEN STEHT NUR DER BESTAND, die Status-
+               * chips stehen darunter. Als zwei Kennzeichen neben dem Titel
+               * ließen sie dem Namen auf 390px eine Buchstabenbreite
+               * („B/Z/-/T/e/s/t…"), und der Bestand lief rechts aus dem Bild.
+               */
+              kennzeichen: ["bestand"],
+              unterTitel: ["aktiv"],
               aus: ["mindestbestand"],
             }}
-            kartenHoehe={190}
+            kartenHoehe={210}
+            /*
+             * IDA-380 — sechs Spaltenfilter, die Sortierung und die
+             * Kategorien stünden sonst als neun Felder vor der ersten Karte.
+             * Die Suche bleibt oben offen; der Rest liegt hinter „Filter".
+             */
+            steuerungEingeklappt
+            steuerungZusatz={kategorienFeld ? {
+              inhalt: kategorienFeld,
+              aktiv: sichtbareAuswahl.length > 0 ? 1 : 0,
+            } : undefined}
             leer={{
               nichts: "Noch keine Artikel",
               figur: "lagerbuch",
@@ -765,7 +791,11 @@ export function ArtikelTable({
           id={offenerArtikel}
           fahrzeuge={fahrzeuge}
           kategorien={kategorien.map((option) => option.label)}
-          onSchliessen={() => setOffenerArtikel(null)}
+          {...(offenerArtikel === neuAngelegt ? { startReiter: "buchen" as const } : {})}
+          onSchliessen={() => {
+            setOffenerArtikel(null);
+            setNeuAngelegt(null);
+          }}
         />
       ) : null}
     </>

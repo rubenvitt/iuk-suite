@@ -5,7 +5,7 @@
  * Kein `"use client"` (Falle 6).
  */
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull } from "drizzle-orm";
-import { lagerorte, maengel, newId } from "../../_db/schema";
+import { geraete, lagerorte, maengel, newId } from "../../_db/schema";
 import { ENTNAHMEBOX_ID, HANDLAGER_ID, type Einheitenart } from "../konstanten";
 import type { Leser } from "../lesepfade/bestand";
 import { ortsartAus, type Ortsart } from "./checkliste";
@@ -69,6 +69,9 @@ export interface NeuerMangel {
   jetzt: Date;
   /** Vorab vergeben, weil die Fotos unter dieser ID abgelegt werden, bevor die Zeile steht. */
   id?: string;
+  /** IDA-377: das Gerät, um das es geht, und der Check, der es gemeldet hat. */
+  geraetId?: string | null;
+  checkId?: string | null;
 }
 
 export function legeMangelAn(db: Leser, m: NeuerMangel): string {
@@ -83,8 +86,20 @@ export function legeMangelAn(db: Leser, m: NeuerMangel): string {
     quelleId: m.quelle.quelleId,
     fotos: m.fotos,
     createdAt: m.jetzt,
+    geraetId: m.geraetId ?? null,
+    checkId: m.checkId ?? null,
   }).run();
   return id;
+}
+
+/**
+ * IDA-377 — gibt es zu diesem Gerät schon einen OFFENEN Mangel? Dann legt ein weiterer Check keinen
+ * zweiten an: derselbe Schaden stünde sonst nach jeder Woche einmal mehr in der Liste.
+ */
+export function offenerMangelZuGeraet(db: Leser, geraetId: string): string | null {
+  return db.select({ id: maengel.id }).from(maengel)
+    .where(and(eq(maengel.geraetId, geraetId), isNull(maengel.erledigtAt)))
+    .get()?.id ?? null;
 }
 
 export interface MangelZeile {
@@ -99,15 +114,23 @@ export interface MangelZeile {
   createdAt: Date;
   erledigtAt: Date | null;
   erledigtVermerk: string | null;
+  /** IDA-377: das betroffene Gerät, wenn der Mangel an einem hängt. */
+  geraet: { id: string; name: string } | null;
+  /** IDA-377: `true`, wenn der Fahrzeug-Check ihn angelegt hat. */
+  ausCheck: boolean;
 }
 
-function zeilen(db: Leser, offen: boolean, grenze?: number): MangelZeile[] {
+function zeilen(db: Leser, offen: boolean, grenze?: number, geraetId?: string): MangelZeile[] {
   const namen = new Map(orteRoh(db).map((o) => [o.id, o]));
   const namenKurz = new Map([...namen.values()].map((o) => [o.id, o.name]));
+  const status = offen ? isNull(maengel.erledigtAt) : isNotNull(maengel.erledigtAt);
   const abfrage = db.select().from(maengel)
-    .where(offen ? isNull(maengel.erledigtAt) : isNotNull(maengel.erledigtAt))
+    .where(geraetId === undefined ? status : and(status, eq(maengel.geraetId, geraetId)))
     .orderBy(offen ? asc(maengel.createdAt) : desc(maengel.erledigtAt), asc(maengel.id));
   const roh = grenze === undefined ? abfrage.all() : abfrage.limit(grenze).all();
+  const geraeteIds = [...new Set(roh.map((m) => m.geraetId).filter((g): g is string => g !== null))];
+  const geraeteNamen = new Map(geraeteIds.length === 0 ? [] : db.select({ id: geraete.id, name: geraete.name })
+    .from(geraete).where(inArray(geraete.id, geraeteIds)).all().map((g) => [g.id, g.name]));
   return roh.map((m) => {
     const o = namen.get(m.lagerortId);
     return {
@@ -122,8 +145,15 @@ function zeilen(db: Leser, offen: boolean, grenze?: number): MangelZeile[] {
       createdAt: m.createdAt,
       erledigtAt: m.erledigtAt,
       erledigtVermerk: m.erledigtVermerk,
+      geraet: m.geraetId ? { id: m.geraetId, name: geraeteNamen.get(m.geraetId) ?? "Unbekanntes Gerät" } : null,
+      ausCheck: m.checkId !== null,
     };
   });
+}
+
+/** IDA-377: die offenen Mängel eines Geräts, für seine Seite in der Verwaltung. */
+export function offeneMaengelZuGeraet(db: Leser, geraetId: string): MangelZeile[] {
+  return zeilen(db, true, undefined, geraetId);
 }
 
 /** Offene Mängel, älteste zuerst. */

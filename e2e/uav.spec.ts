@@ -33,6 +33,40 @@ test.beforeAll(async ({ request }) => {
  */
 const AKTIVER_TEILNEHMER_ID = "seed-uav-teilnehmer-aktiv";
 
+/*
+ * IDA-389: nach der Code-Anmeldung stand nirgends, wer eingetragen wird, und
+ * es gab kein Abmelden — auf einem herumgereichten Übungsgerät trug die
+ * nächste Person unter fremdem Namen ein. Die Zeile steht im Server-HTML
+ * (Layout), also auch auf der Aufgabenseite; Abmelden lädt neu und lässt nur
+ * den lesbaren Katalog übrig.
+ */
+test("zeigt, wer angemeldet ist, und meldet ab (IDA-389)", async ({ page }) => {
+  // Kein Sync in diesem Fall: `/api/sync` erlaubt 10 Anfragen je Teilnehmer und
+  // Minute, und dieselbe Person syncen die Fälle danach (Check 7, DRK-286) —
+  // zwei Anfragen mehr von hier brachten den Kontowechsel-Fall in der CI auf 429.
+  await page.route((url) => url.pathname === "/api/sync", (route) => route.abort());
+  await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
+  await page.waitForURL((url) => url.pathname !== "/login");
+  await page.goto(uavUrl("/aufgabe?id=1-1"));
+
+  const person = page.locator("[data-rolle='uav-angemeldet']");
+  await expect(person).toContainText("Angemeldet als Erika Mustermann (E2E)");
+  await expect(page.getByLabel("Drohnensteuerer")).toBeVisible();
+  // Das Ziel setzt der Ausbilder: kein Feld zum Ändern.
+  await expect(page.locator("input[type='number']")).toHaveCount(0);
+
+  const abmeldung = page.waitForResponse(
+    (r) => r.url() === uavUrl("/api/abmeldung") && r.request().method() === "POST",
+  );
+  await klickeWennRuhig(page.locator("[data-rolle='uav-abmelden']"));
+  expect((await abmeldung).status()).toBe(200);
+  await page.waitForURL(uavUrl("/"));
+  await expect(person).toHaveCount(0);
+  const cookies = await page.context().cookies(uavUrl("/"));
+  expect(cookies.find((c) => c.name === "sid")).toBeUndefined();
+  await expect(page.getByText("Gesamtfortschritt")).toHaveCount(0);
+});
+
 test("Magic-Link löst den Code ein und landet auf dem Dashboard (Check 3)", async ({ page }) => {
   await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV.toLowerCase()}`));
   // `level: 1` UND exakter Name — ohne Level träfe die Regex `/Training/`
@@ -460,7 +494,8 @@ test.describe("Kontowechsel auf einem geteilten Gerät (DRK-286)", () => {
     await expect(page.getByText(/^Durchführungen 0 \/ \d+$/)).toBeVisible();
     const text = (await page.locator("body").textContent()) ?? "";
     for (const fremd of ["Erika Mustermann", "Klaus Beobachter", offen, "Adele Offen"]) expect(text).not.toContain(fremd);
-    await expect(page.getByLabel("Drohnensteuerer")).toHaveValue("");
+    // Vorbelegt ist Bs eigener Name (IDA-389), nichts von A.
+    await expect(page.getByLabel("Drohnensteuerer")).toHaveValue("Zora Zweit (E2E)");
     await expect(page.getByLabel("Luftraumbeobachter")).toHaveValue("");
 
     expect(syncBodies.length).toBeGreaterThan(0);

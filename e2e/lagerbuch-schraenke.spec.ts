@@ -173,14 +173,9 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     await klickeWennRuhig(page.getByRole("button", { name: "Anlegen" }));
     expect((await artikelAntwort).ok(), "Artikel anlegen: Server Action").toBe(true);
 
-    // Ueber die Suche finden, NIE ueber Bildlauf: die Tabelle virtualisiert
-    // (200 Lastartikel, Falle 14), und ein frisch angelegter Artikel landet
-    // alphabetisch irgendwo — moeglicherweise ausserhalb des zuerst
-    // gerenderten Fensters.
-    await page.getByRole("searchbox").fill(artikelName);
-    const artikelKnopf = page.getByRole("button", { name: artikelName, exact: true });
-    await expect(artikelKnopf).toBeVisible();
-    await klickeWennRuhig(artikelKnopf);
+    // IDA-378: nach „Anlegen" steht die Schublade des neuen Artikels schon
+    // offen, auf „Buchen" (Zugang) — kein Suchen und Anklicken mehr.
+    await expect(page.getByRole("dialog", { name: artikelName })).toBeVisible();
 
     // ── 3) Zugang mit Zielort buchen ───────────────────────────────────────
     // IDA-235: die Schublade oeffnet auf „Übersicht"; „Buchen" steht auf Zugang.
@@ -216,7 +211,8 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     // verborgen im DOM, ein blosser Titelgreifer traefe zwei.
     await page.getByRole("dialog", { name: artikelName })
       .getByText(artikelName, { exact: true }).click();
-    await expect(verfallFeld).toHaveValue(verfallsmonat);
+    // IDA-378: angezeigt wird MM/JJJJ.
+    await expect(verfallFeld).toHaveValue("06/2090");
 
     const zugangAntwort = serverActionAntwort(page);
     await klickeWennRuhig(page.getByRole("button", { name: "Zugang buchen" }));
@@ -259,7 +255,7 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     // Test still in der Verwaltungsansicht landen, die "Schrank: Menge" ohne
     // Zugangshinweis-Zeile ebenfalls zeigt — ein falscher Zweig, der wie ein
     // bestandener Test aussaehe.
-    await expect(page.getByText(/^Zugang: Token/)).toBeVisible();
+    await expect(page.getByText(/^Zugangscode · /)).toBeVisible();
 
     // ── 6) Zugangshinweis im Klartext ──────────────────────────────────────
     const hinweisZeile = page.locator('[data-rolle="charge-zugangshinweis"]');
@@ -314,8 +310,10 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     // der Zeile darunter und meldete sich als „der leere Schrank muss
     // löschbar sein" — eine Meldung, die auf die Loeschregeln zeigt, waehrend
     // in Wahrheit die Anfrage nie ankam.
+    // IDA-393: „Löschen" liegt im Aktionsmenü der Zeile.
+    await klickeWennRuhig(zeile.getByRole("button", { name: `Aktionen für ${schrankName}` }));
     const pruefAntwort = serverActionAntwort(page);
-    await klickeWennRuhig(zeile.getByRole("button", { name: "Löschen", exact: true }));
+    await klickeWennRuhig(page.getByRole("menuitem", { name: "Löschen", exact: true }));
     expect((await pruefAntwort).ok(), "Löschbarkeit prüfen: Server Action").toBe(true);
 
     // Erst danach steht das Bestaetigungsfeld im Dialog. Auf das FELD zu warten

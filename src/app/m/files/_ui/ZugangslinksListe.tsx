@@ -233,7 +233,7 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
             aria-label="Abgabelinks"
             dataSource={zeilen}
             leer={{ nichts: "Noch keine Abgabelinks", figur: "files", gefiltert: "Kein Abgabelink passt zum Filter." }}
-            columns={spalten(inboxBasis)}
+            columns={spalten()}
           />
         )}
       </div>
@@ -254,24 +254,51 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
  * Zahlen, und der Zustand hat eine fachliche Ordnung statt einer
  * alphabetischen (`nachRang`).
  */
-function spalten(inboxBasis: string | null) {
+function spalten() {
   return [
+    /*
+     * BEI 1280px PASST DIE ZEILE IN DEN RAHMEN (IDA-393; gemessen ragte sie
+     * 235px hinaus): der Code steht leise unter der Bezeichnung, der Zustand
+     * direkt dahinter.
+     */
     {
       key: "name",
       title: "Bezeichnung",
-      dataIndex: "name",
       sorter: nachText<ZugangslinkZeile>((zeile) => zeile.name),
+      render: (_: unknown, zeile: ZugangslinkZeile) => (
+        <div>
+          <div>{zeile.name}</div>
+          {/* Kein eigener `sorter` fuer den Code: die sieben Zeichen sind ein
+              zufaelliges Geheimnis. Mit Auslassungszeichen, damit niemand sie
+              fuer den ganzen Code haelt und sie abzuschreiben versucht. */}
+          <div className={`${styles.hinweis} ${styles.zahlen}`}>{zeile.tokenStart}…</div>
+        </div>
+      ),
     },
     {
-      /* Kein `sorter`: die sieben Zeichen sind ein zufaelliges Geheimnis. Eine
-         Ordnung darueber sortierte nach Zufall und saehe aus wie eine Aussage. */
-      key: "token",
-      title: "Code",
-      render: (_: unknown, zeile: ZugangslinkZeile) => (
-        // Mit Auslassungszeichen, damit niemand die sieben Zeichen fuer den
-        // ganzen Code haelt und sie abzuschreiben versucht.
-        <span className={styles.zahlen}>{zeile.tokenStart}…</span>
+      key: "zustand",
+      title: "Zustand",
+      /*
+       * DIE ORDNUNG IST FACHLICH, NICHT ALPHABETISCH: „gueltig" zuerst, weil
+       * das die Zeilen sind, an denen es etwas zu tun gibt (aufstocken,
+       * widerrufen). Alphabetisch stuende „abgelaufen" oben — die Gruppe, mit
+       * der niemand mehr etwas anfaengt. Deshalb `nachRang` und nicht
+       * `nachText`.
+       */
+      sorter: nachRang<ZugangslinkZeile, ZugangslinkZustand>(
+        (zeile) => zeile.zustand,
+        ["gueltig", "abgelaufen", "widerrufen"],
       ),
+      /* Die Filterbeschriftung kommt aus DEMSELBEN `ZUSTAND_TEXT` wie die Zelle
+         — zwei Woerter fuer denselben Zustand waeren zwei Aussagen. */
+      ...zustandsFilter<ZugangslinkZeile>(
+        (["gueltig", "abgelaufen", "widerrufen"] as const).map((wert) => ({
+          wert,
+          text: ZUSTAND_TEXT[wert],
+          trifft: (zeile: ZugangslinkZeile) => zeile.zustand === wert,
+        })),
+      ),
+      render: (_: unknown, zeile: ZugangslinkZeile) => <span>{ZUSTAND_TEXT[zeile.zustand]}</span>,
     },
     {
       key: "laufzeit",
@@ -314,31 +341,6 @@ function spalten(inboxBasis: string | null) {
       ),
     },
     {
-      key: "zustand",
-      title: "Zustand",
-      /*
-       * DIE ORDNUNG IST FACHLICH, NICHT ALPHABETISCH: „gueltig" zuerst, weil
-       * das die Zeilen sind, an denen es etwas zu tun gibt (aufstocken,
-       * widerrufen). Alphabetisch stuende „abgelaufen" oben — die Gruppe, mit
-       * der niemand mehr etwas anfaengt. Deshalb `nachRang` und nicht
-       * `nachText`.
-       */
-      sorter: nachRang<ZugangslinkZeile, ZugangslinkZustand>(
-        (zeile) => zeile.zustand,
-        ["gueltig", "abgelaufen", "widerrufen"],
-      ),
-      /* Die Filterbeschriftung kommt aus DEMSELBEN `ZUSTAND_TEXT` wie die Zelle
-         — zwei Woerter fuer denselben Zustand waeren zwei Aussagen. */
-      ...zustandsFilter<ZugangslinkZeile>(
-        (["gueltig", "abgelaufen", "widerrufen"] as const).map((wert) => ({
-          wert,
-          text: ZUSTAND_TEXT[wert],
-          trifft: (zeile: ZugangslinkZeile) => zeile.zustand === wert,
-        })),
-      ),
-      render: (_: unknown, zeile: ZugangslinkZeile) => <span>{ZUSTAND_TEXT[zeile.zustand]}</span>,
-    },
-    {
       key: "uploads",
       title: "Uploads",
       sorter: nachZahl<ZugangslinkZeile>((zeile) => zeile.uploads),
@@ -350,13 +352,10 @@ function spalten(inboxBasis: string | null) {
       key: "aktionen",
       title: "",
       render: (_: unknown, zeile: ZugangslinkZeile) => (
+        // Kein Rohtoken mehr vorhanden — der QR-Weg endet hier bewusst. Was
+        // bleibt, ist die Kontrolle des Budgets und der Widerruf.
         <div className={styles.knopfzeile}>
           {zeile.zustand !== "widerrufen" && <WiderrufenKnopf zeile={zeile} />}
-          {inboxBasis !== null && zeile.zustand === "gueltig" && (
-            // Kein Rohtoken mehr vorhanden — der QR-Weg endet hier bewusst.
-            // Was bleibt, ist die Kontrolle des Budgets und der Widerruf.
-            <span className={styles.hinweis}>Code nur einmal ausgegeben</span>
-          )}
         </div>
       ),
     },
@@ -395,12 +394,12 @@ function AnlegenFormular({
           />
         </label>
         <label>
-          Budget Dateien (leer = Vorbelegung)
+          Höchstzahl Dateien (leer = Vorbelegung)
           <Input name="budgetDateien" inputMode="numeric" defaultValue={werte.budgetDateien ?? ""} />
         </label>
         <label>
-          Budget Bytes (leer = Vorbelegung)
-          <Input name="budgetBytes" inputMode="numeric" defaultValue={werte.budgetBytes ?? ""} />
+          Speicherplatz in MiB (leer = Vorbelegung)
+          <Input name="budgetMib" inputMode="numeric" defaultValue={werte.budgetMib ?? ""} />
         </label>
         {fehler !== null && <span className={styles.feldFehler}>{fehler}</span>}
         <div className={styles.knopfzeile}>
@@ -585,10 +584,10 @@ function AufstockenFeld({ zeile }: { zeile: ZugangslinkZeile }) {
             placeholder="+ Dateien"
           />
           <Input
-            name="zusatzBytes"
+            name="zusatzMib"
             inputMode="numeric"
-            aria-label={`Zusätzliche Bytes für ${zeile.name}`}
-            placeholder="+ Bytes"
+            aria-label={`Zusätzlicher Speicherplatz in MiB für ${zeile.name}`}
+            placeholder="+ MiB"
           />
           {/* Waehrend der Vorgang laeuft, ist der Knopf gesperrt — siehe oben:
               ein zweiter Absender addierte ein zweites Mal. Kein `size="small"`

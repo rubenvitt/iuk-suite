@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { anfrageZurueckziehenAction } from "../../_actions/anfrage";
 import { istTestanlass, testLoeschtag } from "../../_lib/testanfrage";
@@ -16,8 +16,11 @@ const SATZ: Record<StatusDTO["status"], string> = {
   zurueckgezogen: "Du hast diese Anfrage zurückgezogen.",
 };
 
-/** Die Statusseite einer Anfrage: Stand, Begründung einer Absage, die eigenen Angaben, Zurückziehen mit Rückfrage. */
-export function Statusansicht({ code, a }: { code: string; a: StatusDTO }) {
+/**
+ * Die Statusseite einer Anfrage: Stand, Begründung einer Absage, die eigenen Angaben, Zurückziehen mit Rückfrage.
+ * `neu`: gerade abgeschickt (`?neu=1` vom Formular, IDA-387) — dann oben der Link zum Sichern.
+ */
+export function Statusansicht({ code, a, neu = false }: { code: string; a: StatusDTO; neu?: boolean }) {
   const router = useRouter();
   const [frage, setFrage] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -40,6 +43,7 @@ export function Statusansicht({ code, a }: { code: string; a: StatusDTO }) {
 
   return (
     <>
+    {neu ? <Gesichert code={code} /> : null}
     <section className={s.karte} aria-labelledby="status-titel">
       <h2 className={s.ueberschrift} id="status-titel">Deine Anfrage</h2>
       <span className={`${s.plakette} ${s[a.status] ?? ""}`} data-testid="status-stand">{ZUSTAND_TEXT[a.status]}</span>
@@ -77,5 +81,42 @@ export function Statusansicht({ code, a }: { code: string; a: StatusDTO }) {
     </section>
     {a.status === "zugesagt" && a.vertrag ? <Vertragsbereich code={code} person={a.person} v={a.vertrag} /> : null}
     </>
+  );
+}
+
+/**
+ * Nach dem Absenden (IDA-387): Danke und der Link, mit Kopieren, Teilen (wo das Gerät es kann) und „Per E-Mail an
+ * mich“ über das eigene Mailprogramm — die Suite verschickt keine E-Mail. `?neu=1` kommt sofort aus der Adresse,
+ * damit ein Lesezeichen oder ein geteilter Link nicht wieder „Danke“ zeigt.
+ */
+function Gesichert({ code }: { code: string }) {
+  const pfad = `/status/${code}`;
+  const [link, setLink] = useState(pfad);
+  const [teilbar, setTeilbar] = useState(false);
+  const [kopiert, setKopiert] = useState(false);
+  useEffect(() => {
+    const voll = `${window.location.origin}${pfad}`;
+    window.history.replaceState(window.history.state, "", pfad);
+    // Erst nach dem Mounten: Server und erster Client-Lauf rendern gleich (kein Hydration-Unterschied).
+    queueMicrotask(() => { setLink(voll); setTeilbar(typeof navigator.share === "function"); });
+  }, [pfad]);
+  const betreff = "Meine Anfrage für die Bar";
+  return (
+    <section className={s.karte} aria-labelledby="danke-titel" data-testid="gesichert">
+      <p className={s.danke} id="danke-titel">Danke.</p>
+      <p className="go-text">Speicher dir diesen Link, eine E-Mail kommt nicht.</p>
+      <div className={s.statuslink}>
+        <code data-testid="statuslink">{link}</code>
+        <button type="button" className="go-knopf go-knopf-leise" onClick={() => {
+          navigator.clipboard?.writeText(link).then(() => setKopiert(true), () => setKopiert(false));
+        }}>{kopiert ? "Kopiert" : "Kopieren"}</button>
+      </div>
+      <div className="go-knopfzeile">
+        {teilbar ? (
+          <button type="button" className="go-knopf" onClick={() => { navigator.share({ title: betreff, url: link }).catch(() => {}); }}>Teilen</button>
+        ) : null}
+        <a className={`go-knopf ${teilbar ? "go-knopf-leise" : ""}`} href={`mailto:?subject=${encodeURIComponent(betreff)}&body=${encodeURIComponent(link)}`}>Per E-Mail an mich</a>
+      </div>
+    </section>
   );
 }

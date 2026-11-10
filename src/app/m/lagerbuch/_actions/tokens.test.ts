@@ -233,7 +233,7 @@ describe("setTokenAktiv", () => {
 
     expect(ergebnis).toEqual({
       ok: false,
-      fehler: "Zugangs-Code-Status konnte nicht geändert werden.",
+      fehler: "Zustand des Zugangscodes konnte nicht geändert werden.",
     });
     expect(fehlerVon(ergebnis).fehler).not.toContain("STATUS_SQL_GEHEIMNIS");
     expect(t.db.select().from(tokens).where(eq(tokens.id, "token-1")).get()?.aktiv)

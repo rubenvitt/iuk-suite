@@ -80,6 +80,12 @@ async function waehleMonat(monat: string): Promise<void> {
   await warte();
 }
 
+/** IDA-379: die Pflichtwerte bei `LEVEL_1` + `level2={null}` — Level 1 und der Monat. */
+async function fuellePflicht(): Promise<void> {
+  await fill("input[aria-label='Kontrolllösung niedrig (40–60)']", "50");
+  await waehleMonat("2026-09");
+}
+
 async function waehleAkku(labelText: "ja" | "nein"): Promise<void> {
   const label = queryAll<HTMLElement>(".ant-radio-wrapper")
     .find((element) => element.textContent?.trim() === labelText);
@@ -260,18 +266,99 @@ describe("KontrolleForm: Action-Payload", () => {
     await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-2" level1={LEVEL_1} level2={null} />);
 
     expect(query<HTMLInputElement>("input[value='false']").checked).toBe(true);
+    await fuellePflicht();
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
     await warteAufAction();
 
     expect(mocks.kontrolleErfassen).toHaveBeenCalledWith({
       geraetId: "bz-2",
-      kompresseVerfall: undefined,
+      level1Wert: 50,
+      kompresseVerfall: "2026-09",
       sticks: 0,
       lanzetten: 0,
       batterieGewechselt: false,
       beachtung: false,
       sendungId: SENDUNG,
     });
+  });
+});
+
+/**
+ * IDA-379 — EIN LEER ABGESCHICKTES FORMULAR GEHT NICHT MEHR RAUS. Pflicht ist,
+ * was fuer „bestanden" zaehlt, plus der Kompressen-Verfall; die Action prueft
+ * dieselbe Regel noch einmal.
+ */
+describe("KontrolleForm: Pflichtwerte (IDA-379)", () => {
+  async function fehlertexte(): Promise<string[]> {
+    await warteAuf(() => queryAll(".ant-form-item-explain-error").length > 0, "Feldfehler");
+    return queryAll(".ant-form-item-explain-error").map((el) => el.textContent ?? "");
+  }
+
+  it("schickt ein leeres Formular nicht ab und markiert konfigurierte Level und Monat", async () => {
+    await mount(
+      <KontrolleForm
+        beachtungAktiv={false}
+        geraetId="bz-1"
+        level1={LEVEL_1}
+        level2={{ label: "Kontrolllösung hoch", min: 250, max: 350 }}
+      />,
+    );
+
+    await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
+
+    expect(await fehlertexte()).toEqual([
+      "Bitte den Messwert eingeben.",
+      "Bitte den Messwert eingeben.",
+      "Bitte Verfallsmonat auswählen.",
+    ]);
+    expect(mocks.kontrolleErfassen).not.toHaveBeenCalled();
+  });
+
+  it("verlangt ein nur halb konfiguriertes Level nicht", async () => {
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={LEVEL_2_TEILWEISE} />);
+    await fuellePflicht();
+
+    await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
+    await warteAufAction();
+
+    expect(mocks.kontrolleErfassen).toHaveBeenCalledOnce();
+  });
+
+  it("verlangt ohne konfigurierte Level mindestens einen der beiden Werte", async () => {
+    const ohne = { label: null, min: null, max: null };
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={ohne} level2={ohne} />);
+    await waehleMonat("2026-09");
+
+    await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
+    expect(await fehlertexte()).toEqual(["Bitte mindestens einen Messwert eingeben."]);
+    expect(mocks.kontrolleErfassen).not.toHaveBeenCalled();
+
+    await fill("input[aria-label='Level 2']", "120");
+    await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
+    await warteAufAction();
+    expect(mocks.kontrolleErfassen).toHaveBeenCalledWith(expect.objectContaining({ level2Wert: 120 }));
+  });
+
+  it("speichert ein geleertes Anzahlfeld nicht still als 0", async () => {
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await fuellePflicht();
+    await fill("input[aria-label='Teststreifen']", "");
+
+    await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
+    expect(await fehlertexte()).toEqual(["Bitte eine Anzahl eingeben."]);
+    expect(mocks.kontrolleErfassen).not.toHaveBeenCalled();
+  });
+
+  it("hält Zahlenfelder und Monat schmal statt in voller Breite", async () => {
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+
+    for (const rolle of ["level-wert", "sticks", "lanzetten"]) {
+      const feld = query(`input[data-rolle='${rolle}']`).closest<HTMLElement>(".ant-input-number")!;
+      expect(feld.style.maxWidth, rolle).toBe("200px");
+      expect(feld.style.width, rolle).toBe("100%");
+    }
+    const monat = query("input[data-rolle='kompresse']").closest<HTMLElement>(".ant-picker")!;
+    expect(monat.style.maxWidth).toBe("200px");
   });
 });
 
@@ -317,6 +404,7 @@ describe("KontrolleForm: Erfolg und Reset", () => {
       wert: { id: "kontrolle-2", bestanden: false },
     });
     await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await fuellePflicht();
 
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
     await warteAuf(
@@ -339,6 +427,7 @@ describe("KontrolleForm: erwartete Action-Fehler", () => {
       },
     });
     await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await fuellePflicht();
     await fill("input[aria-label='Teststreifen']", "42");
 
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
@@ -365,6 +454,7 @@ describe("KontrolleForm: erwartete Action-Fehler", () => {
       fehler: "Gerät nicht gefunden.",
     });
     await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-verschwunden" level1={LEVEL_1} level2={null} />);
+    await fuellePflicht();
 
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
     await warteAuf(
@@ -383,6 +473,7 @@ describe("KontrolleForm: Laufzeitfehler (IDA-358)", () => {
       new Error("interne Datenbankverbindung mit Geheimnis"),
     );
     await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await fuellePflicht();
     await fill("input[aria-label='Kommentar']", "Bitte erneut versuchen");
 
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
@@ -397,7 +488,7 @@ describe("KontrolleForm: Laufzeitfehler (IDA-358)", () => {
   it("geht nach dem Neuladen mit DERSELBEN Sendungs-ID raus und meldet dann das Ergebnis", async () => {
     mocks.kontrolleErfassen.mockRejectedValue(new Error("502"));
     await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
-    await fill("input[aria-label='Kontrolllösung niedrig (40–60)']", "50");
+    await fuellePflicht();
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
     await warteAufAction();
     const erste = mocks.kontrolleErfassen.mock.calls[0]![0] as { sendungId?: string };

@@ -4,6 +4,9 @@ import type { Rechte } from "./zugang";
 /**
  * Die Navigation hängt an den Rechten (`_lib/zugang.ts`): wer keine Gruppe verwaltet, sieht nur die Geräte und
  * prüft von dort aus; „Gruppen“ nur für Admins. Dieselben Prädikate riegeln die Seiten.
+ *
+ * In der Akte `/geraete/<id>` steht die Markierung auf „Geräte“ (IDA-381), denn `aktiverEintrag` vergleicht
+ * per Pfadanfang (IDA-392); die Übersicht `/` gilt nur exakt.
  */
 export function wartungNav(r: Rechte): SuiteNavItem[] {
   if (!r.admin && r.gruppen.length === 0) return [{ key: "geraete", title: "Geräte", href: "/geraete", ikon: "geraete" }];

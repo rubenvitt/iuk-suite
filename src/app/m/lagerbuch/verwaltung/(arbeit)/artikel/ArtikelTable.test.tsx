@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, isValidElement, type ReactElement, type ReactNode } from "react";
+import { App } from "antd";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -43,8 +44,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("../../../_ui/ArtikelDrawer", () => ({
-  ArtikelDrawer: ({ id }: { id: string }) => (
-    <div data-rolle="artikel-drawer" data-artikel-id={id} />
+  ArtikelDrawer: ({ id, startReiter }: { id: string; startReiter?: string }) => (
+    <div data-rolle="artikel-drawer" data-artikel-id={id} data-start-reiter={startReiter ?? ""} />
   ),
 }));
 
@@ -382,14 +383,15 @@ afterEach(async () => {
 });
 
 describe("ArtikelTable: Struktur und Bedienanker", () => {
-  it("zeigt sieben Spalten in Fachreihenfolge und öffnet den Drawer über einen echten Knopf", async () => {
+  it("zeigt fünf Spalten und öffnet den Drawer über einen echten Knopf", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
     // Die leere erste Spalte ist die Auswahlspalte (DRK-293); sie traegt das
     // „alle auswaehlen"-Kreuzchen und keinen Text.
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
       .toEqual([
-        "", "Artikel", "Fach", "Kategorie", "Bestand", "Min.", "Nächster Verfall", "Status",
+        // IDA-393: Fach und Kategorie stehen unter dem Namen, Status dahinter.
+        "", "Artikel", "Status", "Bestand", "Min.", "Nächster Verfall",
       ]);
     expect(query("table").getAttribute("aria-label")).toBe("Artikel und Bestand");
     expect(exists(".ant-pagination")).toBe(false);
@@ -397,7 +399,8 @@ describe("ArtikelTable: Struktur und Bedienanker", () => {
     // Auswahlfeld ueber der Tabelle, und diese Zusicherung lautete umgekehrt.
     expect(queryAll(".ant-table-column-sorter").length).toBeGreaterThan(0);
     // Und die Spalten, an denen fachlich gefiltert wird, tragen einen Ausloeser.
-    expect(spaltenKopf("Fach").querySelector(".ant-table-filter-trigger")).not.toBeNull();
+    // IDA-393: der Fachfilter sitzt im Kopf „Artikel", unter dem das Fach steht.
+    expect(spaltenKopf("Artikel").querySelector(".ant-table-filter-trigger")).not.toBeNull();
     expect(spaltenKopf("Status").querySelector(".ant-table-filter-trigger")).not.toBeNull();
 
     const artikelKnopf = query<HTMLButtonElement>("tr[data-row-key='alpha'] button");
@@ -419,6 +422,30 @@ describe("ArtikelTable: Struktur und Bedienanker", () => {
     expect(query("tr[data-row-key='delta']").textContent).toContain("inaktiv");
     expect(query("tr[data-row-key='alpha']").querySelector(`.${s.fach}`)?.textContent)
       .toBe("B2");
+  });
+
+  /**
+   * IDA-380 — AUF DER KARTE STEHT NEBEN DEM NAMEN NUR DER BESTAND. Zwei
+   * Statuschips daneben liessen dem Namen auf 390px eine Buchstabenbreite, und
+   * der Bestand lief aus dem Bild. Die Chips stehen deshalb darunter.
+   */
+  it("stellt auf der Karte den Bestand neben den Namen und die Chips darunter", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    const karte = query("[data-rolle='schmalkarten'] li[data-karte-key='alpha'] article");
+    const [kopf, statuszeile] = Array.from(karte.children);
+    expect(kopf?.textContent).toContain("Alpha-Päckchen");
+    expect(kopf?.textContent).toContain("10 Stk");
+    expect(kopf?.textContent).not.toContain("unter Mindestbestand");
+    expect(statuszeile?.textContent).toBe("unter MindestbestandCharge fällig 03/27");
+  });
+
+  it("legt die Filter der Karten hinter einen Knopf „Filter\"", async () => {
+    // Die Leiste erscheint erst ab `STEUERUNG_AB_ZEILEN` (8) Zeilen.
+    const viele = Array.from({ length: 8 }, (_, i) => ({ ...ZEILEN[0], id: `z${i}`, name: `Z${i}` }));
+    await mount(<ArtikelTable zeilen={viele} fahrzeuge={FAHRZEUGE} />);
+    const leiste = query("[data-rolle='schmalsteuerung']");
+    expect(leiste.querySelector("[data-rolle='filterknopf']")?.textContent).toContain("Filter");
+    expect(leiste.querySelector("[aria-label='Status filtern']")).toBeNull();
   });
 
   /**
@@ -538,12 +565,12 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
     expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 5");
   });
 
-  it("bietet Fach und Kategorie als Spaltenfilter an", async () => {
+  it("bietet das Fach als Spaltenfilter an — im Kopf „Artikel“ (IDA-393)", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
     // Die Liste entsteht aus den Daten — es steht keine Option darin, die
     // keine Zeile trifft.
-    const faecher = await filterEintraege("Fach");
+    const faecher = await filterEintraege("Artikel");
     expect(faecher.length).toBeGreaterThan(0);
     for (const fach of faecher) {
       expect(ZEILEN.some((zeile) => zeile.fach === fach)).toBe(true);
@@ -740,7 +767,9 @@ describe("ArtikelTable: ausgeblendete Kategorien (DRK-294)", () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
     expect(query("tr[data-row-key='zulu']").textContent).toContain("Hygiene");
-    expect(query("tr[data-row-key='beta']").textContent).toContain("–");
+    // IDA-393: die Kategorie steht hinter dem Fach unter dem Namen — ohne Kategorie nur das Fach.
+    expect(query("tr[data-row-key='zulu'] td:nth-child(2)").textContent).toContain(" · Hygiene");
+    expect(query("tr[data-row-key='beta'] td:nth-child(2)").textContent).not.toContain(" · ");
     // „Hygiene" (Zulu) und „hygiene" (Gamma) sind EINE Option.
     const optionen = (await kategorienOeffnen()).map((element) => element.textContent?.toLowerCase());
     expect(optionen).toEqual(["hygiene", "technik", "verbandmaterial"]);
@@ -864,7 +893,7 @@ describe("ArtikelTable: Sortierung in den Spaltenköpfen und eine Exportquelle",
     await spalteSortieren("Bestand");
     const bestaende = queryAll("tbody tr[data-row-key]").map((zeile) => {
       const zellen = zeile.querySelectorAll("td");
-      return Number.parseInt(zellen[4]?.textContent ?? "", 10);
+      return Number.parseInt(zellen[3]?.textContent ?? "", 10);
     });
     const aufsteigend = [...bestaende].sort((a, b) => a - b);
     expect(bestaende).toEqual(aufsteigend);
@@ -889,7 +918,7 @@ describe("ArtikelTable: Sortierung in den Spaltenköpfen und eine Exportquelle",
 
 describe("NeuArtikel", () => {
   it("bindet die vier Felder, sendet exakte Werte und schließt nur bei Erfolg", async () => {
-    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
     await neuArtikelOeffnen();
     await neuesArtikelFormularFuellen();
     await submitNeuArtikel();
@@ -906,6 +935,57 @@ describe("NeuArtikel", () => {
       "geschlossener Artikeldialog",
     );
     expect(mocks.refresh).toHaveBeenCalledOnce();
+    // IDA-378: Rueckmeldung, und die Schublade des neuen Artikels steht offen —
+    // auf „Buchen", denn der naechste Handgriff ist der Wareneingang.
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("„Wundauflage“ angelegt."),
+      "Erfolgsmeldung",
+    );
+    const schublade = query("[data-rolle='artikel-drawer']");
+    expect(schublade.dataset.artikelId).toBe("artikel-neu");
+    expect(schublade.dataset.startReiter).toBe("buchen");
+  });
+
+  it("warnt vor einem gleichnamigen Artikel und legt erst mit „Trotzdem anlegen“ an", async () => {
+    mocks.createArtikel.mockResolvedValueOnce({
+      ok: false, fehler: "„Wundauflage“ gibt es schon.", dublette: true,
+    });
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
+    await neuArtikelOeffnen();
+    await neuesArtikelFormularFuellen();
+    await submitNeuArtikel();
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("„Wundauflage“ gibt es schon."),
+      "Dublettenwarnung",
+    );
+    expect(Array.from(document.body.querySelectorAll("button"))
+      .some((knopf) => (knopf.textContent ?? "").includes("Trotzdem anlegen"))).toBe(true);
+    expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
+
+    await submitNeuArtikel();
+    await warteAuf(() => mocks.createArtikel.mock.calls.length === 2, "zweiter Versuch");
+    expect(mocks.createArtikel.mock.calls[1]![0]).toMatchObject({
+      name: "Wundauflage", dublettBestaetigt: true,
+    });
+  });
+
+  it("fragt nach einer Namensaenderung wieder", async () => {
+    mocks.createArtikel.mockResolvedValueOnce({
+      ok: false, fehler: "„Wundauflage“ gibt es schon.", dublette: true,
+    });
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
+    await neuArtikelOeffnen();
+    await neuesArtikelFormularFuellen();
+    await submitNeuArtikel();
+    await warteAuf(() => mocks.createArtikel.mock.calls.length === 1, "erster Versuch");
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("gibt es schon"),
+      "Dublettenwarnung",
+    );
+    await fillPortal("[aria-label='Name']", "Wundauflage groß");
+    await submitNeuArtikel();
+    await warteAuf(() => mocks.createArtikel.mock.calls.length === 2, "zweiter Versuch");
+    expect(mocks.createArtikel.mock.calls[1]![0]).not.toHaveProperty("dublettBestaetigt");
   });
 
   it("zeigt allgemeinen und bekannten Feldfehler, erhält Dialog sowie Werte", async () => {
@@ -917,7 +997,7 @@ describe("NeuArtikel", () => {
         unbekannt: "Phantomfeld darf nicht erscheinen.",
       },
     });
-    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
     await neuArtikelOeffnen();
     await neuesArtikelFormularFuellen();
     await submitNeuArtikel();
@@ -935,7 +1015,7 @@ describe("NeuArtikel", () => {
 
   it("zeigt bei verworfenem Promise nur einen festen Clienttext", async () => {
     mocks.createArtikel.mockRejectedValueOnce(new Error("internes Framework-Geheimnis"));
-    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await mount(<App><ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} /></App>);
     await neuArtikelOeffnen();
     await neuesArtikelFormularFuellen();
     await submitNeuArtikel();

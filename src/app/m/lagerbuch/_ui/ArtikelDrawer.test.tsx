@@ -656,6 +656,11 @@ describe("ArtikelDrawer: Kategorie", () => {
   });
 });
 
+/*
+ * IDA-378: die Uhr steht auf 2027-01-15, „ZZZ-ALT" (12/2026) ist also
+ * abgelaufen und loeste die Rueckfrage aus. Die Faelle hier buchen deshalb auf
+ * „AAA-NEU"; die Rueckfrage hat ihren eigenen Block unten.
+ */
 describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
   it("deaktiviert die Zugangsform waehrend einer laufenden Buchung und gibt sie danach wieder frei", async () => {
     let zugangBeenden!: (ergebnis: { ok: true }) => void;
@@ -666,7 +671,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
 
     await drawerMounten();
     await zuBuchen();
-    await selectOption("Charge", "ZZZ-ALT");
+    await selectOption("Charge", "AAA-NEU");
     await fillPortal("[aria-label='Zugangsmenge']", "5");
     await submitPortalForm("[data-rolle='zugang-form']");
     await warteAuf(() => mocks.bucheZugang.mock.calls.length === 1, "laufender Zugang");
@@ -695,7 +700,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
       .mockResolvedValueOnce({ ok: true, wert: DETAIL_NACH_ZUGANG });
     await drawerMounten();
     await zuBuchen();
-    await selectOption("Charge", "ZZZ-ALT");
+    await selectOption("Charge", "AAA-NEU");
     await fillPortal("[aria-label='Zugangsmenge']", "5");
 
     await submitPortalForm("[data-rolle='zugang-form']");
@@ -707,7 +712,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
     expect(mocks.bucheZugang).toHaveBeenCalledWith({
       artikelId: "a1",
       menge: 5,
-      chargeId: "c-fefo-1",
+      chargeId: "c-fefo-2",
       // Einzige Auswahl (nur die Wurzel) -> vorbelegt, s. DETAIL.zielOrte oben.
       zielLagerortId: HANDLAGER_ID,
     });
@@ -719,8 +724,9 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
     await fillPortal("[aria-label='Zugangsmenge']", "4");
     await fillPortal("[aria-label='Chargennummer']", "NEU-42");
     await waehleVerfallsmonat("2027-03");
+    // IDA-378: angezeigt wird MM/JJJJ, gesendet weiter YYYY-MM.
     expect(queryPortal<HTMLInputElement>("[aria-label='Verfallsmonat']").value)
-      .toBe("2027-03");
+      .toBe("03/2027");
 
     await submitPortalForm("[data-rolle='zugang-form']");
     await warte();
@@ -752,7 +758,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
     await zuBuchen();
     expect(queryPortal<HTMLInputElement>("[aria-label='Wohin']").value).toBe("");
 
-    await selectOption("Charge", "ZZZ-ALT");
+    await selectOption("Charge", "AAA-NEU");
     await selectOption("Wohin", "Schrank 1");
     await fillPortal("[aria-label='Zugangsmenge']", "3");
 
@@ -762,7 +768,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
     expect(mocks.bucheZugang).toHaveBeenCalledWith({
       artikelId: "a1",
       menge: 3,
-      chargeId: "c-fefo-1",
+      chargeId: "c-fefo-2",
       zielLagerortId: "schrank-1",
     });
   });
@@ -774,7 +780,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
     });
     await drawerMounten();
     await zuBuchen();
-    await selectOption("Charge", "ZZZ-ALT");
+    await selectOption("Charge", "AAA-NEU");
     await fillPortal("[aria-label='Zugangsmenge']", "2");
 
     await submitPortalForm("[data-rolle='zugang-form']");
@@ -783,6 +789,150 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
     expect(queryPortal(".ant-drawer-body").textContent)
       .toContain("Die gewählte Charge ist nicht mehr verfügbar.");
     expect(mocks.getDetail).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** Tippt in das Monatsfeld und verlaesst es — wie jemand, der weitertabbt. */
+async function tippeVerfallsmonat(text: string): Promise<void> {
+  const feld = queryPortal<HTMLInputElement>("[aria-label='Verfallsmonat']");
+  await act(async () => {
+    feld.focus();
+  });
+  await fillPortal("[aria-label='Verfallsmonat']", text);
+  await act(async () => {
+    feld.blur();
+  });
+  await warte();
+  await warte();
+}
+
+function drawerText(): string {
+  return queryPortal(".ant-drawer-body").textContent ?? "";
+}
+
+/**
+ * IDA-378 — WARENEINGANG OHNE CHARGE, DAS MONATSFELD UND DIE RUECKFRAGE.
+ * Die Uhr steht auf 2027-01-15 (`beforeEach` oben).
+ */
+describe("ArtikelDrawer: Wareneingang (IDA-378)", () => {
+  it("bucht ohne Chargennummer und „ohne Verfall“", async () => {
+    await drawerMounten();
+    await zuBuchen();
+    await clickElement(
+      Array.from(document.body.querySelectorAll<HTMLElement>("label"))
+        .find((label) => label.textContent === "ohne Verfall")!,
+    );
+    await warte();
+    expect(queryPortal<HTMLInputElement>("[aria-label='Verfallsmonat']").disabled).toBe(true);
+
+    await submitPortalForm("[data-rolle='zugang-form']");
+    await warteAuf(() => mocks.bucheZugang.mock.calls.length === 1, "Zugang");
+    expect(mocks.bucheZugang).toHaveBeenCalledWith({
+      artikelId: "a1",
+      menge: 1,
+      neueCharge: { chargenNr: "", verfall: "2099-12" },
+      zielLagerortId: HANDLAGER_ID,
+    });
+  });
+
+  it("zeigt das Pflichtzeichen am Verfallsmonat, nicht an der Chargennummer", async () => {
+    await drawerMounten();
+    await zuBuchen();
+    const pflicht = Array.from(
+      queryPortal("[data-rolle='zugang-form']")
+        .querySelectorAll<HTMLElement>(".ant-form-item-required"),
+    ).map((label) => label.textContent);
+    expect(pflicht).toContain("Verfallsmonat");
+    expect(pflicht).not.toContain("Chargennummer");
+  });
+
+  it.each([["01/2028"], ["1/2028"], ["01.2028"], ["2028-01"]])(
+    "nimmt getipptes „%s“ als Januar 2028 an",
+    async (text) => {
+      await drawerMounten();
+      await zuBuchen();
+      await tippeVerfallsmonat(text);
+      expect(queryPortal<HTMLInputElement>("[aria-label='Verfallsmonat']").value)
+        .toBe("01/2028");
+
+      await submitPortalForm("[data-rolle='zugang-form']");
+      await warteAuf(() => mocks.bucheZugang.mock.calls.length === 1, "Zugang");
+      expect(mocks.bucheZugang.mock.calls[0]![0]).toMatchObject({
+        neueCharge: { chargenNr: "", verfall: "2028-01" },
+      });
+    },
+  );
+
+  it("verwirft keinen Nicht-Monat still, sondern meldet ihn am Feld", async () => {
+    await drawerMounten();
+    await zuBuchen();
+    await tippeVerfallsmonat("13/2028");
+    await warteAuf(() => drawerText().includes("„13/2028“ ist kein Monat."), "Feldmeldung");
+    expect(queryPortal<HTMLInputElement>("[aria-label='Verfallsmonat']").value).toBe("13/2028");
+
+    await submitPortalForm("[data-rolle='zugang-form']");
+    await warte();
+    expect(mocks.bucheZugang).not.toHaveBeenCalled();
+  });
+
+  it("meldet leere Pflichtfelder mit eigenem Satz — keiner siezt", async () => {
+    await drawerMounten();
+    await zuBuchen();
+    await fillPortal("[aria-label='Zugangsmenge']", "");
+    await submitPortalForm("[data-rolle='zugang-form']");
+    await warteAuf(() => drawerText().includes("Bitte eine Menge eingeben."), "Mengenmeldung");
+    expect(drawerText()).toContain("Bitte einen Verfallsmonat auswählen.");
+    expect(drawerText()).not.toMatch(/\bSie\b/);
+    expect(mocks.bucheZugang).not.toHaveBeenCalled();
+  });
+
+  it("fragt bei einer abgelaufenen Bestandscharge nach und bucht erst nach „Trotzdem buchen“", async () => {
+    await drawerMounten();
+    await zuBuchen();
+    await selectOption("Charge", "ZZZ-ALT");
+    await submitPortalForm("[data-rolle='zugang-form']");
+    await warteAuf(
+      () => (document.body.textContent ?? "")
+        .includes("Verfall 12/2026 ist abgelaufen. Trotzdem buchen?"),
+      "Rueckfrage",
+    );
+    expect(mocks.bucheZugang).not.toHaveBeenCalled();
+
+    const knopf = Array.from(document.body.querySelectorAll<HTMLButtonElement>(".ant-popconfirm button"))
+      .find((element) => (element.textContent ?? "").trim() === "Trotzdem buchen");
+    await clickElement(knopf!);
+    await warteAuf(() => mocks.bucheZugang.mock.calls.length === 1, "bestaetigter Zugang");
+    expect(mocks.bucheZugang).toHaveBeenCalledWith({
+      artikelId: "a1",
+      menge: 1,
+      chargeId: "c-fefo-1",
+      zielLagerortId: HANDLAGER_ID,
+      abgelaufenBestaetigt: true,
+    });
+  });
+
+  it("bucht nach „Abbrechen“ nichts", async () => {
+    await drawerMounten();
+    await zuBuchen();
+    await tippeVerfallsmonat("01/2020");
+    await submitPortalForm("[data-rolle='zugang-form']");
+    await warteAuf(
+      () => (document.body.textContent ?? "")
+        .includes("Verfall 01/2020 ist abgelaufen. Trotzdem buchen?"),
+      "Rueckfrage",
+    );
+    const knopf = Array.from(document.body.querySelectorAll<HTMLButtonElement>(".ant-popconfirm button"))
+      .find((element) => (element.textContent ?? "").trim() === "Abbrechen");
+    await clickElement(knopf!);
+    await warte();
+    expect(mocks.bucheZugang).not.toHaveBeenCalled();
+  });
+
+  it("oeffnet mit `startReiter` direkt auf dem Wareneingang", async () => {
+    await mount(
+      <ArtikelDrawer id="a1" onSchliessen={() => {}} fahrzeuge={FAHRZEUGE} startReiter="buchen" />,
+    );
+    await warteAuf(() => existsPortal("[data-rolle='zugang-form']"), "Zugangsformular");
   });
 });
 

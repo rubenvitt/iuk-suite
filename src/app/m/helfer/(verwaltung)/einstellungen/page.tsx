@@ -72,11 +72,11 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
             nie gesperrte Konten und nie Ausgetretene. Wer nicht mehr durchkommt, wird beim nächsten Abgleich gelöscht.
           </li>
           <li>
-            <b>Ans Einsatztagebuch</b> gehen nur freigegebene Personen, und nur mit Name und Qualifikationen — keine Kennung aus
+            <b>Ans Einsatztagebuch</b> gehen nur bereitgestellte Personen, und nur mit Name und Qualifikationen — keine Kennung aus
             HiOrg oder der Datei, keine Gruppen.
           </li>
           <li>
-            <b>An die Schichtplanung</b> gehen alle übernommenen Personen, auch ohne Freigabe fürs Einsatztagebuch, mit Name,
+            <b>An die Schichtplanung</b> gehen alle übernommenen Personen, auch ohne Bereitstellung fürs Einsatztagebuch, mit Name,
             Qualifikationen und Fahrerlaubnisklassen. Sehen dürfen sie dort nur die Nutzer der Schichtplanung.
           </li>
           <li>

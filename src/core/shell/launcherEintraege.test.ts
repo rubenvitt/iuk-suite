@@ -178,8 +178,8 @@ describe("launcherEintraege — Fehlergrenze zum Portal", () => {
 
 /*
  * Der Riegel an der Schichtgrenze. `docs/design/README.md`: Modul-Interna sind
- * kein API. Genau EIN Import aus dem Portal ist verabredet — die
- * Launcher-Funktion. Ohne diesen Scan wächst der zweite lautlos nach, und
+ * kein API. Genau ZWEI Importe aus dem Portal sind verabredet — die
+ * Launcher-Funktion und die Suche. Ohne diesen Scan wächst ein dritter nach, und
  * `core` hätte danach das Portal-Schema im Blick.
  *
  * Der Scan fängt die naheliegende Verdrahtung, nicht jede denkbare: ein
@@ -194,7 +194,10 @@ describe("launcherEintraege — Fehlergrenze zum Portal", () => {
  * deshalb unverändert korrekt.
  */
 describe("Grenze zwischen core/shell und dem Modul portal", () => {
-  it("importiert aus dem Portal ausschließlich _lib/launcher", () => {
+  // Zweiter verabredeter Import (IDA-391): die suiteweite Suche als Server Action für „Springen zu“
+  // (`Navigator`). Sie gibt fertige Treffer heraus, kein Schema.
+  const ERLAUBT = ["_lib/launcher", "sucheAktion"];
+  it("importiert aus dem Portal ausschließlich _lib/launcher und sucheAktion", () => {
     const verzeichnis = "src/core/shell";
     const dateien = readdirSync(verzeichnis, { recursive: true, encoding: "utf8" }).filter((d) =>
       /\.tsx?$/.test(d),
@@ -207,8 +210,8 @@ describe("Grenze zwischen core/shell und dem Modul portal", () => {
       for (const [, pfad] of treffer) {
         expect(
           pfad,
-          `${datei} importiert @/app/m/portal/${pfad} — erlaubt ist nur _lib/launcher`,
-        ).toBe("_lib/launcher");
+          `${datei} importiert @/app/m/portal/${pfad} — erlaubt sind nur ${ERLAUBT.join(" und ")}`,
+        ).toBeOneOf(ERLAUBT);
       }
     }
   });

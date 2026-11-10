@@ -7,7 +7,7 @@ import { SPACE, TAP } from "@/core/theme/tokens";
 import { absagenAction, freigebenAction, planEveningsAction } from "../actions";
 import type { Freigabelage } from "../_lib/lifecycle";
 import { AbendBearbeiten } from "./AbendBearbeiten";
-import { formatDatumLang, formatWochentag, tagAusEingabe, tagInZone } from "./datum";
+import { formatDatumKurz, formatDatumLang, formatWochentag, tagAusEingabe, tagInZone } from "./datum";
 import { T } from "./typo";
 
 /**
@@ -40,6 +40,8 @@ import { T } from "./typo";
 
 const KARTE = {
   header: { ...T.kicker, minHeight: 40, paddingInline: 20, borderBottomColor: "var(--fb-split)" },
+  // Bei 320 px ließ „Dienstabend planen" dem Titel nur „KOMMEND…" (antd kürzt per Ellipse): umbrechen statt kürzen.
+  title: { whiteSpace: "normal" },
   body: { padding: "var(--fb-kartenpolster)" },
 } satisfies Record<string, CSSProperties>;
 
@@ -170,10 +172,9 @@ function AbendZeile({
    * nicht erst dastehen, wo die Action wirft.
    */
   const nochNichtSoweit = abend.lage !== "ok";
-  const grund =
-    abend.lage === "zuFrueh"
-      ? "Freigabe erst am Tag des Dienstabends"
-      : "Die Frist dieses Abends ist abgelaufen — Datum korrigieren oder Abend absagen";
+  // Der Grund steht sichtbar in der Zeile, nicht im Maus-Tooltip (IDA-390): am Telefon gibt es
+  // kein Überfahren. Für `abgelaufen` sagt es die Marke „Frist abgelaufen" schon.
+  const zuFrueh = abend.lage === "zuFrueh";
   // Ein geplanter Abend, dessen Tag vorbei ist, faltet auf nichts (`EveningStatus`
   // in `_lib/lifecycle.ts`) — er bleibt stehen und wartet auf eine Entscheidung.
   // Sichtbar muss das trotzdem sein, sonst sucht niemand nach ihm.
@@ -206,19 +207,24 @@ function AbendZeile({
             </Tag>
           )}
         </div>
+        {zuFrueh && (
+          <div style={T.meta} data-testid="abend-startbar-ab">
+            ab {formatDatumKurz(abend.datum)} startbar
+          </div>
+        )}
         <div style={T.meta}>{abend.thema ?? "Ohne Thema"}</div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
         <Popconfirm
           disabled={nochNichtSoweit}
-          title="Feedback jetzt freigeben?"
+          title="Umfrage jetzt starten?"
           description={
             laufendesThema === null
               ? "Ab sofort kann über den QR-Code der Gruppe geantwortet werden."
-              : `Ab sofort kann über den QR-Code der Gruppe geantwortet werden. Das laufende Feedback zu „${laufendesThema}“ wird dabei beendet — es gibt je Gruppe nur einen QR-Code.`
+              : `Ab sofort kann über den QR-Code der Gruppe geantwortet werden. Die laufende Umfrage zu „${laufendesThema}“ wird dabei beendet — es gibt je Gruppe nur einen QR-Code.`
           }
-          okText="Freigeben"
+          okText="Starten"
           cancelText="Abbrechen"
           okButtonProps={{ loading: laeuft }}
           onConfirm={ruf(freigebenAction)}
@@ -227,9 +233,11 @@ function AbendZeile({
             type="primary"
             loading={laeuft}
             disabled={nochNichtSoweit}
-            title={nochNichtSoweit ? grund : undefined}
+            // Der sichtbare Text vorn im Namen (WCAG 2.5.3); das Datum trennt die Knöpfe der
+            // Zeilen und vom „Umfrage starten" der Lagekarte (e2e greift dort `exact`).
+            aria-label={`Umfrage starten für ${formatWochentag(abend.datum)}, ${formatDatumLang(abend.datum)}`}
           >
-            Feedback freigeben
+            Umfrage starten
           </Button>
         </Popconfirm>
 

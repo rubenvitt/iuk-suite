@@ -170,6 +170,27 @@ test("Anleitung: die Koordination bekommt ihre eigenen Kapitel", async ({ page }
 });
 
 /*
+ * IDA-386: KEIN LINK DER ANLEITUNG FUEHRT AUF 404. Das Kapitel einer fremden Sicht bleibt lesbar,
+ * „Sicht öffnen" steht dort aber nicht — statt dessen der Satz, wem die Sicht gehoert. Die volle
+ * Matrix (alle Rollen x alle Links) haelt `_lib/hilfe.test.ts`; hier der gemeldete Fall im Abruf.
+ */
+test("Anleitung: die Koordination bekommt auf dem Routinen-Kapitel keinen Verweis auf /routinen", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: HOST,
+    groups: KOORDINATION,
+    email: "rike@localtest.me",
+    callbackPath: "/hilfe/routinen",
+  });
+
+  await expect(page.getByRole("heading", { name: "Routinen", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sicht öffnen" })).toHaveCount(0);
+  await expect(page.locator('a[href="/routinen"]')).toHaveCount(0);
+  await expect(page.getByText("Diese Sicht haben nur BuFDis.")).toBeVisible();
+});
+
+/*
  * KEIN WAAGERECHTES SCROLLEN — DIE ZUSAGE, DIE NUR DER BROWSER GEBEN KANN.
  *
  * 360px ist die schmalste Breite, die das Modul bedienen soll (dieselbe Zahl wie der

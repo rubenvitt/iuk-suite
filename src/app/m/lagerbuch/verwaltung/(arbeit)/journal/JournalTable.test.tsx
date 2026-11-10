@@ -5,6 +5,8 @@ import { act } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import ts from "typescript";
 import {
+  click,
+  clickPortal,
   exists,
   mount,
   query,
@@ -16,9 +18,10 @@ import s from "../../../_ui/verwaltung.module.css";
 import { JournalTable } from "./JournalTable";
 import type { JournalZeileDTO } from "../../../_lib/journalDTO";
 
-const mocks = vi.hoisted(() => ({ naechsteJournalSeite: vi.fn() }));
+const mocks = vi.hoisted(() => ({ naechsteJournalSeite: vi.fn(), gegenbucheVorgang: vi.fn() }));
 vi.mock("../../../_actions/journal", () => ({
   naechsteJournalSeite: mocks.naechsteJournalSeite,
+  gegenbucheVorgang: mocks.gegenbucheVorgang,
 }));
 
 /**
@@ -44,6 +47,8 @@ const ZEILEN: JournalZeileDTO[] = [
     referenz: null,
     ortName: "Schrank 1",
     ortStandort: { name: "Schrank 1", typ: "lager" as const, kennung: null, einheitenart: null },
+    gegenbuchbar: false,
+    gegengebucht: false,
   },
   {
     id: "journal-negativ",
@@ -57,6 +62,8 @@ const ZEILEN: JournalZeileDTO[] = [
     referenz: null,
     ortName: "Handlager",
     ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+    gegenbuchbar: false,
+    gegengebucht: false,
   },
 ];
 
@@ -69,34 +76,13 @@ function zeilenIds(): Array<string | null> {
 }
 
 /**
- * ⚠️ JSDOM KENNT KEINEN `IntersectionObserver`, und ein blosser Stummel meldete
- * auch nichts: jsdom rechnet keine Layoutboxen, nichts kommt je „in Sicht".
- * Ohne Ersatz waere jeder Nachlade-Test hier gruen, ohne etwas zu messen.
- *
- * Dieser Stummel meldet beim `observe()` sofort einen Treffer — er prueft damit
- * die VERDRAHTUNG (Wache in Sicht → Nachschlag → anhaengen), nicht die
- * Sichtbarkeitsrechnung des Browsers. Dass die Wache im echten Browser
- * tatsaechlich in Sicht kommt, kann nur Playwright sagen.
+ * IDA-380 — DAS NACHLADEN HAENGT AN EINEM KNOPF, nicht mehr an einem
+ * Beobachter am Fussende. Der Klick ist damit derselbe Weg, den eine Person
+ * geht; fehlt der Knopf (nach einem Fehler, am Ende der Liste), tut der Klick
+ * nichts — genau die Zusicherung „laedt nicht von selbst weiter".
  */
-function beobachterStellen(): { ausloesen: () => void } {
-  let melden: (() => void) | null = null;
-  class Stummel {
-    constructor(private rueckruf: IntersectionObserverCallback) {
-      melden = () => this.rueckruf(
-        [{ isIntersecting: true } as IntersectionObserverEntry],
-        this as unknown as IntersectionObserver,
-      );
-    }
-    observe() { /* der Treffer wird von Hand ausgeloest */ }
-    disconnect() { melden = null; }
-    unobserve() {}
-    takeRecords() { return []; }
-    root = null;
-    rootMargin = "";
-    thresholds = [];
-  }
-  vi.stubGlobal("IntersectionObserver", Stummel);
-  return { ausloesen: () => melden?.() };
+function weitereLaden(): void {
+  document.querySelector<HTMLElement>("[data-testid='journal-weitere']")?.click();
 }
 
 /** Ein Makrotask-Tick, damit React die Wirkung eines Klicks ausspielt. */
@@ -169,6 +155,8 @@ describe("JournalTable", () => {
       "Ort",
       "Δ",
       "Quelle",
+      // IDA-378 — „Gegenbuchen" bzw. der Hinweis „Gegengebucht".
+      "Aktion",
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Buchungsjournal");
     /**
@@ -241,7 +229,6 @@ describe("JournalTable", () => {
    * DAS NACHLADEN (DRK-331).
    */
   it("haengt eine nachgeladene Seite an, statt die Liste zu ersetzen", async () => {
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -262,6 +249,8 @@ describe("JournalTable", () => {
         // leeres Feld mehr, sondern ein Absturz.
         ortName: "Handlager",
         ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+        gegenbuchbar: false,
+        gegengebucht: false,
       }],
     });
 
@@ -275,7 +264,7 @@ describe("JournalTable", () => {
     );
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
 
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     // ANGEHAENGT, nicht ersetzt — und die nachgeladene Zeile hat dieselbe
@@ -303,7 +292,6 @@ describe("JournalTable", () => {
    * Bedingung, nach der auch die Wache unten aufhoert.
    */
   it("fuehrt die Trefferzahl mit der nachgeladenen Seite nach", async () => {
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -324,6 +312,8 @@ describe("JournalTable", () => {
         // leeres Feld mehr, sondern ein Absturz.
         ortName: "Handlager",
         ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+        gegenbuchbar: false,
+        gegengebucht: false,
       }],
     });
 
@@ -336,9 +326,9 @@ describe("JournalTable", () => {
       />,
     );
     expect(query("[data-testid='journal-treffer']").textContent)
-      .toBe("2 Treffer geladen — weitere beim Scrollen");
+      .toBe("2 von mehr als 2 Treffern");
 
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(3);
@@ -346,7 +336,6 @@ describe("JournalTable", () => {
   });
 
   it("reicht Filter UND Schluesselposition an den Nachschlag weiter", async () => {
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({ ok: true, cursor: null, zeilen: [] });
 
@@ -363,7 +352,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     // Ohne den Filter lieferte Seite zwei andere Zeilen als Seite eins — der
@@ -380,7 +369,6 @@ describe("JournalTable", () => {
 
   it("zaehlt eine doppelt gelieferte Zeile nicht zweimal", async () => {
     // Ein doppelter `rowKey` waere in React ein stiller Renderfehler.
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -396,7 +384,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
@@ -405,7 +393,6 @@ describe("JournalTable", () => {
   it("bietet nach einem Fehler einen Knopf und laedt NICHT von selbst weiter", async () => {
     // Sonst liefe bei abgerissenem Netz eine stille Endlosschleife gegen den
     // Server.
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: false,
@@ -420,7 +407,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(document.body.textContent).toContain("Weitere Buchungen konnten nicht geladen werden.");
@@ -429,9 +416,49 @@ describe("JournalTable", () => {
     expect(knopf).toBeDefined();
 
     const aufrufeVorher = mocks.naechsteJournalSeite.mock.calls.length;
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
     expect(mocks.naechsteJournalSeite.mock.calls.length).toBe(aufrufeVorher);
+  });
+
+  /**
+   * IDA-380 — NICHT MEHR ALLES AUF EINMAL. Am Telefon ergaben 97 Buchungen gut
+   * 17 000 px; jetzt stehen `JOURNAL_SCHRITT` Zeilen, und der Knopf zeigt die
+   * naechsten — aus der schon geladenen Portion, ohne den Server zu fragen.
+   */
+  it("zeigt die geladenen Zeilen schrittweise und fragt den Server erst danach", async () => {
+    mocks.naechsteJournalSeite.mockReset();
+    mocks.naechsteJournalSeite.mockResolvedValue({ ok: true, cursor: null, zeilen: [] });
+    const viele: JournalZeileDTO[] = Array.from({ length: 60 }, (_, i) => ({
+      ...ZEILEN[0],
+      id: `journal-${String(i).padStart(3, "0")}`,
+      ts: new Date(Date.UTC(2026, 7, 7, 12, 0, 60 - i)).toISOString(),
+    }));
+
+    await mount(
+      <JournalTable
+        ersteZeilen={viele}
+        ersterCursor={null}
+        abrufFilter={KEIN_FILTER}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    expect(zeilenIds()).toHaveLength(25);
+    expect(query("[data-testid='journal-treffer']").textContent).toBe("25 von 60 Treffern");
+    expect(document.body.textContent).not.toContain("Keine weiteren Buchungen.");
+
+    await act(async () => { weitereLaden(); });
+    await warte();
+    expect(zeilenIds()).toHaveLength(50);
+
+    await act(async () => { weitereLaden(); });
+    await warte();
+    expect(zeilenIds()).toHaveLength(60);
+    expect(query("[data-testid='journal-treffer']").textContent).toBe("60 Treffer");
+    expect(document.querySelector("[data-testid='journal-weitere']")).toBeNull();
+    expect(document.body.textContent).toContain("Keine weiteren Buchungen.");
+    // Alles stand schon im Browser — kein einziger Nachschlag.
+    expect(mocks.naechsteJournalSeite).not.toHaveBeenCalled();
   });
 
   it("sagt am Ende der Liste, dass nichts mehr kommt", async () => {
@@ -470,7 +497,6 @@ describe("JournalTable", () => {
      * Antwort haengte danach die Zeilen des ALTEN Filters an den neuen Stand.
      * Die Liste zeigte Buchungen, die der gewaehlte Filter ausschliesst.
      */
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
 
     let antworten!: (wert: unknown) => void;
@@ -484,7 +510,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
 
     // Filterwechsel, WAEHREND der Abruf laeuft: neue erste Seite vom Server.
     await rerender(
@@ -519,6 +545,8 @@ describe("JournalTable", () => {
           // leeres Feld mehr, sondern ein Absturz.
           ortName: "Handlager",
           ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+          gegenbuchbar: false,
+          gegengebucht: false,
         }],
       });
     });
@@ -540,7 +568,6 @@ describe("JournalTable", () => {
      * nachgeladenen AELTEREN Zeilen standen weiter da, obwohl sie den neuen
      * Filter verletzen.
      */
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -561,6 +588,8 @@ describe("JournalTable", () => {
         // leeres Feld mehr, sondern ein Absturz.
         ortName: "Handlager",
         ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+        gegenbuchbar: false,
+        gegengebucht: false,
       }],
     });
 
@@ -575,7 +604,7 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
     expect(zeilenIds()).toContain("journal-alt-entnahme");
 
@@ -650,6 +679,8 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       referenz: "aussondern:handlager",
       ortName: "Handlager",
       ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
     {
       id: "journal-inventur",
@@ -663,6 +694,8 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       referenz: "inventur:iv-1",
       ortName: "Handlager",
       ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
     {
       id: "journal-handkorrektur",
@@ -676,6 +709,8 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       referenz: null,
       ortName: "Handlager",
       ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
   ];
 
@@ -726,7 +761,6 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
      * Zeile 1 in genau der Kleinigkeit, die niemand sucht — und zwar erst nach
      * dem ersten Scrollen.
      */
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true,
@@ -742,7 +776,7 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(query("tr[data-row-key='journal-aussonderung']").textContent)
@@ -778,6 +812,8 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
       referenz: "umlagerung:schrank-gf",
       ortName: "GF-Schrank",
       ortStandort: { name: "GF-Schrank", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
     {
       id: "journal-um-quelle",
@@ -791,6 +827,8 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
       referenz: "umlagerung:schrank-gf",
       ortName: "Schrank 1",
       ortStandort: { name: "Schrank 1", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
   ];
 
@@ -820,7 +858,6 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
   });
 
   it("reicht den Ort auch auf dem Nachladepfad durch", async () => {
-    const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();
     mocks.naechsteJournalSeite.mockResolvedValue({
       ok: true, cursor: null, zeilen: [UMLAGERUNG[1]],
@@ -834,10 +871,54 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
         leertext="Noch keine Buchung."
       />,
     );
-    await act(async () => { ausloesen(); });
+    await act(async () => { weitereLaden(); });
     await warte();
 
     expect(query("tr[data-row-key='journal-um-quelle']").querySelectorAll("td")[3]?.textContent)
       .toBe("Schrank 1");
+  });
+});
+
+/**
+ * IDA-378 — DIE AKTIONSSPALTE. Gegenbuchbar heisst: Knopf mit Rueckfrage;
+ * gegengebucht heisst: Hinweis statt Knopf; eine Gegenzeile bekommt keins von
+ * beiden. Nach dem Erfolg ist die Zeile SOFORT markiert, ohne neue erste Seite.
+ */
+describe("JournalTable — Gegenbuchen (IDA-378)", () => {
+  const basis = ZEILEN[1]!;
+  const ZEILEN_AKTION: JournalZeileDTO[] = [
+    { ...basis, id: "storno:x:0", menge: 1, referenz: "storno:x:0", gegenbuchbar: false, gegengebucht: false },
+    { ...basis, id: "x:0", gegenbuchbar: true, gegengebucht: false },
+    { ...basis, id: "y:0", gegenbuchbar: true, gegengebucht: true },
+    { ...basis, id: "check-1", typ: "korrektur", referenz: "check:c", gegenbuchbar: false, gegengebucht: false },
+  ];
+  const zelle = (id: string) => query(`tr[data-row-key='${id}']`).querySelectorAll("td")[6]!;
+
+  it("zeigt Knopf, Hinweis oder nichts — und die Gegenzeile heisst „Gegenbuchung“", async () => {
+    await mount(<JournalTable ersteZeilen={ZEILEN_AKTION} ersterCursor={null} abrufFilter={KEIN_FILTER} leertext="–" />);
+    expect(zelle("x:0").querySelector("[data-rolle='journal-gegenbuchen']")).not.toBeNull();
+    expect(zelle("y:0").textContent).toBe("Gegengebucht");
+    expect(zelle("storno:x:0").textContent).toBe("");
+    expect(zelle("check-1").textContent).toBe("");
+    expect(query("tr[data-row-key='storno:x:0']").querySelectorAll("td")[2]!.textContent).toContain("Gegenbuchung");
+  });
+
+  it("schickt nach der Rueckfrage die EINE Zeile und markiert den ganzen Vorgang", async () => {
+    mocks.gegenbucheVorgang.mockResolvedValue({ ok: true, wert: { gegengebucht: 1, ids: ["x:0"] } });
+    await mount(<JournalTable ersteZeilen={ZEILEN_AKTION} ersterCursor={null} abrufFilter={KEIN_FILTER} leertext="–" />);
+    await click("tr[data-row-key='x:0'] [data-rolle='journal-gegenbuchen']");
+    expect(mocks.gegenbucheVorgang).not.toHaveBeenCalled();
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    expect(mocks.gegenbucheVorgang).toHaveBeenCalledWith({ zeilenIds: ["x:0"] });
+    expect(zelle("x:0").textContent).toBe("Gegengebucht");
+  });
+
+  it("zeigt die Absage des Servers an der Zeile", async () => {
+    mocks.gegenbucheVorgang.mockResolvedValue({ ok: false, fehler: "Dieser Vorgang ist schon gegengebucht." });
+    await mount(<JournalTable ersteZeilen={ZEILEN_AKTION} ersterCursor={null} abrufFilter={KEIN_FILTER} leertext="–" />);
+    await click("tr[data-row-key='x:0'] [data-rolle='journal-gegenbuchen']");
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    expect(zelle("x:0").querySelector("[data-rolle='journal-gegenbuchen-fehler']")!.textContent)
+      .toBe("Dieser Vorgang ist schon gegengebucht.");
   });
 });

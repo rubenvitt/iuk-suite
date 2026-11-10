@@ -16,6 +16,12 @@ import {
 } from "./BzLogbuchTabelle";
 import s from "../../../../_ui/verwaltung.module.css";
 
+const mocks = vi.hoisted(() => ({ kontrolleStornieren: vi.fn() }));
+
+vi.mock("../../../../_actions/bz", () => ({
+  kontrolleStornieren: (...args: unknown[]) => mocks.kontrolleStornieren(...args),
+}));
+
 const ZEILE = {
   id: "kontrolle-1",
   zeitpunktText: "06.08. 14:00",
@@ -35,6 +41,7 @@ const ZEILE = {
   akkuTon: "gelb",
   werText: "E2E Helfer",
   kommentarText: "Kontrolle wiederholen",
+  storniertText: null,
 } satisfies BzLogbuchAnzeigeZeile;
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
@@ -70,7 +77,7 @@ function nebenText(zelle: HTMLTableCellElement, text: string): HTMLSpanElement {
 }
 
 describe("BzLogbuchTabelle", () => {
-  it("rendert eine gefüllte DTO-Zeile mit allen acht Spalten und stabiler Semantik", async () => {
+  it("rendert eine gefüllte DTO-Zeile mit allen sieben Spalten und stabiler Semantik", async () => {
     await mount(<BzLogbuchTabelle zeilen={[ZEILE]} />);
 
     expect(queryAll("thead th").map((th) => th.textContent)).toEqual([
@@ -78,19 +85,19 @@ describe("BzLogbuchTabelle", () => {
       "Ergebnis",
       "Level 1",
       "Level 2",
+      // IDA-393: „Wer" steht unter dem Zeitpunkt, „Akku" unter dem Verbrauch.
       "Verbrauch",
-      "Akku",
-      "Wer",
       "Kommentar",
+      "Aktion",
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Logbuch der Kontrollen");
     expect(query("tbody tr[data-row-key]").getAttribute("data-row-key")).toBe("kontrolle-1");
     expect(query("tbody tr[data-row-key]").textContent).toBe(
-      "06.08. 14:00nicht bestandenL1 50(damals 30–70)L2 410(damals 200–400)"
-      + "12 Sticks / 8 Lanzetten · Kompresse 2027-01gewechseltE2E Helfer"
-      + "Kontrolle wiederholen",
+      "06.08. 14:00E2E Helfernicht bestandenL1 50(damals 30–70)L2 410(damals 200–400)"
+      + "12 Sticks / 8 LanzettenKompresse 2027-01Akku gewechselt"
+      + "Kontrolle wiederholenStornieren",
     );
-    expect(queryAll("tbody .ant-table-cell")).toHaveLength(8);
+    expect(queryAll("tbody .ant-table-cell")).toHaveLength(7);
     expect(exists(".ant-pagination")).toBe(false);
   });
 
@@ -101,8 +108,8 @@ describe("BzLogbuchTabelle", () => {
     expect(chipMitText(daten[1]!, "nicht bestanden").dataset.statuschip).toBe("fehler");
     expect(chipMitText(daten[2]!, "L1 50").dataset.statuschip).toBe("ok");
     expect(chipMitText(daten[3]!, "L2 410").dataset.statuschip).toBe("fehler");
-    expect(chipMitText(daten[5]!, "gewechselt").dataset.statuschip).toBe("warnung");
-    expect(chipMitText(daten[6]!, "E2E Helfer").dataset.statuschip).toBe("neutral");
+    expect(chipMitText(daten[4]!, "Akku gewechselt").dataset.statuschip).toBe("warnung");
+    expect(chipMitText(daten[0]!, "E2E Helfer").dataset.statuschip).toBe("neutral");
   });
 
   it("erhält Zeitklasse, Nebentext-Rollen und das konkrete Akku-Zeichen", async () => {
@@ -118,14 +125,12 @@ describe("BzLogbuchTabelle", () => {
     ] as const) {
       const snapshot = nebenText(daten[index]!, text);
       expect(snapshot.style.fontSize).toBe("12px");
-      expect(snapshot.style.marginInlineStart).toBe("6px");
     }
-    expect(nebenText(
-      daten[4]!,
-      "12 Sticks / 8 Lanzetten · Kompresse 2027-01",
-    ).style.fontSize).toBe("12px");
+    for (const teil of ["12 Sticks / 8 Lanzetten", "Kompresse 2027-01"]) {
+      expect(nebenText(daten[4]!, teil).style.fontSize).toBe("12px");
+    }
 
-    const akku = daten[5]!.querySelector<SVGElement>("svg");
+    const akku = daten[4]!.querySelector<SVGElement>("svg");
     expect(akku).not.toBeNull();
     expect(akku?.getAttribute("aria-hidden")).toBe("true");
     expect(akku?.getAttribute("width")).toBe("12");
@@ -158,16 +163,15 @@ describe("BzLogbuchTabelle", () => {
     await rerender(<BzLogbuchTabelle zeilen={[leerwerte]} />);
     const daten = zellen();
     expect(daten.map((zelle) => zelle.textContent)).toEqual([
-      "06.08. 14:00",
+      "06.08. 14:00E2E Helfer",
       "nicht bestanden",
       "—",
       "—",
-      "12 Sticks / 8 Lanzetten · Kompresse 2027-01",
+      "12 Sticks / 8 LanzettenKompresse 2027-01",
       "—",
-      "E2E Helfer",
-      "—",
+      "Stornieren",
     ]);
-    for (const index of [2, 3, 5, 7]) {
+    for (const index of [2, 3, 5]) {
       expect(nebenText(daten[index]!, "—").style.fontSize).toBe("12px");
     }
   });
@@ -239,5 +243,84 @@ describe("BzLogbuchTabelle", () => {
 
     expect(queryAll("tbody tr[data-row-key]").map((tr) => tr.getAttribute("data-row-key")))
       .toEqual(["kontrolle-bestanden"]);
+  });
+});
+
+/**
+ * IDA-379 — DER STORNO. Die Zeile bleibt stehen, wird durchgestrichen und
+ * traegt keinen Knopf mehr; die Rueckfrage nennt die Folge.
+ */
+describe("BzLogbuchTabelle — Storno", () => {
+  const STORNIERT = {
+    ...ZEILE,
+    id: "kontrolle-storniert",
+    storniertText: "storniert 07.08. 10:00 · A. Verwaltung",
+  } satisfies BzLogbuchAnzeigeZeile;
+
+  function offeneRueckfrage(): HTMLElement | null {
+    return document.body.querySelector<HTMLElement>(".ant-popover:not(.ant-popover-hidden)");
+  }
+
+  it("zeigt eine stornierte Zeile durchgestrichen, mit Vermerk und ohne Knopf", async () => {
+    await mount(<BzLogbuchTabelle zeilen={[STORNIERT]} />);
+    const daten = zellen();
+
+    expect(chipMitText(daten[1]!, "storniert").dataset.statuschip).toBe("neutral");
+    expect(nebenText(daten[1]!, "nicht bestanden").style.textDecoration).toBe("line-through");
+    expect(daten[3]!.querySelector<HTMLElement>("span")?.style.textDecoration).toBe("line-through");
+    expect(daten[0]!.textContent).toBe("06.08. 14:00E2E Helferstorniert 07.08. 10:00 · A. Verwaltung");
+    expect(daten[6]!.textContent).toBe("—");
+    expect(daten[6]!.querySelector("button")).toBeNull();
+  });
+
+  it("fragt mit der Folge nach und storniert erst nach der Bestätigung", async () => {
+    mocks.kontrolleStornieren.mockResolvedValueOnce({ ok: true });
+    await mount(<BzLogbuchTabelle zeilen={[ZEILE]} />);
+
+    await clickElement(query<HTMLButtonElement>("button[aria-label='Kontrolle vom 06.08. 14:00 stornieren']"));
+    expect(mocks.kontrolleStornieren).not.toHaveBeenCalled();
+    expect(offeneRueckfrage()?.textContent).toContain("Kontrolle stornieren?");
+    expect(offeneRueckfrage()?.textContent).toContain("Sie zählt danach nicht mehr für die Fälligkeit.");
+
+    const ok = Array.from(offeneRueckfrage()!.querySelectorAll<HTMLButtonElement>("button"))
+      .find((knopf) => knopf.textContent === "Stornieren");
+    await clickElement(ok!);
+
+    expect(mocks.kontrolleStornieren).toHaveBeenCalledWith({ kontrolleId: "kontrolle-1" });
+  });
+
+  it("zeigt den Satz der Action, wenn der Storno abgelehnt wird", async () => {
+    mocks.kontrolleStornieren.mockResolvedValueOnce({ ok: false, fehler: "Kontrolle ist bereits storniert." });
+    await mount(<BzLogbuchTabelle zeilen={[ZEILE]} />);
+
+    await clickElement(query<HTMLButtonElement>("button[aria-label='Kontrolle vom 06.08. 14:00 stornieren']"));
+    const ok = Array.from(offeneRueckfrage()!.querySelectorAll<HTMLButtonElement>("button"))
+      .find((knopf) => knopf.textContent === "Stornieren");
+    await clickElement(ok!);
+
+    for (let versuch = 0; versuch < 20 && !exists("[role='alert']"); versuch += 1) {
+      await new Promise((fertig) => setTimeout(fertig, 0));
+    }
+    expect(query("[role='alert']").textContent).toBe("Kontrolle ist bereits storniert.");
+  });
+
+  it("filtert stornierte Zeilen getrennt von bestanden/nicht bestanden", async () => {
+    await mount(<BzLogbuchTabelle zeilen={[ZEILE, STORNIERT]} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Ergebnis"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "nicht bestanden");
+    await clickElement(eintrag!);
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((tr) => tr.getAttribute("data-row-key")))
+      .toEqual(["kontrolle-1"]);
   });
 });

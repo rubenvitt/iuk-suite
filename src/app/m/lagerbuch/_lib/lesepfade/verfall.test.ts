@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, lagerortVerfall, newId } from "../../_db/schema";
-import { verfallListe, lagerortVerfallListe, verfallFuerLagerort } from "./verfall";
+import { verfallListe, verfallSeitenListe, lagerortVerfallListe, verfallFuerLagerort } from "./verfall";
 import { HANDLAGER_ID } from "../konstanten";
 import { ZAEHLORT_WURZEL_LABEL } from "../inventurOrt";
 
@@ -183,7 +183,7 @@ describe("verfallListe — die Liegeplaetze im Handlager (DRK-339)", () => {
       menge, quelleTyp: "system", quelleId: "t", referenz: null, kommentar: null,
     }).run();
 
-  it("nennt die Wurzel „Nicht zugeordnet“, nicht „Handlager“", () => {
+  it("nennt die Wurzel „Handlager ohne Schrank“, nicht bloß „Handlager“ (IDA-380)", () => {
     /**
      * ⚠️ DER STAMMNAME WAERE HIER IRREFUEHREND. Die Karte heisst „Chargen im
      * Handlager"; ein Chip „Handlager: 3" daneben klaenge nach dem ganzen
@@ -191,7 +191,7 @@ describe("verfallListe — die Liegeplaetze im Handlager (DRK-339)", () => {
      * DRK-337 fuer die Zaehlauswahl bereits entschieden hat.
      */
     expect(orteVon("c-alt")).toEqual([
-      { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 3, zugangshinweis: null },
+      { id: HANDLAGER_ID, name: "Handlager ohne Schrank", menge: 3, zugangshinweis: null },
     ]);
   });
 
@@ -230,9 +230,9 @@ describe("verfallListe — die Liegeplaetze im Handlager (DRK-339)", () => {
    * (Codex-Befund zu PR #173).
    *
    * ⚠️ ZWEI SCHRAENKE DUERFEN HEUTE GLEICH HEISSEN, und ein Schrank namens
-   * „Nicht zugeordnet" kollidiert mit der Wurzel (`inventurOrt.ts` schreibt
+   * „Handlager ohne Schrank" kollidiert mit der Wurzel (`inventurOrt.ts` schreibt
    * genau diese Richtung aus). In der Ortswahl stuenden dann zwei optisch
-   * identische Zeilen „nur Nicht zugeordnet (4 Stk.)" — wer danebengreift,
+   * identische Zeilen „nur Handlager ohne Schrank (4 Stk.)" — wer danebengreift,
    * bucht den falschen Ort leer, und die Zeile daneben verraet nicht, welcher
    * es war.
    */
@@ -356,5 +356,78 @@ describe("verfallFuerLagerort — je Artikel HOECHSTENS einer", () => {
   it("laeuft INNERHALB einer Transaktion (H11, §5.6.3)", () => {
     const m = t.db.transaction((tx) => verfallFuerLagerort(tx, "rtw-1", NOW));
     expect(m.get("a1")?.ampel).toBe("rot");
+  });
+});
+
+/**
+ * IDA-379 — DIE LISTE DER VERFALL-SEITE: `verfallListe` plus die abgelaufenen
+ * Chargen, die nur noch draussen liegen, und an jeder Zeile die Orte draussen.
+ *
+ * Die Fixture kennt den Befund schon: `c-nurfzg` ist abgelaufen und liegt NUR
+ * in „RTW 1". `verfallListe` laesst sie aus (Handlager-Bindung, Test oben);
+ * auf der Seite fehlte sie damit ganz.
+ */
+describe("verfallSeitenListe — auch, was draussen liegt (IDA-379)", () => {
+  const b = (artikelId: string, chargeId: string, lagerortId: string, menge: number) => ({
+    id: newId(), ts: NOW, typ: "zugang" as const, artikelId, chargeId, lagerortId, menge,
+    quelleTyp: "system" as const, quelleId: "t", referenz: null, kommentar: null,
+  });
+
+  it("fuehrt eine abgelaufene Charge ohne Handlager-Rest, mit Rest 0 und ihren Orten", () => {
+    const e = verfallSeitenListe(t.db, NOW).find((x) => x.chargeId === "c-nurfzg");
+    expect(e).toMatchObject({
+      chargenNr: "FZG", artikelName: "NaCl", abgelaufen: true, rest: 0, orte: [],
+      draussen: [{ id: "rtw-1", name: "RTW 1", menge: 4, typ: "fahrzeug" }],
+    });
+  });
+
+  it("enthaelt jede Zeile von `verfallListe`, in derselben Dringlichkeit", () => {
+    const seite = verfallSeitenListe(t.db, NOW).map((e) => e.chargeId);
+    // Beide abgelaufen ("2020-01"): die Reihenfolge der Handlager-Liste bleibt.
+    expect(seite).toEqual(["c-alt", "c-nurfzg", "c-rot", "c-gelb"]);
+    expect(seite.filter((id) => id !== "c-nurfzg"))
+      .toEqual(verfallListe(t.db, NOW).map((e) => e.chargeId));
+  });
+
+  it("nennt an einer Handlager-Charge die Orte draussen, sortiert, ohne Handlager-Orte", () => {
+    t.db.insert(lagerorte).values({
+      id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
+      aktiv: true, parentId: HANDLAGER_ID, sortierung: 10,
+    }).run();
+    t.db.insert(buchungen).values([
+      b("a1", "c-alt", "schrank-1", 2),
+      b("a1", "c-alt", "rtw-3", 1),
+      b("a1", "c-alt", "entnahmebox", 6),
+      b("a1", "c-alt", "rtw-2", 5),
+      b("a1", "c-alt", "rtw-2", -5),           // ausgeraeumt: kein Ort mehr
+    ]).run();
+
+    const e = verfallSeitenListe(t.db, NOW).find((x) => x.chargeId === "c-alt");
+    expect(e?.orte.map((o) => o.id)).toEqual([HANDLAGER_ID, "schrank-1"]);
+    expect(e?.rest).toBe(5);
+    // `sortierung` (Default 0 bei allen) und dann der Name.
+    expect(e?.draussen.map((o) => [o.name, o.menge, o.typ])).toEqual([
+      ["Entnahmebox", 6, "lager"],
+      ["ZZZ Reserve", 1, "fahrzeug"],
+    ]);
+  });
+
+  it("laesst eine nur draussen liegende Charge weg, solange sie nicht abgelaufen ist", () => {
+    t.db.insert(chargen).values({
+      id: "c-rot-draussen", artikelId: "a1", chargenNr: "ROT-FZG", verfall: "2026-06", createdAt: NOW,
+    }).run();
+    t.db.insert(buchungen).values(b("a1", "c-rot-draussen", "rtw-1", 2)).run();
+
+    expect(verfallSeitenListe(t.db, NOW).some((e) => e.chargeId === "c-rot-draussen")).toBe(false);
+  });
+
+  it("laesst eine draussen aufgebrauchte abgelaufene Charge weg", () => {
+    t.db.insert(buchungen).values(b("a2", "c-nurfzg", "rtw-1", -4)).run();
+
+    expect(verfallSeitenListe(t.db, NOW).some((e) => e.chargeId === "c-nurfzg")).toBe(false);
+  });
+
+  it("aendert `verfallListe` nicht: die Handlager-Liste kennt die Charge weiter nicht", () => {
+    expect(verfallListe(t.db, NOW).some((e) => e.chargeId === "c-nurfzg")).toBe(false);
   });
 });

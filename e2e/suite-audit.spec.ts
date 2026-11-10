@@ -70,7 +70,8 @@ test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und 
  fixtureEvents(ACTOR);
  await klickeWennRuhig(page.getByRole("link",{name:"Verwaltung",exact:true}).first());
  await expect(page).toHaveURL(/\/admin$/,{timeout:30_000});
- await klickeWennRuhig(page.getByRole("link",{name:"Audit-Log öffnen"}),{timeout:30_000});
+ // IDA-391: der Textlink auf der Verwaltungsseite ist entfallen; das Audit-Log steht in der Navigation.
+ await klickeWennRuhig(page.getByRole("link",{name:"Audit-Log",exact:true}).first(),{timeout:30_000});
  await expect(page.getByRole("heading",{name:"Audit-Log",exact:true})).toBeVisible({timeout:30_000});
  await page.getByRole("combobox",{name:"Modul",exact:true}).click();
  // Antd virtualizes its aria-options; select through the real combobox keyboard contract.
@@ -151,7 +152,8 @@ test("Direktaufruf und Navigation schließen Nutzer, Modul-Admin und Portal-Over
    await klickeWennRuhig(page.getByRole("link",{name:"Verwaltung",exact:true}).first());
    await expect(page).toHaveURL(/\/admin$/,{timeout:30_000});
    await expect(page.getByTestId("portal-admin")).toBeVisible({timeout:30_000});
-   await expect(page.getByRole("link",{name:"Audit-Log öffnen"})).toHaveCount(0);
+   await expect(page.getByRole("link",{name:"Audit-Log",exact:true})).toHaveCount(0);
+   await expect(page.getByRole("link",{name:"Rechte",exact:true})).toHaveCount(0);
   }
   const response=await page.request.get(PORTAL+"/admin/audit/data");expect(response.status()).toBe(403);expect(await response.text()).not.toContain("events");
   const direct=await page.goto(PORTAL+"/m/portal/admin/audit");expect(direct?.status()).toBe(404);

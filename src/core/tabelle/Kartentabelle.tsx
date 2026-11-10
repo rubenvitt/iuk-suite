@@ -105,6 +105,10 @@ export type KartentabelleProps<T> = Omit<DatentabelleProps<T>, "aria-label" | "l
   kartenHoehe?: number;
   /** Ab wie vielen Zeilen die Filter- und Sortierleiste erscheint. */
   steuerungAbZeilen?: number;
+  /** IDA-380 — die Felder der Schmalleiste hinter einem Knopf „Filter". */
+  steuerungEingeklappt?: boolean;
+  /** Weitere Felder für die Schmalleiste (siehe `SchmalsteuerungProps.zusatz`). */
+  steuerungZusatz?: { inhalt: ReactNode; aktiv: number };
   /** Übernommener Filterzustand. Nur zusammen mit `onFilter`. */
   filter?: FilterZustand;
   onFilter?: (filter: FilterZustand) => void;
@@ -186,6 +190,8 @@ export function Kartentabelle<T extends object>({
   karte,
   kartenHoehe = 160,
   steuerungAbZeilen,
+  steuerungEingeklappt,
+  steuerungZusatz,
   columns,
   dataSource,
   onChange,
@@ -346,6 +352,8 @@ export function Kartentabelle<T extends object>({
         angezeigt={sichtbar.length}
         gesamt={zeilen.length}
         abZeilen={steuerungAbZeilen}
+        eingeklappt={steuerungEingeklappt}
+        zusatz={steuerungZusatz}
       />
       <Schmalkarten<T>
         zeilen={sichtbar}

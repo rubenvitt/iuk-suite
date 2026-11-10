@@ -1,0 +1,1 @@
+ALTER TABLE `launcher_vorlieben` ADD `neuigkeiten_gesehen` text;

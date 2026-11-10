@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { and, eq, lt } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
 import { fefoAbbuchungAnOrt, fefoAbbuchungImBereich, type Quelle } from "./abbuchung";
 import { handlagerOrte } from "../lesepfade/orte";
+import { umlagerungAusBereich } from "./umlagerung";
 import { bestandProLagerort } from "../domain/bestand";
 import { HANDLAGER_ID } from "../konstanten";
 
@@ -157,5 +158,47 @@ describe("fefoAbbuchung — die geschriebenen Zeilen", () => {
     inTx((tx) => fefoAbbuchungImBereich(tx, {
       artikelId: "a1", menge: 1, quelle: QUELLE, kommentar: null, referenz: null }));
     expect(t.db.select().from(buchungen).all().find((b) => b.menge < 0)!.typ).toBe("entnahme");
+  });
+});
+
+/**
+ * IDA-378 — ABGELAUFENES UEBERSPRINGT NUR, WER ES VERLANGT.
+ *
+ * Die Uhr steht im November 2026: `c-frueh` (07/2026) ist abgelaufen, `c-spaet`
+ * (01/2028) nicht. Ohne den Schalter bleibt FEFO, wie es war — Check, Korrektur
+ * und Aussondern buchen genau das Abgelaufene.
+ */
+describe("IDA-378 — ohneAbgelaufene", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-10T10:00:00Z"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("ueberspringt die abgelaufene Charge und nimmt die naechste", () => {
+    const r = inTx((tx) => fefoAbbuchungImBereich(tx, {
+      artikelId: "a1", menge: 4, quelle: QUELLE, kommentar: null, referenz: null,
+      ohneAbgelaufene: true }));
+    expect(r.teile).toEqual([{ chargeId: "c-spaet", menge: 4, vonLagerortId: HANDLAGER_ID }]);
+  });
+
+  it("kappt am NICHT abgelaufenen Rest", () => {
+    const r = inTx((tx) => fefoAbbuchungImBereich(tx, {
+      artikelId: "a1", menge: 99, quelle: QUELLE, kommentar: null, referenz: null,
+      ohneAbgelaufene: true }));
+    expect(r.gebucht).toBe(10);
+  });
+
+  it("ohne den Schalter bleibt FEFO beim Abgelaufenen", () => {
+    const r = inTx((tx) => fefoAbbuchungImBereich(tx, {
+      artikelId: "a1", menge: 4, quelle: QUELLE, kommentar: null, referenz: null }));
+    expect(r.teile[0]).toEqual({ chargeId: "c-frueh", menge: 3, vonLagerortId: HANDLAGER_ID });
+  });
+
+  it("gilt auch fuer die Umlagerung aufs Fahrzeug", () => {
+    const r = inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 2, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
+      quelle: QUELLE, kommentar: null, referenz: "entnahme-ziel:rtw-1", ohneAbgelaufene: true }));
+    expect(r.teile).toEqual([{ chargeId: "c-spaet", menge: 2, vonLagerortId: HANDLAGER_ID }]);
   });
 });

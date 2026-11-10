@@ -44,8 +44,9 @@ test("Mitglied anlegen, Link öffnen, neuer Link macht den alten ungültig, entf
   expect(await handy.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
   // Neuer Link: Rückfrage, dann ist der alte sofort ungültig.
-  await klickeWennRuhig(zeile.getByRole("button", { name: "Neuer Link" }));
-  await klickeWennRuhig(page.getByRole("button", { name: "Neu erzeugen" }));
+  await klickeWennRuhig(zeile.getByRole("button", { name: `Aktionen für ${name}` }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Neuer Link" }));
+  await klickeWennRuhig(page.getByRole("dialog").getByRole("button", { name: "Neu erzeugen" }));
   await expect(page.getByText("Neuer Link erzeugt.", { exact: false })).toBeVisible();
   await expect(zeile.getByRole("link", { name: /…\/mein\// })).not.toHaveAttribute("href", alt!);
   const neu = await zeile.getByRole("link", { name: /…\/mein\// }).getAttribute("href");
@@ -59,7 +60,8 @@ test("Mitglied anlegen, Link öffnen, neuer Link macht den alten ungültig, entf
   await fremd.close();
 
   // Bearbeiten.
-  await klickeWennRuhig(zeile.getByRole("button", { name: "Bearbeiten" }));
+  await klickeWennRuhig(zeile.getByRole("button", { name: `Aktionen für ${name}` }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Bearbeiten" }));
   const bearbeiten = page.getByRole("dialog", { name: "Mitglied bearbeiten" });
   await bearbeiten.getByLabel("Name").fill(`${name} B`);
   await klickeWennRuhig(bearbeiten.getByRole("button", { name: "Speichern" }));
@@ -67,8 +69,9 @@ test("Mitglied anlegen, Link öffnen, neuer Link macht den alten ungültig, entf
   await expect(zeileB).toBeVisible();
 
   // Entfernen: Rückfrage, dann weg.
-  await klickeWennRuhig(zeileB.getByRole("button", { name: "Entfernen" }));
-  await klickeWennRuhig(page.locator(".ant-popconfirm").getByRole("button", { name: "Entfernen" }));
+  await klickeWennRuhig(zeileB.getByRole("button", { name: `Aktionen für ${name} B` }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Entfernen" }));
+  await klickeWennRuhig(page.getByRole("dialog").getByRole("button", { name: "Entfernen" }));
   await expect(page.getByRole("row").filter({ hasText: `${name} B` })).toHaveCount(0);
 });
 

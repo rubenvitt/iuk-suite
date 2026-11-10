@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { UAV_NAV } from "./nav";
 
 /*
@@ -79,5 +80,12 @@ describe("UAV_NAV", () => {
     const quelle = readFileSync("src/app/m/uav/_lib/nav.ts", "utf8").trimStart();
     expect(quelle.startsWith('"use client"')).toBe(false);
     expect(quelle.startsWith("'use client'")).toBe(false);
+  });
+
+  it("markiert auf einer Teilnehmerakte „Teilnehmer“, nicht die Trainingsansicht (IDA-389)", () => {
+    expect(aktiverEintrag("/admin/teilnehmer/7", UAV_NAV)).toEqual({ schluessel: "teilnehmer", genau: false });
+    expect(aktiverEintrag("/m/uav/admin/teilnehmer/7", UAV_NAV)?.schluessel).toBe("teilnehmer");
+    expect(aktiverEintrag("/admin/katalog/neu", UAV_NAV)?.schluessel).toBe("katalog");
+    expect(aktiverEintrag("/", UAV_NAV)).toEqual({ schluessel: "training", genau: true });
   });
 });

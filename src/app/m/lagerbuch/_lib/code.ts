@@ -57,7 +57,7 @@ export function gruppiereCode(zeichen: string): string {
  *
  * Zwei Leser, eine Frage: die Schranke (`gateSchranke.ts`) laesst eine solche
  * Eingabe nie an der modulweiten Sperre scheitern, und die Verwaltung markiert
- * jeden aktiven Code, der sie NICHT hat, als „alte Form" (Neudruck noetig).
+ * jeden aktiven Code, der sie NICHT hat, als „kurzer Code" (Neudruck noetig).
  *
  * ⚠️ SIE PRUEFT DAS ALPHABET, NICHT NUR DIE LAENGE. `normalisiereCode` laesst
  * ein `U` stehen; 28 Zeichen mit einem `U` sind kein Code dieser Form und
@@ -69,4 +69,22 @@ export function istLangerCode(wert: string): boolean {
   if (ohneTrenner.length !== TOKEN_ZEICHEN) return false;
   for (const z of ohneTrenner) if (!TOKEN_ALPHABET.includes(z)) return false;
   return wert === gruppiereCode(ohneTrenner);
+}
+
+/**
+ * WAS AM FELD FEHLT, BEVOR ES AN DEN SERVER GEHT — IDA-380. `"leer"`: nichts
+ * eingegeben (Leerzeichen und Trenner zaehlen nicht). `"form"`: weder die alte
+ * Form (6 Ziffern) noch die lange (`istLangerCode`); so eine Eingabe kann nie
+ * ein Treffer sein. `null`: abschicken.
+ *
+ * ⚠️ SIE ERSETZT `pattern` ALS SPERRE, nicht als Zusatz. Das Muster am Feld
+ * liess ` 100 100 ` (Leerzeichen am Rand) nicht durch, und die native Pruefung
+ * hielt das Absenden an, ohne dass am Fehlerort etwas erschien — am Telefon
+ * blieb das Gate wortlos stehen. Geprueft wird deshalb die NORMALISIERTE
+ * Eingabe, also genau das, was der Server sucht.
+ */
+export function codeEingabeMangel(roh: string): "leer" | "form" | null {
+  const code = normalisiereCode(roh);
+  if (code === "") return "leer";
+  return /^\d{3}-\d{3}$/.test(code) || istLangerCode(code) ? null : "form";
 }

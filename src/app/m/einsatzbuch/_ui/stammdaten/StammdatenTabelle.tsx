@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { App, Button } from "antd";
+import { App, Input } from "antd";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import type { RuheSchluessel } from "@/core/ruhe";
 import { Statuschip } from "@/core/status/Statuschip";
 import {
@@ -12,11 +13,14 @@ import {
   trifftWert,
   werteAlsFilter,
   zustandsFilter,
+  Zeilenaktionen,
   type FilterZustand,
   type KartentabelleProps,
+  useEntprellt,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { aktivSetzenAction } from "../../_actions/stammdaten";
+import { trifftSuche } from "../../_lib/stammdaten/suche";
 import type { FahrzeugDTO, PersonDTO, Stammdatenart, StichwortDTO } from "../../_lib/stammdaten/typen";
 
 /** Ein Eintrag, den eine der drei Tabellen zeigt. */
@@ -46,7 +50,9 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
           liste={props.liste}
           onBearbeiten={props.onBearbeiten}
           beschriftung="Fahrzeuge"
-          leer={{ nichts: "Noch keine Fahrzeuge", figur: "einsatzbuch", gefiltert: "Kein Fahrzeug passt zum Filter." }}
+          suche={{ platzhalter: "Kennung oder Funkrufname suchen", felder: (f) => [f.kennung, f.ruf, f.typ] }}
+          nameVon={(f) => f.kennung}
+          leer={{ nichts: "Noch keine Fahrzeuge", figur: "einsatzbuch", gefiltert: "Kein Fahrzeug passt zu Suche und Filter." }}
           spalten={[
             { title: "Kennung", key: "kennung", sorter: nachText<FahrzeugDTO>((f) => f.kennung), render: (_: unknown, f: FahrzeugDTO) => f.kennung },
             {
@@ -74,7 +80,9 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
           liste={props.liste}
           onBearbeiten={props.onBearbeiten}
           beschriftung="Personal"
-          leer={{ nichts: "Noch kein Personal", figur: "einsatzbuch", gefiltert: "Keine Person passt zum Filter." }}
+          suche={{ platzhalter: "Name suchen", felder: (p) => [p.name] }}
+          nameVon={(p) => p.name}
+          leer={{ nichts: "Noch kein Personal", figur: "einsatzbuch", gefiltert: "Keine Person passt zu Suche und Filter." }}
           spalten={[
             { title: "Name", key: "name", sorter: nachText<PersonDTO>((p) => p.name), render: (_: unknown, p: PersonDTO) => p.name },
             {
@@ -94,7 +102,9 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
           liste={props.liste}
           onBearbeiten={props.onBearbeiten}
           beschriftung="Stichworte"
-          leer={{ nichts: "Noch keine Stichworte", figur: "einsatzbuch", gefiltert: "Kein Stichwort passt zum Filter." }}
+          suche={{ platzhalter: "Stichwort suchen", felder: (s) => [s.name, s.gruppe] }}
+          nameVon={(st) => st.name}
+          leer={{ nichts: "Noch keine Stichworte", figur: "einsatzbuch", gefiltert: "Kein Stichwort passt zu Suche und Filter." }}
           spalten={[
             {
               title: "Gruppe",
@@ -116,12 +126,20 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
   }
 }
 
-/** Die drei Listen teilen Status- und Aktionsspalte; nur die Fachspalten davor unterscheiden sich. */
+/**
+ * Die drei Listen teilen Suche, Status- und Aktionsspalte; nur die Fachspalten davor unterscheiden sich.
+ *
+ * DIE SUCHE STEHT ÜBER DER KARTENTABELLE, nicht in ihr (IDA-390: 112 Personen ohne Suchfeld). Sie
+ * filtert die `dataSource`; Spaltenfilter und Sortierung bleiben Sache der Kartentabelle. Entprellt wird
+ * die Ableitung, nie das Feld (`core/tabelle/useEntprellt.ts`).
+ */
 function Liste<T extends Stammeintrag>({
   art,
   liste,
   onBearbeiten,
   beschriftung,
+  suche: { platzhalter, felder },
+  nameVon,
   leer,
   spalten,
 }: {
@@ -129,12 +147,19 @@ function Liste<T extends Stammeintrag>({
   liste: T[];
   onBearbeiten: (eintrag: T) => void;
   beschriftung: string;
+  suche: { platzhalter: string; felder: (eintrag: T) => string[] };
+  /** Wofür die Zeilenaktionen gelten — der Menüknopf heißt „Aktionen für <name>". */
+  nameVon: (eintrag: T) => string;
   leer: { nichts: string; gefiltert: string; figur?: RuheSchluessel };
   spalten: Spalten<T>;
 }) {
   const { message } = App.useApp();
   const [filter, setFilter] = useState<FilterZustand>({});
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  const [suchtext, setSuchtext] = useState("");
+  const begriff = useEntprellt(suchtext);
+  const treffer = liste.filter((e) => trifftSuche(felder(e), begriff));
+  const sucht = begriff.trim() !== "";
 
   // „aktiv“/„inaktiv“ ist ein Prädikat über der Zeile, kein Feldwert (`core/tabelle/spaltenfilter.ts`).
   const status = zustandsFilter<T>([
@@ -153,38 +178,69 @@ function Liste<T extends Stammeintrag>({
   }
 
   return (
-    <Kartentabelle<T>
-      rowKey="id"
-      aria-label={beschriftung}
-      dataSource={liste}
-      filter={filter}
-      onFilter={setFilter}
-      leer={{
-        ...leer,
-        // Die leere Liste zuerst: ein stehengebliebener Filter über nichts behauptete sonst einen Bestand.
-        aktiv: liste.length > 0 && filterAktiv(filter),
-      }}
-      columns={[
-        ...spalten,
-        {
-          title: "Status",
-          key: "status",
-          ...status,
-          render: (_: unknown, e: T) => <Statuschip ton={e.aktiv ? "ok" : "neutral"}>{e.aktiv ? "aktiv" : "inaktiv"}</Statuschip>,
-        },
-        {
-          title: "Aktionen",
-          key: "aktionen",
-          render: (_: unknown, e: T) => (
-            <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
-              <Button onClick={() => onBearbeiten(e)}>Bearbeiten</Button>
-              <Button onClick={() => umschalten(e)} loading={laeuft === e.id} disabled={laeuft !== null && laeuft !== e.id}>
-                {e.aktiv ? "Deaktivieren" : "Aktivieren"}
-              </Button>
-            </div>
-          ),
-        },
-      ]}
-    />
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}>
+      {liste.length > 0 ? (
+        <Input
+          type="search"
+          value={suchtext}
+          onChange={(e) => setSuchtext(e.target.value)}
+          placeholder={platzhalter}
+          aria-label={platzhalter}
+          prefix={<Icons8Ikone name="search" groesse={16} />}
+          allowClear
+          style={{ maxWidth: 360 }}
+          styles={suchtext === "" ? TREFFERFLAECHE_LEER : TREFFERFLAECHE}
+        />
+      ) : null}
+      <Kartentabelle<T>
+        rowKey="id"
+        aria-label={beschriftung}
+        dataSource={treffer}
+        filter={filter}
+        onFilter={setFilter}
+        leer={{
+          ...leer,
+          // Die leere Liste zuerst: ein stehengebliebener Filter über nichts behauptete sonst einen Bestand.
+          aktiv: liste.length > 0 && (sucht || filterAktiv(filter)),
+        }}
+        columns={[
+          ...spalten,
+          {
+            title: "Status",
+            key: "status",
+            ...status,
+            render: (_: unknown, e: T) => <Statuschip ton={e.aktiv ? "ok" : "neutral"}>{e.aktiv ? "aktiv" : "inaktiv"}</Statuschip>,
+          },
+          {
+            title: "Aktionen",
+            key: "aktionen",
+            // IDA-393: zwei ausgeschriebene Knöpfe → ein Aktionsmenü je Zeile.
+            render: (_: unknown, e: T) => (
+              <Zeilenaktionen
+                name={nameVon(e)}
+                laeuft={laeuft === e.id}
+                aktionen={[
+                  { key: "bearbeiten", label: "Bearbeiten", onClick: () => onBearbeiten(e) },
+                  { key: "aktiv", label: e.aktiv ? "Deaktivieren" : "Aktivieren", disabled: laeuft !== null, onClick: () => umschalten(e) },
+                ]}
+              />
+            ),
+          },
+        ]}
+      />
+    </div>
   );
 }
+
+/**
+ * 44 px auch im Inneren des Suchfelds (Falle 4): mit `prefix` und `allowClear` legt antd einen Rahmen
+ * um das `input`, und Feld wie Leeren-Knopf blieben darin so niedrig wie ihre Zeile. Über antds
+ * Semantik-Slots statt CSS gegen `.ant-*` (Falle 5, 20); Bauform wie im Lagerbuch-Suchfeld. Ohne Text
+ * ist der Knopf `display: none`, sonst nähme er dem Platzhalter seine Breite.
+ */
+const TREFFERFLAECHE = {
+  root: { paddingBlock: 0 },
+  input: { minHeight: 44, marginBlock: -1 },
+  clear: { minWidth: 44, minHeight: 44, marginBlock: -1, display: "inline-flex", alignItems: "center", justifyContent: "center" },
+} as const;
+const TREFFERFLAECHE_LEER = { ...TREFFERFLAECHE, clear: { display: "none" } } as const;

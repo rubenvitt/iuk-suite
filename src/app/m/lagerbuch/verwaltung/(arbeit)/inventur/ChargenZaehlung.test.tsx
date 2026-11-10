@@ -48,22 +48,22 @@ describe("ChargenZaehlung", () => {
         ortText="im Handlager" zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
     const knopf = query<HTMLButtonElement>("button[aria-label='Charge ergänzen']");
     expect(knopf.disabled).toBe(true);
-    expect(query<HTMLInputElement>("input[aria-label='MHD der neuen Charge']").placeholder).toBe("JJJJ-MM");
-    await fill("input[aria-label='MHD der neuen Charge']", "2027-03");
+    expect(query<HTMLInputElement>("input[aria-label='Verfall der neuen Charge']").placeholder).toBe("JJJJ-MM");
+    await fill("input[aria-label='Verfall der neuen Charge']", "2027-03");
     await fill("input[aria-label='Menge der neuen Charge']", "2");
     expect(knopf.disabled).toBe(false);
     await click("button[aria-label='Charge ergänzen']");
     expect(positionenAus(h.stand())).toEqual([{
       artikelId: "a1", chargen: [], neu: [{ verfall: "2027-03", chargenNr: "", ist: 2 }],
     }]);
-    expect(query<HTMLInputElement>("input[aria-label='MHD der neuen Charge']").value).toBe("");
+    expect(query<HTMLInputElement>("input[aria-label='Verfall der neuen Charge']").value).toBe("");
   });
 
   it("sperrt das Ergänzen einer Charge, die schon in der Liste steht", async () => {
     const h = harness();
     await mount(<ChargenZaehlung
         ortText="im Handlager" zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
-    await fill("input[aria-label='MHD der neuen Charge']", "2026-10");
+    await fill("input[aria-label='Verfall der neuen Charge']", "2026-10");
     await fill("input[aria-label='Chargennummer der neuen Charge']", "L1");
     expect(query<HTMLButtonElement>("button[aria-label='Charge ergänzen']").disabled).toBe(true);
     expect(document.body.textContent).toContain("Diese Charge steht schon in der Liste");
@@ -128,7 +128,7 @@ describe("ChargenZaehlung", () => {
     const h = harness();
     await mount(<ChargenZaehlung
         ortText="im Handlager" zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
-    await fill("input[aria-label='MHD der neuen Charge']", "2027-03");
+    await fill("input[aria-label='Verfall der neuen Charge']", "2027-03");
     await fill("input[aria-label='Menge der neuen Charge']", "2");
     await click("button[aria-label='Charge ergänzen']");
     await unmount();
@@ -142,7 +142,7 @@ describe("ChargenZaehlung", () => {
     await neu();
 
     await click("button[aria-label='Ergänzte Charge Inventur bearbeiten']");
-    await fill("input[aria-label='MHD der ergänzten Charge']", "2028-05");
+    await fill("input[aria-label='Verfall der ergänzten Charge']", "2028-05");
     await fill("input[aria-label='Chargennummer der ergänzten Charge']", "AB12");
     const uebernehmen = queryAll<HTMLButtonElement>("[data-rolle='charge-bearbeiten'] button")
       .find((b) => b.textContent?.includes("Übernehmen"));
@@ -161,7 +161,7 @@ describe("ChargenZaehlung", () => {
     await mount(<ChargenZaehlung
         ortText="im Handlager" zeile={ZEILE} zaehlung={h.stand().a1} gesperrt={false} onAendern={h.onAendern} />);
     await click("button[aria-label='Ergänzte Charge Inventur bearbeiten']");
-    await fill("input[aria-label='MHD der ergänzten Charge']", "2026-10");
+    await fill("input[aria-label='Verfall der ergänzten Charge']", "2026-10");
     await fill("input[aria-label='Chargennummer der ergänzten Charge']", "L1");
     expect(query("[data-rolle='charge-bearbeiten']").textContent).toContain("Diese Charge steht schon in der Liste");
     const uebernehmen = queryAll<HTMLButtonElement>("[data-rolle='charge-bearbeiten'] button")

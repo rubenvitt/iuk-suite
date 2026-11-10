@@ -78,6 +78,9 @@ export function bzLogbuchAnzeigeZeilen(
     akkuTon: kontrolle.batterieGewechselt ? "gelb" : null,
     werText: kontrolle.wer,
     kommentarText: kontrolle.kommentar,
+    storniertText: kontrolle.storniert === null
+      ? null
+      : `storniert ${fmtTs(kontrolle.storniert.am)} · ${kontrolle.storniert.wer}`,
   }));
 }
 
@@ -103,11 +106,12 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
   const detail = bzGeraetDetail(db, id, jetzt);
   if (!detail) notFound();
 
-  const { geraet, faelligkeit, akku, logbuch } = detail;
-  const letzte = logbuch[0] ?? null;
+  // IDA-379: „letzte" ist die juengste NICHT stornierte Kontrolle, nicht
+  // `logbuch[0]` — und die Frist laeuft nur von einer bestandenen.
+  const { geraet, faelligkeit, akku, logbuch, letzteKontrolle: letzte } = detail;
   const logbuchZeilen = bzLogbuchAnzeigeZeilen(logbuch);
   const faelligText = faelligkeit.nieGeprueft
-    ? "nie geprüft"
+    ? (faelligkeit.nieBestanden ? "nie bestanden" : "nie geprüft")
     : faelligkeit.faelligAm
       ? fmtTs(faelligkeit.faelligAm)
       : "–";

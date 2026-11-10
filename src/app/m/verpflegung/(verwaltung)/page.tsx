@@ -3,6 +3,7 @@ import { Card } from "antd";
 import { Kennzahl, Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../_db/client";
+import { chargeInStufe, stufeVon } from "../_lib/bestand";
 import { bestandJeArtikel, ladeBuchungen, ladeSicht, unterMindest } from "../_lib/daten";
 import { heute, zeitText } from "../_lib/heute";
 import { datumLang, mengeText } from "../_lib/mhd";
@@ -23,9 +24,10 @@ export default async function Uebersicht() {
   await requireZugang("/");
   const db = getDb();
   const { artikel, chargen } = ladeSicht(db, heute());
-  const abgelaufen = chargen.filter((c) => c.status.abgelaufen);
-  const kritisch = chargen.filter((c) => !c.status.abgelaufen && c.status.ampel === "rot");
-  const bald = chargen.filter((c) => c.status.ampel === "gelb");
+  // IDA-382: jede Kennzahl zählt mit derselben Abgrenzung wie die Stufe, auf die sie führt.
+  const abgelaufen = chargen.filter((c) => chargeInStufe(c, "abgelaufen"));
+  const kritisch = chargen.filter((c) => chargeInStufe(c, "kritisch"));
+  const bald = chargen.filter((c) => chargeInStufe(c, "bald"));
   const fehlt = unterMindest(artikel, chargen);
   const bestand = bestandJeArtikel(chargen);
   const naechste = chargen.filter((c) => c.status.ampel !== "ok").slice(0, 8);
@@ -35,10 +37,10 @@ export default async function Uebersicht() {
     <>
       <Seitenkopf titel="Übersicht" />
       <Kennzahlen aria-label="Lage">
-        <Kpi zahl={abgelaufen.length} text="Chargen abgelaufen" farbe="rot" href="/mhd" />
-        <Kpi zahl={kritisch.length} text="Chargen kritisch" farbe="rot" href="/mhd" />
-        <Kpi zahl={bald.length} text="Chargen laufen bald ab" farbe="gelb" href="/mhd" />
-        <Kpi zahl={fehlt.length} text="Artikel unter Mindestbestand" farbe="gelb" href="/artikel" />
+        <Kpi zahl={abgelaufen.length} text="Chargen abgelaufen" farbe="rot" href="/bestand?stufe=abgelaufen" />
+        <Kpi zahl={kritisch.length} text="Chargen kritisch" farbe="rot" href="/bestand?stufe=kritisch" />
+        <Kpi zahl={bald.length} text="Chargen laufen bald ab" farbe="gelb" href="/bestand?stufe=bald" />
+        <Kpi zahl={fehlt.length} text="Artikel unter Mindestbestand" farbe="gelb" href="/bestand?stufe=mindest" />
       </Kennzahlen>
       <div className={s.zwei}>
         <Card title="Läuft als Nächstes ab">
@@ -48,7 +50,7 @@ export default async function Uebersicht() {
             <ul className={s.zeilen} aria-label="Läuft als Nächstes ab">
               {naechste.map((c) => (
                 <li key={c.id}>
-                  <Link href="/mhd" className={s.zeile}>
+                  <Link href={`/bestand?stufe=${stufeVon(c)}`} className={s.zeile}>
                     <div>
                       <strong>{c.artikelName}</strong>
                       <div className={s.neben}>{c.ortName} · {mengeText(c.menge, c.einheit)} · {datumLang(c.mhd)}</div>
@@ -84,9 +86,11 @@ export default async function Uebersicht() {
         <Card title="Unter Mindestbestand">
           <ul className={s.zeilen} aria-label="Unter Mindestbestand">
             {fehlt.map((a) => (
-              <li key={a.id} className={s.zeile}>
-                <strong>{a.name}</strong>
-                <span className={`${s.ziffern} ${s.textGelb}`}>{mengeText(bestand.get(a.id) ?? 0, a.einheit)} von {mengeText(a.mindest ?? 0, a.einheit)}</span>
+              <li key={a.id}>
+                <Link href="/bestand?stufe=mindest" className={s.zeile}>
+                  <strong>{a.name}</strong>
+                  <span className={`${s.ziffern} ${s.textGelb}`}>{mengeText(bestand.get(a.id) ?? 0, a.einheit)} von {mengeText(a.mindest ?? 0, a.einheit)}</span>
+                </Link>
               </li>
             ))}
           </ul>

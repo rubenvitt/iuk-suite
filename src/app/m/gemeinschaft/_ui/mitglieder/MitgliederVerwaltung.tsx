@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { App, Button, Form, Input, Modal, Popconfirm, Space } from "antd";
+import { App, Button, Form, Input, Modal } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { Kartentabelle, nachText, nachZahl } from "@/core/tabelle";
+import { Kartentabelle, Kurzkennung, Zeilenaktionen, nachText, nachZahl } from "@/core/tabelle";
 import {
   mitgliedAnlegenAction, mitgliedEntfernenAction, mitgliedNeuerLinkAction, mitgliedSpeichernAction,
 } from "../../_actions/mitglieder";
@@ -48,16 +48,6 @@ export function MitgliederVerwaltung({ zeilen, basis }: { zeilen: MitgliedZeile[
     });
   };
 
-  const kopieren = async (m: MitgliedZeile) => {
-    const adresse = persoenlicherLink(basis, m.link);
-    try {
-      await navigator.clipboard.writeText(adresse);
-      message.success(`Link kopiert. Schick ihn nur an ${vorname(m.name)}.`);
-    } catch {
-      message.info({ content: `Kopieren ging nicht. Der Link: ${adresse}`, duration: 15 });
-    }
-  };
-
   const oeffne = (f: Formular) => { setFeldFehler({}); setFormular(f); };
   const speichern = () => {
     if (!formular) return;
@@ -88,17 +78,17 @@ export function MitgliederVerwaltung({ zeilen, basis }: { zeilen: MitgliedZeile[
         karte={{ titel: "name", aktionen: "aktion" }}
         columns={[
           {
+            // Telefon steht als zweite, leisere Zeile unter dem Namen (IDA-393: eigene Spalte trieb die Tabelle bei 1280px aus dem Rahmen).
             title: "Name", key: "name", sorter: nachText<MitgliedZeile>((m) => m.name),
             render: (_: unknown, m: MitgliedZeile) => (
-              <span>
-                <strong>{m.name}</strong>
-                {m.verantwortlich.length > 0 ? <span className={s.kennzeichen}>verantwortlich</span> : null}
+              <span className={s.namenszelle}>
+                <span>
+                  <strong>{m.name}</strong>
+                  {m.verantwortlich.length > 0 ? <span className={s.kennzeichen}>verantwortlich</span> : null}
+                </span>
+                {m.telefon ? <a className={s.neben} href={`tel:${m.telefon.replace(/[^0-9+]/g, "")}`}>{m.telefon}</a> : null}
               </span>
             ),
-          },
-          {
-            title: "Telefon", key: "telefon",
-            render: (_: unknown, m: MitgliedZeile) => (m.telefon ? <a href={`tel:${m.telefon.replace(/[^0-9+]/g, "")}`}>{m.telefon}</a> : <span className={s.neben}>keine Nummer</span>),
           },
           {
             title: "Verantwortlich für", key: "verantwortlich",
@@ -113,41 +103,44 @@ export function MitgliederVerwaltung({ zeilen, basis }: { zeilen: MitgliedZeile[
           {
             title: "Persönlicher Link", key: "link",
             render: (_: unknown, m: MitgliedZeile) => (
-              <a className={s.mono} href={persoenlicherLink(basis, m.link)} target="_blank" rel="noreferrer" title="Ansicht des Mitglieds öffnen">
-                …/mein/{m.link.slice(0, 6)}…
-              </a>
+              <Kurzkennung
+                wert={persoenlicherLink(basis, m.link)}
+                anzeige={`…/mein/${m.link}`}
+                zeichen={13}
+                href={persoenlicherLink(basis, m.link)}
+                was="Link"
+                kopiert={`Link kopiert. Schick ihn nur an ${vorname(m.name)}.`}
+              />
             ),
           },
           {
             title: "Aktionen", key: "aktion",
             render: (_: unknown, m: MitgliedZeile) => (
-              <Space wrap>
-                <Button icon={<Icons8Ikone name="link" groesse={16} />} onClick={() => void kopieren(m)}>Link kopieren</Button>
-                <Popconfirm
-                  title="Neuen Link erzeugen?"
-                  description="Der bisherige Link geht dann sofort nicht mehr."
-                  okText="Neu erzeugen"
-                  cancelText="Abbrechen"
-                  onConfirm={() => fuehreAus(() => mitgliedNeuerLinkAction(m.id), "Neuer Link erzeugt. Der alte geht ab sofort nicht mehr.")}
-                >
-                  <Button disabled={laeuft}>Neuer Link</Button>
-                </Popconfirm>
-                <Button icon={<Icons8Ikone name="pencil" groesse={16} />} onClick={() => oeffne({ id: m.id, name: m.name, telefon: m.telefon })}>
-                  Bearbeiten
-                </Button>
-                <Popconfirm
-                  title={`${m.name} entfernen?`}
-                  description={m.verantwortlich.length
-                    ? "Die Zuständigkeiten fallen weg, die Aufgaben bleiben. Bei den Vorhaben, für die die Person verantwortlich ist, steht danach niemand."
-                    : "Die Zuständigkeiten fallen weg, die Aufgaben bleiben."}
-                  okText="Entfernen"
-                  okButtonProps={{ danger: true }}
-                  cancelText="Abbrechen"
-                  onConfirm={() => fuehreAus(() => mitgliedEntfernenAction(m.id), `${m.name} entfernt.`)}
-                >
-                  <Button type="text" disabled={laeuft}>Entfernen</Button>
-                </Popconfirm>
-              </Space>
+              <Zeilenaktionen
+                name={m.name}
+                aktionen={[
+                  {
+                    key: "neuerLink", label: "Neuer Link", disabled: laeuft,
+                    bestaetigen: { titel: "Neuen Link erzeugen?", text: "Der bisherige Link geht dann sofort nicht mehr.", ok: "Neu erzeugen" },
+                    onClick: () => fuehreAus(() => mitgliedNeuerLinkAction(m.id), "Neuer Link erzeugt. Der alte geht ab sofort nicht mehr."),
+                  },
+                  {
+                    key: "bearbeiten", label: "Bearbeiten", ikone: "pencil",
+                    onClick: () => oeffne({ id: m.id, name: m.name, telefon: m.telefon }),
+                  },
+                  {
+                    key: "entfernen", label: "Entfernen", danger: true, disabled: laeuft,
+                    bestaetigen: {
+                      titel: `${m.name} entfernen?`,
+                      text: m.verantwortlich.length
+                        ? "Die Zuständigkeiten fallen weg, die Aufgaben bleiben. Bei den Vorhaben, für die die Person verantwortlich ist, steht danach niemand."
+                        : "Die Zuständigkeiten fallen weg, die Aufgaben bleiben.",
+                      ok: "Entfernen",
+                    },
+                    onClick: () => fuehreAus(() => mitgliedEntfernenAction(m.id), `${m.name} entfernt.`),
+                  },
+                ]}
+              />
             ),
           },
         ]}

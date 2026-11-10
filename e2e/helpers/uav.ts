@@ -114,7 +114,7 @@ export async function warmeUavRouten(request: {
   // (`(teilnehmer)/anmelden/page.tsx`) — sie steht trotzdem hier: Check 10
   // navigiert dorthin, und ihre Erstuebersetzung faellt sonst in das
   // Zeitbudget der Zusicherung statt in diesen Warmlauf.
-  const routen = ["/api/anmeldung", "/api/me", "/api/tasks", "/api/progress", "/api/sync", "/anmelden"];
+  const routen = ["/api/anmeldung", "/api/abmeldung", "/api/me", "/api/tasks", "/api/progress", "/api/sync", "/anmelden"];
   for (const pfad of routen) {
     await request.get(uavUrl(pfad)).catch(() => {});
   }

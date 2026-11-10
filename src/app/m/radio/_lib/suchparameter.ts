@@ -347,7 +347,7 @@ export function angewandt(
  * festgehalten in `_db/leihen.ts` („DIE GRENZEN STEHEN AUF `borrowedAt`, NICHT AUF
  * `returnedAt`"). Eine Leihe, die am Vortag begann und am Einsatztag noch lief, faellt heraus.
  * ⛔ DIE ABFRAGE WIRD DAFUER NICHT AUFGEBOHRT: das braeche die 1:1-Deckung von `leihhistorie`
- * mit `listLoans`. Die Bedienelemente heissen deshalb „Ausgeliehen von"/„Ausgeliehen bis" und
+ * mit `listLoans`. Die Bedienelemente heissen deshalb „Ausgeliehen ab"/„Ausgeliehen bis" und
  * sagen, was sie tun. Eigentuemer der Frage, ob ein Ueberlappungsfenster gebraucht wird:
  * **Betreiber**, vor dem Rollout.
  * ========================================================================================= */

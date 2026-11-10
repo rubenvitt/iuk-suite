@@ -5,7 +5,9 @@ import { artikel, buchungen, chargen, lagerorte } from "../../_db/schema";
 import { zugangBuchen } from "./zugang";
 import { BuchungAbgewiesen } from "../buchungAbgewiesen";
 import type { Quelle } from "./abbuchung";
-import { HANDLAGER_ID } from "../konstanten";
+import {
+  CHARGE_OHNE_NUMMER, CHARGE_OHNE_VERFALL, HANDLAGER_ID, PSEUDO_VERFALL,
+} from "../konstanten";
 
 /**
  * DER ZUGANG ALS SCHREIBPFAD — die LETZTE Bank, nicht die erste.
@@ -144,5 +146,35 @@ describe("zugangBuchen — der Artikel muss aktiv sein (DRK-380)", () => {
     expect(() => bucheAuf("a-inaktiv", "c-inaktiv")).toThrow(/deaktiviert/);
     expect(t.db.select().from(artikel).where(eq(artikel.id, "a-inaktiv")).get()?.bestelltAt)
       .not.toBeNull();
+  });
+});
+
+describe("zugangBuchen — Material ohne Chargennummer (IDA-378)", () => {
+  function neu(chargenNr: string, verfall: string) {
+    return inTx((tx) =>
+      zugangBuchen(tx, {
+        artikelId: "a-aktiv", menge: 2, lagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr, verfall },
+        quelle: QUELLE, kommentar: null, referenz: null,
+      })).chargeId;
+  }
+  const nummer = (id: string) =>
+    t.db.select().from(chargen).where(eq(chargen.id, id)).get()?.chargenNr;
+
+  it("legt eine leere Nummer als „ohne Nummer“ an und nimmt beim zweiten Mal denselben Topf", () => {
+    const erste = neu("  ", "2027-03");
+    expect(nummer(erste)).toBe(CHARGE_OHNE_NUMMER);
+    expect(neu("", "2027-03")).toBe(erste);
+    expect(neu("", "2027-04")).not.toBe(erste);
+  });
+
+  it("ohne Nummer und ohne Verfall heisst die Charge „ohne Verfall“", () => {
+    const id = neu("", PSEUDO_VERFALL);
+    expect(nummer(id)).toBe(CHARGE_OHNE_VERFALL);
+    expect(neu("", PSEUDO_VERFALL)).toBe(id);
+  });
+
+  it("eine echte Nummer legt weiterhin bei jedem Zugang eine eigene Zeile an", () => {
+    expect(neu("L7", "2027-03")).not.toBe(neu("L7", "2027-03"));
   });
 });

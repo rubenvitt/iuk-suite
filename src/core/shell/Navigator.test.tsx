@@ -17,6 +17,12 @@ vi.mock("next/navigation", () => ({ usePathname: pathnameMock, useRouter: () => 
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
 vi.mock("@/core/theme/ThemeToggle", () => ({ ThemeToggle: ({ testId = "theme-toggle" }: { testId?: string }) => <span data-testid={testId} /> }));
 vi.mock("@/core/rueckmeldung/senden", () => ({ sendeRueckmeldung: vi.fn() }));
+// Die Server Action läse Sitzung und Moduldatenbanken; hier zählt, was „Springen zu“ daraus macht.
+type Ergebnisse = Awaited<ReturnType<typeof import("@/app/m/portal/sucheAktion").sucheAktion>>;
+const sucheAktion = vi.hoisted(() => vi.fn<(begriff: string) => Promise<Ergebnisse>>(async () => []));
+vi.mock("@/app/m/portal/sucheAktion", () => ({ sucheAktion }));
+/** Über die Verzögerung hinaus warten, bis die Module geantwortet haben. */
+const nachDerVerzoegerung = () => act(async () => { await new Promise((r) => setTimeout(r, 300)); });
 
 const { Navigator, SuiteLeiste } = await import("@/core/shell/Navigator");
 const { sperreVerlassen } = await import("@/core/shell/verlassen");
@@ -63,6 +69,7 @@ afterEach(async () => {
   await unmount();
   pathnameMock.mockReturnValue("/verwaltung/journal");
   pushMock.mockReset();
+  sucheAktion.mockClear();
 });
 
 describe("Navigator — Ebene Seiten", () => {
@@ -166,11 +173,7 @@ describe("Navigator — Springen zu", () => {
     await mount(<Navigator daten={daten()} />);
     await fill('[data-testid="befehlspalette-eingabe"]', "art");
     const treffer = queryAll('[data-testid="befehl"]');
-    expect(treffer.map((t) => t.querySelector("span")?.textContent)).toEqual([
-      "Artikel",
-      "Gerätewartung",
-      "In allen Modulen nach „art“ suchen",
-    ]);
+    expect(treffer.map((t) => t.querySelector("span")?.textContent)).toEqual(["Artikel", "Gerätewartung"]);
     expect(exists('[data-testid="app-umschalter"]')).toBe(false);
     const feld = query<HTMLInputElement>('[data-testid="befehlspalette-eingabe"]');
     await act(async () => {
@@ -186,11 +189,92 @@ describe("Navigator — Springen zu", () => {
     expect(document.body.textContent).toContain("Keine Treffer");
   });
 
-  it("bietet die suiteweite Suche an", async () => {
+  it("sucht ab zwei Zeichen auch in den Modulen und zeigt die Inhalte unter den Menütreffern (IDA-391)", async () => {
+    sucheAktion.mockResolvedValueOnce([
+      {
+        modul: "fahrzeuge", titel: "Fahrzeuge", icon: "truck", zustand: "treffer", mehr: false,
+        treffer: [{ id: "f1", art: "Fahrzeug", titel: "Rotkreuz Teststadt 11-83-1", merkmale: [], href: "https://f/fahrzeug/1" }],
+      },
+    ]);
     await mount(<Navigator daten={daten()} />);
-    await fill('[data-testid="befehlspalette-eingabe"]', "Akku");
-    const suche = queryAll('[data-testid="befehl"]').at(-1)!;
-    expect(suche.getAttribute("href")).toBe("https://p/suche?q=Akku");
+    await fill('[data-testid="befehlspalette-eingabe"]', "a");
+    await fill('[data-testid="befehlspalette-eingabe"]', "ar");
+    await fill('[data-testid="befehlspalette-eingabe"]', "art");
+    expect(exists('[data-testid="springen-laedt"]')).toBe(true);
+    await nachDerVerzoegerung();
+    // Entprellt: einmal, mit dem letzten Stand.
+    expect(sucheAktion).toHaveBeenCalledTimes(1);
+    expect(sucheAktion).toHaveBeenCalledWith("art");
+    const treffer = queryAll('[data-testid="befehl"]');
+    expect(treffer.map((t) => t.querySelector("span")?.textContent)).toEqual([
+      "Artikel",
+      "Gerätewartung",
+      "Rotkreuz Teststadt 11-83-1",
+      "Alle Treffer zeigen",
+    ]);
+    expect(treffer[2].getAttribute("href")).toBe("https://f/fahrzeug/1");
+    expect(treffer.at(-1)!.getAttribute("href")).toBe("https://p/suche?q=art");
+    expect(queryAll('[class*="abschnitt"]').map((k) => k.textContent)).toContain("Fahrzeuge");
+    expect(exists('[data-testid="springen-laedt"]')).toBe(false);
+  });
+
+  it("sagt „Keine Treffer“ erst, wenn auch die Module nichts liefern, und meldet einen Ausfall", async () => {
+    await mount(<Navigator daten={daten()} />);
+    await fill('[data-testid="befehlspalette-eingabe"]', "zzzz");
+    expect(document.body.textContent).not.toContain("Keine Treffer");
+    await nachDerVerzoegerung();
+    expect(document.body.textContent).toContain("Keine Treffer");
+
+    sucheAktion.mockRejectedValueOnce(new Error("offline"));
+    await fill('[data-testid="befehlspalette-eingabe"]', "zzzzz");
+    await nachDerVerzoegerung();
+    expect(exists('[data-testid="springen-fehler"]')).toBe(true);
+    expect(document.body.textContent).not.toContain("Keine Treffer");
+  });
+
+  it("zeigt das Tastenkürzel im leeren Feld, getippt nicht mehr", async () => {
+    await mount(<Navigator daten={daten()} />);
+    expect(query('[data-testid="springen-kuerzel"]').textContent).toMatch(/^(Strg\+K|⌘K)$/);
+    await fill('[data-testid="befehlspalette-eingabe"]', "art");
+    expect(exists('[data-testid="springen-kuerzel"]')).toBe(false);
+  });
+});
+
+describe("Navigator — Sprungziele und Scrollhinweis (IDA-380)", () => {
+  it("ein Inhalt des Moduls folgt clientseitig, unter eigener Überschrift", async () => {
+    await mount(<Navigator daten={daten({
+      sprungziele: [{ key: "ort:rtw", titel: "RTW 1", hinweis: "Fahrzeug", href: "/verwaltung/fahrzeuge/rtw" }],
+    })} />);
+    await fill('[data-testid="befehlspalette-eingabe"]', "rtw");
+    const [ziel] = queryAll('[data-testid="befehl"]');
+    expect(ziel.querySelector("span")?.textContent).toBe("RTW 1");
+    expect(ziel.getAttribute("href")).toBe("/verwaltung/fahrzeuge/rtw");
+    expect(document.body.textContent).toContain("In diesem Modul");
+    const feld = query<HTMLInputElement>('[data-testid="befehlspalette-eingabe"]');
+    await act(async () => {
+      feld.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(pushMock).toHaveBeenCalledWith("/verwaltung/fahrzeuge/rtw");
+  });
+
+  it("markiert die Seitenliste, solange unter der Kante noch etwas steht", async () => {
+    const masse = { scrollHeight: 1200, clientHeight: 600 };
+    const hoehe = (name: keyof typeof masse) =>
+      vi.spyOn(HTMLElement.prototype, name, "get").mockImplementation(() => masse[name]);
+    hoehe("scrollHeight");
+    hoehe("clientHeight");
+    try {
+      await mount(<Navigator daten={daten()} />);
+      const ebene = query('[data-testid="modulleiste"]').parentElement!;
+      expect(ebene.hasAttribute("data-mehr-unten")).toBe(true);
+      await act(async () => {
+        ebene.scrollTop = 600;
+        ebene.dispatchEvent(new Event("scroll"));
+      });
+      expect(ebene.hasAttribute("data-mehr-unten")).toBe(false);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
 
@@ -303,6 +387,19 @@ describe("SuiteLeiste", () => {
     for (const id of ["suite-drawer", "modulleiste-drawer", "app-umschalter-drawer", "nutzermenue-drawer", "theme-toggle-drawer"]) {
       expect(existsPortal(`[data-testid="${id}"]`), id).toBe(true);
     }
+  });
+
+  it("nennt auf dem Profil „Profil“, nicht die Übersicht (IDA-391)", async () => {
+    pathnameMock.mockReturnValue("/profil");
+    const nav: SuiteNavItem[] = [{ key: "start", title: "Übersicht", href: "/" }, { key: "suche", title: "Suche", href: "/suche" }];
+    await mount(<SuiteLeiste daten={daten({ modulKey: "portal", modulTitel: "Portal", nav })} />);
+    expect(query('[data-testid="menue-knopf"]').textContent).toBe("PortalProfil");
+  });
+
+  it("nennt auf einer Seite außerhalb der Navigation nur die App", async () => {
+    pathnameMock.mockReturnValue("/irgendwo");
+    await mount(<SuiteLeiste daten={daten({ nav: [{ key: "start", title: "Übersicht", href: "/" }] })} />);
+    expect(query('[data-testid="menue-knopf"]').textContent).toBe("Lagerbuch");
   });
 
   it("zeigt anonym Anmelden statt des Nutzermenüs", async () => {

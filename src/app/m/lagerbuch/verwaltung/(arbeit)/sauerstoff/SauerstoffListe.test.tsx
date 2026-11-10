@@ -247,7 +247,7 @@ describe("SauerstoffListe", () => {
   it("traegt exakt die sechs vereinbarten Spalten", async () => {
     await mount(<SauerstoffListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
     expect(queryAll("thead th").map((th) => th.textContent))
-      .toEqual(["Flasche", "Druck", "Füllstand", "Herkunft", "Größe", "Status"]);
+      .toEqual(["Flasche", "Status", "Druck", "Füllstand", "Herkunft", "Größe"]);
   });
 
   it("zeigt Herkunft, Detail-Link und die druckbezogenen Werte", async () => {

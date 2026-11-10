@@ -275,10 +275,10 @@ function posteingangAktionen(a: AufgabeRow): ReactNode {
      *
      *    DIE SICHTBARKEIT WAR NIE DAS PROBLEM UND IST ES AUCH JETZT NICHT: diese Knoepfe stehen
      *    ueber `AnlassZone` → `AufgabenListe` → `AufgabenZeile` bereits in `.zeilenAktion`, also in
-     *    der Aktionsspur, die ohne Zuwendung durchsichtig ist. DIE FORM war es. Zwei
+     *    der Aktionsspur (seit IDA-386 dauerhaft sichtbar). DIE FORM war es. Zwei
      *    vollflaechige antd-Knoepfe — einer davon mit einer 24-Zeichen-Beschriftung („Annehmen:
      *    Do, 13.08., 09:00") — sind eine Knopfleiste, und die Aktionsspur einer Notion-artigen
-     *    Liste soll bei Zuwendung einen WEG anzeigen, keine Schaltflaeche. Dieselbe Entscheidung
+     *    Liste soll einen WEG anzeigen, keine Schaltflaeche. Dieselbe Entscheidung
      *    und dieselbe Klasse wie beim Zuweisen-Ausloeser der Koordinationsflaeche.
      *
      *    „ANDERS EINPLANEN" IST EIN `<a>`, KEIN KNOPF, UND WAR ES INHALTLICH IMMER: antds

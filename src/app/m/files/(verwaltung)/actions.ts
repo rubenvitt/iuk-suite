@@ -45,6 +45,7 @@ import { requireFilesAccess } from "../_lib/access";
 import { reiheAvEin } from "../_lib/av";
 import { grenzen } from "../_lib/grenzen";
 import { bcryptHash } from "../_lib/passwort";
+import { entschaerfeTitel } from "../_lib/zip";
 import {
   SchreibbesitzBelegt,
   loesche,
@@ -65,7 +66,14 @@ import {
  * `PUT /api/upload/<fileId>` zu schicken (§7.1 Schritt 1).
  */
 export type AnlegenErgebnis =
-  | { ok: true; shareId: string; dateien: { fileId: string; name: string }[] }
+  | {
+      ok: true;
+      shareId: string;
+      dateien: { fileId: string; name: string }[];
+      /** Für die Ausgabe nach dem Anlegen (IDA-388): Überschrift und Dateiname des QR. */
+      titel: string;
+      qrDateiname: string;
+    }
   | { ok: false; feldFehler: Record<string, string>; werte: Record<string, string> };
 
 /**
@@ -305,7 +313,9 @@ export async function anlegenAction(formData: FormData): Promise<AnlegenErgebnis
     });
 
     revalidatePath(INTERNER_PFAD);
-    return { ok: true, shareId, dateien };
+    // Der QR-Dateiname entsteht HIER: `entschaerfeTitel` zieht ueber `_lib/av.ts`
+    // `node:net` nach und gehoert nicht ins Client-Bundle der Upload-Insel.
+    return { ok: true, shareId, dateien, titel, qrDateiname: `${entschaerfeTitel(titel)}-qr.png` };
   });
 }
 

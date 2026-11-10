@@ -19,11 +19,14 @@ import {
 import {
   click,
   clickElement,
+  clickPortal,
+  existsPortal,
   fill,
   fillElement,
   mount,
   query,
   queryAll,
+  queryPortal,
   rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
@@ -41,7 +44,7 @@ const SENDUNG = expect.stringMatching(/^[0-9a-f-]{36}$/);
 
 const ORTE: ZaehlOrt[] = [
   { id: null, label: "Ganzer Handlager" },
-  { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
+  { id: HANDLAGER_ID, label: "Handlager ohne Schrank" },
   { id: "schrank-1", label: "Schrank 1" },
 ].map((o) => ({ ...o, schluessel: zaehlOrtWert(o.id) }));
 
@@ -123,6 +126,29 @@ async function warteAuf(pruefen: () => boolean, beschreibung: string): Promise<v
     await warte();
   }
   throw new Error(`Nicht rechtzeitig sichtbar: ${beschreibung}`);
+}
+
+/**
+ * IDA-379 — „Inventur abschließen" fragt erst nach; gebucht wird mit „Buchen"
+ * in der Rueckfrage. Liefert den Text der Folge, wie er dort stand.
+ */
+async function abschliessen(): Promise<string> {
+  await click("button[data-rolle='abschluss']");
+  return bestaetigen();
+}
+
+const OFFENE_RUECKFRAGE = ".ant-popover:not(.ant-popover-hidden)";
+
+async function bestaetigen(): Promise<string> {
+  await warteAuf(() => existsPortal(`${OFFENE_RUECKFRAGE} [data-rolle='abschluss-folge']`), "Rückfrage");
+  const text = folgeText();
+  await clickPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons .ant-btn-primary`);
+  return text;
+}
+
+function folgeText(): string {
+  const folge = queryPortal(`${OFFENE_RUECKFRAGE} [data-rolle='abschluss-folge']`);
+  return Array.from(folge.children).map((k) => k.textContent).join(" | ");
 }
 
 function elementeVomTyp(wert: ReactNode, typ: unknown): ReactElement[] {
@@ -232,8 +258,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
       "Bestand",
       "Abweichung",
       "Ist",
-      "MHD",
-      "Min.",
+      // IDA-393: MHD steht unter dem Artikel, „min." unter dem Bestand.
       "Kategorie",
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Inventur");
@@ -294,19 +319,43 @@ describe("InventurForm — Tabelle und Eingabe", () => {
     expect(knopf.disabled).toBe(false);
   });
 
+  /*
+   * IDA-379 — der Befund: „Inventur abschließen" buchte ohne Rueckfrage, auch
+   * bei 2 von 14 erfassten Artikeln. Jetzt fragt der Knopf und nennt die Folge;
+   * ohne „Buchen" geht nichts raus.
+   */
+  it("fragt vor dem Buchen nach und nennt Ungezähltes und Korrekturen", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    await fill("input[aria-label='Ist-Bestand Mullbinde']", "9");
+    await fill("input[aria-label='Kommentar']", "Quartalsinventur");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => existsPortal(`${OFFENE_RUECKFRAGE} [data-rolle='abschluss-folge']`), "Rückfrage");
+    expect(folgeText()).toBe("1 nicht gezählt | 1 Korrektur: Mullbinde 12 → 9");
+    expect(mocks.inventurKorrektur).not.toHaveBeenCalled();
+
+    await clickPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons .ant-btn:not(.ant-btn-primary)`);
+    await warte();
+    expect(mocks.inventurKorrektur).not.toHaveBeenCalled();
+
+    expect(await abschliessen()).toBe("1 nicht gezählt | 1 Korrektur: Mullbinde 12 → 9");
+    await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
+    expect(mocks.inventurKorrektur.mock.calls[0]?.[0]).toMatchObject({ abdeckung: { erfasst: 1, gesamt: 2 } });
+  });
+
   it("sendet auch 0 und eine berührt-unveränderte Position, aber nie unberührte IDs", async () => {
     await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "12");
     await fill("input[aria-label='Ist-Bestand Pflaster']", "0");
     await fill("input[aria-label='Kommentar']", "  Quartalsinventur  ");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
 
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Quartalsinventur",
       ortId: null,
       umfang: null,
+      abdeckung: { erfasst: 2, gesamt: 2 },
       positionen: [
         { artikelId: "a1", ist: 12 },
         { artikelId: "a2", ist: 0 },
@@ -324,9 +373,12 @@ describe("InventurForm — asynchroner Abschluss", () => {
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "Zählung bleibt");
     const knopf = query<HTMLButtonElement>("button[data-rolle='abschluss']");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => existsPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons`), "Rückfrage");
+    const buchen = queryPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons .ant-btn-primary`);
     await act(async () => {
-      knopf.click();
-      knopf.click();
+      buchen.click();
+      buchen.click();
     });
     await warte();
 
@@ -352,7 +404,7 @@ describe("InventurForm — asynchroner Abschluss", () => {
     await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "Fehlerretention");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => queryAll("[data-rolle='entwurf-hinweis']").length === 1, "Statuszeile");
 
     expect(query("[data-rolle='entwurf-hinweis']").getAttribute("data-art")).toBe("nicht-gesendet");
@@ -382,7 +434,7 @@ describe("InventurForm — asynchroner Abschluss", () => {
     await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "Rollout");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "erster Versuch");
     const erste = mocks.inventurKorrektur.mock.calls[0]![0] as { sendungId?: string };
     await unmount();
@@ -401,7 +453,7 @@ describe("InventurForm — asynchroner Abschluss", () => {
     await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "Fehlerretention");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => queryAll(".ant-alert-warning").length === 1, "Inventur-Warnung");
 
     expect(query(".ant-alert-warning").textContent)
@@ -419,8 +471,8 @@ describe("InventurForm — Zeile und Filter", () => {
   it("zeigt das nächste MHD und den Mindestbestand", async () => {
     await mount(<Formular zeilen={ZEILEN} />);
     const zeile = query("tr[data-row-key='a1']");
-    expect(zeile.textContent).toContain("10/26");
-    expect(zeile.textContent).toContain("5");
+    expect(zeile.querySelector("[data-rolle='mhd']")?.textContent).toBe("10/26");
+    expect(zeile.querySelector("[data-rolle='mindest']")?.textContent).toBe("min. 5");
   });
 
   it("behält einen gezählten Wert, wenn der Filter die Zeile ausblendet, und bucht ihn mit", async () => {
@@ -430,12 +482,13 @@ describe("InventurForm — Zeile und Filter", () => {
     expect(queryAll("tr[data-row-key='a2']")).toHaveLength(0);
     expect(query("[data-rolle='ausgeblendet-hinweis']").textContent).toContain("1 gezählte Position ist ausgeblendet");
     await fill("input[aria-label='Kommentar']", "Teil");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Teil",
       ortId: null,
       umfang: { kategorien: [], faecher: ["A1"] },
+      abdeckung: { erfasst: 0, gesamt: 1 },
       positionen: [{ artikelId: "a2", ist: 3 }],
       sendungId: SENDUNG,
     });
@@ -451,12 +504,13 @@ describe("InventurForm — Zeile und Filter", () => {
     expect(queryAll("tr[data-row-key='a2']")).toHaveLength(0);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "Hygiene");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Hygiene",
       ortId: null,
       umfang: { kategorien: ["Hygiene"], faecher: [] },
+      abdeckung: { erfasst: 1, gesamt: 1 },
       positionen: [{ artikelId: "a1", ist: 11 }],
       sendungId: SENDUNG,
     });
@@ -513,7 +567,7 @@ describe("InventurForm — Zeile und Filter", () => {
     await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "X");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => queryAll(".ant-alert-warning").length === 1, "Warnung");
     expect(query(".ant-alert-warning").textContent).toContain(INVENTUR_TEXTE.chargeUnpassend);
   });
@@ -526,10 +580,11 @@ describe("InventurForm — Zeile und Filter", () => {
     expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']").value).toBe("9");
     expect(query("tr[data-row-key='a1']").textContent).toContain("je Charge");
     await fill("input[aria-label='Kommentar']", "Charge");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Charge", ortId: null, umfang: null,
+      abdeckung: { erfasst: 1, gesamt: 2 },
       positionen: [{ artikelId: "a1", chargen: [{ chargeId: "c1", ist: 9 }], neu: [] }],
       sendungId: SENDUNG,
     });
@@ -549,7 +604,7 @@ describe("InventurForm — Zeile und Filter", () => {
     await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "X");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => queryAll(".ant-alert-success").length === 1, "Erfolg");
     expect(query(".ant-alert-success a").getAttribute("href")).toBe("/verwaltung/inventur/verlauf/lauf-1");
   });
@@ -603,7 +658,7 @@ describe("InventurForm — „Stimmt“, „Offen“ und Suche (IDA-237)", () =>
     // Allein eine Bestaetigung reicht zum Abschliessen — sie IST eine Zaehlung.
     await fill("input[aria-label='Kommentar']", "Quartalsinventur");
     expect(query<HTMLButtonElement>("button[data-rolle='abschluss']").disabled).toBe(false);
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
     /*
      * ⚠️ DIESELBE POSITION, DIE EIN GETIPPTES „4" ERGAEBE — keine neue Nutzlast,
@@ -612,6 +667,7 @@ describe("InventurForm — „Stimmt“, „Offen“ und Suche (IDA-237)", () =>
      */
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Quartalsinventur", ortId: null, umfang: null,
+      abdeckung: { erfasst: 1, gesamt: 2 },
       positionen: [{ artikelId: "a2", ist: 4 }],
       sendungId: SENDUNG,
     });
@@ -668,7 +724,7 @@ describe("InventurForm — „Stimmt“, „Offen“ und Suche (IDA-237)", () =>
     expect(query('[data-rolle="fortschritt"]').textContent).toBe("1 von 2 erfasst · 0 Abweichungen");
     expect(queryAll("[data-rolle='ausgeblendet-hinweis']")).toHaveLength(0);
     await fill("input[aria-label='Kommentar']", "Suche");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
     expect(mocks.inventurKorrektur.mock.calls[0]?.[0]).toMatchObject({ umfang: null });
   });
@@ -753,12 +809,13 @@ describe("±-Knöpfe", () => {
     await click(PLUS);
     await click(MINUS);
     await fill('[aria-label="Kommentar"]', "Quartalsinventur");
-    await click('[data-rolle="abschluss"]');
+    await abschliessen();
 
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Quartalsinventur",
       ortId: null,
       umfang: null,
+      abdeckung: { erfasst: 1, gesamt: 2 },
       positionen: [{ artikelId: "a1", ist: 12 }],
       sendungId: SENDUNG,
     });
@@ -841,13 +898,14 @@ describe("InventurForm — Zählort (DRK-337)", () => {
     await mount(<Formular zeilen={ZEILEN} ortId="schrank-1" />);
     await fill("input[aria-label='Ist-Bestand Pflaster']", "6");
     await fill("input[aria-label='Kommentar']", "Schrank 1");
-    await click("button[data-rolle='abschluss']");
+    await abschliessen();
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
 
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Schrank 1",
       ortId: "schrank-1",
       umfang: null,
+      abdeckung: { erfasst: 1, gesamt: 2 },
       positionen: [{ artikelId: "a2", ist: 6 }],
       sendungId: SENDUNG,
     });
@@ -891,7 +949,7 @@ describe("Inventurseite als RSC", () => {
         // der Kennung `alle` von ihm nicht zu unterscheiden.
         orte: [
           { id: null, schluessel: "alle", label: "Ganzer Handlager" },
-          { id: "handlager", schluessel: "ort:handlager", label: "Nicht zugeordnet" },
+          { id: "handlager", schluessel: "ort:handlager", label: "Handlager ohne Schrank" },
         ],
       });
       expect(istRekursivJsonSicher(form.props)).toBe(true);

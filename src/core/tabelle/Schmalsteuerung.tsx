@@ -25,8 +25,9 @@
  * ausgelassene Verbesserung.
  */
 
-import { useMemo, type Key, type ReactNode } from "react";
+import { useId, useMemo, useState, type Key, type ReactNode } from "react";
 import { Button, Flex, Select } from "antd";
+import { Icons8Ikone } from "../ikonen/Icons8Ikone";
 import { SPACE } from "../theme/tokens";
 import { SCHRIFT } from "../theme/schrift";
 import { NurSchmal } from "./Schmalkarten";
@@ -48,7 +49,28 @@ export type SchmalsteuerungProps<T> = {
   gesamt: number;
   /** Ab wie vielen Zeilen die Leiste überhaupt erscheint. */
   abZeilen?: number;
+  /**
+   * IDA-380 — die Felder liegen hinter einem Knopf „Filter", statt offen über
+   * der Liste zu stehen. Begründung bei `Schmalsteuerung`.
+   */
+  eingeklappt?: boolean;
+  /**
+   * Weitere Felder des Aufrufers, die schmal mit in der Leiste stehen (etwa ein
+   * gespeicherter Kategorienfilter), und wie viele davon gerade wirken — die
+   * Zahl geht in die Anzeige am Knopf ein.
+   */
+  zusatz?: { inhalt: ReactNode; aktiv: number };
 };
+
+/** Wie viele Spaltenfilter gerade einen Wert tragen. */
+export function aktiveFilter(filter: FilterZustand): number {
+  return Object.values(filter).filter((werte) => (werte?.length ?? 0) > 0).length;
+}
+
+/** Die Beschriftung des Filterknopfs — mit Zahl, sobald etwas wirkt. */
+export function filterknopfText(aktiv: number): string {
+  return aktiv > 0 ? `Filter (${aktiv})` : "Filter";
+}
 
 /**
  * Ab wie vielen Zeilen eine Filter- und Sortierleiste mehr nützt als kostet.
@@ -117,7 +139,11 @@ export function Schmalsteuerung<T>({
   angezeigt,
   gesamt,
   abZeilen = STEUERUNG_AB_ZEILEN,
+  eingeklappt = false,
+  zusatz,
 }: SchmalsteuerungProps<T>) {
+  const [offen, setOffen] = useState(false);
+  const feldId = useId();
   const filterbar = useMemo(() => spalten
     .map((spalte) => ({ spalte, schluessel: spaltenSchluessel(spalte) }))
     .filter((eintrag): eintrag is { spalte: KartenSpalte<T>; schluessel: string } =>
@@ -141,8 +167,22 @@ export function Schmalsteuerung<T>({
   // Nichts zu bedienen — oder eine Liste, die man mit einem Blick überschaut.
   // Der zweite Teil der Bedingung ist der wichtige: ein GESETZTER Filter hält
   // die Leiste da, auch wenn er die Liste kurz gemacht hat (s. `STEUERUNG_AB_ZEILEN`).
-  if (filterbar.length === 0 && sortierwahl.length === 0) return null;
-  if (gesamt < abZeilen && !gefiltert) return null;
+  if (filterbar.length === 0 && sortierwahl.length === 0 && !zusatz) return null;
+  if (gesamt < abZeilen && !gefiltert && !(zusatz && zusatz.aktiv > 0)) return null;
+
+  const wirksam = aktiveFilter(filter) + (zusatz?.aktiv ?? 0);
+  /*
+   * ⚠️ EINGEKLAPPT, WEIL JEDES FELD AUF 390px EINE VOLLE ZEILE KOSTET (IDA-380).
+   * Die Artikelliste stellte so neun Felder vor die erste Karte — Suche,
+   * Kategorien, sechs Spaltenfilter, Sortierung —, und die Liste, um die es
+   * geht, begann erst eine Bildschirmhöhe tiefer. Die Suche bleibt beim
+   * Aufrufer offen stehen; alles andere wartet hinter einem Knopf.
+   *
+   * ⚠️ DIE ZAHL AM KNOPF IST PFLICHT, NICHT ZIER: eingeklappt sieht man den
+   * gesetzten Filter nicht mehr. Ohne sie sähe eine gefilterte Liste aus wie
+   * ein kleiner Bestand — dieselbe Lehre wie bei der Trefferzahl unten.
+   */
+  const felderZeigen = !eingeklappt || offen;
 
   const sortierwert = sortierung.spalte && sortierung.richtung
     ? `${String(sortierung.spalte)}${TRENNER}${sortierung.richtung}`
@@ -151,56 +191,72 @@ export function Schmalsteuerung<T>({
   return (
     <NurSchmal data-rolle="schmalsteuerung">
       <Flex vertical gap={SPACE.sm} style={{ marginBlockEnd: SPACE.md }}>
-        <Flex gap={SPACE.sm} wrap>
-          {filterbar.map(({ spalte, schluessel }) => {
-            const name = typeof spalte.title === "string" ? spalte.title : schluessel;
-            return (
-              <Select<string[]>
-                key={schluessel}
-                mode="multiple"
-                aria-label={`${name} filtern`}
-                placeholder={name}
+        {eingeklappt ? (
+          <Flex gap={SPACE.sm} align="center" wrap>
+            <Button
+              aria-expanded={offen}
+              aria-controls={feldId}
+              icon={<Icons8Ikone name="filter" groesse={16} />}
+              onClick={() => setOffen((vorher) => !vorher)}
+              data-rolle="filterknopf"
+            >
+              {filterknopfText(wirksam)}
+            </Button>
+          </Flex>
+        ) : null}
+        {felderZeigen ? (
+          <Flex gap={SPACE.sm} wrap id={feldId}>
+            {filterbar.map(({ spalte, schluessel }) => {
+              const name = typeof spalte.title === "string" ? spalte.title : schluessel;
+              return (
+                <Select<string[]>
+                  key={schluessel}
+                  mode="multiple"
+                  aria-label={`${name} filtern`}
+                  placeholder={name}
+                  style={{ minWidth: 160, flex: "1 1 160px" }}
+                  value={(filter[schluessel] ?? []).map(String)}
+                  // ⚠️ LEER HEISST `null`, NICHT `[]`. `angezeigteAnzahl` liest
+                  // `filteredValue` wörtlich — ein leeres Feld wäre ein gesetzter
+                  // Filter ohne Werte, und die Trefferanzeige spräche von einer
+                  // Auswahl, die niemand getroffen hat.
+                  onChange={(werte) => onFilter({
+                    ...filter,
+                    [schluessel]: werte.length > 0 ? werte : null,
+                  })}
+                  options={eintraege(spalte.filters).map((eintrag) => ({
+                    value: String(eintrag.value),
+                    label: eintrag.text,
+                  }))}
+                  // Eine virtuelle Auswahlliste rendert in jsdom keinen Eintrag —
+                  // dieselbe Klasse wie Falle 14, und hier ohne jeden Gewinn: die
+                  // Listen sind kurz.
+                  virtual={false}
+                />
+              );
+            })}
+            {sortierwahl.length > 0 ? (
+              <Select<string>
+                aria-label="Sortierung"
+                placeholder="Sortieren"
                 style={{ minWidth: 160, flex: "1 1 160px" }}
-                value={(filter[schluessel] ?? []).map(String)}
-                // ⚠️ LEER HEISST `null`, NICHT `[]`. `angezeigteAnzahl` liest
-                // `filteredValue` wörtlich — ein leeres Feld wäre ein gesetzter
-                // Filter ohne Werte, und die Trefferanzeige spräche von einer
-                // Auswahl, die niemand getroffen hat.
-                onChange={(werte) => onFilter({
-                  ...filter,
-                  [schluessel]: werte.length > 0 ? werte : null,
-                })}
-                options={eintraege(spalte.filters).map((eintrag) => ({
-                  value: String(eintrag.value),
-                  label: eintrag.text,
-                }))}
-                // Eine virtuelle Auswahlliste rendert in jsdom keinen Eintrag —
-                // dieselbe Klasse wie Falle 14, und hier ohne jeden Gewinn: die
-                // Listen sind kurz.
+                value={sortierwert}
+                allowClear
+                onChange={(wert) => {
+                  if (!wert) {
+                    onSortierung({ spalte: undefined, richtung: null });
+                    return;
+                  }
+                  const [spalte, richtung] = wert.split(TRENNER);
+                  onSortierung({ spalte, richtung: richtung as "ascend" | "descend" });
+                }}
+                options={sortierwahl}
                 virtual={false}
               />
-            );
-          })}
-          {sortierwahl.length > 0 ? (
-            <Select<string>
-              aria-label="Sortierung"
-              placeholder="Sortieren"
-              style={{ minWidth: 160, flex: "1 1 160px" }}
-              value={sortierwert}
-              allowClear
-              onChange={(wert) => {
-                if (!wert) {
-                  onSortierung({ spalte: undefined, richtung: null });
-                  return;
-                }
-                const [spalte, richtung] = wert.split(TRENNER);
-                onSortierung({ spalte, richtung: richtung as "ascend" | "descend" });
-              }}
-              options={sortierwahl}
-              virtual={false}
-            />
-          ) : null}
-        </Flex>
+            ) : null}
+            {zusatz?.inhalt}
+          </Flex>
+        ) : null}
         {gefiltert ? (
           <Flex gap={SPACE.sm} align="center" wrap>
             {/*

@@ -135,7 +135,6 @@ function TeilnehmerInsel({ ansicht }: { ansicht: "start" | "aufgabe" }) {
     fortschritt,
     durchfuehrungHinzufuegen,
     durchfuehrungEntfernen,
-    zielanzahlSetzen,
     nichtAnwendbarSetzen,
   } = useFortschritt(katalog, besitzer);
 
@@ -173,13 +172,13 @@ function TeilnehmerInsel({ ansicht }: { ansicht: "start" | "aufgabe" }) {
           // letzten Eingabe im eigenen State (DRK-286).
           key={besitzer}
           besitzer={besitzer}
+          eigenerName={identity?.kind === "participant" ? identity.name : undefined}
           aufgabe={aufgabe}
           fortschritt={aufgabeFortschritt}
           heute={heute}
           nurLesen={nurLesen}
           onAdd={(e) => durchfuehrungHinzufuegen(aufgabe.id, e)}
           onRemove={(eid) => durchfuehrungEntfernen(aufgabe.id, eid)}
-          onZielanzahl={(z) => zielanzahlSetzen(aufgabe.id, z)}
           onNichtAnwendbar={(w) => nichtAnwendbarSetzen(aufgabe.id, w)}
         />
       ) : (

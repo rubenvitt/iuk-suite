@@ -49,6 +49,7 @@
  */
 import { mkdir, open, readFile, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { alsMegabyte } from "./anzeige";
 
 /** Das nanoid-Alphabet in genau 21 Zeichen — die Vorgabelaenge von `newId()` in `_db/schema.ts`. */
 const ID_MUSTER = /^[A-Za-z0-9_-]{21}$/;
@@ -256,19 +257,19 @@ export async function legeNachweisAb(
   void dateiname; // Anzeigetext — bewusst ungelesen, siehe Kopfkommentar.
 
   if (bytes.byteLength === 0) {
-    return ablehnung("kein-inhalt", "Die Datei enthält keine Bytes.");
+    return ablehnung("kein-inhalt", "Das Foto ist leer.");
   }
   if (bytes.byteLength > maxBytes) {
     return ablehnung(
       "zu-gross",
-      `Die Datei ist ${bytes.byteLength} Bytes groß, erlaubt sind höchstens ${maxBytes} Bytes.`,
+      `Das Foto ist zu groß (${alsMegabyte(bytes.byteLength)}), erlaubt sind höchstens ${alsMegabyte(maxBytes)}.`,
     );
   }
   const mime = bildTypAus(bytes);
   if (mime === null) {
     return ablehnung(
       "inhalt-nicht-erlaubt",
-      "Der Inhalt gehört zu keinem der erlaubten Bildformate (JPEG, PNG, GIF, WebP, HEIC, HEIF).",
+      "Das ist kein Foto in einem passenden Format (JPEG, PNG, GIF, WebP, HEIC oder HEIF).",
     );
   }
 

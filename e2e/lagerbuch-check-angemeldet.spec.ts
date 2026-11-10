@@ -145,10 +145,10 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
   test("der Kopf nennt die angemeldete Person — und keinen Token-Code", async ({ page }) => {
     await page.goto(lagerbuchUrl("/helfer/check"));
     await expect(page.getByText(/^Angemeldet: /)).toBeVisible();
-    // Gegenprobe: das Kärtchen-Etikett beginnt mit „Zugang: Token“. Ohne sie
+    // Gegenprobe: das Kärtchen-Etikett beginnt mit „Zugangscode ·“. Ohne sie
     // wäre die Zeile darüber auch dann grün, wenn beide Sätze gleichzeitig
     // dastünden.
-    await expect(page.getByText(/^Zugang: Token/)).toHaveCount(0);
+    await expect(page.getByText(/^Zugangscode · /)).toHaveCount(0);
   });
 
   test("statt „Beenden“ steht der Weg zurück in die Verwaltung", async ({ page }) => {
@@ -256,6 +256,6 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
     // und hoerte auf, die Bindung aus DRK-302 zu behaupten.
     await expect(page.getByText("Einheit wählen")).toHaveCount(0);
     // Und der Kopf zeigt wieder das Kärtchen, nicht das Konto.
-    await expect(page.getByText(/^Zugang: Token/)).toBeVisible();
+    await expect(page.getByText(/^Zugangscode · /)).toBeVisible();
   });
 });

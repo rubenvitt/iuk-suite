@@ -111,6 +111,10 @@ export function Spaltenkarte<T>({
         ) : null}
       </div>
 
+      {/* IDA-380 — was wachsen kann, steht unter dem Titel statt neben ihm
+          (Begründung an `Kartenwunsch.unterTitel`). Leere Werte fallen weg. */}
+      <UnterTitel aufbau={aufbau} zeile={zeile} index={index} />
+
       {/*
         ⚠️ EINE BESCHREIBUNGSLISTE UND KEIN RASTER AUS `div`s. `dt`/`dd` ist
         genau das Paar aus Beschriftung und Wert, das hier steht; eine
@@ -126,6 +130,22 @@ export function Spaltenkarte<T>({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function UnterTitel<T>({ aufbau, zeile, index }: {
+  aufbau: Kartenaufbau<T>;
+  zeile: T;
+  index: number;
+}) {
+  const werte = aufbau.unterTitel
+    .map((fach) => ({ schluessel: fach.schluessel, wert: zellenInhalt(fach.spalte, zeile, index) }))
+    .filter((eintrag) => traegtInhalt(eintrag.wert));
+  if (werte.length === 0) return null;
+  return (
+    <div className={stil.unterTitel}>
+      {werte.map((eintrag) => <div key={eintrag.schluessel}>{eintrag.wert}</div>)}
+    </div>
   );
 }
 

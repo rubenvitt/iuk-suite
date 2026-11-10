@@ -12,16 +12,18 @@ import type { Dayjs } from "dayjs";
 import {
   Alert,
   Button,
-  DatePicker,
+  Checkbox,
   Drawer,
   Form,
   Input,
   InputNumber,
+  Popconfirm,
   Segmented,
   Select,
   Space,
   Switch,
   Tabs,
+  type FormRule,
   type InputRef,
 } from "antd";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
@@ -41,8 +43,11 @@ import {
   loescheElement,
   pruefeLoeschbar,
 } from "../_actions/loeschen";
-import { ampelTon, fmtVerfall } from "../_lib/format";
-import { einheitenartLabel, einheitLabels, type Einheitenart } from "../_lib/konstanten";
+import { istAbgelaufen } from "../_lib/domain/verfall";
+import { ampelTon, fmtVerfall, fmtVerfallLang } from "../_lib/format";
+import {
+  einheitenartLabel, einheitLabels, PSEUDO_VERFALL, type Einheitenart,
+} from "../_lib/konstanten";
 import { journalZeile } from "../_lib/journalZeile";
 import { kategorieNormalisieren } from "../_lib/kategorie";
 import { SCHRIFT } from "../_lib/schrift";
@@ -52,10 +57,10 @@ import { Ikone } from "./ikonen";
 import { KategorieEingabe } from "./KategorieEingabe";
 import { LoeschButton } from "./LoeschButton";
 import { monatAusPicker } from "./monat";
+import { MonatsFeld } from "./MonatsFeld";
 import { OrtVerteilung } from "./OrtVerteilung";
 import { Plakette } from "./Plakette";
 import styles from "./verwaltung.module.css";
-import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 export const NEUE_CHARGE = "__neu__";
 
@@ -87,6 +92,16 @@ const BUCHUNGSARTEN: { value: Buchungsart; label: string }[] = [
   { value: "entnahme", label: "Entnahme" },
   { value: "umlagern", label: "Umlagern" },
 ];
+
+/**
+ * IDA-378 — JEDE REGEL MIT EIGENER MELDUNG. Ohne `message` setzt antd seinen
+ * Standardsatz aus der Locale ein, und der siezt („Bitte geben Sie … an").
+ */
+const MENGE_REGELN: FormRule[] = [
+  { required: true, message: "Bitte eine Menge eingeben." },
+  { type: "number", min: 1, message: "Die Menge muss mindestens 1 sein." },
+];
+const CHARGE_REGELN: FormRule[] = [{ required: true, message: "Bitte eine Charge wählen." }];
 
 /** Das Journal filtert nach Artikel-Kennung (`?artikel=`, IDA-239). */
 const JOURNAL_PFAD = "/verwaltung/journal";
@@ -151,6 +166,8 @@ type ArtikelDrawerProps = {
   fahrzeuge: Fahrzeug[];
   /** DRK-294 — Vorschlaege fuer das Kategoriefeld, je eine Schreibweise. */
   kategorien?: readonly string[];
+  /** IDA-378 — ein eben angelegter Artikel oeffnet auf „Buchen" (Zugang). */
+  startReiter?: Reiter;
 };
 
 type ZugangWerte = {
@@ -158,8 +175,20 @@ type ZugangWerte = {
   chargeId: string;
   chargenNr?: string;
   verfall?: Dayjs | null;
+  /** IDA-378 — statt eines Monats: die Charge verfaellt nicht (`PSEUDO_VERFALL`). */
+  ohneVerfall?: boolean;
   zielLagerortId?: string;
 };
+
+/** Was `bucheZugang` bekommt — eine von zwei Chargenangaben (s. `ZugangSchema`). */
+type ZugangEingabe =
+  | { artikelId: string; menge: number; chargeId: string; zielLagerortId?: string }
+  | {
+    artikelId: string;
+    menge: number;
+    neueCharge: { chargenNr: string; verfall: string };
+    zielLagerortId?: string;
+  };
 
 type EntnahmeWerte = {
   menge: number;
@@ -195,7 +224,7 @@ type ArtikelPatch = Partial<{
 }>;
 
 export function ArtikelDrawer({
-  id, onSchliessen, fahrzeuge, kategorien = [],
+  id, onSchliessen, fahrzeuge, kategorien = [], startReiter = "uebersicht",
 }: ArtikelDrawerProps) {
   const [detail, setDetail] = useState<ArtikelDetailResult>();
   /**
@@ -217,7 +246,7 @@ export function ArtikelDrawer({
   }
 
   const [busy, setBusy] = useState(false);
-  const [reiter, setReiter] = useState<Reiter>("uebersicht");
+  const [reiter, setReiter] = useState<Reiter>(startReiter);
   /** `null` = noch nicht gewaehlt; dann entscheidet der Artikel (s. `art`). */
   const [buchungsart, setBuchungsart] = useState<Buchungsart | null>(null);
   const [bearbeiten, setBearbeiten] = useState(false);
@@ -233,6 +262,17 @@ export function ArtikelDrawer({
   const [umlagerForm] = Form.useForm<UmlagerWerte>();
   const ausgewaehlteCharge =
     Form.useWatch("chargeId", zugangForm) ?? NEUE_CHARGE;
+  const ohneVerfall = Form.useWatch("ohneVerfall", zugangForm) === true;
+  /** IDA-378 — getippter Text im Monatsfeld, der kein Monat ist (s. `MonatsFeld`). */
+  const verfallUngueltig = useRef<string | null>(null);
+  /**
+   * IDA-378 — die offene Rueckfrage „Verfall … ist abgelaufen. Trotzdem
+   * buchen?". Sie haelt die fertige Eingabe; „Trotzdem buchen" schickt sie mit
+   * `abgelaufenBestaetigt`, der Server weist sie ohne das ab.
+   */
+  const [rueckfrage, setRueckfrage] = useState<
+    { eingabe: ZugangEingabe; verfall: string } | null
+  >(null);
   const umlagerCharge = Form.useWatch("chargeId", umlagerForm);
   const umlagerVon = Form.useWatch("vonLagerortId", umlagerForm);
 
@@ -380,17 +420,12 @@ export function ArtikelDrawer({
   }
 
   async function zugangBuchen(werte: ZugangWerte): Promise<void> {
-    let eingabe:
-      | { artikelId: string; menge: number; chargeId: string; zielLagerortId?: string }
-      | {
-        artikelId: string;
-        menge: number;
-        neueCharge: { chargenNr: string; verfall: string };
-        zielLagerortId?: string;
-      };
+    let eingabe: ZugangEingabe;
+    let verfall: string | undefined;
 
     if (werte.chargeId === NEUE_CHARGE) {
-      const verfall = monatAusPicker(werte.verfall);
+      // IDA-378: eine leere Nummer wird serverseitig „ohne Nummer".
+      verfall = werte.ohneVerfall ? PSEUDO_VERFALL : monatAusPicker(werte.verfall);
       if (!verfall) {
         setFehler("Bitte einen Verfallsmonat auswählen.", "zugang");
         return;
@@ -405,6 +440,7 @@ export function ArtikelDrawer({
         ...(werte.zielLagerortId ? { zielLagerortId: werte.zielLagerortId } : {}),
       };
     } else {
+      verfall = detail?.chargen.find((charge) => charge.id === werte.chargeId)?.verfall;
       eingabe = {
         artikelId: id,
         menge: werte.menge,
@@ -413,6 +449,16 @@ export function ArtikelDrawer({
       };
     }
 
+    if (verfall && istAbgelaufen(verfall, new Date())) {
+      setRueckfrage({ eingabe, verfall });
+      return;
+    }
+    await zugangAbsenden(eingabe);
+  }
+
+  async function zugangAbsenden(
+    eingabe: ZugangEingabe & { abgelaufenBestaetigt?: true },
+  ): Promise<void> {
     await mutationSerialisieren(async () => {
       setFehler(null);
       try {
@@ -422,6 +468,7 @@ export function ArtikelDrawer({
           return;
         }
         await laden();
+        verfallUngueltig.current = null;
         zugangForm.resetFields();
       } catch {
         setFehler("Zugang konnte nicht gebucht werden.", "zugang");
@@ -590,6 +637,23 @@ export function ArtikelDrawer({
     ) : null;
   }
 
+  /**
+   * IDA-378 — die Regel des Monatsfelds: ein getippter Nicht-Monat meldet sich
+   * mit seinem Text, ein leeres Feld nur ohne „ohne Verfall".
+   */
+  async function verfallPruefen(_regel: unknown, wert: Dayjs | null | undefined): Promise<void> {
+    const text = verfallUngueltig.current;
+    if (text) throw new Error(`„${text}“ ist kein Monat. Bitte als MM/JJJJ eingeben.`);
+    if (!wert && !zugangForm.getFieldValue("ohneVerfall")) {
+      throw new Error("Bitte einen Verfallsmonat auswählen.");
+    }
+  }
+
+  function verfallUngueltigMelden(text: string | null): void {
+    verfallUngueltig.current = text;
+    if (text) void zugangForm.validateFields(["verfall"]).catch(() => undefined);
+  }
+
   function zugangFormular(artikel: ArtikelDetailResult): ReactNode {
     return (
       /*
@@ -611,6 +675,7 @@ export function ArtikelDrawer({
         initialValues={{
           menge: 1,
           chargeId: NEUE_CHARGE,
+          ohneVerfall: false,
           ...(artikel.zielOrte.length === 1
             ? { zielLagerortId: artikel.zielOrte[0]!.id }
             : {}),
@@ -622,7 +687,7 @@ export function ArtikelDrawer({
           <Form.Item
             name="menge"
             label="Menge"
-            rules={[{ required: true }, { type: "number", min: 1 }]}
+            rules={MENGE_REGELN}
           >
             <InputNumber
               min={1}
@@ -631,7 +696,7 @@ export function ArtikelDrawer({
               style={{ width: "100%" }}
             />
           </Form.Item>
-          <Form.Item name="chargeId" label="Charge" rules={[{ required: true }]}>
+          <Form.Item name="chargeId" label="Charge" rules={CHARGE_REGELN}>
             <Select
               aria-label="Charge"
               showSearch
@@ -641,7 +706,7 @@ export function ArtikelDrawer({
             />
           </Form.Item>
           {/*
-            IDA-235: der Satz zu „Handlager (ohne Schrank)" stand dauerhaft
+            IDA-235: der Satz zu „Handlager ohne Schrank" stand dauerhaft
             unter dem Feld; er erklaert einen Eintrag der Liste und steht jetzt
             hinter dem „?" am Feldnamen.
           */}
@@ -649,7 +714,7 @@ export function ArtikelDrawer({
             name="zielLagerortId"
             label="Wohin"
             tooltip={{
-              title: "„Handlager (ohne Schrank)“ heißt: noch nicht einsortiert.",
+              title: "„Handlager ohne Schrank“ heißt: noch nicht einsortiert.",
               icon: <Ikone name="info" groesse={14} />,
             }}
             rules={[{ required: true, message: "Bitte einen Ort wählen" }]}
@@ -663,30 +728,48 @@ export function ArtikelDrawer({
           </Form.Item>
           {ausgewaehlteCharge === NEUE_CHARGE ? (
             <>
-              <Form.Item
-                name="chargenNr"
-                label="Chargennummer"
-                rules={[{ required: true, whitespace: true }]}
-              >
-                <Input aria-label="Chargennummer" autoComplete="off" />
+              {/* IDA-378: leer heisst „ohne Nummer" — der Platzhalter sagt es. */}
+              <Form.Item name="chargenNr" label="Chargennummer">
+                <Input
+                  aria-label="Chargennummer"
+                  autoComplete="off"
+                  placeholder="ohne Nummer"
+                />
               </Form.Item>
-              <Form.Item label="Verfallsmonat">
-                <div data-rolle="verfallsmonat">
+              {/*
+                ⚠️ DAS PFLICHTZEICHEN STEHT AM AEUSSEREN `Form.Item` (`required`),
+                die Regel am inneren: das aeussere traegt keinen `name`, und ohne
+                `required` fehlte das Zeichen, obwohl das Feld Pflicht ist
+                (IDA-378, Befund 6). Mit „ohne Verfall" entfaellt beides.
+              */}
+              <Form.Item label="Verfallsmonat" required={!ohneVerfall}>
+                <div data-rolle="verfallsmonat" className={styles.verfallsmonat}>
                   <Form.Item
                     name="verfall"
                     noStyle
-                    rules={[{ required: true, message: "Bitte Verfallsmonat auswählen." }]}
+                    dependencies={["ohneVerfall"]}
+                    rules={[{ validator: verfallPruefen }]}
                   >
-                    <DatePicker
-                      picker="month"
-                      popupAlign={WAEHLER_IM_BILD}
-                      format="YYYY-MM"
+                    <MonatsFeld
                       aria-label="Verfallsmonat"
-                      style={{ width: "100%" }}
+                      disabled={ohneVerfall}
+                      onUngueltig={verfallUngueltigMelden}
                       // DRK-483: Enter uebernimmt den Monat, gebucht wird erst
                       // ueber „Zugang buchen".
                       onKeyDown={enterUebernimmtNurDasFeld}
                     />
+                  </Form.Item>
+                  <Form.Item name="ohneVerfall" valuePropName="checked" noStyle>
+                    <Checkbox
+                      className={styles.ohneVerfall}
+                      onChange={(e) => {
+                        if (!e.target.checked) return;
+                        verfallUngueltig.current = null;
+                        zugangForm.setFieldValue("verfall", null);
+                      }}
+                    >
+                      ohne Verfall
+                    </Checkbox>
                   </Form.Item>
                 </div>
               </Form.Item>
@@ -694,9 +777,32 @@ export function ArtikelDrawer({
           ) : null}
         </div>
         {formularMeldung("zugang")}
-        <Button type="primary" htmlType="submit" loading={busy}>
-          Zugang buchen
-        </Button>
+        {/*
+          IDA-378 — DIE RUECKFRAGE ZUM ABGELAUFENEN VERFALL haengt am Knopf und
+          oeffnet nur aus `zugangBuchen` (`open` ist gesteuert): ein Klick auf
+          den Knopf schickt das Formular ab, und erst dessen Pruefung entscheidet.
+        */}
+        <Popconfirm
+          open={rueckfrage !== null}
+          title={rueckfrage
+            ? `Verfall ${fmtVerfallLang(rueckfrage.verfall)} ist abgelaufen. Trotzdem buchen?`
+            : ""}
+          okText="Trotzdem buchen"
+          cancelText="Abbrechen"
+          onConfirm={() => {
+            const offen = rueckfrage;
+            setRueckfrage(null);
+            if (offen) void zugangAbsenden({ ...offen.eingabe, abgelaufenBestaetigt: true });
+          }}
+          onCancel={() => setRueckfrage(null)}
+          onOpenChange={(offen) => {
+            if (!offen) setRueckfrage(null);
+          }}
+        >
+          <Button type="primary" htmlType="submit" loading={busy}>
+            Zugang buchen
+          </Button>
+        </Popconfirm>
       </Form>
     );
   }
@@ -716,7 +822,7 @@ export function ArtikelDrawer({
           <Form.Item
             name="menge"
             label="Menge"
-            rules={[{ required: true }, { type: "number", min: 1 }]}
+            rules={MENGE_REGELN}
           >
             <InputNumber
               min={1}
@@ -789,7 +895,7 @@ export function ArtikelDrawer({
         data-rolle="umlager-form"
       >
         <div className={styles.buchungsfelder}>
-          <Form.Item name="chargeId" label="Charge" rules={[{ required: true }]}>
+          <Form.Item name="chargeId" label="Charge" rules={CHARGE_REGELN}>
             <Select
               aria-label="Umlagerung Charge"
               showSearch
@@ -872,7 +978,7 @@ export function ArtikelDrawer({
           <Form.Item
             name="menge"
             label="Menge"
-            rules={[{ required: true }, { type: "number", min: 1 }]}
+            rules={MENGE_REGELN}
             /*
              * ⚠️ DER DECKEL IST EINE HILFE, KEIN RIEGEL. Er steht
              * daneben in `bucheUmlagerung`, und dort rollt eine zu

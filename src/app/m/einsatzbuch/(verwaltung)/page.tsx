@@ -48,18 +48,17 @@ export default async function EinsatzbuchUebersicht() {
           <Statistic title="Echter Rechner" value={echt ? "eingerichtet" : "nicht eingerichtet"} />
           <p style={{ margin: `${SPACE.xs}px 0 0` }}>
             {echt ? `Letzter Kontakt: ${echt.letzterKontakt ?? "noch keiner"}` : "Die Einrichtung startet am Rechner selbst."}
-            {echt && <><br />{echt.ankerBis !== null ? `Anker bis Block ${echt.ankerBis}` : "Noch kein Anker"}</>}
+            {echt && <><br />{echt.ankerBis !== null ? `Gemeldet bis Block ${echt.ankerBis}` : "Noch nichts gemeldet"}</>}
           </p>
         </Card>
         <Card className={styles.modul}>
           <Statistic
-            title="Anker-Abweichungen"
+            title="Widersprüchliche Meldungen"
             value={abweichungen}
             styles={abweichungen > 0 ? { content: { color: "var(--eb-verw-rot-text)" } } : undefined}
           />
         </Card>
       </div>
-      {status.schluesselId && <p>Schlüssel-Kennung: <code>{status.schluesselId}</code></p>}
     </>
   );
 }

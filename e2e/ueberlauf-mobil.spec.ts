@@ -115,6 +115,20 @@ for (const breite of BREITEN) {
       await pruefe(page, "Einwurf mit Namen, ausgefüllt");
     });
 
+    test("Zugangscodes in Lagerbuch, Verpflegung und Funk (IDA-395)", async ({ page }) => {
+      await devLogin(page, { host: "portal.localtest.me", groups: VIELE_GRUPPEN });
+      const fehler: string[] = [];
+      for (const [modul, pfad] of [["lagerbuch", "/verwaltung/tokens"], ["verpflegung", "/links"], ["radio", "/admin/zugaenge"]]) {
+        const antwort = await page.goto(`http://${modul}.localtest.me:${E2E_PORT}${pfad}`);
+        await warteAufGestreamteInhalte(page);
+        expect(antwort?.status(), `${modul}${pfad}: HTTP-Status`).toBeLessThan(400);
+        await expect(page.getByRole("heading", { name: "Zugangscodes", level: 1 })).toBeVisible();
+        const mass = await ueberlauf(page);
+        if (mass.dokument > mass.vw) fehler.push(`${modul}${pfad}: ${mass.dokument}px — ${mass.schuldige.join(" | ")}`);
+      }
+      expect(fehler, fehler.join("\n")).toEqual([]);
+    });
+
     test("Startseite jedes Moduls mit Kopfzeile", async ({ page }) => {
       await devLogin(page, { host: "portal.localtest.me", groups: VIELE_GRUPPEN });
       const fehler: string[] = [];
