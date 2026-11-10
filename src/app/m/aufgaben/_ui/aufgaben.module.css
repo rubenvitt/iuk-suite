@@ -902,8 +902,8 @@
   gap: 8px;
 }
 /*
- * DIE AKTION SITZT DAUERHAFT SICHTBAR IN DER KARTE, nicht wie in der Zeilenliste erst bei
- * Zuwendung (`.zeilenAktion { opacity: 0 }`): auf einem Brett IST das Verteilen der Zweck der
+ * DIE AKTION SITZT DAUERHAFT SICHTBAR IN DER KARTE, wie seit IDA-386 auch in der Zeilenliste
+ * (`.zeilenAktion`): auf einem Brett IST das Verteilen der Zweck der
  * Karte, nicht eine Nebenaktion an einer Datenzeile. Der 12px-Abstand nach oben trennt sie von den
  * Marken, damit der Ausloeser nicht als weitere Marke gelesen wird.
  */
@@ -1058,9 +1058,8 @@
   display: none;
 }
 /*
- * `:focus-within` STEHT GLEICHBERECHTIGT NEBEN `:hover` UND IST KEINE ZUGABE: die Aktionsspalte
- * ist ohne Zeigergeraet nur ueber die Tastatur erreichbar, und ein Knopf, dessen Zeile beim
- * Fokussieren nichts anzeigt, laesst die Tastaturbedienung im Blindflug (s. `.zeilenAktion`).
+ * `:focus-within` STEHT GLEICHBERECHTIGT NEBEN `:hover` UND IST KEINE ZUGABE: wer per Tastatur
+ * durch die Aktionsspalte geht, sieht so, zu welcher Zeile der fokussierte Knopf gehoert.
  */
 .zeilenListe > li:hover,
 .zeilenListe > li:focus-within {
@@ -1106,20 +1105,16 @@
   color: var(--auf-stahl);
 }
 /*
- * DIE AKTIONSSPALTE — RECHTSBUENDIG UND ERST BEI ZUWENDUNG SICHTBAR (die Notion-Anmutung aus dem
- * Auftrag). `opacity` UND NICHT `visibility`/`display`: die beiden letzten nehmen den Knopf aus
- * der Tabreihenfolge, und ein Bedienelement, das nur mit der Maus erreichbar ist, waere ein
- * Rueckschritt gegenueber der dauerhaft sichtbaren Knopfreihe. So bleibt er fokussierbar, und
- * `:focus-within` an der Zeile blendet ihn ein, sobald der Fokus ihn erreicht.
+ * DIE AKTIONSSPALTE — RECHTSBUENDIG UND DAUERHAFT SICHTBAR (IDA-386). Bis dahin war sie erst bei
+ * Zuwendung (`:hover`/`:focus-within`) eingeblendet, die Notion-Anmutung aus dem Auftrag der
+ * Oberflaechen-Runde 2026-08-16. Der UX-Durchgang hat den Preis gemessen: auf `/verteilen` bei
+ * 1280/1440px sah niemand, WIE man verteilt — der Knopf stand im DOM, aber unsichtbar, und ein
+ * Touch-Tablet ab 768px sah ihn erst nach Antippen der Zeile. Auf der Startseite der Koordination
+ * fehlten am Desktop so die „Zuweisen"-Knoepfe, die das Telefon zeigte. Die Aktion IST auf diesen
+ * Flaechen der Zweck der Zeile; sie bleibt still (`.zeilenKnopf`), aber sie ist da.
  *
- * DER PLATZ BLEIBT IMMER RESERVIERT (die Spur ist `auto` ueber alle Zeilen): beim Ueberfahren
- * springt nichts, weil nichts seine Groesse aendert — nur die Deckkraft.
- *
- * KEIN `@media (hover: hover)`: diese Datei hat GENAU EINE Medienabfrage (767.98px), und
- * `aufgaben-css.test.ts` (Aussage 1) zaehlt sie. Der Zeigergeraet-Fall wird deshalb ueber die
- * BREITE geloest — unterhalb von 768px steht die Spalte dauerhaft offen, s. den Block unten. Das
- * ist die schwaechere Naeherung (ein Tablet-Browser mit Touch bei 1024px sieht die Spalte erst
- * beim Antippen der Zeile), aber die einzige, die den Riegel nicht bricht.
+ * DER PLATZ BLEIBT RESERVIERT (die Spur ist `auto` ueber alle Zeilen), alle Zeilen richten ihre
+ * Aktion an derselben rechten Kante aus.
  */
 .zeilenAktion {
   display: flex;
@@ -1127,24 +1122,6 @@
   justify-content: flex-end;
   justify-self: end;
   gap: 8px;
-  opacity: 0;
-}
-.zeilenListe > li:hover .zeilenAktion,
-.zeilenListe > li:focus-within .zeilenAktion {
-  opacity: 1;
-}
-/*
- * DIE DRITTE BEDINGUNG DER SICHTBARKEIT: ein GEOEFFNETES Zuweisen-Feld. Sein Inhalt liegt im
- * Portal (antds `Popover`), also ausserhalb der Zeile — `:focus-within` sieht ihn nicht, und
- * sobald die Maus die Zeile verlaesst, verschwaende der Ausloeser UNTER dem offenen Feld. Die
- * Marke setzt `_ui/ZuweisenInline.tsx` selbst (`data-offen`), weil nur sie den Zustand kennt.
- *
- * `:has()` UND NICHT EINE KLASSE AN DER ZEILE: die Zeile ist eine Server Component
- * (`AufgabenZeile.tsx`) und bekommt ihre Aktionen als fertiges `ReactNode` — sie weiss nicht und
- * soll nicht wissen, ob eine davon gerade offen ist.
- */
-.zeilenListe > li:has([data-offen="true"]) .zeilenAktion {
-  opacity: 1;
 }
 
 /*
@@ -1536,13 +1513,28 @@
   text-decoration: underline;
 }
 /*
- * DIE AKTIONEN DES EINTRAGS — RECHTSBUENDIG UND ERST BEI ZUWENDUNG SICHTBAR, dieselbe Mechanik und
- * dieselbe Begruendung wie `.zeilenAktion`: `opacity` und NICHT `visibility`/`display`, damit der
- * Knopf in der Tabreihenfolge bleibt, und `:focus-within` gleichberechtigt neben `:hover`, damit
- * die Tastaturbedienung nicht im Blindflug laeuft.
- *
- * KEIN `transition`: diese Datei fuehrt keine Bewegung (Kopfkommentar) — eine Einblendung schuldete
- * eine `prefers-reduced-motion`-Ausnahme und damit eine ZWEITE Medienabfrage.
+ * ERLEDIGT IM TAGESPLAN (IDA-386): abgehakt und ausgegraut, damit eine abgeschlossene Aufgabe nicht
+ * wie eine offene im Tag steht. Grau, nicht Gruen: der Tag soll das Offene zeigen, das Erledigte
+ * tritt zurueck. Die Zeile bleibt ein Link — Nachweis und Verlauf sind dort.
+ */
+.planErledigt {
+  color: var(--auf-grau-text);
+}
+.erledigtZeichen {
+  display: inline-flex;
+  vertical-align: -3px;
+  margin-inline-end: 4px;
+}
+.planErledigt .planTitel,
+.planErledigt .planTitel:hover {
+  color: var(--auf-grau-text);
+  font-weight: 400;
+}
+/*
+ * DIE AKTIONEN DES EINTRAGS — RECHTSBUENDIG UND DAUERHAFT SICHTBAR, dieselbe Setzung wie
+ * `.zeilenAktion` und aus demselben Befund (IDA-386): eine Aktion, die erst bei Hover erscheint,
+ * sieht ein Touch-Tablet ab 768px nicht. Die stillen Knoepfe (`RangKnoepfe.tsx`) halten die
+ * Tagesspalte trotzdem ruhig.
  */
 .planAktion {
   display: flex;
@@ -1550,17 +1542,12 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  opacity: 0;
   /*
    * DIE EINE AUSNAHME VOM `flex-start` DES EINTRAGS: rechtsbuendig kann nur werden, was die volle
    * Breite hat. Ohne diese Zeile schruempfte die Aktionsgruppe auf ihren Inhalt und `justify-content`
    * haette nichts zu verteilen — die Knoepfe stuenden links, und die Regel waere eine Attrappe.
    */
   align-self: stretch;
-}
-.planEintrag:hover .planAktion,
-.planEintrag:focus-within .planAktion {
-  opacity: 1;
 }
 /*
  * DIE ZWEI RANGKNOEPFE ALS KOMPAKTE REIHE, NICHT ALS `.knopfzeile` (`RangKnoepfe.tsx`): unterhalb
@@ -1743,8 +1730,8 @@
    * DIE ZUSAGE „GENAU ZWEI NEUE REGELN" AUS §6.5 IST MIT DER OBERFLAECHEN-RUNDE 2026-08-16
    * ABGELAUFEN, statt still gebrochen zu werden: die Zeilenform ist von einer Flex-Spalte auf ein
    * Raster umgestellt, und ein Raster braucht unterhalb von 768px drei Umschaltungen statt einer
-   * (Spurenzahl, Zellenausrichtung, leere Zellen) plus eine vierte fuer die Aktionsspalte, die
-   * auf Touch nicht an `:hover` haengen darf. Was UNVERAENDERT gilt, ist die Zahl, an der ein Tor
+   * (Spurenzahl, Zellenausrichtung, leere Zellen) plus eine vierte fuer die Lage der
+   * Aktionsspalte. Was UNVERAENDERT gilt, ist die Zahl, an der ein Tor
    * haengt: GENAU EINE Medienabfrage, und `aufgaben-css.test.ts` (Aussage 1) zaehlt sie.
    */
   .fuehrung {
@@ -1779,24 +1766,21 @@
     display: none;
   }
   /*
-   * TOUCH HAT KEIN HOVER (Auftrag, nicht verhandelbar). Unterhalb von 768px steht die
-   * Aktionsspalte deshalb DAUERHAFT offen, und sie sitzt links unter der Zeile statt rechts:
+   * DIE AKTIONSSPALTE SITZT UNTER 768PX LINKS UNTER DER ZEILE STATT RECHTS:
    * `justify-self: end` an einer vollbreiten Spur schoebe einen 44px-Knopf an den rechten Rand,
    * wo ihn der Daumen einer rechten Hand verdeckt.
    */
   .zeilenAktion {
-    opacity: 1;
     justify-self: start;
     justify-content: flex-start;
   }
   /*
-   * DIESELBE ZUSAGE FUER DIE TAGESSPALTE (Touch hat kein Hover) — und aus demselben Grund
+   * DIE TAGESSPALTE aus demselben Grund
    * linksbuendig: `justify-content: flex-end` schoebe einen 44px-Knopf an den rechten Rand, wo ihn
    * der Daumen einer rechten Hand verdeckt. Die mobile Ausprägung des Wochenplans (`.tagesListe`)
    * zeigt ohnehin genau einen Tag ueber die volle Breite, dort ist rechtsbuendig nichts gewonnen.
    */
   .planAktion {
-    opacity: 1;
     justify-content: flex-start;
   }
   /*

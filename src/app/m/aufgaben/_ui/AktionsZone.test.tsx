@@ -116,6 +116,7 @@ const ALLE_AUS: AktionsOptionen = {
   wiederaufnehmen: false,
   zurueckziehen: false,
   umverteilen: false,
+  verteilen: false,
   bearbeiten: false,
   nachweisHochladen: false,
 };
@@ -198,73 +199,13 @@ describe("AktionsZone — einfache Statuswechsel (starten, zuruecksetzen, wieder
   });
 });
 
-describe("AktionsZone — Fertig melden, Nachweispflicht als Untergrenze", () => {
-  it("zeigt den Nachweispflicht-Hinweis fuer Bildnachweis, mit dem Hinweis auf die Sicherheitspruefung", async () => {
-    await mount(
-      <AktionsZone
-        nachweisMaxBytes={MAX_BYTES}
-        aufgabe={aufgabe({ id: "a1", status: "in_arbeit", nachweisPflicht: true, nachweisArt: "bild" })}
-        optionen={{ ...ALLE_AUS, fertig: true }}
-      />,
-    );
-    expect(document.body.textContent).toContain("Nachweispflicht: Bild");
-    expect(document.body.textContent).toContain("Sicherheitsprüfung");
-  });
-
-  it("zeigt den Feldfehler zum Textfeld (`nachweisText`)", async () => {
-    stelleZustandEin({
-      ok: false,
-      fieldErrors: { nachweisText: "Für diese Aufgabe ist ein Textnachweis erforderlich." },
-      values: { aufgabeId: "a1", nachweisText: "" },
-    });
-    await mount(
-      <AktionsZone nachweisMaxBytes={MAX_BYTES} aufgabe={aufgabe({ id: "a1", nachweisPflicht: true })} optionen={{ ...ALLE_AUS, fertig: true }} />,
-    );
-    expect(document.body.textContent).toContain("Für diese Aufgabe ist ein Textnachweis erforderlich.");
-  });
-
-  /**
-   * DIE ZWEITE FEHLERQUELLE (Brief-Bedingung fuer diese Aufgabe, Advisor-Fund): `fertigMeldenAction`
-   * liefert den Bild-Pflicht-Fehler unter dem SCHLUESSEL `nachweis`, NICHT `nachweisText`. Wuerde die
-   * Zone nur `nachweisText` rendern, verschwaende dieser Fehler nach dem Absenden spurlos — ein
-   * Formular, das scheinbar erfolgreich absendet, aber nichts speichert.
-   */
-  it("zeigt den Feldfehler zum fehlenden Bildnachweis (`nachweis`) — eine ANDERE Fehlerquelle als `nachweisText`", async () => {
-    stelleZustandEin({
-      ok: false,
-      fieldErrors: { nachweis: "Für diese Aufgabe ist ein Bildnachweis erforderlich." },
-      values: { aufgabeId: "a1" },
-    });
-    await mount(
-      <AktionsZone
-        nachweisMaxBytes={MAX_BYTES}
-        aufgabe={aufgabe({ id: "a1", nachweisPflicht: true, nachweisArt: "bild" })}
-        optionen={{ ...ALLE_AUS, fertig: true }}
-      />,
-    );
-    expect(document.body.textContent).toContain("Für diese Aufgabe ist ein Bildnachweis erforderlich.");
-  });
-});
-
 /**
- * NACHWEIS HOCHLADEN (Aufgabe 19) — DIE WIRING-ZUSAGE: `NachweisFormular` rendert genau dann, wenn
- * `optionen.nachweisHochladen` gilt, und bekommt `aufgabeId`/`nachweisArt`/`maxBytes` durchgereicht.
- * Das FORMULAR SELBST (Feldfehler, Untergrenzen-Hinweise) ist in `NachweisFormular.test.tsx`
- * bewacht — hier zaehlt nur, DASS und WANN `AktionsZone` es einhaengt.
+ * IDA-386 — EIN FORMULAR FUER NACHWEIS UND FERTIGMELDUNG. Die Zone haengt `NachweisFormular` an
+ * `optionen.fertig`; das Fotofeld gibt es genau mit `optionen.nachweisHochladen`. Das Formular
+ * selbst (Upload, Meldungen) bewacht `NachweisFormular.test.tsx`.
  */
-describe("AktionsZone — Nachweis hochladen (Aufgabe 19)", () => {
-  it("rendert NachweisFormular NICHT, wenn optionen.nachweisHochladen false ist — auch bei fertig: true", async () => {
-    await mount(
-      <AktionsZone
-        nachweisMaxBytes={MAX_BYTES}
-        aufgabe={aufgabe({ id: "a1", status: "in_arbeit", nachweisPflicht: true, nachweisArt: "bild" })}
-        optionen={{ ...ALLE_AUS, fertig: true }}
-      />,
-    );
-    expect(document.body.textContent).not.toContain("Nachweis speichern");
-  });
-
-  it("rendert NachweisFormular, wenn optionen.nachweisHochladen true ist, NEBEN Fertig melden", async () => {
+describe("AktionsZone — Fertig melden mit Nachweis (IDA-386)", () => {
+  it("ein Formular: Foto, Text, EIN Knopf „Fertig melden“ — kein „Nachweis speichern“", async () => {
     await mount(
       <AktionsZone
         nachweisMaxBytes={MAX_BYTES}
@@ -272,10 +213,34 @@ describe("AktionsZone — Nachweis hochladen (Aufgabe 19)", () => {
         optionen={{ ...ALLE_AUS, fertig: true, nachweisHochladen: true }}
       />,
     );
-    expect(document.body.textContent).toContain("Nachweis speichern");
+    expect(queryAll("form")).toHaveLength(1);
+    expect(queryAll("button").map((b) => b.textContent)).toEqual(["Fertig melden"]);
+    expect(document.body.textContent).not.toContain("Nachweis speichern");
+    expect(document.querySelector("input[type='file']")).not.toBeNull();
+    expect(queryAll("textarea")).toHaveLength(1);
+  });
+
+  it("keine Fachtexte zur Prüfung (Status „sauber“, MiB)", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "in_arbeit", nachweisPflicht: true, nachweisArt: "bild" })}
+        optionen={{ ...ALLE_AUS, fertig: true, nachweisHochladen: true }}
+      />,
+    );
+    expect(document.body.textContent).not.toMatch(/sauber|MiB|Sicherheitsprüfung/);
+  });
+
+  it("ohne `nachweisHochladen` kein Fotofeld — Fertig melden bleibt", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "in_arbeit" })}
+        optionen={{ ...ALLE_AUS, fertig: true }}
+      />,
+    );
+    expect(document.querySelector("input[type='file']")).toBeNull();
     expect(document.body.textContent).toContain("Fertig melden");
-    const dateiFeld = document.querySelector<HTMLInputElement>("input[type='file']");
-    expect(dateiFeld).not.toBeNull();
   });
 });
 
@@ -392,12 +357,10 @@ describe("AktionsZone — genau ein Primaerknopf (§7 Nr. 2)", () => {
   });
 
   /**
-   * `nachweisHochladen` VOR `fertig` — DIE UMSORTIERUNG MIT NACHGELESENEM GRUND (§7 Nr. 2):
-   * `uebergang()` erlaubt `in_arbeit`x`fertig` UNABHAENGIG von der Nachweispflicht, die Ablehnung
-   * entsteht erst in `fertigMeldenAction` als Feldfehler. Ohne diese Reihenfolge waere „Fertig
-   * melden" der Primaerknopf, waehrend der tatsaechlich noetige erste Schritt daneben stuende.
+   * Seit IDA-386 tragen `nachweisHochladen` und `fertig` DASSELBE Formular: der eine Knopf
+   * „Fertig melden" laedt das Foto hoch und meldet fertig — und er ist der Primaerknopf.
    */
-  it("macht bei nachweispflichtiger in_arbeit-Aufgabe „Nachweis speichern“ primaer, nicht „Fertig melden“", async () => {
+  it("macht bei nachweispflichtiger in_arbeit-Aufgabe „Fertig melden“ (mit Foto) primaer", async () => {
     await mount(
       <AktionsZone
         nachweisMaxBytes={MAX_BYTES}
@@ -406,7 +369,7 @@ describe("AktionsZone — genau ein Primaerknopf (§7 Nr. 2)", () => {
       />,
     );
     expect(primaere()).toHaveLength(1);
-    expect(primaere()[0]!.textContent).toContain("Nachweis speichern");
+    expect(primaere()[0]!.textContent).toContain("Fertig melden");
   });
 
   it("macht bei `freigabe_offen` „Freigeben“ primaer und laesst „Zurückweisen“ Standard", async () => {
@@ -467,6 +430,26 @@ describe("AktionsZone — genau ein Primaerknopf (§7 Nr. 2)", () => {
    * `verteilDaten` NUR, wenn `optionen.umverteilen` gilt, reicht also fuer jede andere Person
    * `null` durch. Ein Modal ohne eine einzige waehlbare Zielperson waere eine Sackgasse.
    */
+  /**
+   * „VERTEILEN" AUS `eingegangen` (IDA-386) — vorher stand fuer die Koordination hier nur „Gerade
+   * steht hier kein Arbeitsschritt an.". Derselbe Knopf wie auf der Fuehrungskarte
+   * (`VerteilenKnopf`), also derselbe Dialog und dieselbe `verteilenAction`.
+   */
+  it("zeigt „Verteilen“ als Primaerknopf, sobald optionen.verteilen gilt", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a1", status: "eingegangen", zugewiesenAn: null })}
+        optionen={{ ...ALLE_AUS, verteilen: true, zurueckziehen: true, bearbeiten: true }}
+        verteilen={{ bufdis: [], auslastung: [], tage: ["2026-08-17"] }}
+      />,
+    );
+    expect(document.body.textContent).not.toContain("kein Arbeitsschritt");
+    expect(primaere()).toHaveLength(1);
+    expect(primaere()[0]!.textContent).toContain("Verteilen");
+    expect(queryAll("[data-testid='verteilen-a1']")).toHaveLength(1);
+  });
+
   it("laesst „Anders zuweisen“ weg, wenn keine Zielliste durchgereicht wurde", async () => {
     await mount(
       <AktionsZone

@@ -700,6 +700,8 @@ function Nachweisweg() {
         "Beim Fertigmelden entsteht der Nachweis, als Text oder als Bild. Ein Textnachweis ist " +
         "sofort sichtbar. Ein Bild geht erst durch die Virenprüfung: ist es sauber, wird es " +
         "ausgeliefert; bei einem Befund bleibt es gesperrt und das Fertigmelden wird verweigert. " +
+        "Ist die Prüfung gerade nicht möglich, bleibt das Bild gespeichert und wird beim nächsten " +
+        "Fertigmelden erneut geprüft. " +
         "Danach steht die Aufgabe auf „Freigabe offen“, und der Prüfer sieht den Nachweis."
       }
       hoehe={266}

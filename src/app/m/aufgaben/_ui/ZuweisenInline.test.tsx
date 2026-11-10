@@ -220,13 +220,13 @@ describe("ZuweisenInline — die Zuweisung in der Zeile", () => {
   });
 
   /**
-   * DIE MARKE, AN DER DIE AKTIONSSPALTE HAENGT: `.zeilenAktion` ist ohne Zuwendung durchsichtig,
-   * und die Deckkraft eines Elternteils kann ein Kind nicht zuruecknehmen. Der Inhalt des Popover
-   * liegt zudem im Portal, also greift `:focus-within` an der Zeile nicht mehr, sobald er offen
-   * ist. Ohne `data-offen` verschwaende der Ausloeser unter dem geoeffneten Feld, sobald die Maus
-   * die Zeile verlaesst — ein Ausfall, den nur ein Bildschirmabzug MIT Hover je zeigen wuerde.
+   * DIE MARKE FUER DEN OFFENEN ZUSTAND: der Inhalt des Popover liegt im Portal, also ausserhalb
+   * der Zeile, und nur die Insel selbst kennt den Zustand. Bis IDA-386 hing daran eine
+   * `:has()`-Regel, die die damals durchsichtige Aktionsspalte offen hielt; seither ist die Spalte
+   * dauerhaft sichtbar, die Marke bleibt als ablesbarer Zustand fuer Tests (s.
+   * `EinplanenInline.test.tsx`, wo `existsPortal` nach dem Schliessen dauerhaft wahr bliebe).
    */
-  it("markiert sich als offen, damit die Aktionsspalte sichtbar bleibt", async () => {
+  it("markiert sich als offen, solange das Feld offen ist", async () => {
     await mount(<ZuweisenInline aufgabe={AUFGABE} bufdis={BUFDIS} auslastung={AUSLASTUNG} />);
     const huelle = () => queryAll(`.${s.zuweisenHuelle}`)[0]!;
     expect(huelle().getAttribute("data-offen")).toBeNull();

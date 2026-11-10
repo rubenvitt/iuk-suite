@@ -287,11 +287,11 @@ export function ZuweisenInline({
 
   return (
     /*
-     * `data-offen` UND DIE `:has()`-REGEL IN `aufgaben.module.css`: die Aktionsspalte ist ohne
-     * Zuwendung durchsichtig (`.zeilenAktion { opacity: 0 }`), und Deckkraft eines Elternteils
-     * kann ein Kind nicht zuruecknehmen. Der Inhalt des `Popover` liegt ausserdem im Portal, also
-     * greift `:focus-within` an der Zeile nicht mehr, sobald er offen ist. Ohne diese Marke
-     * verschwaende der Ausloeser unter dem geoeffneten Feld, sobald die Maus die Zeile verlaesst.
+     * `data-offen` IST DER ABLESBARE ZUSTAND DES FELDES: der Inhalt des `Popover` liegt im Portal,
+     * ausserhalb der Zeile, und nur diese Insel weiss, ob er offen ist. Bis IDA-386 hielt eine
+     * `:has()`-Regel daran die damals erst bei Zuwendung sichtbare Aktionsspalte offen; seit die
+     * Spalte dauerhaft sichtbar ist (`.zeilenAktion`), lesen nur noch die Tests die Marke —
+     * `existsPortal` bliebe nach dem Schliessen wahr, weil antd den Rumpf stehen laesst.
      */
     <span className={s.zuweisenHuelle} data-offen={offen ? "true" : undefined}>
       <Popover

@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState } from "react";
 import { Button, Input } from "antd";
 import { aufgabeBearbeitenAction, aufgabeEinstellenAction } from "../actions";
-import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
+import { NACHWEIS_ART_TEXT, dauerOptionen } from "../_lib/anzeige";
 import { NACHWEIS_ARTEN, PRIORITAETEN, type AufgabeRow } from "../_db/schema";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { FELD_BREIT, Feld, Felder } from "@/core/seite/Seite";
@@ -128,6 +128,7 @@ export function AufgabeFormular({
 
   const vorgabePrioritaet = feldWert(state, "prioritaet", bestand?.prioritaet ?? "mittel");
   const vorgabeNachweisArt = feldWert(state, "nachweisArt", bestand?.nachweisArt ?? "text");
+  const vorgabeDauer = feldWert(state, "dauerMinuten", bestand ? String(bestand.dauerMinuten) : "");
   const fuerSichSelbstVorbelegt = checkboxVorbelegt(state, "fuerSichSelbst", false);
 
   return (
@@ -258,17 +259,18 @@ export function AufgabeFormular({
 
         <div>
           <label htmlFor="af-dauerMinuten" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-            Dauerschätzung in Minuten
+            Dauerschätzung
           </label>
-          <Input
+          {/* IDA-386: gewaehlt statt in Minuten getippt, s. `dauerOptionen` (`_lib/anzeige.ts`). */}
+          <WahlFeld
             id="af-dauerMinuten"
             name="dauerMinuten"
-            type="number"
-            min={1}
-            defaultValue={feldWert(state, "dauerMinuten", bestand ? String(bestand.dauerMinuten) : "")}
-            status={dauerFehler ? "error" : undefined}
-            aria-invalid={dauerFehler ? true : undefined}
-            aria-describedby={dauerFehler ? "af-dauerMinuten-err" : undefined}
+            wert={vorgabeDauer}
+            stand={absendeZaehler}
+            optionen={dauerOptionen(vorgabeDauer)}
+            platzhalter="Dauer wählen"
+            fehler={dauerFehler}
+            beschriebenVon={dauerFehler ? "af-dauerMinuten-err" : undefined}
           />
           {dauerFehler ? (
             <p id="af-dauerMinuten-err" style={{ margin: `${SPACE.xs}px 0 0` }}>

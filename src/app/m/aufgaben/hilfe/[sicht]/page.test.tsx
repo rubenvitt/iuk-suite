@@ -25,6 +25,8 @@ vi.mock("../../_db/client", () => ({ getDb: () => mockDb.db }));
 
 import { kapitelInhalt } from "./page";
 
+const HEUTE = "2026-08-13";
+
 let t: TestDb;
 beforeEach(() => {
   t = migrierteTestDb();
@@ -53,7 +55,7 @@ describe("kapitelInhalt — jedes der elf Kapitel rendert vollstaendig", () => {
     it(`${schluessel}`, async () => {
       const alina = legePerson("dev:alina@test", "bufdi");
       const sicht = HILFE_SICHTEN[schluessel];
-      await mount(kapitelInhalt(sicht, akteur(alina)));
+      await mount(kapitelInhalt(sicht, akteur(alina), HEUTE));
 
       expect(query("h1").textContent).toBe(sicht.titel);
       // Skizze: eine Nummernscheibe und eine Legendenzeile je Block.
@@ -73,13 +75,13 @@ describe("kapitelInhalt — jedes der elf Kapitel rendert vollstaendig", () => {
 describe("kapitelInhalt — der Verweis auf die Sicht", () => {
   it("verlinkt eine feste Adresse", async () => {
     const rike = legePerson("dev:rike@test", "auftrag");
-    await mount(kapitelInhalt(HILFE_SICHTEN.verteilen, akteur(rike, true)));
+    await mount(kapitelInhalt(HILFE_SICHTEN.verteilen, akteur(rike, true), HEUTE));
     expect(queryAll("a").map((a) => a.getAttribute("href"))).toContain("/verteilen");
   });
 
   it("verlinkt den Zeitplan auf die lesende Person", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(kapitelInhalt(HILFE_SICHTEN.zeitplan, akteur(alina)));
+    await mount(kapitelInhalt(HILFE_SICHTEN.zeitplan, akteur(alina), HEUTE));
     expect(queryAll("a").map((a) => a.getAttribute("href"))).toContain(`/plan/${alina.id}`);
   });
 
@@ -89,9 +91,36 @@ describe("kapitelInhalt — der Verweis auf die Sicht", () => {
    */
   it("ersetzt den fehlenden Verweis durch die Wegbeschreibung", async () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    await mount(kapitelInhalt(HILFE_SICHTEN.aufgabe, akteur(alina)));
+    await mount(kapitelInhalt(HILFE_SICHTEN.aufgabe, akteur(alina), HEUTE));
     expect(queryAll("a").map((a) => a.getAttribute("href") ?? "").filter((h) => h.startsWith("/a/"))).toEqual([]);
     expect(document.body.textContent).toContain("So kommst du hin:");
+  });
+
+  /*
+   * IDA-386: „Sicht öffnen" fuehrte die Koordination aus `/hilfe/routinen` auf `/routinen` (404) und
+   * eine BuFDi aus `/hilfe/freigaben` auf `/freigaben` (404). Wo die Sicht der lesenden Person nicht
+   * offensteht, steht statt des Verweises der Satz, wem sie gehoert.
+   */
+  it("verlinkt eine fremde Sicht nicht, sondern sagt, wem sie gehoert", async () => {
+    const rike = legePerson("dev:rike@test", "auftrag");
+    await mount(kapitelInhalt(HILFE_SICHTEN.routinen, akteur(rike, true), HEUTE));
+    const hrefs = queryAll("a").map((a) => a.getAttribute("href"));
+    expect(hrefs).not.toContain("/routinen");
+    expect(queryAll("a").map((a) => a.textContent)).not.toContain("Sicht öffnen");
+    expect(document.body.textContent).toContain("Diese Sicht haben nur BuFDis.");
+    await unmount();
+
+    const alina = legePerson("dev:alina@test", "bufdi");
+    await mount(kapitelInhalt(HILFE_SICHTEN.freigaben, akteur(alina), HEUTE));
+    expect(queryAll("a").map((a) => a.getAttribute("href"))).not.toContain("/freigaben");
+    expect(document.body.textContent).toContain("Diese Sicht haben nur Auftraggeber und die Koordination.");
+  });
+
+  it("zeigt den Satz nicht, wo die Sicht offensteht", async () => {
+    const alina = legePerson("dev:alina@test", "bufdi");
+    await mount(kapitelInhalt(HILFE_SICHTEN.routinen, akteur(alina), HEUTE));
+    expect(queryAll("a").map((a) => a.getAttribute("href"))).toContain("/routinen");
+    expect(document.body.textContent).not.toContain("Diese Sicht haben nur");
   });
 
   /*
