@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { bzFaelligkeit, imBereich, bewerteKontrolle, akkuLebensdauer,
-         beachtungsFelder, bzBeachtung,
+         beachtungsFelder, bzBeachtung, bzKontrollPflicht, fehlendeKontrollwerte,
+         fristKontrolle, KOMPRESSE_FEHLT, KONTROLLWERT_EINER_FEHLT, KONTROLLWERT_FEHLT,
          BZ_KONTROLL_INTERVALL_TAGE, BZ_WARN_TAGE } from "./bz";
 
 const NOW = new Date("2026-06-15T12:00:00Z");
@@ -16,8 +17,77 @@ describe("bzFaelligkeit — NIE GEPRUEFT ist die Falle", () => {
      */
     expect(bzFaelligkeit(null, NOW)).toEqual({
       faelligAm: null, tageBisFaellig: null, ampel: "rot",
-      ueberfaellig: false, nieGeprueft: true,
+      ueberfaellig: false, nieGeprueft: true, nieBestanden: false,
     });
+  });
+
+  it("IDA-379: nur nicht bestandene Kontrollen — rot, nieGeprueft UND nieBestanden", () => {
+    expect(bzFaelligkeit(null, NOW, true)).toMatchObject({
+      faelligAm: null, ampel: "rot", ueberfaellig: false, nieGeprueft: true, nieBestanden: true,
+    });
+  });
+});
+
+describe("fristKontrolle — IDA-379: die Frist laeuft nur von einer bestandenen, gueltigen Kontrolle", () => {
+  const k = (id: string, tage: number, bestanden: boolean, storniert = false) => ({
+    id, ts: vorTagen(tage), bestanden, storniertAt: storniert ? NOW : null,
+  });
+
+  it("ueberspringt eine juengere NICHT bestandene Kontrolle fuer die Frist, nicht fuer „letzte“", () => {
+    const { letzte, frist } = fristKontrolle([k("a", 20, true), k("b", 2, false)]);
+    expect(letzte?.id).toBe("b");
+    expect(frist?.id).toBe("a");
+  });
+
+  it("eine stornierte Kontrolle zaehlt weder als letzte noch als Frist", () => {
+    const { letzte, frist } = fristKontrolle([k("a", 20, true), k("b", 2, true, true)]);
+    expect(letzte?.id).toBe("a");
+    expect(frist?.id).toBe("a");
+  });
+
+  it("nur stornierte oder keine Kontrollen → beide null", () => {
+    expect(fristKontrolle([k("a", 2, true, true)])).toEqual({ letzte: null, frist: null });
+    expect(fristKontrolle([])).toEqual({ letzte: null, frist: null });
+  });
+
+  it("bei GLEICHEM ts gewinnt die hoehere id — wie im Logbuch", () => {
+    expect(fristKontrolle([k("tie-b", 1, true), k("tie-a", 1, true)]).frist?.id).toBe("tie-b");
+  });
+});
+
+describe("Pflichtwerte — IDA-379: genau das, was fuer „bestanden“ zaehlt", () => {
+  const ohne = { level1Min: null, level1Max: null, level2Min: null, level2Max: null };
+  const voll = { level1Wert: 50, level2Wert: 300, kompresseVerfall: "2027-05" };
+
+  it("jedes konfigurierte Level ist Pflicht, ein halb konfiguriertes nicht", () => {
+    expect(bzKontrollPflicht({ ...ohne, level1Min: 40, level1Max: 60, level2Max: 350 }))
+      .toEqual({ level1: true, level2: false, eines: false });
+  });
+
+  it("ohne konfiguriertes Level ist mindestens ein Messwert Pflicht", () => {
+    const pflicht = bzKontrollPflicht(ohne);
+    expect(pflicht).toEqual({ level1: false, level2: false, eines: true });
+    expect(fehlendeKontrollwerte(pflicht, { ...voll, level1Wert: null, level2Wert: null }))
+      .toEqual({ level1Wert: KONTROLLWERT_EINER_FEHLT });
+    expect(fehlendeKontrollwerte(pflicht, { ...voll, level1Wert: null })).toEqual({});
+  });
+
+  it("meldet fehlende Level und den Kompressen-Verfall je Feld", () => {
+    const pflicht = bzKontrollPflicht({ level1Min: 40, level1Max: 60, level2Min: 250, level2Max: 350 });
+    expect(fehlendeKontrollwerte(pflicht, { level1Wert: null, level2Wert: null, kompresseVerfall: null }))
+      .toEqual({
+        level1Wert: KONTROLLWERT_FEHLT, level2Wert: KONTROLLWERT_FEHLT, kompresseVerfall: KOMPRESSE_FEHLT,
+      });
+    expect(fehlendeKontrollwerte(pflicht, voll)).toEqual({});
+  });
+
+  it("ein vollstaendig gefuellter Pflichtsatz ist nie eine LEERE Kontrolle (Regel 1)", () => {
+    // Die Pflicht schliesst genau den Fall aus dem Ticket aus: ein leer
+    // abgeschicktes Formular, das als „NICHT bestanden" gespeichert wurde.
+    const leer = { level1Wert: null, level2Wert: null, kompresseVerfall: null };
+    for (const g of [ohne, { ...ohne, level1Min: 1, level1Max: 9 }]) {
+      expect(Object.keys(fehlendeKontrollwerte(bzKontrollPflicht(g), leer))).toContain("level1Wert");
+    }
   });
 });
 

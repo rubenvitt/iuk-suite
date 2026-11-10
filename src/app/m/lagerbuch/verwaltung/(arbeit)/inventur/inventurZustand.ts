@@ -307,3 +307,55 @@ export function positionenAus(
         neu: z.neu.map(({ verfall, chargenNr, ist }) => ({ verfall, chargenNr, ist })),
       });
 }
+
+/**
+ * IDA-379 — EINE KORREKTUR, WIE SIE DIE RUECKFRAGE VOR DEM BUCHEN NENNT: je
+ * Artikel, nicht je Charge („Mullbinde 98 → 90"). `vorher` ist der Seitenstand
+ * des Artikels — bei Chargen samt dem Teil von „Nicht zugeordnet", der mit
+ * dieser Zaehlung hierher gehoert (`uebernahme().erwartet`) —, `nachher` liegt
+ * um genau die Abweichung daneben, die gebucht wird. Eine reine Umlagerung ist
+ * keine Korrektur und fehlt.
+ */
+export type Korrektur = { artikelId: string; name: string; vorher: number; nachher: number };
+
+export function korrekturenIn(zeilen: readonly InventurZeile[], stand: ZaehlStand): Korrektur[] {
+  const ergebnis: Korrektur[] = [];
+  for (const zeile of zeilen) {
+    const z = stand[zeile.id];
+    if (!z) continue;
+    const abweichung = abweichungFuer(zeile, z);
+    if (abweichung === 0) continue;
+    const vorher = z.art === "artikel"
+      ? zeile.bestand
+      : zeile.chargen.reduce((s, c) => {
+          const ist = z.chargen[c.id];
+          return s + (ist === undefined ? c.rest : chargenUebernahme(c, z, ist).erwartet);
+        }, 0);
+    ergebnis.push({ artikelId: zeile.id, name: zeile.name, vorher, nachher: vorher + abweichung });
+  }
+  return ergebnis;
+}
+
+/** So viele Korrekturen nennt die Rueckfrage beim Namen, der Rest wird gezaehlt. */
+export const KORREKTUREN_GENANNT = 3;
+
+/**
+ * IDA-379 — DIE FOLGE DES ABSCHLUSSES, Zeile fuer Zeile, fuer die Rueckfrage.
+ * Bis hierher buchte „Inventur abschließen" ohne Rueckfrage, auch bei 2 von 14
+ * erfassten Artikeln; was danach im Bestand anders steht, sah man erst im
+ * Verlauf.
+ */
+export function abschlussFolge(nichtGezaehlt: number, korrekturen: readonly Korrektur[]): string[] {
+  const zeilen: string[] = [];
+  if (nichtGezaehlt > 0) zeilen.push(`${nichtGezaehlt} nicht gezählt`);
+  if (korrekturen.length === 0) {
+    zeilen.push("Keine Korrektur");
+    return zeilen;
+  }
+  const genannt = korrekturen.slice(0, KORREKTUREN_GENANNT)
+    .map((k) => `${k.name} ${k.vorher} → ${k.nachher}`).join(", ");
+  const rest = korrekturen.length - KORREKTUREN_GENANNT;
+  zeilen.push(`${korrekturen.length} ${korrekturen.length === 1 ? "Korrektur" : "Korrekturen"}: ${genannt}`
+    + (rest > 0 ? ` + ${rest} weitere` : ""));
+  return zeilen;
+}

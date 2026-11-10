@@ -144,6 +144,16 @@
 }
 
 /*
+ * IDA-379 — die Folge in der Rueckfrage vor dem Buchen. Sie haengt im Portal
+ * und kennt die Breite der Leiste nicht: ohne Grenze schoebe eine lange
+ * Korrekturliste das Popover bei 320px ueber den Rand.
+ */
+.folge {
+  max-width: min(22rem, calc(100vw - 64px));
+  overflow-wrap: anywhere;
+}
+
+/*
  * Auf dem Telefon zwei Zeilen: das Kommentarfeld über die volle Breite, darunter
  * Stand und Knopf — der Knopf bleibt, wo der Daumen ist. Derselbe Breakpoint wie
  * `core/tabelle/schmalkarten.module.css` (767.98px, docs/design/README.md).

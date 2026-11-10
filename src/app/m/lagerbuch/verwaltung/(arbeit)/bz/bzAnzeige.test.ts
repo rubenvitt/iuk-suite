@@ -46,6 +46,11 @@ describe("BZ-Anzeigeprojektion", () => {
       "noch nie geprüft",
     ],
     [
+      // IDA-379: es gibt Kontrollen, aber keine bestandene — „nie geprüft" waere falsch.
+      { nieGeprueft: true, nieBestanden: true, ueberfaellig: false, tageBisFaellig: null },
+      "noch nie bestanden",
+    ],
+    [
       { nieGeprueft: false, ueberfaellig: true, tageBisFaellig: -3 },
       "überfällig (seit 3 Tagen)",
     ],
@@ -69,6 +74,7 @@ describe("BZ-Anzeigeprojektion", () => {
         ampel: "rot",
         ueberfaellig: false,
         nieGeprueft: true,
+        nieBestanden: false,
       }, null),
       zeile("ueberfaellig", {
         faelligAm: new Date("2026-08-04T10:00:00Z"),
@@ -76,6 +82,7 @@ describe("BZ-Anzeigeprojektion", () => {
         ampel: "rot",
         ueberfaellig: true,
         nieGeprueft: false,
+        nieBestanden: false,
       }, new Date("2026-08-07T10:34:00Z")),
       zeile("heute", {
         faelligAm: new Date("2026-08-07T10:00:00Z"),
@@ -83,6 +90,7 @@ describe("BZ-Anzeigeprojektion", () => {
         ampel: "gelb",
         ueberfaellig: false,
         nieGeprueft: false,
+        nieBestanden: false,
       }, new Date("2026-07-07T08:00:00Z")),
       zeile("spaeter", {
         faelligAm: new Date("2026-08-15T10:00:00Z"),
@@ -90,6 +98,7 @@ describe("BZ-Anzeigeprojektion", () => {
         ampel: "gruen",
         ueberfaellig: false,
         nieGeprueft: false,
+        nieBestanden: false,
       }, new Date("2026-07-15T08:00:00Z")),
     ];
 
@@ -140,6 +149,7 @@ describe("BZ-Anzeigeprojektion", () => {
       ampel: "gelb",
       ueberfaellig: false,
       nieGeprueft: false,
+      nieBestanden: false,
     }, new Date("2026-07-10T10:00:00Z"));
 
     const anzeige: BzAnzeigeZeile[] = bzAnzeigeZeilen([eingabe]);

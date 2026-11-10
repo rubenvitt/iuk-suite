@@ -73,6 +73,7 @@ import {
   geraetSpeichern,
   geraetZuBarcode,
   kontrolleErfassen,
+  kontrolleStornieren,
   setGeraetAktiv,
 } from "./bz";
 
@@ -84,6 +85,8 @@ const VIEWER = {
   email: null,
 };
 const LISTENPFAD = "/m/lagerbuch/verwaltung/bz";
+/** IDA-379: der Kompressen-Verfall ist Pflicht — jede gueltige Kontrolle traegt ihn. */
+const KOMPRESSE = "2027-05";
 const LAGERORT_FEHLER = "Lagerort nicht gefunden oder inaktiv.";
 const REF_SNAPSHOT = "{\"streifenLot\":\"LOT-A\",\"level1Label\":\"L1\",\"level1Min\":40,\"level1Max\":60,\"level2Label\":\"L2\",\"level2Min\":250,\"level2Max\":350}";
 
@@ -168,7 +171,7 @@ async function geraetOhneBereiche(): Promise<string> {
 }
 
 describe("Bauform und Riegel", () => {
-  it("exportiert genau die fünf bewachten Actions", async () => {
+  it("exportiert genau die sechs bewachten Actions", async () => {
     const mod = await import("./bz");
 
     expect(Object.keys(mod).sort()).toEqual([
@@ -176,6 +179,7 @@ describe("Bauform und Riegel", () => {
       "geraetSpeichern",
       "geraetZuBarcode",
       "kontrolleErfassen",
+      "kontrolleStornieren",
       "setGeraetAktiv",
     ]);
   });
@@ -186,6 +190,7 @@ describe("Bauform und Riegel", () => {
     ["geraetZuBarcode", () => geraetZuBarcode("BZ-1", t.db)],
     ["kontrolleErfassen", () => kontrolleErfassen({}, t.db)],
     ["beachtungSetzen", () => beachtungSetzen({}, t.db)],
+    ["kontrolleStornieren", () => kontrolleStornieren({}, t.db)],
   ])("%s ruft den Admin-Riegel vor Validierung oder Datenzugriff auf", async (_name, aufruf) => {
     const riegelFehler = new Error("Riegel vor Eingabe und DB");
     adminRiegel.mockRejectedValueOnce(riegelFehler);
@@ -560,6 +565,7 @@ describe("kontrolleErfassen", () => {
       geraetId,
       level1Wert: 999,
       level2Wert: 1,
+      kompresseVerfall: KOMPRESSE,
     }, t.db);
     const wert = wertVon<{ id: string; bestanden: boolean }>(erg);
 
@@ -579,6 +585,7 @@ describe("kontrolleErfassen", () => {
         geraetId,
         level1Wert: 50,
         level2Wert: 300,
+        kompresseVerfall: KOMPRESSE,
       }, t.db),
     );
     const vorher = t.db.select().from(bzKontrollen)
@@ -604,46 +611,64 @@ describe("kontrolleErfassen", () => {
       .toBe(REF_SNAPSHOT);
   });
 
-  it("nimmt eine komplett leere Kontrolle an, bewertet sie aber nicht als bestanden", async () => {
+  /**
+   * IDA-379 — EIN LEER ABGESCHICKTES FORMULAR WIRD NICHT MEHR GESPEICHERT. Vorher
+   * entstand daraus eine append-only Zeile „NICHT bestanden", die die Frist um
+   * einen Monat schob und sich nicht mehr entfernen liess.
+   */
+  it("weist eine komplett leere Kontrolle mit Feldfehlern ab, ohne zu schreiben", async () => {
     const geraetId = await geraetOhneBereiche();
     revalidiert.length = 0;
 
     const erg = await kontrolleErfassen({ geraetId }, t.db);
-    const wert = wertVon<{ id: string; bestanden: boolean }>(erg);
 
-    expect(wert.bestanden).toBe(false);
-    expect(t.db.select().from(bzKontrollen).where(eq(bzKontrollen.id, wert.id)).get())
-      .toMatchObject({
-        level1Wert: null,
-        level1ImBereich: null,
-        level2Wert: null,
-        level2ImBereich: null,
-        sticks: 0,
-        lanzetten: 0,
-        batterieGewechselt: false,
-        bestanden: false,
-      });
-    expect(revalidiert).toEqual(erwartetePfade(geraetId));
+    expect(fehlerVon(erg)).toEqual({
+      ok: false,
+      fehler: "Bitte die markierten Felder prüfen.",
+      feldFehler: {
+        level1Wert: "Bitte mindestens einen Messwert eingeben.",
+        kompresseVerfall: "Bitte Verfallsmonat auswählen.",
+      },
+    });
+    expect(kontrollZeilen()).toEqual([]);
+    expect(revalidiert).toEqual([]);
   });
 
-  it("bewertet ein konfiguriertes, aber ungemessenes Level als nicht bestanden", async () => {
+  it("verlangt jedes konfigurierte Level und schreibt ohne es nichts", async () => {
     const geraetId = await geraetMitBereichen();
     revalidiert.length = 0;
 
     const erg = await kontrolleErfassen({
       geraetId,
       level1Wert: 50,
+      kompresseVerfall: KOMPRESSE,
     }, t.db);
-    const wert = wertVon<{ id: string; bestanden: boolean }>(erg);
+
+    expect(fehlerVon(erg).feldFehler).toEqual({ level2Wert: "Bitte den Messwert eingeben." });
+    expect(kontrollZeilen()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("nimmt bei einem Geraet ohne Bereiche EINEN Messwert und laesst Sticks/Lanzetten bei 0", async () => {
+    const geraetId = await geraetOhneBereiche();
+
+    const wert = wertVon<{ id: string; bestanden: boolean }>(
+      await kontrolleErfassen({ geraetId, level2Wert: 120, kompresseVerfall: KOMPRESSE }, t.db),
+    );
+
+    expect(wert.bestanden).toBe(true);
+    expect(kontrollZeilen()[0]).toMatchObject({ level1Wert: null, level2Wert: 120, sticks: 0, lanzetten: 0 });
+  });
+
+  it("speichert eine vollstaendige Kontrolle ausserhalb des Bereichs als nicht bestanden", async () => {
+    const geraetId = await geraetMitBereichen();
+
+    const wert = wertVon<{ id: string; bestanden: boolean }>(
+      await kontrolleErfassen({ geraetId, level1Wert: 99, level2Wert: 300, kompresseVerfall: KOMPRESSE }, t.db),
+    );
 
     expect(wert.bestanden).toBe(false);
-    expect(t.db.select().from(bzKontrollen).where(eq(bzKontrollen.id, wert.id)).get())
-      .toMatchObject({
-        level1ImBereich: true,
-        level2Wert: null,
-        level2ImBereich: null,
-        bestanden: false,
-      });
+    expect(kontrollZeilen()[0]).toMatchObject({ level1ImBereich: false, level2ImBereich: true });
   });
 
   it("lehnt ein unbekanntes Geraet ohne Schreiben oder Revalidierung ab", async () => {
@@ -675,7 +700,7 @@ describe("kontrolleErfassen", () => {
   it("schreibt nur INSERT-Zeilen, die von den Append-only-Triggern geschuetzt sind", async () => {
     const geraetId = await geraetOhneBereiche();
     const kontrolleId = wertVon<{ id: string; bestanden: boolean }>(
-      await kontrolleErfassen({ geraetId, level1Wert: 1 }, t.db),
+      await kontrolleErfassen({ geraetId, level1Wert: 1, kompresseVerfall: KOMPRESSE }, t.db),
     ).id;
 
     expect(() => t.db.update(bzKontrollen)
@@ -699,7 +724,7 @@ describe("kontrolleErfassen", () => {
       END;
     `);
 
-    const erg = await kontrolleErfassen({ geraetId, level1Wert: 1 }, t.db);
+    const erg = await kontrolleErfassen({ geraetId, level1Wert: 1, kompresseVerfall: KOMPRESSE }, t.db);
 
     expect(erg).toEqual({ ok: false, fehler: "Kontrolle konnte nicht gespeichert werden." });
     expect(fehlerVon(erg).fehler).not.toContain("KONTROLLE_GEHEIMNIS");
@@ -867,7 +892,7 @@ describe("kontrolleErfassen — Beachtung", () => {
     revalidiert.length = 0;
 
     await kontrolleErfassen(
-      { geraetId: id, level1Wert: 1, kommentar: "Display flackert", beachtung: true },
+      { geraetId: id, level1Wert: 1, kompresseVerfall: KOMPRESSE, kommentar: "Display flackert", beachtung: true },
       t.db,
     );
 
@@ -904,7 +929,7 @@ describe("kontrolleErfassen — Beachtung", () => {
     const id = await geraetOhneBereiche();
     revalidiert.length = 0;
 
-    const erg = await kontrolleErfassen({ geraetId: id, level1Wert: 1, beachtung: true }, t.db);
+    const erg = await kontrolleErfassen({ geraetId: id, level1Wert: 1, kompresseVerfall: KOMPRESSE, beachtung: true }, t.db);
 
     expect(fehlerVon(erg).feldFehler?.kommentar).toContain("Bitte kurz aufschreiben");
     expect(kontrollZeilen()).toEqual([]);
@@ -924,7 +949,7 @@ describe("kontrolleErfassen — Beachtung", () => {
     const seit = geraetZeile(id).beachtungSeit;
 
     await kontrolleErfassen(
-      { geraetId: id, level1Wert: 1, kommentar: "Streifen nachbestellt", beachtung: false },
+      { geraetId: id, level1Wert: 1, kompresseVerfall: KOMPRESSE, kommentar: "Streifen nachbestellt", beachtung: false },
       t.db,
     );
 
@@ -945,7 +970,7 @@ describe("kontrolleErfassen — Beachtung", () => {
     revalidiert.length = 0;
 
     const erg = await kontrolleErfassen(
-      { geraetId: id, level1Wert: 1, kommentar: "x".repeat(501), beachtung: true },
+      { geraetId: id, level1Wert: 1, kompresseVerfall: KOMPRESSE, kommentar: "x".repeat(501), beachtung: true },
       t.db,
     );
 
@@ -967,7 +992,7 @@ describe("kontrolleErfassen — Beachtung", () => {
     const id = await geraetOhneBereiche();
 
     const erg = await kontrolleErfassen(
-      { geraetId: id, level1Wert: 1, kommentar: "x".repeat(501) },
+      { geraetId: id, level1Wert: 1, kompresseVerfall: KOMPRESSE, kommentar: "x".repeat(501) },
       t.db,
     );
 
@@ -987,7 +1012,7 @@ describe("kontrolleErfassen — Beachtung", () => {
     protokoll.length = 0;
 
     await kontrolleErfassen(
-      { geraetId: id, level1Wert: 1, kommentar: "Display flackert", beachtung: true },
+      { geraetId: id, level1Wert: 1, kompresseVerfall: KOMPRESSE, kommentar: "Display flackert", beachtung: true },
       t.db,
     );
 
@@ -1001,7 +1026,7 @@ describe("kontrolleErfassen — Beachtung", () => {
     const id = await geraetOhneBereiche();
 
     await kontrolleErfassen(
-      { geraetId: id, level1Wert: 1, kommentar: "Streifen nachbestellt" },
+      { geraetId: id, level1Wert: 1, kompresseVerfall: KOMPRESSE, kommentar: "Streifen nachbestellt" },
       t.db,
     );
 
@@ -1019,11 +1044,75 @@ describe("IDA-358 — kontrolleErfassen mit Sendungs-ID", () => {
   it("legt bei einer Wiederholung keine zweite Kontrolle an und antwortet mit damals", async () => {
     const geraetId = await geraetMitBereichen();
     const sendungId = "7e6d5c4b-3a29-4180-9f7e-6d5c4b3a2918";
-    const eingabe = { geraetId, level1Wert: 50, level2Wert: 300, sendungId };
+    const eingabe = { geraetId, level1Wert: 50, level2Wert: 300, kompresseVerfall: KOMPRESSE, sendungId };
     const erste = await kontrolleErfassen(eingabe, t.db);
     const zweite = await kontrolleErfassen(eingabe, t.db);
     expect(erste).toEqual({ ok: true, wert: { id: sendungId, bestanden: true } });
     expect(zweite).toEqual(erste);
     expect(kontrollZeilen()).toHaveLength(1);
+  });
+});
+
+/**
+ * IDA-379 — EINE FEHLEINGABE STORNIEREN. Kein Loeschen: die Zeile bleibt mit
+ * allen Werten stehen und bekommt nur den Vermerk (0025).
+ */
+describe("kontrolleStornieren", () => {
+  async function kontrolle(): Promise<{ geraetId: string; id: string }> {
+    const geraetId = await geraetMitBereichen();
+    const { id } = wertVon<{ id: string; bestanden: boolean }>(await kontrolleErfassen({
+      geraetId, level1Wert: 50, level2Wert: 300, kompresseVerfall: KOMPRESSE,
+    }, t.db));
+    revalidiert.length = 0;
+    return { geraetId, id };
+  }
+
+  it("setzt den Vermerk mit Person, laesst die Werte stehen und revalidiert wie die anderen", async () => {
+    const { geraetId, id } = await kontrolle();
+    const vorher = kontrollZeilen()[0];
+
+    expect(await kontrolleStornieren({ kontrolleId: id }, t.db)).toEqual({ ok: true });
+
+    const nachher = kontrollZeilen()[0];
+    expect(nachher.storniertAt).toBeInstanceOf(Date);
+    expect(nachher.storniertVon).toBe("u-admin");
+    expect({ ...nachher, storniertAt: null, storniertVon: null }).toEqual(vorher);
+    expect(revalidiert).toEqual(erwartetePfade(geraetId));
+  });
+
+  it("verweigert einen zweiten Storno mit festem Fehler, ohne den Vermerk zu aendern", async () => {
+    const { id } = await kontrolle();
+    await kontrolleStornieren({ kontrolleId: id }, t.db);
+    const erster = kontrollZeilen()[0].storniertAt;
+    revalidiert.length = 0;
+    adminRiegel.mockResolvedValue({ ...VIEWER, sub: "u-zweite" });
+
+    expect(await kontrolleStornieren({ kontrolleId: id }, t.db))
+      .toEqual({ ok: false, fehler: "Kontrolle ist bereits storniert." });
+    expect(kontrollZeilen()[0]).toMatchObject({ storniertAt: erster, storniertVon: "u-admin" });
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("meldet eine unbekannte Kontrolle und eine ungueltige Eingabe", async () => {
+    expect(await kontrolleStornieren({ kontrolleId: "gibts-nicht" }, t.db))
+      .toEqual({ ok: false, fehler: "Kontrolle nicht gefunden." });
+    expect(await kontrolleStornieren({}, t.db)).toEqual({ ok: false, fehler: "Ungültige Eingabe." });
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("gibt bei einem Infrastrukturfehler nur den festen Stornofehler zurueck", async () => {
+    const { id } = await kontrolle();
+    t.sqlite.exec(`
+      CREATE TRIGGER bz_kontrollen_storno_defekt
+      BEFORE UPDATE ON bz_kontrollen
+      BEGIN
+        SELECT RAISE(ABORT, 'STORNO_GEHEIMNIS');
+      END;
+    `);
+
+    expect(await kontrolleStornieren({ kontrolleId: id }, t.db))
+      .toEqual({ ok: false, fehler: "Kontrolle konnte nicht storniert werden." });
+    expect(kontrollZeilen()[0].storniertAt).toBeNull();
+    expect(revalidiert).toEqual([]);
   });
 });

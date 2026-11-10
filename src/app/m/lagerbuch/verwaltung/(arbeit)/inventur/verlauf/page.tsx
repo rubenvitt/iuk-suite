@@ -33,7 +33,7 @@ export function verlaufSeitenInhalt(db: DB): ReactNode {
     zeitText: fmtDatumZeit(l.ts),
     person: person(l.quelleTyp, l.quelleId),
     kommentar: l.kommentar,
-    umfangText: umfangText(l.umfang, aufloesung),
+    umfangText: umfangText(l.umfang, aufloesung, l.abdeckung),
     positionen: l.positionen,
     abweichungen: l.abweichungen,
     detailHref: verwaltungDetailPfad("inventur/verlauf", l.id),

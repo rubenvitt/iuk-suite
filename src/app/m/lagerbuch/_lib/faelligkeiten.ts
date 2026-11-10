@@ -14,6 +14,7 @@
  *   * Sauerstoffflaschen, deren letzte Messung die Wechselgrenze erreicht → überfällig. Eine Flasche
  *     ohne Messung ist keine Frist und bleibt draußen; die Verwaltung zeigt sie als „keine Messung".
  *   * BZ-Geräte, deren Kontrolle überfällig ist oder nie stattfand → überfällig; im Warnfenster → bald.
+ *     Die Frist läuft nur von einer bestandenen, nicht stornierten Kontrolle (IDA-379).
  *   * Plomben, die angelegt, aber nicht gesetzt sind (Fach offen) → bald.
  *   * Gemeldete Mängel, die noch offen sind → überfällig (IDA-298). Neue Mängel gehen außerdem sofort
  *     als Push hinaus (`lagerbuchSofortmeldungen`), nicht erst am Montag.
@@ -153,7 +154,7 @@ function blutzucker(db: Leser, jetzt: Date): Faelligkeit[] {
       const f = g.faelligkeit;
       // ⚠️ `nieGeprueft` ZUERST und eigenständig: dort ist `ueberfaellig` false (`domain/bz.ts`).
       const zustand = f.nieGeprueft
-        ? "noch nie kontrolliert"
+        ? (f.nieBestanden ? "noch nie bestanden" : "noch nie kontrolliert")
         : f.ueberfaellig
           ? `Kontrolle seit ${tageDativ(Math.max(1, -(f.tageBisFaellig ?? 0)))} überfällig`
           : f.tageBisFaellig === 0 ? "Kontrolle heute fällig" : `Kontrolle fällig in ${tageDativ(f.tageBisFaellig ?? 0)}`;

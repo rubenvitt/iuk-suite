@@ -33,7 +33,7 @@ import {
 import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../_lib/format";
 import {
-  istEntnahmebox, standortMeta, type Einheitenart,
+  standortMeta, type Einheitenart,
 } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
@@ -41,7 +41,7 @@ import { Chip } from "../../../_ui/Chip";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import { gruppiereNachOrt, type OrtGruppe } from "./gruppierung";
-import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
+import { ortHref } from "./ortPfad";
 
 export type OrtVerfallZeile = {
   /** `${lagerortId}:${artikelId}` — je Paar gibt es hoechstens eine Meldung. */
@@ -104,22 +104,7 @@ function ortArt(
   });
 }
 
-/**
- * Wohin die erste Spalte verlinkt — `null` heisst „kein Blatt, also kein Link".
- *
- * ⚠️ EIN LAGER LIEGT NICHT UNTER `/verwaltung/fahrzeuge/…`, und der feste Pfad
- * dort war bis DRK-377 richtig, weil `lagerort_verfall` nur an Einheiten
- * haengen konnte. Fuer die Entnahmebox ergaebe er ein 404 — ein toter Link in
- * genau der Zeile, die jemanden zum Aufraeumen schicken soll.
- *
- * ⚠️ UND EIN DRITTES LAGER BEKOMMT KEINEN, statt einen zu raten. Heute schreibt
- * nichts sonst eine Meldung an ein Lager; kaeme eines dazu, waere ein geratenes
- * Ziel schlimmer als gar keines — der Name steht ja da.
- */
-function ortHref(zeile: { ortId: string; ortTyp: "lager" | "fahrzeug" }): string | null {
-  if (zeile.ortTyp !== "lager") return verwaltungDetailPfad("fahrzeuge", zeile.ortId);
-  return istEntnahmebox(zeile.ortId) ? "/verwaltung/entnahmebox" : null;
-}
+/* Wohin die erste Spalte verlinkt: `ortHref` in `ortPfad.ts` (IDA-379). */
 
 /**
  * SUCHFELDMENGE: Ort, Kennung, ART und Artikel — was auf der Zeile steht.
