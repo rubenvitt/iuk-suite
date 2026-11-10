@@ -115,6 +115,42 @@ describe("createArtikel", () => {
   });
 });
 
+/**
+ * IDA-378 — EIN ZWEITER GLEICHNAMIGER ARTIKEL ENTSTEHT NUR NACH RUECKFRAGE,
+ * und die steht auf dem Server, nicht nur im Dialog.
+ */
+describe("createArtikel — Dublette (IDA-378)", () => {
+  const NEU = { name: "  mullbinde ", einheit: "Stk", fach: "A2", mindestbestand: 0 };
+
+  it("legt ohne Bestaetigung nichts an und nennt den vorhandenen Artikel", async () => {
+    artikelAnlegen();
+    const erg = alsFehler(await createArtikel(NEU, t.db));
+    expect(erg).toMatchObject({ fehler: "„Mullbinde“ gibt es schon.", dublette: true });
+    expect(t.db.select().from(artikel).all()).toHaveLength(1);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("nennt einen nur deaktiviert vorhandenen Artikel so", async () => {
+    artikelAnlegen({ aktiv: false });
+    const erg = alsFehler(await createArtikel(NEU, t.db));
+    expect(erg.fehler).toBe("„Mullbinde“ gibt es schon (deaktiviert).");
+  });
+
+  it("faltet auch Umlaute — „Ärmel“ trifft „ärmel“", async () => {
+    artikelAnlegen({ name: "Ärmel" });
+    const erg = alsFehler(await createArtikel({ ...NEU, name: "ärmel" }, t.db));
+    expect(erg).toMatchObject({ dublette: true });
+  });
+
+  it("legt mit Bestaetigung trotzdem an", async () => {
+    artikelAnlegen();
+    const erg = await createArtikel({ ...NEU, dublettBestaetigt: true }, t.db);
+    expect(erg.ok).toBe(true);
+    expect(t.db.select().from(artikel).all().map((z) => z.name).sort())
+      .toEqual(["Mullbinde", "mullbinde"]);
+  });
+});
+
 describe("updateArtikel", () => {
   it("ändert nur das gesendete Feld, auch wenn ein anderer Ein-Feld-Commit später eintrifft", async () => {
     artikelAnlegen();

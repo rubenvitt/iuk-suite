@@ -31,6 +31,13 @@ export function fmtVerfall(v: string): string {
   return `${m}/${y.slice(2)}`;
 }
 
+/** "2020-01" → "01/2020" — die Schreibweise des Monatsfelds (IDA-378), fuer
+ *  Rueckfrage und Abweisung eines abgelaufenen Zugangs. */
+export function fmtVerfallLang(v: string): string {
+  const [y, m] = v.split("-");
+  return `${m}/${y}`;
+}
+
 /**
  * DER CHIP-TEXT IST VERTRAG, NICHT DEKORATION (§5.6.1). Vier Zustaende, und
  * `abgelaufen` schlaegt jede Ampel — eine abgelaufene Charge ist immer rot, eine

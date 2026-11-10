@@ -7,7 +7,7 @@ import { getDb, type DB } from "../_db/client";
 import { artikel, chargen } from "../_db/schema";
 import { HANDLAGER_ID, MONAT_REGEX } from "../_lib/konstanten";
 import { istAbgelaufen } from "../_lib/domain/verfall";
-import { fmtVerfall } from "../_lib/format";
+import { fmtVerfall, fmtVerfallLang } from "../_lib/format";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { bereichsAbweisung } from "../_lib/helferBereich";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
@@ -85,10 +85,21 @@ const ZugangSchema = z
     chargeId: z.string().min(1).optional(),
     neueCharge: z
       .object({
-        chargenNr: z.string().trim().min(1, "Chargennummer darf nicht leer sein"),
+        /*
+         * IDA-378 — LEER IST ERLAUBT: Material ohne aufgedruckte Nummer wird zur
+         * Charge „ohne Nummer" (bzw. „ohne Verfall" bei `PSEUDO_VERFALL`); die
+         * Regel samt gemeinsamem Topf steht in `zugangBuchen`.
+         */
+        chargenNr: z.string().trim().default(""),
         verfall: z.string().regex(MONAT_REGEX, "Verfall muss YYYY-MM sein"),
       })
       .optional(),
+    /**
+     * IDA-378 — die Rueckfrage „Verfall … ist abgelaufen. Trotzdem buchen?" ist
+     * beantwortet. Ohne sie weist `bucheZugang` einen Zugang auf eine
+     * abgelaufene Charge ab, neu oder gewaehlt.
+     */
+    abgelaufenBestaetigt: z.literal(true).optional(),
     /**
      * DRK-297 — der Schrank, in den die Ware kommt. Fehlt er, landet der Zugang
      * auf der Handlager-Wurzel; das heisst „Schrank noch nicht zugeordnet" und
@@ -139,6 +150,20 @@ export async function bucheZugang(
          * sie `BuchungAbgewiesen` sind. Diese Action hat keine Vorabpruefung,
          * ihre einzige Auskunft ist der Satz von dort.
          */
+        /*
+         * IDA-378 — ABGELAUFENES MATERIAL NUR NACH RUECKFRAGE. Die Oberflaeche
+         * fragt vorher; diese Pruefung haelt den Fall, dass sie es nicht tut.
+         * Eine unbekannte Charge faellt hier durch und scheitert an I5 in
+         * `zugangBuchen`.
+         */
+        const verfall = v.neueCharge?.verfall
+          ?? tx.select({ verfall: chargen.verfall }).from(chargen)
+            .where(eq(chargen.id, v.chargeId!)).get()?.verfall;
+        if (verfall && !v.abgelaufenBestaetigt && istAbgelaufen(verfall, new Date())) {
+          throw new BuchungAbgewiesen(
+            `Verfall ${fmtVerfallLang(verfall)} ist abgelaufen – bestätige den Zugang, um trotzdem zu buchen.`,
+          );
+        }
         zugangBuchen(tx, {
           artikelId: v.artikelId,
           menge: v.menge,
