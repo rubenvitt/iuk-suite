@@ -37,8 +37,10 @@ test("404 ohne Modulgruppe: kein Kreis zurück auf dieselbe Seite, sondern ins P
   await expect(page.getByRole("heading", { level: 1, name: "Diese Seite gibt es hier nicht." })).toBeVisible();
   await expect(page.getByRole("link", { name: "Zur Startseite" })).toHaveCount(0);
   const portal = page.getByRole("link", { name: "Zum Portal" });
-  // Ohne `AUTH_URL` (e2e) ist das Portal die Moduladresse `portal.localtest.me` — nie der Modul-Host selbst.
-  await expect(portal).toHaveAttribute("href", new RegExp(`^http://portal\\.localtest\\.me:${E2E_PORT}/$`));
+  // Eine absolute Wurzel, aber nie der Modul-Host selbst. Welcher Host genau, haengt an `AUTH_URL` des Servers;
+  // dass er das Portal ist, zeigt der Klick unten.
+  await expect(portal).toHaveAttribute("href", /^https?:\/\/[^/]+\/$/);
+  await expect(portal).not.toHaveAttribute("href", /wartung\.localtest\.me/);
   await expect(page.getByTestId("zugang-kontakt")).toContainText("Oder dir fehlt der Zugang.");
   await expect(page.getByTestId("zugang-konto")).toHaveText("Angemeldet als dev@localtest.me");
 
