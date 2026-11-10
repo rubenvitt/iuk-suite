@@ -9,7 +9,7 @@ import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { einheitSpeichernAction, planungSpeichernAction, tempHelferSpeichernAction } from "../_actions/planung";
 import type { ActionErgebnis, FeldFehler } from "../_lib/actionErgebnis";
 import type { Anforderung, EinheitArt, EinheitDTO, FahrzeugWahl, PlanungArt, PlanungDTO, Quali, TempHelferDTO } from "../_lib/typen";
-import { MINUTE } from "../_lib/typen";
+import { MAX_ANFORDERUNGEN, MINUTE, postenSchluessel } from "../_lib/typen";
 import { stunden } from "../_lib/zeit";
 import { type Zeitraum, Zeitfelder } from "./Zeitfelder";
 import s from "./schichtplan.module.css";
@@ -77,6 +77,9 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
   async function speichern() {
     const { von, bis } = zeitraum;
     if (von === null || bis === null) { setFehler({ bis: "Bitte Beginn und Ende wählen." }); return; }
+    // IDA-373: Jeder Name nur einmal — sonst lehnt der Server die zweite Einheit ab, und die Planung stünde ohne sie da.
+    const namen = [...abschnitte, ...gewaehlt.map((fid) => fahrzeuge.find((f) => f.id === fid)?.name ?? "")].map(postenSchluessel);
+    if (new Set(namen).size < namen.length) { setFehler({ abschnitte: "Jeder Name darf nur einmal vorkommen." }); return; }
     setLaeuft(true);
     const eingabe = {
       name, art, ort, von, bis,
@@ -116,7 +119,7 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
       </div>
       {planung ? null : (
         <>
-          <Feld titel="Abschnitte">
+          <Feld titel="Abschnitte" fehler={fehler.abschnitte}>
             <Select mode="tags" value={abschnitte} onChange={setAbschnitte} open={false} suffixIcon={null} placeholder="Abschnitt eintippen" />
           </Feld>
           <Feld titel="Fahrzeuge" hilfe={fahrzeuge.length ? undefined : "In der Fahrzeugverwaltung ist noch kein Fahrzeug im Dienst."}>
@@ -228,7 +231,8 @@ export function EinheitFormular({ planId, einheit, fahrzeuge, katalog, einteilun
             <Button aria-label="Anforderung entfernen" icon={<Icons8Ikone name="trash" groesse={16} />} onClick={() => setAnf(anf.filter((_, j) => j !== i))} />
           </div>
         ))}
-        <Button onClick={() => setAnf([...anf, { quali: quali("San"), anzahl: 1 }])} icon={<Icons8Ikone name="plus" groesse={16} />} style={{ alignSelf: "flex-start" }}>Qualifikation fordern</Button>
+        {fehler.anforderungen ? <span className={s.feldFehler} role="alert">{fehler.anforderungen}</span> : null}
+        <Button disabled={anf.length >= MAX_ANFORDERUNGEN} onClick={() => setAnf([...anf, { quali: quali("San"), anzahl: 1 }])} icon={<Icons8Ikone name="plus" groesse={16} />} style={{ alignSelf: "flex-start" }}>Qualifikation fordern</Button>
       </div>
       <Button type="primary" loading={laeuft} disabled={!gueltig} onClick={() => void speichern()}>{einheit ? "Speichern" : "Hinzufügen"}</Button>
     </div>
