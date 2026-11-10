@@ -1,9 +1,11 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { canAdminModule } from "@/core/auth/guards";
 import { RegisterSW } from "../RegisterSW";
 import { TeilnehmerRahmen } from "../_ui/teilnehmer/TeilnehmerRahmen";
 import { swModus } from "../_lib/boot";
 import { requireUavHost } from "../_lib/host";
+import { getDb } from "../_db/client";
+import { SID_COOKIE, sessionValidieren } from "../_lib/sitzung";
 
 /**
  * Die Hülle des Teilnehmer-Zweigs (`/`, `/aufgabe`, `/anmelden`, `/login`).
@@ -48,11 +50,28 @@ import { requireUavHost } from "../_lib/host";
 export default async function UavTeilnehmerLayout({ children }: { children: React.ReactNode }) {
   requireUavHost(await headers());
   const darfVerwalten = await canAdminModule("uav");
+  const angemeldet = await teilnehmerName();
 
   return (
-    <TeilnehmerRahmen darfVerwalten={darfVerwalten}>
+    <TeilnehmerRahmen darfVerwalten={darfVerwalten} angemeldet={angemeldet}>
       <RegisterSW modus={swModus(process.env)} />
       {children}
     </TeilnehmerRahmen>
   );
+}
+
+/**
+ * Wer per Code angemeldet ist, für die Kopfleiste (IDA-389) — aus dem
+ * Sitzungs-Cookie und der Datenbank, wie `/api/me`. Ein Fehler beim Lesen
+ * nimmt nur die Zeile weg, nicht die Seite.
+ */
+async function teilnehmerName(): Promise<string | null> {
+  const roh = (await cookies()).get(SID_COOKIE)?.value;
+  if (!roh) return null;
+  try {
+    const identitaet = sessionValidieren(getDb(), roh);
+    return identitaet?.kind === "participant" ? identitaet.name : null;
+  } catch {
+    return null;
+  }
 }

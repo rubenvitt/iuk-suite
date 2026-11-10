@@ -219,7 +219,7 @@ export function TeilnehmerTabelle({ zeilen }: { zeilen: TeilnehmerZeile[] }) {
         render: (_: unknown, zeile: TeilnehmerZeile) => <span style={SCHRIFT.mono}>{zeile.participant.loginCode}</span>,
       },
       {
-        title: "Magic-Link",
+        title: "Anmeldelink",
         key: "magicLink",
         render: (_: unknown, zeile: TeilnehmerZeile) => (
           <Button onClick={() => kopieren(zeile.magicLink, `link-${zeile.participant.id}`)}>
