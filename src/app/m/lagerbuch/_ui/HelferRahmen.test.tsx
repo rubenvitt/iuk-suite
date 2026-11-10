@@ -253,7 +253,7 @@ describe("HelferRahmen — der Kopf", () => {
     expect(beendenMock).toHaveBeenCalledTimes(1);
 
     // Die Bestätigung galt nur diesem Absenden: das nächste fragt wieder.
-    await click("[data-rolle='abmelden-abbrechen']").catch(() => undefined);
+    expect(exists("[data-rolle='abmelden-rueckfrage']")).toBe(false);
     await submitForm("header form");
     expect(beendenMock).toHaveBeenCalledTimes(1);
     expect(exists("[data-rolle='abmelden-rueckfrage']")).toBe(true);
