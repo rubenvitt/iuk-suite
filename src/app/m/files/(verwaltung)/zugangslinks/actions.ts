@@ -298,17 +298,21 @@ export async function kontingentAufstockenAction(
     if (ergebnis.changes !== 1) {
       // Nur für die Meldung gelesen; entschieden hat das `UPDATE`.
       const nochGueltig = getDb()
-        .select({ id: zugangslinks.id })
+        .select({ dateien: zugangslinks.budgetDateien, bytes: zugangslinks.budgetBytes })
         .from(zugangslinks)
         .where(and(eq(zugangslinks.id, id), isNull(zugangslinks.revokedAt), gt(zugangslinks.expiresAt, jetzt)))
         .get();
-      return {
-        ok: false,
-        fieldErrors: nochGueltig
-          ? { [zusatzBytes === null ? "zusatzDateien" : "zusatzMib"]: "Der Wert ist zu groß." }
-          : { id: "Dieser Abgabelink ist nicht (mehr) gültig — abgelaufen, widerrufen oder unbekannt." },
-        values,
-      };
+      if (!nochGueltig) {
+        return {
+          ok: false,
+          fieldErrors: { id: "Dieser Abgabelink ist nicht (mehr) gültig — abgelaufen, widerrufen oder unbekannt." },
+          values,
+        };
+      }
+      const zuGross: Record<string, string> = {};
+      if (nochGueltig.dateien > Number.MAX_SAFE_INTEGER - (zusatzDateien ?? 0)) zuGross.zusatzDateien = "Der Wert ist zu groß.";
+      if (nochGueltig.bytes > Number.MAX_SAFE_INTEGER - (zusatzBytes ?? 0)) zuGross.zusatzMib = "Der Wert ist zu groß.";
+      return { ok: false, fieldErrors: zuGross, values };
     }
 
     auffrischen();
