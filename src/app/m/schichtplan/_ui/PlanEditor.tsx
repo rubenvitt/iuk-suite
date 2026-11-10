@@ -99,8 +99,17 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
   /** IDA-385: Jede Änderung per Ziehen meldet sich und lässt sich mit einem Klick zurücknehmen. */
   // Je Gegenstand (Schicht oder Person) gilt nur die letzte Meldung: eine neuere Änderung ersetzt oder
   // schließt sie, sonst stellte ein veraltetes „Rückgängig“ einen Stand her, den es so nie gab.
+  // Ein Zähler je Gegenstand erkennt auch eine Bestätigung, die erst nach einer neueren Änderung eintrifft.
   const meldung = (gegenstand: string) => `rueckgaengig-${gegenstand}`;
-  function meldeMitRueckgaengig(gegenstand: string, text: string, zurueck: () => void) {
+  const fassungen = useRef(new Map<string, number>());
+  const fassung = (gegenstand: string) => fassungen.current.get(gegenstand) ?? 0;
+  function beruehre(gegenstand: string) {
+    fassungen.current.set(gegenstand, fassung(gegenstand) + 1);
+    message.destroy(meldung(gegenstand));
+  }
+  /** Zeigt die Meldung nur, wenn seit `stand` nichts mehr an `gegenstand` geändert wurde. */
+  function meldeMitRueckgaengig(gegenstand: string, stand: number, text: string, zurueck: () => void) {
+    if (fassung(gegenstand) !== stand) return;
     const key = meldung(gegenstand);
     void message.open({
       key, type: "success", duration: 8,
@@ -116,7 +125,7 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
   const aktionen = {
     zuteilen: (sid: string, k: string, aus?: string) => {
       const { quelle, helferId } = teile(k);
-      message.destroy(meldung(k));
+      beruehre(k);
       return aendere(
         (q) => ({
           ...q,
@@ -130,14 +139,14 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     },
     austragen: (sid: string, k: string) => {
       const { quelle, helferId } = teile(k);
-      message.destroy(meldung(k));
+      beruehre(k);
       return aendere(
         (q) => ({ ...q, zuordnungen: q.zuordnungen.filter((z) => !(z.schichtId === sid && z.quelle === quelle && z.helferId === helferId)) }),
         () => austragenAction(p.id, { schichtId: sid, quelle, helferId }),
       );
     },
     schichtSetzen: (sid: string, von: number, bis: number, einheitId?: string) => {
-      message.destroy(meldung(sid));
+      beruehre(sid);
       return aendere(
         (q) => ({ ...q, schichten: q.schichten.map((x) => (x.id === sid ? { ...x, von, bis, einheitId: einheitId ?? x.einheitId } : x)) }),
         () => schichtSetzenAction(p.id, sid, { von, bis }, einheitId),
@@ -157,7 +166,7 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
       return neu;
     },
     schichtLoeschen: (sid: string) => {
-      message.destroy(meldung(sid));
+      beruehre(sid);
       return aendere(
         (q) => ({ ...q, schichten: q.schichten.filter((x) => x.id !== sid), zuordnungen: q.zuordnungen.filter((z) => z.schichtId !== sid) }),
         () => schichtLoeschenAction(p.id, sid),
@@ -171,10 +180,12 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     zuteilen: (sid, k, aus) => {
       const sch = p.schichten.find((x) => x.id === sid);
       const h = helfer.find((x) => x.schluessel === k);
-      void aktionen.zuteilen(sid, k, aus).then((ok) => {
+      const zug = aktionen.zuteilen(sid, k, aus);
+      const stand = fassung(k);
+      void zug.then((ok) => {
         if (!ok || !sch || !h) return;
         meldeMitRueckgaengig(
-          k, `${name(h)} eingeteilt: ${einheitVon(sid)?.name ?? ""} ${zeitspanne(sch.von, sch.bis)}`,
+          k, stand, `${name(h)} eingeteilt: ${einheitVon(sid)?.name ?? ""} ${zeitspanne(sch.von, sch.bis)}`,
           () => void (aus ? aktionen.zuteilen(aus, k, sid) : aktionen.austragen(sid, k)),
         );
       });
@@ -182,17 +193,19 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     schichtSetzen: (sid, von, bis, einheitId) => {
       const alt = p.schichten.find((x) => x.id === sid);
       const wohin = einheitId ? ` · ${p.einheiten.find((e) => e.id === einheitId)?.name ?? ""}` : "";
-      void aktionen.schichtSetzen(sid, von, bis, einheitId).then((ok) => {
+      const zug = aktionen.schichtSetzen(sid, von, bis, einheitId);
+      const stand = fassung(sid);
+      void zug.then((ok) => {
         if (!ok || !alt) return;
         meldeMitRueckgaengig(
-          sid, `${bis - von === alt.bis - alt.von ? "Verschoben auf" : "Geändert auf"} ${zeitspanne(von, bis)}${wohin}`,
+          sid, stand, `${bis - von === alt.bis - alt.von ? "Verschoben auf" : "Geändert auf"} ${zeitspanne(von, bis)}${wohin}`,
           () => void aktionen.schichtSetzen(alt.id, alt.von, alt.bis, einheitId ? alt.einheitId : undefined),
         );
       });
     },
     schichtAnlegen: (einheitId, von, bis) => {
       void aktionen.schichtAnlegen(einheitId, von, bis).then((id) => {
-        if (id) meldeMitRueckgaengig(id, `Schicht ${zeitspanne(von, bis)} angelegt`, () => void aktionen.schichtLoeschen(id));
+        if (id) meldeMitRueckgaengig(id, fassung(id), `Schicht ${zeitspanne(von, bis)} angelegt`, () => void aktionen.schichtLoeschen(id));
       });
     },
   };
