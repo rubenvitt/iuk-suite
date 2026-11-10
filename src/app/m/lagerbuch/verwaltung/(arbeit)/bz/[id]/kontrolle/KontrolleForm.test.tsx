@@ -583,3 +583,48 @@ describe("Kontrollseite als Server Component", () => {
     }
   });
 });
+
+/** IDA-403 — tippt in das Monatsfeld und verlässt es, wie jemand, der weitertabbt. */
+async function tippeMonat(text: string): Promise<HTMLInputElement> {
+  const feld = query<HTMLInputElement>("input[aria-label='Kompressen-Verfall']");
+  await act(async () => {
+    feld.focus();
+  });
+  await fill("input[aria-label='Kompressen-Verfall']", text);
+  await act(async () => {
+    feld.blur();
+  });
+  await warte();
+  await warte();
+  return feld;
+}
+
+describe("KontrolleForm: getippter Kompressen-Verfall (IDA-403)", () => {
+  it.each([["09/2026"], ["9/2026"], ["09.2026"], ["2026-09"]])(
+    "nimmt getipptes „%s“ als September 2026 an",
+    async (text) => {
+      await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+      await fill("input[aria-label='Kontrolllösung niedrig (40–60)']", "50");
+      const feld = await tippeMonat(text);
+      expect(feld.value).toBe("09/2026");
+      await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
+      await warteAufAction();
+      expect(mocks.kontrolleErfassen.mock.calls[0]![0]).toMatchObject({ kompresseVerfall: "2026-09" });
+    },
+  );
+
+  it("verwirft keinen Nicht-Monat still, sondern meldet ihn am Feld", async () => {
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await fill("input[aria-label='Kontrolllösung niedrig (40–60)']", "50");
+    const feld = await tippeMonat("13/2026");
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("„13/2026“ ist kein Monat."),
+      "Feldmeldung",
+    );
+    expect(feld.value).toBe("13/2026");
+    await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
+    await warte();
+    await warte();
+    expect(mocks.kontrolleErfassen).not.toHaveBeenCalled();
+  });
+});
