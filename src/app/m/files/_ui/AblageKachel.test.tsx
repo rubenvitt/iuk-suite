@@ -39,7 +39,7 @@ vi.mock("../_lib/access", () => ({ requireFilesAccess: requireFilesAccessMock })
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 
 import { AblageKachel, ladeAblageStand } from "./AblageKachel";
-import { aufraeumenAction } from "../(verwaltung)/ablage-actions";
+import { aufraeumenAction, aufraeumVorschauAction } from "../(verwaltung)/ablage-actions";
 
 const DIR = "./.data/files-ablagekachel-test";
 const ABLAGE = join(DIR, "files");
@@ -326,15 +326,14 @@ describe("Die Ablage-Kachel", () => {
       'button[name="modus"][value="vorschau"]',
     );
     const echt = document.body.querySelector<HTMLButtonElement>(
-      'button[name="modus"][value="echt"]',
+      '[data-testid="files-ablage-aufraeumen"]',
     );
     expect(vorschau).not.toBeNull();
     expect(echt).not.toBeNull();
-    // Beide gehoeren in DASSELBE Formular: zwei Formulare koennten
-    // auseinanderlaufen, und der Trockenlauf waere dann nicht mehr die Vorschau
-    // desselben Auslosers.
-    expect(vorschau!.closest("form")).toBe(echt!.closest("form"));
-    expect(document.body.querySelectorAll("form")).toHaveLength(1);
+    // IDA-388: „Jetzt aufräumen" schickt NICHT selbst ab — es fragt erst mit den
+    // Zahlen des Trockenlaufs nach (`AufraeumenKnoepfe.test.tsx`).
+    expect(echt!.getAttribute("type")).not.toBe("submit");
+    expect(document.body.querySelector('button[name="modus"][value="echt"]')).toBeNull();
   });
 
   it("nennt den letzten Lauf samt Trockenlauf-Kennzeichnung", async () => {
@@ -358,7 +357,7 @@ describe("Die Ablage-Kachel", () => {
 
   it("hat einen Leerzustand, solange kein Lauf protokolliert ist", async () => {
     const text = textVon(await markup(), "files-ablage-letzter-lauf");
-    expect(text).toContain("Noch kein Lauf");
+    expect(text).toBe("Bisher wurde noch nicht aufgeräumt.");
   });
 
   it("wird zum benannten Fehlerzustand, statt die Uebersicht mitzureissen", async () => {
@@ -448,5 +447,37 @@ describe("aufraeumenAction", () => {
     expect(laeufe()[0].trockenlauf).toBe(0);
     expect(zaehle("shares")).toBe(1);
     expect(existsSync(join(ABLAGE, SHARE_A))).toBe(false);
+  });
+});
+
+describe("aufraeumVorschauAction (IDA-388)", () => {
+  it("nennt, was ein echter Lauf loeschen wuerde — ohne Protokollzeile und ohne zu loeschen", async () => {
+    process.env.FILES_MAX_DATEI_BYTES = "524288000";
+    process.env.FILES_AV_MAX_BYTES = "524288000";
+    process.env.FILES_MAX_ABLAUF_TAGE = "7";
+    process.env.FILES_LOESCH_KARENZ_STUNDEN = "0";
+    await legeBestandAn();
+    const { getDb } = await import("../_db/client");
+    const { shares } = await import("../_db/schema");
+    const { eq } = await import("drizzle-orm");
+    getDb()
+      .update(shares)
+      .set({ expiresAt: new Date(Date.now() - 5 * TAG) })
+      .where(eq(shares.id, SHARE_A))
+      .run();
+
+    const vorschau = await aufraeumVorschauAction();
+
+    expect(vorschau.satz).toMatch(/^Löscht 1 abgelaufene Freigabe/);
+    expect(vorschau.trockenlaufErzwungen).toBe(false);
+    // Eine Rueckfrage, die mit „Abbrechen" endet, ist kein Lauf.
+    expect(zaehle("aufraeum_laeufe")).toBe(0);
+    expect(zaehle("shares")).toBe(2);
+    expect(existsSync(join(ABLAGE, SHARE_A, DATEI_FERTIG))).toBe(true);
+  });
+
+  it("ist ohne Zugang nicht aufrufbar", async () => {
+    requireFilesAccessMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
+    await expect(aufraeumVorschauAction()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 });

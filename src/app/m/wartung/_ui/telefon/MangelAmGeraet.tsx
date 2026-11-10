@@ -13,14 +13,31 @@ import { FotoWahl, verkleinere } from "./foto";
 import { sendeAnRoute } from "./senden";
 import s from "../wartung.module.css";
 
-/** `mitName`: ohne Anmeldung gemeldet — dann steht der Name, den man angibt, im Verlauf. */
+/** `gewaehlt`: Entwurf seit IDA-381 — ältere trugen die Vorauswahl „Ja“, auch ungelesen. */
+type Stand = { name: string; text: string; bereit: boolean | null; gewaehlt?: true };
+type Nutzlast = { name: string; text: string; bereit: boolean };
+
+/** Was nach dem Melden passiert, in einem Satz (IDA-381): das Gerät geht nur bei „Nein“ auf nicht einsatzbereit. */
+function folgeText(bereit: boolean): string {
+  return bereit
+    ? "Die Verwaltung der Gruppe sieht den Mangel jetzt in ihrer Mängelliste."
+    : "Das Gerät steht jetzt auf „Nicht einsatzbereit“, und die Verwaltung der Gruppe sieht den Mangel in ihrer Mängelliste.";
+}
+
+/**
+ * `mitName`: ohne Anmeldung gemeldet — dann steht der Name, den man angibt, im Verlauf. Die Einsatzfrage hat keine
+ * Vorauswahl (IDA-381): vorher stand „Ja, einsatzbereit“ schon da und ging ungelesen mit.
+ */
 export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { geraetId: string; geraetName: string; mitName?: boolean }) {
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
-  const [bereit, setBereit] = useState(true);
+  const [bereit, setBereit] = useState<boolean | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [fertig, setFertig] = useState(false);
+  const [wahlFehlt, setWahlFehlt] = useState(false);
+  /** Nach dem Melden: was gemeldet wurde (auch bei einer nach dem Neuladen nachgeschickten Meldung). */
+  const [fertig, setFertig] = useState<boolean | null>(null);
+  const gesendet = useRef<boolean | null>(null);
   const fotoRef = useRef(foto);
   useLayoutEffect(() => {
     fotoRef.current = foto;
@@ -31,15 +48,16 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
    * Mangels (`mangel/senden`), eine Wiederholung legt ihn nicht doppelt an. Das Foto liegt nicht im Entwurf —
    * nach dem Neuladen geht die Meldung ohne es (`PruefungAmGeraet.tsx`, `useEntwurf`).
    */
-  const entwurf = useEntwurf<{ name: string; text: string; bereit: boolean }, { name: string; text: string; bereit: boolean }, SendeAntwort>({
+  const entwurf = useEntwurf<Stand, Nutzlast, SendeAntwort>({
     schluessel: `wartung:mangel:${geraetId}`,
-    stand: { name, text, bereit },
+    stand: { name, text, bereit, gewaehlt: true },
     wiederherstellen: (w) => {
       setName(w.name);
       setText(w.text);
-      setBereit(w.bereit);
+      setBereit(w.gewaehlt && typeof w.bereit === "boolean" ? w.bereit : null);
     },
     senden: async (d, sendung) => {
+      gesendet.current = d.bereit;
       const daten = new FormData();
       daten.set("sendung", sendung);
       daten.set("text", d.text);
@@ -54,7 +72,7 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
         setFehler(a.fehler);
         return false;
       }
-      setFertig(true);
+      setFertig(gesendet.current ?? true);
       return true;
     },
   });
@@ -62,15 +80,19 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
 
   function senden() {
     if (laeuft || !text.trim()) return;
+    if (bereit === null) {
+      setWahlFehlt(true);
+      return;
+    }
     setFehler(null);
     entwurf.sende({ name, text, bereit });
   }
 
-  if (fertig) {
+  if (fertig !== null) {
     return (
       <div className={s.telefon}>
         <section className={s.karte} role="status" data-rolle="mangel-fertig">
-          <Result status="success" title="Mangel gemeldet" extra={<Button href={`/g/${geraetId}`}>Zurück zum Gerät</Button>} />
+          <Result status="success" title="Mangel gemeldet" subTitle={<span data-rolle="mangel-folge">{folgeText(fertig)}</span>} extra={<Button href={`/g/${geraetId}`}>Zurück zum Gerät</Button>} />
         </section>
       </div>
     );
@@ -92,14 +114,15 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
       </section>
       <section className={s.karte}>
         <Kicker className={s.karteTitel}>Kann das Gerät noch raus?</Kicker>
-        <div className={`${s.wahl} ${s.wahlSpalte}`} role="radiogroup" aria-label="Kann das Gerät noch raus?">
-          {([[true, "mangel", "Ja, einsatzbereit"], [false, "defekt", "Nein, nicht einsatzbereit"]] as const).map(([wert, farbe, text]) => (
+        <div className={`${s.wahl} ${s.wahlSpalte}`} role="radiogroup" aria-label="Kann das Gerät noch raus?" aria-required="true">
+          {([[true, "mangel", "Ja, einsatzbereit mit Mangel"], [false, "defekt", "Nein, nicht einsatzbereit"]] as const).map(([wert, farbe, text]) => (
             <label key={farbe}>
-              <input type="radio" name="einsatzbereit" value={farbe} checked={bereit === wert} onChange={() => setBereit(wert)} />
+              <input type="radio" name="einsatzbereit" value={farbe} checked={bereit === wert} onChange={() => { setBereit(wert); setWahlFehlt(false); }} />
               {text}
             </label>
           ))}
         </div>
+        {wahlFehlt && <div className={`${s.textRot} ${s.klein}`} style={{ marginTop: 8 }} role="alert" data-rolle="wahl-fehlt">Bitte wählen, ob das Gerät noch raus kann.</div>}
       </section>
       {mitName && (
         <section className={s.karte}>

@@ -129,7 +129,7 @@ function zeile(ueberschreibung: Partial<ShareZeile> = {}): ShareZeile {
 }
 
 async function zeige(zeilen: ShareZeile[] = [zeile()]): Promise<void> {
-  await mount(<SharesTabelle zeilen={zeilen} />);
+  await mount(<SharesTabelle zeilen={zeilen} linkBasis="https://dateien.example.test/s/" />);
 }
 
 /**
@@ -450,6 +450,29 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
 // ---------------------------------------------------------------------------
 // Punkt 9 — Warten und Fehler auf einer Datenflaeche
 // ---------------------------------------------------------------------------
+
+describe("IDA-388 — Weg zur Detailseite und „Link kopieren“", () => {
+  it("verlinkt den Titel auf die Detailseite, in Tabelle UND Karte", async () => {
+    await zeige();
+    for (const rahmen of [BREIT, SCHMAL]) {
+      const link = query<HTMLAnchorElement>(`${rahmen} [data-testid='files-share-detail-sh-aaaaaaaa']`);
+      expect(link.getAttribute("href")).toBe("/shares/sh-aaaaaaaa");
+      expect(link.textContent).toBe("Übung Nord");
+    }
+  });
+
+  it("kopiert über die Zeilenaktion die vollständige öffentliche Adresse", async () => {
+    const schreibe = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: schreibe }, configurable: true });
+    await zeige();
+
+    await click(`${BREIT} [data-testid='files-share-kopieren-sh-aaaaaaaa']`);
+    expect(schreibe).toHaveBeenCalledWith("https://dateien.example.test/s/sh-aaaaaaaa");
+    expect(query(`${BREIT} [data-testid='files-share-kopieren-sh-aaaaaaaa']`).textContent).toContain(
+      "Kopiert",
+    );
+  });
+});
 
 describe("Punkt 9 — Warte- und Fehlerzustand", () => {
   /**

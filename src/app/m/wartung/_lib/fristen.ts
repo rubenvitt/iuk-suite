@@ -152,16 +152,22 @@ export const WER_TEXT: Record<Wer, string> = {
   elektrofachkraft: "Elektrofachkraft",
 };
 
+/**
+ * EIN WORT JE ZUSTAND, überall gleich (IDA-381), aus der suiteweiten Wortliste (Abschnitt „Zustände eines Geräts
+ * oder Fahrzeugs“): Liste, Akte, Übersicht, Telefon und das Etikett am Mangel.
+ * Die Farbe dazu steht in `_ui/teile.tsx` (`ZUSTAND_FARBE`). Ein offener Mangel trägt den Zustand, den er
+ * dem Gerät gibt (`mangelZustand`) — „einsatzbereit“ allein hieße am Gerät grün und am Mangel gelb.
+ */
 export const ZUSTAND_TEXT: Record<Zustand, string> = {
   ok: "Einsatzbereit",
-  mangel: "Mit Mangel, einsatzbereit",
+  mangel: "Einsatzbereit mit Mangel",
   defekt: "Nicht einsatzbereit",
 };
 
-export const ERGEBNIS_TEXT: Record<Zustand, string> = {
-  ok: "In Ordnung",
-  mangel: "Mit Mangel, einsatzbereit",
-  defekt: "Nicht einsatzbereit",
-};
+/** Welchen Zustand ein offener Mangel dem Gerät gibt. */
+export const mangelZustand = (einsatzbereit: boolean): Zustand => zustandAus([{ einsatzbereit }]);
+
+/** Das Prüfergebnis: „In Ordnung“ statt „Einsatzbereit“, sonst die Wörter des Zustands. */
+export const ERGEBNIS_TEXT: Record<Zustand, string> = { ...ZUSTAND_TEXT, ok: "In Ordnung" };
 
 export const STUFE_TEXT: Record<Stufe, string> = { ueberfaellig: "Überfällig", bald: "Bald", ok: "Im Plan" };

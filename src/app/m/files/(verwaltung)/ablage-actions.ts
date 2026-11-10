@@ -26,7 +26,8 @@ import { withAuditContext, auditActor } from "@/core/audit/server";
 import { revalidatePath } from "next/cache";
 
 import { requireFilesAccess } from "../_lib/access";
-import { fuehreAufraeumLaufAus } from "../_lib/boot";
+import { aufraeumSatz } from "../_lib/aufraeumText";
+import { fuehreAufraeumLaufAus, planeAufraeumVorschau } from "../_lib/boot";
 
 /**
  * Der INTERNE Pfad, wie ihn `revalidatePath` braucht — nicht die per Host
@@ -60,4 +61,23 @@ export async function aufraeumenAction(formData: FormData): Promise<void> {
 
     revalidatePath(INTERNER_PFAD);
   });
+}
+
+/** Was die Rueckfrage vor „Jetzt aufräumen" nennt (IDA-388). */
+export type AufraeumVorschau = {
+  /** `null` = nichts zu loeschen. */
+  satz: string | null;
+  /** `FILES_AUFRAEUMEN_TROCKENLAUF` ist an — auch der echte Lauf loescht nichts. */
+  trockenlaufErzwungen: boolean;
+};
+
+/**
+ * Die Zahlen fuer die Rueckfrage, OHNE Protokollzeile (`planeAufraeumVorschau`).
+ * Derselbe Riegel wie beim Lauf: eine Action ist ein eigener Einstieg, die
+ * Layout-Pruefung erstreckt sich nicht auf sie (§2.4).
+ */
+export async function aufraeumVorschauAction(): Promise<AufraeumVorschau> {
+  await requireFilesAccess();
+  const { zahlen, trockenlaufErzwungen } = await planeAufraeumVorschau();
+  return { satz: aufraeumSatz(zahlen), trockenlaufErzwungen };
 }

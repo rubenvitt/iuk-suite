@@ -6,7 +6,8 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../_db/client";
 import { gruppenAuswahl } from "../_lib/ansicht";
 import { faelligeFristen, ladeGeraete, ladeGruppen, ladeMaengel } from "../_lib/daten";
-import { WER_TEXT } from "../_lib/fristen";
+import { STUFE_TEXT, WER_TEXT } from "../_lib/fristen";
+import { geraeteHref, passtGeraet, zahlwort } from "../_lib/geraeteFilter";
 import { heute } from "../_lib/heute";
 import { istVerwalter, requireZugang } from "../_lib/zugang";
 import { GruppenFilter } from "../_ui/GruppenFilter";
@@ -28,19 +29,24 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
   const auswahl = gruppenAuswahl(rechte, ladeGruppen(db), (await searchParams).gruppe);
   const geraete = ladeGeraete(db, { gruppen: auswahl.gruppen, heute: heute() });
   const faellig = faelligeFristen(geraete);
-  const ueber = faellig.filter((z) => z.frist.stufe === "ueberfaellig").length;
   const nichtOk = geraete.filter((g) => g.zustand !== "ok");
   const offen = ladeMaengel(db, { gruppen: auswahl.gruppen, offen: true }).length;
-  const q = auswahl.gewaehlt ? `?gruppe=${auswahl.gewaehlt}` : "";
+  const gruppe = auswahl.gewaehlt;
+  // IDA-381: jede Kennzahl zählt mit dem Prädikat, mit dem ihre Liste filtert — und zählt Geräte, weil die
+  // Liste Geräte zeigt (ein Gerät mit zwei überfälligen Fristen ist eine Zeile).
+  const anzahl = (f: Parameters<typeof passtGeraet>[1]) => geraete.filter((g) => passtGeraet(g, f)).length;
+  const ueber = anzahl({ frist: "ueberfaellig", zustand: null });
+  const bald = anzahl({ frist: "bald", zustand: null });
+  const defekt = anzahl({ frist: null, zustand: "defekt" });
 
   return (
     <>
       <Seitenkopf titel="Übersicht" aktionen={<GruppenFilter wahl={auswahl.wahl} gewaehlt={auswahl.gewaehlt} />} />
       <Kennzahlen aria-label="Lage">
-        <Kpi zahl={ueber} text="Fristen überfällig" farbe="rot" href={`/geraete${q}`} />
-        <Kpi zahl={faellig.length - ueber} text="Fristen in den nächsten 30 Tagen" farbe="gelb" href={`/geraete${q}`} />
-        <Kpi zahl={geraete.filter((g) => g.zustand === "defekt").length} text="Geräte nicht einsatzbereit" farbe="rot" href={`/maengel${q}`} />
-        <Kpi zahl={offen} text="Mängel offen" farbe="gelb" href={`/maengel${q}`} />
+        <Kpi zahl={ueber} text={`${zahlwort(ueber, "Gerät", "Geräte")} mit überfälliger Frist`} farbe="rot" href={geraeteHref({ gruppe, frist: "ueberfaellig" })} />
+        <Kpi zahl={bald} text={`${zahlwort(bald, "Gerät", "Geräte")} bald fällig`} farbe="gelb" href={geraeteHref({ gruppe, frist: "bald" })} />
+        <Kpi zahl={defekt} text={`${zahlwort(defekt, "Gerät", "Geräte")} nicht einsatzbereit`} farbe="rot" href={geraeteHref({ gruppe, zustand: "defekt" })} />
+        <Kpi zahl={offen} text={zahlwort(offen, "Mangel offen", "Mängel offen")} farbe="gelb" href={gruppe ? `/maengel?gruppe=${gruppe}` : "/maengel"} />
       </Kennzahlen>
       <Card title="Was steht an">
         {faellig.length === 0 ? (
@@ -50,8 +56,9 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
             {faellig.map(({ geraet: g, frist: f }) => (
               <li key={g.id + f.vorlage.id}>
                 <Link href={`/geraete/${g.id}`} className={s.zeile}>
-                  <Kicker className={f.stufe === "ueberfaellig" ? s.textRot : s.textGelb}>
-                    {f.stufe === "ueberfaellig" ? "Überfällig" : "Bald"} · {f.vorlage.name} · {g.gruppeName}
+                  {/* Wie „Was steht an“ im Portal (IDA-381): ohne Versalien, die Dringlichkeit als Wort. */}
+                  <Kicker leise className={f.stufe === "ueberfaellig" ? s.kickerTinte : undefined}>
+                    {STUFE_TEXT[f.stufe]} · {f.vorlage.name} · {g.gruppeName}
                   </Kicker>
                   <div><strong>{g.name}</strong> <span className={s.neben}>· {g.ort}</span></div>
                   <div className={s.neben}>{f.text}{f.vorlage.wer !== "intern" ? ` · ${WER_TEXT[f.vorlage.wer]}` : ""}</div>
@@ -65,7 +72,7 @@ export default async function Uebersicht({ searchParams }: { searchParams: Promi
         {nichtOk.length === 0 ? (
           <p className={s.neben} style={{ margin: 0 }}>Alle Geräte einsatzbereit.</p>
         ) : (
-          <ul className={s.zeilen} aria-label="Geräte mit Mangel">
+          <ul className={s.zeilen} aria-label="Nicht einsatzbereit oder mit Mangel">
             {nichtOk.map((g) => (
               <li key={g.id}>
                 <Link href={`/geraete/${g.id}`} className={`${s.zeile} ${s.quer}`}>

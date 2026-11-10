@@ -7,8 +7,11 @@ import { act } from "react";
 vi.mock("@/app/m/portal/actions", () => ({
   deleteServiceAction: vi.fn(),
   setzeSichtbarkeitAction: vi.fn(),
+  createServiceAction: vi.fn(),
+  bearbeiteServiceAction: vi.fn(),
 }));
 
+import { deleteServiceAction } from "@/app/m/portal/actions";
 import { ServiceTable, type ServiceRow } from "./service-table";
 import { exists, mount, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 
@@ -25,10 +28,12 @@ import { exists, mount, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/t
 
 afterEach(unmount);
 
+const KACHEL = { description: "", category: null, iconUrl: null, openInNewTab: true };
+
 const DIENSTE: ServiceRow[] = [
-  { id: "a", name: "Wiki", slug: "wiki", url: "https://wiki.example.org", isPublic: false, requiredGroups: ["iuk", "unbekannt"] },
-  { id: "b", name: "Ampel", slug: "ampel", url: "https://ampel.example.org", isPublic: true, requiredGroups: [] },
-  { id: "c", name: "Mail", slug: "mail", url: "https://mail.example.org", isPublic: true, requiredGroups: [] },
+  { ...KACHEL, id: "a", name: "Wiki", url: "https://wiki.example.org", isPublic: false, requiredGroups: ["iuk", "unbekannt"] },
+  { ...KACHEL, id: "b", name: "Ampel", url: "https://ampel.example.org", isPublic: true, requiredGroups: [] },
+  { ...KACHEL, id: "c", name: "Mail", url: "https://mail.example.org", isPublic: true, requiredGroups: [] },
 ];
 
 const GRUPPEN = [{ wert: "iuk", anzeige: "IuK-Gruppe" }];
@@ -112,4 +117,69 @@ it("zeigt, wer eine Kachel sieht", async () => {
     (tr.querySelectorAll("td")[3]?.textContent ?? "").trim(),
   );
   expect(zellen).toEqual(["IuK-Gruppe, unbekannt", "alle", "alle"]);
+});
+
+/**
+ * KEIN DIENST VERSCHWINDET DURCH EINEN EINZELNEN KLICK (IDA-391). Vorher stand „Löschen" als roter
+ * Knopf je Zeile und löschte sofort. Jetzt: Zeilenmenü → „Löschen" → Rückfrage mit dem Namen →
+ * erst deren Knopf ruft die Action.
+ */
+async function oeffneMenue(name: string): Promise<HTMLElement[]> {
+  const knopf = queryAll<HTMLButtonElement>("[data-testid=dienst-aktionen]").find(
+    (b) => b.getAttribute("aria-label") === `Aktionen für ${name}`,
+  );
+  expect(knopf, `kein Zeilenmenü für ${name}`).toBeDefined();
+  await zeigerfolge(knopf!);
+  return Array.from(document.body.querySelectorAll<HTMLElement>(".ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item"));
+}
+
+it("trägt je Zeile ein Menü mit Bearbeiten, Sichtbarkeit und Löschen statt eines Löschknopfs", async () => {
+  await zeige();
+  expect(queryAll("tbody button").filter((b) => (b.textContent ?? "").includes("Löschen"))).toHaveLength(0);
+  const eintraege = await oeffneMenue("Ampel");
+  expect(eintraege.map((li) => (li.textContent ?? "").trim())).toEqual(["Bearbeiten", "Sichtbarkeit", "Löschen"]);
+});
+
+it("löscht erst nach der Rückfrage, die den Dienst nennt", async () => {
+  vi.mocked(deleteServiceAction).mockReset().mockResolvedValue(undefined);
+  await zeige();
+  const loeschen = (await oeffneMenue("Ampel")).find((li) => (li.textContent ?? "").includes("Löschen"))!;
+  await zeigerfolge(loeschen);
+
+  expect(deleteServiceAction).not.toHaveBeenCalled();
+  const dialog = queryPortal(".ant-modal");
+  expect(dialog.textContent).toContain("„Ampel“ löschen?");
+
+  const bestaetigen = Array.from(dialog.querySelectorAll<HTMLButtonElement>("button")).find(
+    (b) => (b.textContent ?? "").trim() === "Löschen",
+  )!;
+  await zeigerfolge(bestaetigen);
+
+  expect(deleteServiceAction).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(deleteServiceAction).mock.calls[0][0].get("id")).toBe("b");
+});
+
+it("lässt den Dialog offen und meldet es, wenn das Löschen scheitert", async () => {
+  vi.mocked(deleteServiceAction).mockReset().mockRejectedValue(new Error("Forbidden"));
+  await zeige();
+  const loeschen = (await oeffneMenue("Ampel")).find((li) => (li.textContent ?? "").includes("Löschen"))!;
+  await zeigerfolge(loeschen);
+  const dialog = queryPortal(".ant-modal");
+  const bestaetigen = Array.from(dialog.querySelectorAll<HTMLButtonElement>("button")).find(
+    (b) => (b.textContent ?? "").trim() === "Löschen",
+  )!;
+  await zeigerfolge(bestaetigen);
+  await vi.waitFor(() => expect(queryPortal(".ant-modal").textContent).toContain("Der Dienst ließ sich nicht löschen."));
+  // antd behält einen geschlossenen Dialog im DOM; offen heißt: die Hülle ist nicht ausgeblendet.
+  const huelle = queryPortal(".ant-modal").closest<HTMLElement>(".ant-modal-wrap")!;
+  expect(huelle.style.display).not.toBe("none");
+});
+
+it("öffnet „Bearbeiten“ in einer Schublade mit dem Stand des Dienstes", async () => {
+  await zeige();
+  const bearbeiten = (await oeffneMenue("Wiki")).find((li) => (li.textContent ?? "").includes("Bearbeiten"))!;
+  await zeigerfolge(bearbeiten);
+  const formular = queryPortal<HTMLFormElement>(".ant-drawer [data-testid=dienst-formular]");
+  expect(formular.querySelector<HTMLInputElement>("input[name=name]")!.value).toBe("Wiki");
+  expect(formular.querySelector<HTMLInputElement>("input[name=id]")!.value).toBe("a");
 });

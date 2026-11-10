@@ -76,6 +76,11 @@ export const NAV_IKONEN: Record<NavIkonName, Icons8Name> = {
   plaene: "genealogy",
   archiv: "archive",
   bibliothek: "book",
+  // IDA-391 — Begründung an der Union in `types.ts`.
+  suche: "search",
+  neuigkeiten: "megaphone",
+  serverwartung: "server",
+  rechte: "key",
 };
 
 /**

@@ -4,6 +4,7 @@ import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
 import { canAdminModule } from "@/core/auth/guards";
 import { auth } from "@/core/auth";
+import { darfRechteVergeben } from "@/app/m/portal/_lib/rechteZugang";
 import { darfWartungSehen, wartungsAbo } from "@/app/m/portal/_lib/serverwartung";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { sichtbareQuellen } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
@@ -28,18 +29,21 @@ import { sichtSchluessel } from "@/core/faelligkeiten";
  * an `darfWartung` — und das ist eine EIGENE Frage, nicht die der Verwaltung
  * (`_lib/serverwartung.ts`, `darfWartungSehen`).
  */
-export function navFuerPortal(darfVerwalten: boolean, darfAuditLesen = false, darfWartung = false, darfFristen = false): SuiteNavItem[] {
+export function navFuerPortal(darfVerwalten: boolean, darfAuditLesen = false, darfWartung = false, darfFristen = false, darfRechte = false): SuiteNavItem[] {
   const jeder: SuiteNavItem[] = [
-    { key: "start", title: "Übersicht", href: "/" },
+    { key: "start", title: "Übersicht", href: "/", ikon: "uebersicht" },
     // IDA-297: dasselbe Prädikat wie die Seite (`sichtbareQuellen`), sonst führte der Eintrag auf 404.
-    ...(darfFristen ? [{ key: "faelligkeiten", title: "Was steht an", href: "/faelligkeiten" }] : []),
-    { key: "suche", title: "Suche", href: "/suche" },
-    { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
-    ...(darfWartung ? [{ key: "serverwartung", title: "Serverwartung", href: "/serverwartung" }] : []),
+    ...(darfFristen ? [{ key: "faelligkeiten", title: "Was steht an", href: "/faelligkeiten", ikon: "kalender" } as const] : []),
+    { key: "suche", title: "Suche", href: "/suche", ikon: "suche" },
+    { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten", ikon: "neuigkeiten" },
+    ...(darfWartung ? [{ key: "serverwartung", title: "Serverwartung", href: "/serverwartung", ikon: "serverwartung" } as const] : []),
   ];
   if (!darfVerwalten) return jeder;
-  return [...jeder, { key: "admin", title: "Verwaltung", href: "/admin" },
-    ...(darfAuditLesen ? [{ key: "audit", title: "Audit-Log", href: "/admin/audit" }] : [])];
+  // „Rechte" hängt an der Suite-Betriebsgruppe (`darfRechteVergeben`), nicht am Portal-Admin —
+  // deshalb ein eigener Schalter, wie beim Audit-Log.
+  return [...jeder, { key: "admin", title: "Verwaltung", href: "/admin", ikon: "einstellungen" },
+    ...(darfRechte ? [{ key: "rechte", title: "Rechte", href: "/admin/rechte", ikon: "rechte" } as const] : []),
+    ...(darfAuditLesen ? [{ key: "audit", title: "Audit-Log", href: "/admin/audit", ikon: "journal" } as const] : [])];
 }
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -48,9 +52,10 @@ export default async function PortalLayout({ children }: { children: React.React
   // Suite-Admin-Gruppe, weil `portal` keine eigene fuehrt) — also steht sie
   // auch nur ihnen in der Navigation. Ein Eintrag, der auf 404 fuehrt, ist
   // schlimmer als kein Eintrag. Dieselbe Bauform wie in `qr/layout.tsx`.
-  const [darfVerwalten, darfAuditLesen, session] = await Promise.all([
+  const [darfVerwalten, darfAuditLesen, darfRechte, session] = await Promise.all([
     canAdminModule("portal"),
     canReadAudit(),
+    darfRechteVergeben(),
     auth(),
   ]);
   // Ohne eingerichtetes Abo fuehrte der Eintrag auf 404 (`serverwartung/page.tsx`).
@@ -58,7 +63,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const darfFristen = sichtbareQuellen(sichtSchluessel(session?.user)).length > 0;
 
   return (
-    <Shell variant={mod.shell} moduleKey={mod.key} nav={navFuerPortal(darfVerwalten, darfAuditLesen, darfWartung, darfFristen)}>
+    <Shell variant={mod.shell} moduleKey={mod.key} nav={navFuerPortal(darfVerwalten, darfAuditLesen, darfWartung, darfFristen, darfRechte)}>
       {children}
     </Shell>
   );

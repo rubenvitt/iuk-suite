@@ -36,6 +36,13 @@
       "when": 1793718871623,
       "tag": "0004_launcher_vorlieben",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794306598827,
+      "tag": "0005_neuigkeiten_gesehen",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,10 @@
 import { auth } from "@/core/auth";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { neuigkeitenFuer } from "@/app/m/portal/_lib/neuigkeiten/auswahl";
+import {
+  appsAus, heuteIso, neuigkeitenFuer, seiteAus, vergleichsStand,
+} from "@/app/m/portal/_lib/neuigkeiten/auswahl";
+import { ALLE_APPS } from "@/app/m/portal/_lib/neuigkeiten/neu";
+import { neuigkeitenGesehenVon } from "@/app/m/portal/_lib/vorlieben";
 import { NeuigkeitenListe } from "@/app/m/portal/_ui/NeuigkeitenListe";
 
 /**
@@ -19,13 +23,19 @@ import { NeuigkeitenListe } from "@/app/m/portal/_ui/NeuigkeitenListe";
  * für eine andere Frage: WELCHE Notizen jemand sieht, hängt an seinen Gruppen
  * (`neuigkeitenFuer`).
  *
- * Server Component: kein `@ant-design/icons` (Falle 7), kein Compound-Zugriff
- * auf antd (Falle 1). Beides steckt in der Insel darunter, die ausschließlich
- * serialisierbare Daten bekommt.
+ * NUR DIE ERSTE SEITE (IDA-391): ältere lädt die Insel per Server Action nach
+ * (`neuigkeiten/actions.ts`). Der Vergleichsstand für „Neu" wird hier gelesen;
+ * GEMERKT wird der Besuch erst aus der Insel nach dem Anzeigen — kein
+ * Schreibzugriff im Render.
+ *
+ * Server Component: kein Compound-Zugriff auf antd (Falle 1). Die Insel darunter
+ * bekommt ausschließlich serialisierbare Daten.
  */
 export default async function NeuigkeitenPage() {
   const session = await auth();
-  const neuigkeiten = neuigkeitenFuer(session?.user?.groups ?? null);
+  const alle = neuigkeitenFuer(session?.user?.groups ?? null);
+  const personId = session?.user?.id ?? null;
+  const neuSeit = personId ? vergleichsStand(neuigkeitenGesehenVon(personId), heuteIso()) : null;
 
   return (
     <>
@@ -33,7 +43,12 @@ export default async function NeuigkeitenPage() {
         titel="Neuigkeiten"
         zurueck={{ titel: "Apps & Dienste", href: "/" }}
       />
-      <NeuigkeitenListe neuigkeiten={neuigkeiten} />
+      <NeuigkeitenListe
+        erste={seiteAus(alle, ALLE_APPS, 0)}
+        apps={appsAus(alle)}
+        neuSeit={neuSeit}
+        merken={personId !== null}
+      />
     </>
   );
 }
