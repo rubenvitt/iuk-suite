@@ -25,7 +25,10 @@ export function DurchfuehrungForm({ onAdd, heute, besitzer, eigenerName = "" }: 
   // beiden Namensfelder beim nächsten Eintrag bereits vorbelegt sind.
   const [letztesTeam, setLetztesTeam] = useLocalStorage<Team>(teamSchluessel(besitzer), LEERES_TEAM);
   const [datum, setDatum] = useState(heute);
-  const [drohnensteuerer, setDrohnensteuerer] = useState(letztesTeam.drohnensteuerer || eigenerName);
+  // `null` = noch nicht angefasst: dann folgt das Feld der Vorbelegung, auch wenn
+  // der eigene Name erst nach `api.me()` ankommt.
+  const [steuererEingabe, setSteuererEingabe] = useState<string | null>(null);
+  const drohnensteuerer = steuererEingabe ?? (letztesTeam.drohnensteuerer || eigenerName);
   const [luftraumbeobachter, setLuftraumbeobachter] = useState(letztesTeam.luftraumbeobachter);
   const [steuererFehlt, setSteuererFehlt] = useState(false);
   const [datumFehlt, setDatumFehlt] = useState(false);
@@ -98,7 +101,7 @@ export function DurchfuehrungForm({ onAdd, heute, besitzer, eigenerName = "" }: 
           required
           value={drohnensteuerer}
           onChange={(e) => {
-            setDrohnensteuerer(e.target.value);
+            setSteuererEingabe(e.target.value);
             if (e.target.value.trim()) setSteuererFehlt(false);
           }}
           autoComplete="off"

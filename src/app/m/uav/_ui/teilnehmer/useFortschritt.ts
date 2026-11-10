@@ -210,8 +210,9 @@ export function useFortschritt(katalog: TaskDTO[], besitzer: string) {
     [besitzer],
   );
 
-  // Spiegelt eine TaskStatus-Mutation („nicht anwendbar") in die Queue — die
-  // Zielanzahl reist unverändert mit, setzen kann sie seit IDA-389 nur der Katalog.
+  // Spiegelt eine TaskStatus-Mutation („nicht anwendbar") in die Queue. Die
+  // Zielanzahl reist als `null` („nicht anfassen"): setzen kann sie seit IDA-389
+  // nur der Katalog, und `f.zielanzahl` ist schon max(Katalog, Status).
   // Ebenfalls ohne `eingeloggterTeilnehmer`-Wächter — Begründung s. `execMutation`.
   const statusMutation = useCallback(
     (taskId: string, f: AufgabenFortschritt) => {
@@ -219,7 +220,7 @@ export function useFortschritt(katalog: TaskDTO[], besitzer: string) {
         art: "taskStatus",
         daten: {
           taskId,
-          zielanzahl: f.zielanzahl,
+          zielanzahl: null,
           nichtAnwendbar: f.nichtAnwendbar,
           updatedAt: jetztIso(),
         },

@@ -58,7 +58,7 @@ describe("useFortschritt — Queue unabhängig von der Identität", () => {
     await click('button:nth-of-type(2)');
     const queue = personenSpeicher(ANONYM).queueLesen();
     expect(queue).toHaveLength(1);
-    expect(queue[0]).toMatchObject({ art: "taskStatus", daten: { taskId: "1-1", zielanzahl: 2, nichtAnwendbar: true } });
+    expect(queue[0]).toMatchObject({ art: "taskStatus", daten: { taskId: "1-1", zielanzahl: null, nichtAnwendbar: true } });
   });
 });
 

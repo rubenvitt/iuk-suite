@@ -309,7 +309,9 @@ export function sync(db: UavDb, participantId: string, req: SyncRequest): Progre
       }).onConflictDoUpdate({
         target: [taskStatus.participantId, taskStatus.taskId],
         set: {
-          zielanzahl: sql`excluded.zielanzahl`,
+          // IDA-389: `null` heißt „Ziel nicht anfassen" — ein Umschalten von
+          // „nicht anwendbar" darf das Katalogziel nicht als Statusziel festschreiben.
+          zielanzahl: sql`coalesce(excluded.zielanzahl, ${taskStatus.zielanzahl})`,
           nichtAnwendbar: sql`excluded.nicht_anwendbar`,
           updatedAt: sql`excluded.updated_at`,
         },

@@ -387,7 +387,8 @@ export function personenSpeicher(besitzer: string) {
         if (!statusWeichtAb(f, t)) continue;
         const daten: TaskStatusDTO = {
           taskId: t.id,
-          zielanzahl: f.zielanzahl,
+          // Das Katalogziel nicht als Statusziel festschreiben (IDA-389).
+          zielanzahl: f.zielanzahl === t.zielanzahlDefault ? null : f.zielanzahl,
           nichtAnwendbar: f.nichtAnwendbar,
           updatedAt: new Date().toISOString(),
         };

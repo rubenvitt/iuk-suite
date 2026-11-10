@@ -34,6 +34,13 @@ describe("sync", () => {
     q.sync(db, pid, { since: null, executions: [], taskStatus: [{ taskId: "1-1", zielanzahl: 3, nichtAnwendbar: false, updatedAt: "2026-08-09T10:00:00.000Z" }] });
     expect(db.select().from(taskStatus).all()[0].zielanzahl).toBe(5);
   });
+  it("eine Zielanzahl `null` lässt ein gespeichertes Statusziel stehen und schreibt das Katalogziel nicht fest (IDA-389)", () => {
+    q.sync(db, pid, { since: null, executions: [], taskStatus: [{ taskId: "1-1", zielanzahl: 5, nichtAnwendbar: false, updatedAt: "2026-08-10T10:00:00.000Z" }] });
+    q.sync(db, pid, { since: null, executions: [], taskStatus: [{ taskId: "1-1", zielanzahl: null, nichtAnwendbar: true, updatedAt: "2026-08-11T10:00:00.000Z" }] });
+    expect(db.select().from(taskStatus).all()[0]).toMatchObject({ zielanzahl: 5, nichtAnwendbar: 1 });
+    q.sync(db, pid, { since: null, executions: [], taskStatus: [{ taskId: "1-2", zielanzahl: null, nichtAnwendbar: false, updatedAt: "2026-08-11T10:00:00.000Z" }] });
+    expect(db.select().from(taskStatus).where(eq(taskStatus.taskId, "1-2")).all()[0].zielanzahl).toBeNull();
+  });
   it("participantId kommt aus dem Aufruf, nie aus dem Body — fremde Executions landen beim Aufrufer", () => {
     const fremd = q.teilnehmerAnlegen(db, "Bob", null);
     q.sync(db, pid, { since: null, executions: [{ id: "e9", taskId: "1-1", datum: "2026-08-10", drohnensteuerer: "", luftraumbeobachter: "" }], taskStatus: [] });
