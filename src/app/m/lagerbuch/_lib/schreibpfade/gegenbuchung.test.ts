@@ -151,6 +151,18 @@ describe("vorgangsZeilen — der Server bestimmt den Vorgang", () => {
     expect(vorgangsZeilen(t.db, "alt-a").map((z) => z.id).sort()).toEqual(["alt-a", "alt-b"]);
   });
 
+  it("zwei Zugaenge derselben Person in derselben Sekunde bleiben zwei Vorgaenge", () => {
+    t.db.insert(buchungen).values([
+      { id: "zu-a", ts: JETZT, typ: "zugang", artikelId: "a1", chargeId: "c1",
+        lagerortId: HANDLAGER_ID, menge: 3, quelleTyp: "oidc", quelleId: "u1", referenz: null, kommentar: null },
+      { id: "zu-b", ts: JETZT, typ: "zugang", artikelId: "a1", chargeId: "c1",
+        lagerortId: HANDLAGER_ID, menge: 4, quelleTyp: "oidc", quelleId: "u1", referenz: null, kommentar: null },
+    ]).run();
+    expect(vorgangsZeilen(t.db, "zu-a").map((z) => z.id)).toEqual(["zu-a"]);
+    inTx((tx) => gegenbuchen(tx, { zeilen: vorgangsZeilen(tx, "zu-a"), quelle: ADMIN }));
+    expect(bestand(HANDLAGER_ID)).toBe(10 + 4);
+  });
+
   it("kennt eine unbekannte Zeile nicht", () => {
     expect(vorgangsZeilen(t.db, "gibt-es-nicht")).toEqual([]);
   });

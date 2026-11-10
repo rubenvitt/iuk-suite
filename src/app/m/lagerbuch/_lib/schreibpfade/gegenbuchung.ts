@@ -49,6 +49,12 @@ export function vorgangsZeilen(db: DB | Tx, zeilenId: string): SendungsZeile[] {
   if (istGegenbuchung(zeile)) return [zeile];
   const sendung = SENDUNGS_ZEILE.exec(zeile.id);
   if (sendung) return zeilenDerSendung(db, sendung[1]!);
+  /*
+   * ⚠️ EIN ZUGANG IST IMMER GENAU EINE ZEILE (`zugangBuchen`). Die Klammer
+   * darunter faende zwei Zugaenge derselben Person in derselben Sekunde als
+   * EINEN Vorgang, und die Gegenbuchung naehme den nicht gewaehlten mit.
+   */
+  if (zeile.typ === "zugang") return [zeile];
   return db.select().from(buchungen).where(and(
     eq(buchungen.ts, zeile.ts),
     eq(buchungen.quelleTyp, zeile.quelleTyp),
