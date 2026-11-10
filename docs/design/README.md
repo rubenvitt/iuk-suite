@@ -521,8 +521,8 @@ Fußzeile).
 Ein Formular ohne antd-Form setzt das Zeichen am Label wie antd. Meldungen sagen in Du-Form und mit
 Umlauten, was fehlt („Typ fehlt.“); antds `de_DE` siezt, deshalb stehen die Suite-Meldungen in
 `PRUEFMELDUNGEN` (`core/formular/vorgaben.ts`) und gelten für jedes antd-Form. Keine Browserblase
-(`required`/`pattern` am rohen `<input>` ohne eigene Meldung): die Meldung kommt von der Suite, am
-Feld. Vorbild: Funk (`* ISSI`, Meldung am Feld).
+(`required`/`pattern` am rohen `<input>` ohne eigene Meldung): ein Formular ohne antd-Form setzt
+`noValidate`, prüft beim Absenden selbst und zeigt die Suite-Meldung am Feld. Vorbild: Funk (`* ISSI`).
 
 **3. Zahlenfelder öffnen die Zifferntastatur, und das Komma ist der Dezimaltrenner.** Für jedes
 antds `InputNumber` erledigt das der Patch an `@rc-component/input-number` (`pnpm-workspace.yaml`):
