@@ -13,7 +13,8 @@ import { FotoWahl, verkleinere } from "./foto";
 import { sendeAnRoute } from "./senden";
 import s from "../wartung.module.css";
 
-type Stand = { name: string; text: string; bereit: boolean | null };
+/** `gewaehlt`: Entwurf seit IDA-381 — ältere trugen die Vorauswahl „Ja“, auch ungelesen. */
+type Stand = { name: string; text: string; bereit: boolean | null; gewaehlt?: true };
 type Nutzlast = { name: string; text: string; bereit: boolean };
 
 /** Was nach dem Melden passiert, in einem Satz (IDA-381): das Gerät geht nur bei „Nein“ auf nicht einsatzbereit. */
@@ -49,11 +50,11 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
    */
   const entwurf = useEntwurf<Stand, Nutzlast, SendeAntwort>({
     schluessel: `wartung:mangel:${geraetId}`,
-    stand: { name, text, bereit },
+    stand: { name, text, bereit, gewaehlt: true },
     wiederherstellen: (w) => {
       setName(w.name);
       setText(w.text);
-      setBereit(typeof w.bereit === "boolean" ? w.bereit : null);
+      setBereit(w.gewaehlt && typeof w.bereit === "boolean" ? w.bereit : null);
     },
     senden: async (d, sendung) => {
       gesendet.current = d.bereit;

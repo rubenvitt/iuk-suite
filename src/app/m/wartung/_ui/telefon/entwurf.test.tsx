@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { App } from "antd";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
+import { ladeEntwurf, speichereEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import { click, clickElement, exists, fill, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 
 const stunden = vi.fn();
@@ -107,6 +107,21 @@ describe("Mangel am Gerät", () => {
     await mangel();
     expect(query<HTMLTextAreaElement>("textarea[aria-label='Was ist los?']").value).toBe("Tankdeckel fehlt");
     expect(query<HTMLInputElement>("input[aria-label='Dein Name']").value).toBe("Rosa");
+  });
+
+  it("ein Entwurf von vor IDA-381 behält den Text, fragt aber neu, ob das Gerät noch raus kann", async () => {
+    speichereEntwurf(`wartung:mangel:${G}`, { stand: { name: "", text: "Tankdeckel fehlt", bereit: true }, geaendert: Date.now(), pfad: "/", sendung: null });
+    await mangel();
+    expect(query<HTMLTextAreaElement>("textarea[aria-label='Was ist los?']").value).toBe("Tankdeckel fehlt");
+    expect(queryAll<HTMLInputElement>("input[name='einsatzbereit']").some((r) => r.checked)).toBe(false);
+  });
+
+  it("die Wahl bleibt über das Neuladen erhalten", async () => {
+    await mangel();
+    await click("input[name='einsatzbereit'][value='defekt']");
+    await unmount();
+    await mangel();
+    expect(query<HTMLInputElement>("input[name='einsatzbereit'][value='defekt']").checked).toBe(true);
   });
 
   it("ohne Verbindung bleibt die Meldung liegen", async () => {
