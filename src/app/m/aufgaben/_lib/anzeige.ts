@@ -973,3 +973,9 @@ export const KONTEXT_TEXT = {
         : `${z.freigabe} wartet${z.freigabe === 1 ? "" : "en"} auf deine Freigabe`,
     ].join(" · "),
 } as const;
+
+/** Dateigroesse fuer Menschen (IDA-386): „8 MB", „12,3 MB" — Basis 1024, wie `NACHWEIS_MAX_BYTES`. */
+export function alsMegabyte(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB`;
+}

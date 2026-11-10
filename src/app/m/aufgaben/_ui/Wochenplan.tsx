@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { AufgabeRow, PersonRow, RoutineRow } from "../_db/schema";
-import { type Budget, fmtStunden, tagesBudget } from "../_lib/anzeige";
+import { type Budget, fmtStunden, nochOffen, tagesBudget } from "../_lib/anzeige";
 import { fmtTagKurz, fmtUhrzeit, wochenTage } from "../_lib/datum";
 import { type TagesEintrag, tagesOrdnung } from "../_lib/tagesplan";
 import { SPACE } from "@/core/theme/tokens";
@@ -192,7 +192,8 @@ function TagSpalte({
                 eintrag={eintrag}
                 heute={heute}
                 aktionen={
-                  zeigeAktionen && eintrag.art === "aufgabe"
+                  // IDA-386: eine abgeschlossene Aufgabe wird nicht mehr umgeplant — keine Auf/Ab-Knoepfe.
+                  zeigeAktionen && eintrag.art === "aufgabe" && eintrag.aufgabe !== undefined && nochOffen(eintrag.aufgabe)
                     ? (rang?.[eintrag.id] ?? { istErste: true, istLetzte: true, index: -1 })
                     : undefined
                 }
@@ -331,6 +332,9 @@ function EintragZeile({
   // unbekannter Index macht die Zeile lieber nicht ziehbar, statt mit einer geratenen Position
   // weiterzurechnen.
   const zeigeZiehgriff = ziehbar === true && aktionen !== undefined && aktionen.index >= 0;
+  // IDA-386: Erledigtes steht abgehakt und ausgegraut im Tag — „erledigt" heisst hier, was das
+  // Modul ueberall so liest: nicht mehr `nochOffen` (`_lib/anzeige.ts`).
+  const erledigt = eintrag.aufgabe !== undefined && !nochOffen(eintrag.aufgabe);
 
   return (
     /*
@@ -350,7 +354,7 @@ function EintragZeile({
      *    davon braucht diese Form (die Aktionen stehen unter 768px linksbuendig, fuer den
      *    Daumen).
      */
-    <div className={s.planEintrag}>
+    <div className={erledigt ? `${s.planEintrag} ${s.planErledigt}` : s.planEintrag} data-erledigt={erledigt || undefined}>
       {zeit}
       <div className={s.planKopf}>
         {zeigeZiehgriff ? (
@@ -375,6 +379,11 @@ function EintragZeile({
          * bei fuenf Spalten sind das bis zu fuenfzehn Rotstellen auf einem Bildschirm. Rot bleibt
          * echten Signalen — der Ueberfaelligkeitsmarke darunter.
          */}
+        {erledigt ? (
+          <span className={s.erledigtZeichen} role="img" aria-label="Erledigt" title="Erledigt">
+            <Ikone name="haken" />
+          </span>
+        ) : null}
         <Link href={`/a/${eintrag.id}`} draggable={false} className={s.planTitel}>
           {eintrag.titel}
         </Link>

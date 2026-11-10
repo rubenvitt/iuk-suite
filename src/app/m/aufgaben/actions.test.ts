@@ -44,6 +44,17 @@ vi.mock("./_lib/ablage", async (echt) => ({
   loescheNachweis: loescheNachweisMock,
 }));
 
+/*
+ * IDA-386: `fertigMeldenAction` wartet auf die Pruefung des Bildes (`pruefeBildVorFertigmeldung`).
+ * Hier spricht kein clamd — der Spion liefert, was ein Durchlauf ergeben haette. Vorgabe: der
+ * Status bleibt, wie die Zeile ihn traegt; die Funktion selbst bewacht `_lib/scan.test.ts`.
+ */
+const { pruefeMock } = vi.hoisted(() => ({ pruefeMock: vi.fn() }));
+vi.mock("./_lib/scan", async (echt) => ({
+  ...(await echt<typeof import("./_lib/scan")>()),
+  pruefeBildVorFertigmeldung: pruefeMock,
+}));
+
 let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
 
@@ -105,6 +116,11 @@ beforeEach(() => {
   sitzung = null;
   revalidatePathMock.mockClear();
   loescheNachweisMock.mockClear();
+  pruefeMock.mockReset();
+  pruefeMock.mockImplementation(
+    async (db: TestDb["db"], id: string) =>
+      db.select().from(dateien).where(eq(dateien.id, id)).get()?.scanStatus ?? null,
+  );
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(`${HEUTE}T12:00:00Z`));
 });
@@ -1506,9 +1522,43 @@ describe("fertigMeldenAction", () => {
       anmelden(bufdi);
 
       const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
-      expect(ergebnis.fieldErrors.nachweis).toContain("wird noch geprüft");
+      expect(ergebnis.fieldErrors.nachweis).toContain("Bild wird geprüft");
       expect(ergebnis.fieldErrors.nachweis).not.toContain("erforderlich");
       expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
+
+    it("IDA-386: `offen`, und die Prüfung ergibt in der Wartezeit `sauber` — fertig in EINEM Schritt", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      const nachweis = legeNachweisMitDatei(task.id, bufdi.id, "offen");
+      pruefeMock.mockImplementation(async (db: TestDb["db"], id: string) => {
+        db.update(dateien).set({ scanStatus: "sauber" }).where(eq(dateien.id, id)).run();
+        return "sauber";
+      });
+      anmelden(bufdi);
+
+      const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
+      expect(ergebnis).toEqual({ ok: true });
+      expect(pruefeMock).toHaveBeenCalledWith(t.db, nachweis.dateiId);
+      expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+    });
+
+    it("IDA-386: ein schon `sauber`es Bild wird nicht noch einmal geprüft", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "sauber");
+      anmelden(bufdi);
+
+      expect(await fertigMeldenAction({ ok: true }, form(task.id))).toEqual({ ok: true });
+      expect(pruefeMock).not.toHaveBeenCalled();
     });
 
     it("`befund`: abgelehnt", async () => {
@@ -1522,7 +1572,8 @@ describe("fertigMeldenAction", () => {
       anmelden(bufdi);
 
       const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
-      expect(ergebnis.fieldErrors.nachweis).toBeTruthy();
+      // Ein Befund ist ein Ergebnis ueber DIESES Bild — hier, und nur hier, braucht es ein anderes.
+      expect(ergebnis.fieldErrors.nachweis).toContain("anderes Foto");
       expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
     });
 
@@ -1537,7 +1588,11 @@ describe("fertigMeldenAction", () => {
       anmelden(bufdi);
 
       const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
-      expect(ergebnis.fieldErrors.nachweis).toBeTruthy();
+      // IDA-386: der Scanner war nicht erreichbar — das sagt nichts ueber das Bild. Die Meldung
+      // sagt das und verlangt KEIN neues Bild (das war die Schleife).
+      expect(ergebnis.fieldErrors.nachweis).toContain("Prüfung gerade nicht möglich");
+      expect(ergebnis.fieldErrors.nachweis).not.toMatch(/neues|anderes/);
+      expect(pruefeMock).toHaveBeenCalledTimes(1);
       expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
     });
 

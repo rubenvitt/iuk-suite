@@ -40,7 +40,7 @@ describe("NachweisBild — nur sauber zeigt, sonst steht die Begruendung an sein
     );
   });
 
-  it("`offen`: „wird noch geprüft“ — eine Auskunft, keine Behauptung ueber Abwesenheit", async () => {
+  it("`offen`: „Bild wird geprüft…“ — eine Auskunft, keine Behauptung ueber Abwesenheit", async () => {
     await mount(
       <NachweisBild
         aufgabeId="a1"
@@ -51,11 +51,11 @@ describe("NachweisBild — nur sauber zeigt, sonst steht die Begruendung an sein
     );
     expect(document.querySelector("img")).toBeNull();
     expect(query("[data-testid='nachweis-bild-grund']").textContent).toContain(
-      "wird noch geprüft",
+      "Bild wird geprüft",
     );
   });
 
-  it("`befund`: Fund-Meldung, kein Bild", async () => {
+  it("`befund`: nicht bestanden, kein Bild", async () => {
     await mount(
       <NachweisBild
         aufgabeId="a1"
@@ -65,10 +65,10 @@ describe("NachweisBild — nur sauber zeigt, sonst steht die Begruendung an sein
       />,
     );
     expect(document.querySelector("img")).toBeNull();
-    expect(query("[data-testid='nachweis-bild-grund']").textContent).toContain("Fund");
+    expect(query("[data-testid='nachweis-bild-grund']").textContent).toContain("nicht bestanden");
   });
 
-  it("`fehler`: eigene Meldung, kein Bild", async () => {
+  it("`fehler`: Prüfung nicht möglich, später erneut — verlangt kein neues Bild, zeigt keins", async () => {
     await mount(
       <NachweisBild
         aufgabeId="a1"
@@ -79,7 +79,8 @@ describe("NachweisBild — nur sauber zeigt, sonst steht die Begruendung an sein
     );
     expect(document.querySelector("img")).toBeNull();
     expect(query("[data-testid='nachweis-bild-grund']").textContent).toContain(
-      "fehlgeschlagen",
+      "Prüfung gerade nicht möglich",
     );
+    expect(query("[data-testid='nachweis-bild-grund']").textContent).not.toMatch(/neues/i);
   });
 });

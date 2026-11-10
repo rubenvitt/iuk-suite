@@ -1513,6 +1513,24 @@
   text-decoration: underline;
 }
 /*
+ * ERLEDIGT IM TAGESPLAN (IDA-386): abgehakt und ausgegraut, damit eine abgeschlossene Aufgabe nicht
+ * wie eine offene im Tag steht. Grau, nicht Gruen: der Tag soll das Offene zeigen, das Erledigte
+ * tritt zurueck. Die Zeile bleibt ein Link — Nachweis und Verlauf sind dort.
+ */
+.planErledigt {
+  color: var(--auf-grau-text);
+}
+.erledigtZeichen {
+  display: inline-flex;
+  vertical-align: -3px;
+  margin-inline-end: 4px;
+}
+.planErledigt .planTitel,
+.planErledigt .planTitel:hover {
+  color: var(--auf-grau-text);
+  font-weight: 400;
+}
+/*
  * DIE AKTIONEN DES EINTRAGS — RECHTSBUENDIG UND DAUERHAFT SICHTBAR, dieselbe Setzung wie
  * `.zeilenAktion` und aus demselben Befund (IDA-386): eine Aktion, die erst bei Hover erscheint,
  * sieht ein Touch-Tablet ab 768px nicht. Die stillen Knoepfe (`RangKnoepfe.tsx`) halten die

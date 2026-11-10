@@ -62,6 +62,7 @@ import { getDb } from "../../../../_db/client";
 import { aufgabe, erstelleDatei, erstelleNachweis, nachweisNachId, personNachSub } from "../../../../_db/queries";
 import { newId } from "../../../../_db/schema";
 import { legeNachweisAb, NACHWEIS_MAX_BYTES } from "../../../../_lib/ablage";
+import { alsMegabyte } from "../../../../_lib/anzeige";
 import { isoTag } from "../../../../_lib/datum";
 import { starteAufgabenScanArbeiter } from "../../../../_lib/scan";
 import { akteurFuer, darfNachweisHochladen } from "../../../../_lib/zugang";
@@ -142,7 +143,7 @@ export async function POST(
     if (inhaltZuGross(req.headers)) {
       return antwort(413, {
         ok: false,
-        fieldErrors: { datei: `Die Datei ist zu groß, erlaubt sind höchstens ${NACHWEIS_MAX_BYTES} Bytes.` },
+        fieldErrors: { datei: `Das Foto ist zu groß, erlaubt sind höchstens ${alsMegabyte(NACHWEIS_MAX_BYTES)}.` },
         values: { text: "" },
       });
     }
@@ -179,7 +180,7 @@ export async function POST(
     // DIE UNTERGRENZEN-REGEL (Spec §5.3), wortgleich mit der Vorgaenger-Action uebernommen.
     const fieldErrors: Record<string, string> = {};
     if (task.nachweisArt === "bild" && !hatDatei) {
-      fieldErrors.datei = "Für diese Aufgabe ist ein Bild erforderlich.";
+      fieldErrors.datei = "Für diese Aufgabe ist ein Foto erforderlich.";
     }
     if (task.nachweisArt === "text" && text === "") {
       fieldErrors.text = "Für diese Aufgabe ist ein Text erforderlich.";
