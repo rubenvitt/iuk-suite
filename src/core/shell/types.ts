@@ -162,4 +162,9 @@ export interface SuiteNavItem {
    * Gruppierung reine Darstellung.
    */
   abschnitt?: string;
+  /**
+   * Pfade UNTER diesem Eintrag (`<href>/…`, etwa eine Akte unter ihrer Liste) markieren ihn mit
+   * (`aria-current="true"`). Opt-in, weil es sonst die Markierung jedes Moduls verschöbe.
+   */
+  unterseiten?: boolean;
 }

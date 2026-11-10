@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { radioNav } from "./nav";
 import { VERWALTUNGS_PFADE } from "./routen";
 
@@ -268,5 +269,18 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
       radioNav("admin"),
       "radioNav reicht den Modulzustand nach draussen — eine Aenderung am Prop schriebe zurueck",
     ).not.toBe(radioNav("admin"));
+  });
+});
+
+describe("radioNav — die Akte markiert „Geräte“", () => {
+  it("Geräteakte und Änderungshistorie markieren den Eintrag Geräte", () => {
+    const nav = radioNav("admin");
+    expect(aktiverEintrag("/admin/geraete", nav)).toEqual({ schluessel: "geraete", genau: true });
+    expect(aktiverEintrag("/admin/geraete/g-1", nav)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/admin/geraete/g-1/ereignisse", nav)).toEqual({
+      schluessel: "geraete",
+      genau: false,
+    });
+    expect(aktiverEintrag("/admin", nav)).toEqual({ schluessel: "uebersicht", genau: true });
   });
 });

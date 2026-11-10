@@ -49,7 +49,7 @@ test.describe("Datumswähler auf schmalem Telefon", () => {
     let antwort = await page.goto(radioUrl("/admin/ausleihen"));
     expect(antwort!.status()).toBe(200);
     await warteAufSpaltenaufteilung(page);
-    await oeffneUndPruefe(page, page.getByLabel("Ausgeliehen von"));
+    await oeffneUndPruefe(page, page.getByLabel("Ausgeliehen ab"));
     await oeffneUndPruefe(page, page.getByLabel("Ausgeliehen bis"));
 
     // Die Id über `data-row-key`, nicht per Zeilenklick (Vorbild `datumsfeld-enter.spec.ts`). Die

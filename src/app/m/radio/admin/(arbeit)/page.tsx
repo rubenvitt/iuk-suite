@@ -2,7 +2,9 @@
 import { Card, Col, Row, Statistic } from "antd";
 import Link from "next/link";
 import { getDb } from "../../_db/client";
-import { geraeteKennzahlen, geraeteListe } from "../../_lib/lesepfade/geraete";
+import { laufendeAusleihen } from "../../_db/leihen";
+import { datumMitUhrzeit } from "../../_lib/anzeige";
+import { geraeteKennzahlen, geraeteListe, nichtEinsatzbereit } from "../../_lib/lesepfade/geraete";
 import type { UpdateStand } from "../../_lib/updateStand";
 import { requireRadioVerwaltung } from "../../_lib/zugang";
 import { VIkone, type VerwaltungsIkonName } from "../../_ui/verwaltungIkonen";
@@ -82,6 +84,9 @@ import s from "../../_ui/verwaltung.module.css";
  */
 const LISTE_GROESSE = 5;
 
+/** Kartentitel umbrechen statt kürzen — bei 320 px käme sonst „Gerade ausgelieh…" (IDA-383). */
+const KOPF_UMBRUCH = { title: { whiteSpace: "normal" as const } };
+
 /** Der Filterwert, den die klickbare Karte an die Geraeteliste weiterreicht (`Spec:4788`). */
 function listenZiel(stand: UpdateStand): string {
   return `/admin/geraete?updateStand=${stand}`;
@@ -96,6 +101,8 @@ export default async function RadioUebersichtPage() {
     updateStand: "veraltet",
     seitenGroesse: LISTE_GROESSE,
   });
+  const ausgeliehen = laufendeAusleihen(db);
+  const gesperrt = nichtEinsatzbereit(db);
 
   /*
    * Die vier Karten in der Reihenfolge des Bestands (`Dashboard.tsx:27-53`). ⛔ „Geraete
@@ -143,9 +150,57 @@ export default async function RadioUebersichtPage() {
         })}
       </Row>
 
+      {/* Leihstand und Einsatzbereitschaft (IDA-383): ab `lg` nebeneinander, darunter gestapelt. */}
+      <Row gutter={[16, 16]} className={s.abstand}>
+        <Col xs={24} lg={12}>
+          <Card
+            title="Gerade ausgeliehen"
+            styles={KOPF_UMBRUCH}
+            extra={<Link href="/admin/ausleihen">Alle Ausleihen</Link>}
+            data-rolle="radio-uebersicht-ausgeliehen"
+          >
+            {ausgeliehen.length === 0 ? (
+              <p className={s.leer}>Nichts ausgeliehen</p>
+            ) : (
+              <ul className={s.veralteteListe}>
+                {ausgeliehen.map((leihe) => (
+                  <li key={leihe.id} className={s.veralteteZeile}>
+                    <Link href={`/admin/geraete/${leihe.geraeteId}`} className={s.geraetLink}>
+                      <span className={s.geraetName}>{leihe.rufname}</span>
+                      <span className={s.geraetIssi}>
+                        ausgeliehen von {leihe.entleiher} · seit {datumMitUhrzeit(leihe.seit)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card title="Nicht einsatzbereit" styles={KOPF_UMBRUCH} data-rolle="radio-uebersicht-nicht-einsatzbereit">
+            {gesperrt.length === 0 ? (
+              <p className={s.leer}>Alle Geräte einsatzbereit</p>
+            ) : (
+              <ul className={s.veralteteListe}>
+                {gesperrt.map((zeile) => (
+                  <li key={zeile.id} className={s.veralteteZeile}>
+                    <Link href={`/admin/geraete/${zeile.id}`} className={s.geraetLink}>
+                      <span className={s.geraetName}>{zeile.rufname || zeile.opta || zeile.issi}</span>
+                      <span className={s.geraetIssi}>{zeile.status}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
       <div className={s.abstand}>
         <Card
           title="Veraltete Geräte"
+          styles={KOPF_UMBRUCH}
           extra={<Link href={listenZiel("veraltet")}>Alle veralteten anzeigen</Link>}
         >
           {veraltet.zeilen.length === 0 ? (
