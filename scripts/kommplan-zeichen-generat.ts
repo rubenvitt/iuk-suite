@@ -18,7 +18,9 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { RECIPES, TYPICAL_SYMBOLS } from "@einsatzzeichen/conformance";
-import { ALL_PICTOGRAMS, PRINT_MONOCHROME_THEME, TEXT_FONT_METRICS, drawSymbol, renderSvg } from "@einsatzzeichen/core";
+import { PRINT_MONOCHROME_THEME, renderSvg } from "@einsatzzeichen/core";
+import { drawSymbol } from "@einsatzzeichen/core/exact";
+import { ALL_PICTOGRAMS, TEXT_FONT_METRICS } from "@einsatzzeichen/core/blocks";
 import { SECHSECK } from "../src/app/m/kommplan/_lib/layout/masse";
 
 const STANDARD_ZIEL = "src/app/m/kommplan/_lib/zeichen";
