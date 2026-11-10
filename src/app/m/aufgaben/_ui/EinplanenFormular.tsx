@@ -137,6 +137,7 @@ export function EinplanenFormular({
           id={idDauerMinuten}
           name="dauerMinuten"
           type="number"
+          inputMode="numeric"
           min={1}
           defaultValue={feldWert(state, "dauerMinuten", task.dauerMinuten.toString())}
           status={dauerFehler ? "error" : undefined}

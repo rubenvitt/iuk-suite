@@ -264,6 +264,7 @@ export function AufgabeFormular({
             id="af-dauerMinuten"
             name="dauerMinuten"
             type="number"
+            inputMode="numeric"
             min={1}
             defaultValue={feldWert(state, "dauerMinuten", bestand ? String(bestand.dauerMinuten) : "")}
             status={dauerFehler ? "error" : undefined}

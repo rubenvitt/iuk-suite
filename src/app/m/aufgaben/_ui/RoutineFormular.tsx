@@ -186,6 +186,7 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
           id="rt-dauer"
           name="dauerMinuten"
           type="number"
+          inputMode="numeric"
           min={1}
           defaultValue={feldWert(state, "dauerMinuten", routine?.dauerMinuten?.toString() ?? "")}
           status={dauerFehler ? "error" : undefined}

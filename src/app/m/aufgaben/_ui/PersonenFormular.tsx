@@ -315,6 +315,7 @@ export function PersonenFormular({
           id="pf-soll"
           name="sollMinutenTag"
           type="number"
+          inputMode="numeric"
           min={1}
           defaultValue={feldWert(state, "sollMinutenTag", (person?.sollMinutenTag ?? 468).toString())}
           status={sollMinutenFehler ? "error" : undefined}
