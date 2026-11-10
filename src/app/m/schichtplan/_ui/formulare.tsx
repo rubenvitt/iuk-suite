@@ -9,7 +9,7 @@ import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { einheitSpeichernAction, planungSpeichernAction, tempHelferSpeichernAction } from "../_actions/planung";
 import type { ActionErgebnis, FeldFehler } from "../_lib/actionErgebnis";
 import type { Anforderung, EinheitArt, EinheitDTO, FahrzeugWahl, PlanungArt, PlanungDTO, Quali, TempHelferDTO } from "../_lib/typen";
-import { MINUTE } from "../_lib/typen";
+import { MAX_ANFORDERUNGEN, MINUTE } from "../_lib/typen";
 import { stunden } from "../_lib/zeit";
 import { type Zeitraum, Zeitfelder } from "./Zeitfelder";
 import s from "./schichtplan.module.css";
@@ -228,7 +228,8 @@ export function EinheitFormular({ planId, einheit, fahrzeuge, katalog, einteilun
             <Button aria-label="Anforderung entfernen" icon={<Icons8Ikone name="trash" groesse={16} />} onClick={() => setAnf(anf.filter((_, j) => j !== i))} />
           </div>
         ))}
-        <Button onClick={() => setAnf([...anf, { quali: quali("San"), anzahl: 1 }])} icon={<Icons8Ikone name="plus" groesse={16} />} style={{ alignSelf: "flex-start" }}>Qualifikation fordern</Button>
+        {fehler.anforderungen ? <span className={s.feldFehler} role="alert">{fehler.anforderungen}</span> : null}
+        <Button disabled={anf.length >= MAX_ANFORDERUNGEN} onClick={() => setAnf([...anf, { quali: quali("San"), anzahl: 1 }])} icon={<Icons8Ikone name="plus" groesse={16} />} style={{ alignSelf: "flex-start" }}>Qualifikation fordern</Button>
       </div>
       <Button type="primary" loading={laeuft} disabled={!gueltig} onClick={() => void speichern()}>{einheit ? "Speichern" : "Hinzufügen"}</Button>
     </div>
