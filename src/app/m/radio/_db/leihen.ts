@@ -1121,3 +1121,32 @@ export function offeneAusleihenSeit(db: DB, bis: Date): OffeneLeiheSeit[] {
     .orderBy(loans.borrowedAt)
     .all();
 }
+
+/** Eine laufende Leihe mit Geräte-ID — für „Gerade ausgeliehen" auf der Übersicht (IDA-383). */
+export type LaufendeLeihe = {
+  id: string;
+  geraeteId: string;
+  rufname: string;
+  entleiher: string;
+  seit: Date;
+};
+
+/**
+ * DIE LAUFENDEN LEIHEN MIT GERÄTE-ID, neueste zuerst. Wie `offeneAusleihen`, aber mit dem Ziel
+ * für den Link auf die Geräteakte und dem Beginn als Zeitpunkt; der Rufname kommt aus dem
+ * Schnappschuss.
+ */
+export function laufendeAusleihen(db: DB): LaufendeLeihe[] {
+  return db
+    .select({
+      id: loans.id,
+      geraeteId: loans.deviceId,
+      rufname: loans.snapshotCallSign,
+      entleiher: loans.borrowerName,
+      seit: loans.borrowedAt,
+    })
+    .from(loans)
+    .where(isNull(loans.returnedAt))
+    .orderBy(desc(loans.borrowedAt))
+    .all();
+}

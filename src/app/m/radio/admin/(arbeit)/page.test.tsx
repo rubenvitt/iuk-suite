@@ -11,7 +11,7 @@ import { Card, Statistic } from "antd";
 import Link from "next/link";
 import { openModuleDatabase } from "@/core/db";
 import * as schema from "../../_db/schema";
-import { devices, softwareVersions } from "../../_db/schema";
+import { devices, loans, softwareVersions } from "../../_db/schema";
 import { ohneKommentare } from "../../_lib/quelltextScan";
 import { VIkone } from "../../_ui/verwaltungIkonen";
 import s from "../../_ui/verwaltung.module.css";
@@ -408,7 +408,7 @@ describe("die Verwaltungsuebersicht an /admin", () => {
       elementeVomTyp(await seite(), Card)
         .map((el) => text((el.props as { extra?: ReactNode }).extra))
         .filter((t) => t !== ""),
-    ).toEqual(["Alle veralteten anzeigen"]);
+    ).toEqual(["Alle Ausleihen", "Alle veralteten anzeigen"]);
   });
 
   it("nennt keinen Farbwert — die Toene stehen im Blatt, nicht in der Seite", async () => {
@@ -460,5 +460,53 @@ describe("die Verwaltungsuebersicht an /admin", () => {
     );
     expect(quelle, "angehoben auf die Admin-Stufe — Spec:4369 setzt die Verwaltungsstufe")
       .not.toMatch(/\brequireRadioAdmin\s*\(/);
+  });
+});
+
+/** Die Karte mit diesem Titel: ihr Text und ihre Links. */
+function karte(baum: ReactNode, titel: string): { text: string; links: string[]; extra: string[] } {
+  const el = elementeVomTyp(baum, Card).find(
+    (k) => text((k.props as { title?: ReactNode }).title) === titel,
+  );
+  if (!el) throw new Error(`keine Karte „${titel}“`);
+  const p = el.props as { children?: ReactNode; extra?: ReactNode };
+  return {
+    text: text(p.children),
+    links: elementeVomTyp(p.children, Link).map((l) => (l.props as { href: string }).href),
+    extra: elementeVomTyp(p.extra, Link).map((l) => (l.props as { href: string }).href),
+  };
+}
+
+describe("die Uebersicht: Leihstand und Einsatzbereitschaft (IDA-383)", () => {
+  it("zeigt die laufenden Leihen mit Entleiher und Beginn, ohne zurueckgegebene", async () => {
+    geraet({ id: "g1", issi: "4001", rufname: "Kater 1", createdAt: new Date("2026-01-01T10:00:00Z") });
+    const zeit = new Date("2026-06-14T07:12:00Z");
+    const basis = { borrowedAt: zeit, createdAt: zeit, updatedAt: zeit };
+    db.insert(loans).values({ id: "l1", deviceId: "g1", snapshotCallSign: "Kater 1", borrowerName: "Trupp A", ...basis }).run();
+    db.insert(loans).values({ id: "l2", deviceId: "g2", snapshotCallSign: "Kater 2", borrowerName: "Trupp B", returnedAt: zeit, ...basis }).run();
+
+    const k = karte(await seite(), "Gerade ausgeliehen");
+    expect(k.links).toEqual(["/admin/geraete/g1"]);
+    expect(k.text).toBe("Kater 1ausgeliehen von Trupp A · seit 14.06.2026, 09:12");
+    expect(k.extra).toEqual(["/admin/ausleihen"]);
+  });
+
+  it("listet nicht einsatzbereite Geraete mit Status, ohne ausgemusterte", async () => {
+    const createdAt = new Date("2026-01-01T10:00:00Z");
+    db.insert(devices).values([
+      { id: "r1", issi: "5001", rufname: "Kater 5", status: "In Reparatur", createdAt, updatedAt: createdAt },
+      { id: "r2", issi: "5002", rufname: "Kater 6", status: "Ausgemustert", createdAt, updatedAt: createdAt },
+      { id: "r3", issi: "5003", rufname: "Kater 7", status: "Einsatzbereit", createdAt, updatedAt: createdAt },
+    ]).run();
+
+    const k = karte(await seite(), "Nicht einsatzbereit");
+    expect(k.links).toEqual(["/admin/geraete/r1"]);
+    expect(k.text).toBe("Kater 5In Reparatur");
+  });
+
+  it("sagt im leeren Zustand „Nichts ausgeliehen“ und „Alle Geräte einsatzbereit“", async () => {
+    const baum = await seite();
+    expect(karte(baum, "Gerade ausgeliehen").text).toBe("Nichts ausgeliehen");
+    expect(karte(baum, "Nicht einsatzbereit").text).toBe("Alle Geräte einsatzbereit");
   });
 });

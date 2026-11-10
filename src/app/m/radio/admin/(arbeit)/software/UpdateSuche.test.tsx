@@ -766,6 +766,8 @@ describe("radio-Update-Modus: die Fahrzeuguebersicht", () => {
     await mount(<UpdateSuche {...props({ suchtext: "", zeilen: [], fahrzeuge: FAHRZEUGE })} />);
 
     expect(texte("radio-update-leer")).toEqual(["Gerät suchen, um es zu aktualisieren"]);
+    // Die Gruppen sind Lagerorte (Funkraum, Lager …), nicht nur Fahrzeuge (IDA-383).
+    expect(document.getElementById("radio-update-fahrzeuge-titel")?.textContent).toBe("Standorte");
     expect(texte("radio-update-fahrzeuge-summe")).toEqual(["1 fertig · 1 teilweise · 2 offen"]);
     expect(texte("radio-update-fahrzeug-name")).toEqual(["RTW 1", "KTW 2", "ELW", "Ohne Lagerort"]);
     expect(texte("radio-update-fahrzeug-stand")).toEqual(["Teilweise", "Offen", "Fertig", "Offen"]);
