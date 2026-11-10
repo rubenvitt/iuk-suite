@@ -285,6 +285,9 @@ export async function kontingentAufstockenAction(
           eq(zugangslinks.id, id),
           isNull(zugangslinks.revokedAt),
           gt(zugangslinks.expiresAt, jetzt),
+          // Die Summe muss eine genaue Zahl bleiben, sonst rechnet das Kontingent ungenau.
+          sql`${zugangslinks.budgetDateien} <= ${Number.MAX_SAFE_INTEGER - (zusatzDateien ?? 0)}`,
+          sql`${zugangslinks.budgetBytes} <= ${Number.MAX_SAFE_INTEGER - (zusatzBytes ?? 0)}`,
         ),
       )
       .run();
@@ -293,11 +296,17 @@ export async function kontingentAufstockenAction(
     // Wert (`_db/zaehler.ts`). Ein `SELECT` davor und ein `UPDATE` danach wären
     // zwei Schritte mit einem Fenster dazwischen.
     if (ergebnis.changes !== 1) {
+      // Nur für die Meldung gelesen; entschieden hat das `UPDATE`.
+      const nochGueltig = getDb()
+        .select({ id: zugangslinks.id })
+        .from(zugangslinks)
+        .where(and(eq(zugangslinks.id, id), isNull(zugangslinks.revokedAt), gt(zugangslinks.expiresAt, jetzt)))
+        .get();
       return {
         ok: false,
-        fieldErrors: {
-          id: "Dieser Abgabelink ist nicht (mehr) gültig — abgelaufen, widerrufen oder unbekannt.",
-        },
+        fieldErrors: nochGueltig
+          ? { [zusatzBytes === null ? "zusatzDateien" : "zusatzMib"]: "Der Wert ist zu groß." }
+          : { id: "Dieser Abgabelink ist nicht (mehr) gültig — abgelaufen, widerrufen oder unbekannt." },
         values,
       };
     }

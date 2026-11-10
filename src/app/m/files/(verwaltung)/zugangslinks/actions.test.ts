@@ -507,6 +507,17 @@ describe("kontingentAufstockenAction — dieselbe Zeile, nur gueltige Links (§8
     expect(rohZeile("zl00000003").budget_bytes).toBe(1000);
   });
 
+  it("lehnt einen Zuwachs ab, nach dem die Summe keine genaue Zahl mehr wäre", async () => {
+    await legeLink({ id: "zl00000003", budgetDateien: 10, budgetBytes: 1024 * 1024 + 1 });
+    const ergebnis = await aufstocken({ id: "zl00000003", zusatzMib: String(Math.floor(Number.MAX_SAFE_INTEGER / (1024 * 1024))) });
+    expect(ergebnis.ok).toBe(false);
+    if (!ergebnis.ok) expect(ergebnis.fieldErrors.zusatzMib).toBe("Der Wert ist zu groß.");
+    expect(rohZeile("zl00000003").budget_bytes).toBe(1024 * 1024 + 1);
+
+    expect((await aufstocken({ id: "zl00000003", zusatzDateien: "5" })).ok).toBe(true);
+    expect(rohZeile("zl00000003").budget_dateien).toBe(15);
+  });
+
   it("ein WIDERRUFENER Link wird abgelehnt, und nichts aendert sich", async () => {
     await legeLink({ id: "zl00000004", budgetDateien: 10, revokedAt: new Date() });
     const ergebnis = await aufstocken({ id: "zl00000004", zusatzDateien: "5" });
