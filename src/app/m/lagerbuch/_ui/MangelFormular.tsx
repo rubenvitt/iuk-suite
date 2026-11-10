@@ -272,7 +272,7 @@ export function MangelFormular({
 
       <button
         type="submit"
-        className={`${s.knopf} ${s.knopfRot} ${s.knopfBreit}`}
+        className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit}`}
         style={{ marginTop: 14 }}
         disabled={laeuft}
         data-rolle="mangel-senden"

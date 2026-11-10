@@ -1,6 +1,8 @@
 import { connection } from "next/server";
 import { Button } from "antd";
 import { Ruhezustand } from "@/core/ruhe";
+import { leseZugangsauskunft, portalUrl } from "./_lib/zugangsseite";
+import { Zugangszeilen } from "./_lib/Zugangszeilen";
 import styles from "./not-found.module.css";
 
 /**
@@ -11,10 +13,14 @@ import styles from "./not-found.module.css";
  * Modul-Host waere `/` genau das Modul, das gerade verweigert wurde.
  *
  * `connection()`: `AUTH_URL` wird je Anfrage gelesen, nicht beim Bau eingebacken (vgl. Falle 21).
+ *
+ * Darunter (IDA-392) der Ansprechpartner aus der Portal-Verwaltung und das angemeldete Konto: wer hier
+ * landet, braucht einen Zugang und muss wissen, wen er fragt und fuer welches Konto.
  */
 export default async function Forbidden() {
   await connection();
-  const portal = process.env.AUTH_URL ? new URL("/", process.env.AUTH_URL).toString() : "/";
+  const portal = portalUrl();
+  const auskunft = await leseZugangsauskunft();
   return (
     <main className={styles.seite}>
       <Ruhezustand
@@ -29,6 +35,7 @@ export default async function Forbidden() {
           </Button>
         }
       />
+      <Zugangszeilen auskunft={auskunft} />
       <p className={styles.ziffer} aria-hidden="true">
         403
       </p>

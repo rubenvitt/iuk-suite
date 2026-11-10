@@ -80,13 +80,13 @@ test.describe("lagerbuch — Modulnavigation", () => {
     await expect(markiert).toHaveText("Übersicht");
   });
 
-  test("markiert auf einer Detailseite gar nichts", async ({ page }) => {
+  test("markiert auf einer Detailseite den Elterneintrag als Abschnitt (IDA-392)", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto(lagerbuchUrl("/verwaltung/geraete"));
     const leiste = page.getByTestId("modulleiste");
-    // Gegenprobe vor der Null (Fix-Runde 1): die Leiste trägt hier
-    // tatsächlich einen Link — sonst bewiese die Null unten (kein
-    // aria-current) auch bei einem verunglückten data-testid nichts.
+    // Gegenprobe (Fix-Runde 1): die Leiste trägt hier tatsächlich den Link
+    // „Geräte" — seit IDA-392 markiert ihn die Detailseite darunter als
+    // Abschnitt (`aria-current="true"`, nicht `"page"`).
     await expect(leiste.getByRole("link", { name: "Geräte" })).toBeVisible();
 
     // `klickeWennRuhig` statt `.click()`: Falle 12, Messung im Dateikopf.
@@ -104,7 +104,8 @@ test.describe("lagerbuch — Modulnavigation", () => {
      * nach 30 s statt nach 5.
      */
     await expect(page).toHaveURL(/\/verwaltung\/geraete\/[^/]+$/, { timeout: 30_000 });
-    await expect(leiste.locator("a[aria-current]")).toHaveCount(0);
+    await expect(leiste.locator("a[aria-current]")).toHaveCount(1);
+    await expect(leiste.locator('a[aria-current="true"]')).toHaveText("Geräte");
     /*
      * DAS LANDMARK HEISST „Zurück", NICHT MEHR „Brotkrume" (Fix-Runde 2,
      * 2026-08-14) — und das ist die einzige Änderung an dieser Zusicherung.

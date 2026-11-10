@@ -880,8 +880,12 @@ describe("ArtikelDrawer: Wareneingang (IDA-378)", () => {
     await zuBuchen();
     await fillPortal("[aria-label='Zugangsmenge']", "");
     await submitPortalForm("[data-rolle='zugang-form']");
-    await warteAuf(() => drawerText().includes("Bitte eine Menge eingeben."), "Mengenmeldung");
-    expect(drawerText()).toContain("Bitte einen Verfallsmonat auswählen.");
+    // antd rendert die Meldungen der Felder nicht im selben Takt: auf beide warten.
+    await warteAuf(
+      () => drawerText().includes("Bitte eine Menge eingeben.")
+        && drawerText().includes("Bitte einen Verfallsmonat auswählen."),
+      "Meldungen für Menge und Verfallsmonat",
+    );
     expect(drawerText()).not.toMatch(/\bSie\b/);
     expect(mocks.bucheZugang).not.toHaveBeenCalled();
   });

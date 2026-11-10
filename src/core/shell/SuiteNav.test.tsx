@@ -383,64 +383,86 @@ describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", 
   // Reine Berechnung, deshalb ohne DOM. Der DOM-Test oben mockt `usePathname`
   // und kann daher NICHT beweisen, dass die Aufloesung unter dem Proxy-Rewrite
   // stimmt — das gehoert dem E2E. Hier geht es um die Faelle, die der E2E
-  // nicht guenstig durchspielen kann.
+  // nicht guenstig durchspielen kann. Regel seit IDA-392: Pfadanfang, segmentgenau.
+
+  // Die Navigation der Geraetewartung im Kleinen: Wurzel ist eine Uebersicht, kein Auffang.
+  const WARTUNG: SuiteNavItem[] = [
+    { key: "uebersicht", title: "Übersicht", href: "/" },
+    { key: "geraete", title: "Geräte", href: "/geraete" },
+    { key: "maengel", title: "Mängel", href: "/maengel" },
+  ];
 
   it("nimmt den aeuszeren Pfad (ohne Rewrite)", () => {
     expect(aktiverEintrag("/vergleich", NAV)).toEqual({ schluessel: "vergleich", genau: true });
   });
 
   it("nimmt den inneren Pfad (mit Rewrite) — welchen usePathname liefert, haengt an Next", () => {
-    expect(aktiverEintrag("/m/feedback/vergleich", NAV)).toEqual({
-      schluessel: "vergleich",
-      genau: true,
-    });
+    expect(aktiverEintrag("/m/feedback/vergleich", NAV)).toEqual({ schluessel: "vergleich", genau: true });
+    expect(aktiverEintrag("/m/wartung/geraete/123", WARTUNG)).toEqual({ schluessel: "geraete", genau: false });
   });
 
-  it("markiert die Uebersicht auf der Modulwurzel, obwohl `/` Suffix von nichts ist", () => {
-    // "/m/feedback".endsWith("/") ist false — ein naiver Suffix-Test liesze die
-    // Uebersicht auf ihrer eigenen Seite unmarkiert.
+  it("markiert die Wurzel exakt, in beiden Pfadformen", () => {
     expect(aktiverEintrag("/", NAV)).toEqual({ schluessel: "start", genau: true });
-    expect(aktiverEintrag("/m/feedback", NAV)?.schluessel).toBe("start");
+    expect(aktiverEintrag("/m/feedback", NAV)).toEqual({ schluessel: "start", genau: true });
+    expect(aktiverEintrag("/m/feedback/", NAV)).toEqual({ schluessel: "start", genau: true });
   });
 
-  it("nennt den Wurzel-Fallback beim Namen: markiert, aber NICHT die aufgerufene Seite", () => {
-    /*
-     * `/wifi` gehoert zum Modul, ist aber kein Eintrag. Frueher gab es hier
-     * keinen Unterschied zum echten Treffer — genau das war der Defekt.
-     *
-     * Dass `/m/qr` (innerer Pfad) hier `genau: false` ergibt und `/` nicht, ist
-     * bewusst in Kauf genommen: `usePathname()` liefert unter Next 16.2.6 den
-     * AEUSZEREN Pfad (nachgemessen, siehe SuiteNav.tsx). Kaeme es je anders,
-     * faellt die Wurzel von "page" auf "true" — schwaecher, aber nie falsch.
-     */
-    expect(aktiverEintrag("/wifi", NAV)).toEqual({ schluessel: "start", genau: false });
-    expect(aktiverEintrag("/m/feedback/groups/17", NAV)).toEqual({
-      schluessel: "start",
-      genau: false,
-    });
+  it("markiert auf einer Unterseite den Elterneintrag — als Abschnitt, nicht als Seite", () => {
+    // Der Befund aus IDA-392: die Geraeteakte markierte „Übersicht".
+    expect(aktiverEintrag("/geraete/123", WARTUNG)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/geraete/123/", WARTUNG)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/geraete", WARTUNG)).toEqual({ schluessel: "geraete", genau: true });
   });
 
-  it("laeszt die Uebersicht auf einer Unterseite NICHT mitleuchten", () => {
-    expect(aktiverEintrag("/m/feedback/vergleich", NAV)?.schluessel).not.toBe("start");
+  it("vergleicht segmentgenau: `/geraete-x` liegt NICHT unter `/geraete`", () => {
+    expect(aktiverEintrag("/geraete-x", WARTUNG)).toBeNull();
+    expect(aktiverEintrag("/geraetex/1", WARTUNG)).toBeNull();
   });
 
-  it("nimmt den spezifischsten Treffer, wenn zwei passen", () => {
-    // ECHTE Kollision: der Pfad endet auf BEIDE hrefs. Eine frühere Fassung
-    // nahm `/groups` + `/groups/17` — dabei passt `/groups` gar nicht auf
-    // `…/groups/17`, es gab nie zwei Treffer, und der Test war auch ohne
-    // Sortierung gruen.
-    const verschachtelt = [
-      { key: "kurz", title: "Kurz", href: "/17" },
-      { key: "lang", title: "Lang", href: "/groups/17" },
+  it("nimmt den laengsten Pfadanfang, wenn zwei passen — unabhaengig von der Reihenfolge", () => {
+    // ECHTE Kollision: beide hrefs stehen am Anfang des Pfads. Die Reihenfolge
+    // ist absichtlich kurz vor lang, sonst gewaenne `find` auch ohne Sortierung.
+    const verschachtelt: SuiteNavItem[] = [
+      { key: "admin", title: "Übersicht", href: "/admin" },
+      { key: "geraete", title: "Geräte", href: "/admin/geraete" },
     ];
-    expect(aktiverEintrag("/m/feedback/groups/17", verschachtelt)?.schluessel).toBe("lang");
+    expect(aktiverEintrag("/admin/geraete/7", verschachtelt)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/m/radio/admin/geraete/7/ereignisse", verschachtelt)?.schluessel).toBe("geraete");
+    expect(aktiverEintrag("/admin/zugaenge", verschachtelt)).toEqual({ schluessel: "admin", genau: false });
   });
 
-  it("bei `unterseiten` gewinnt der laengste Eintrag, mit Segmentgrenze (IDA-381)", () => {
+  it("laeszt die Wurzel auf einer Unterseite NICHT mitleuchten", () => {
+    expect(aktiverEintrag("/m/feedback/vergleich", NAV)?.schluessel).not.toBe("start");
+    expect(aktiverEintrag("/maengel/4", WARTUNG)?.schluessel).toBe("maengel");
+  });
+
+  it("markiert auf einer Seite ohne Eintrag NICHTS, wenn die Wurzel kein Auffang ist", () => {
+    // Profil im Portal, Etiketten in der Verpflegung: „Übersicht" waere eine falsche Ortsangabe.
+    expect(aktiverEintrag("/profil", WARTUNG)).toBeNull();
+    expect(aktiverEintrag("/m/portal/profil", WARTUNG)).toBeNull();
+    expect(aktiverEintrag("/wifi", NAV)).toBeNull();
+  });
+
+  it("nennt den Auffang beim Namen: markiert, aber NICHT die aufgerufene Seite", () => {
+    // `/wifi` gehoert zum QR-Generator, ist aber kein Eintrag — `auffang` sagt es.
+    const AUFFANG: SuiteNavItem[] = [{ ...NAV[0], auffang: true }, NAV[1]];
+    expect(aktiverEintrag("/wifi", AUFFANG)).toEqual({ schluessel: "start", genau: false });
+    expect(aktiverEintrag("/m/feedback/groups/17", AUFFANG)).toEqual({ schluessel: "start", genau: false });
+    expect(aktiverEintrag("/", AUFFANG)).toEqual({ schluessel: "start", genau: true });
+    // Ein echter Pfadanfang schlaegt den Auffang.
+    expect(aktiverEintrag("/vergleich/2026", AUFFANG)).toEqual({ schluessel: "vergleich", genau: false });
+  });
+
+  it("schneidet nur ein fuehrendes `/m/<key>` ab, nicht eines mitten im Pfad", () => {
+    expect(aktiverEintrag("/x/m/feedback/vergleich", NAV)).toBeNull();
+    expect(aktiverEintrag("/mx/feedback/vergleich", NAV)).toBeNull();
+  });
+
+  it("auf Unterseiten gewinnt der laengste Eintrag, mit Segmentgrenze (IDA-381)", () => {
     const mit: SuiteNavItem[] = [
       { key: "start", title: "Uebersicht", href: "/" },
-      { key: "geraete", title: "Geraete", href: "/geraete", unterseiten: true },
-      { key: "arten", title: "Arten", href: "/geraete/arten", unterseiten: true },
+      { key: "geraete", title: "Geraete", href: "/geraete" },
+      { key: "arten", title: "Arten", href: "/geraete/arten" },
     ];
     expect(aktiverEintrag("/geraete/7", mit)).toEqual({ schluessel: "geraete", genau: false });
     expect(aktiverEintrag("/m/wartung/geraete/7", mit)).toEqual({ schluessel: "geraete", genau: false });
@@ -449,13 +471,13 @@ describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", 
     expect(aktiverEintrag("/geraete/arten/3", mit)?.schluessel).toBe("arten");
     expect(aktiverEintrag("/geraete/arten", mit)).toEqual({ schluessel: "arten", genau: true });
     // Segmentgrenze: `/geraetearten` liegt nicht unter `/geraete`.
-    expect(aktiverEintrag("/geraetearten", mit)).toEqual({ schluessel: "start", genau: false });
+    expect(aktiverEintrag("/geraetearten", mit)).toBeNull();
   });
 
-  it("markiert mit `unterseiten` den Eintrag auch auf seinen Unterseiten, aber nicht genau", () => {
+  it("markiert den Eintrag auch auf seinen Unterseiten, aber nicht genau", () => {
     const liste = [
       { key: "uebersicht", title: "Übersicht", href: "/admin" },
-      { key: "geraete", title: "Geräte", href: "/admin/geraete", unterseiten: true },
+      { key: "geraete", title: "Geräte", href: "/admin/geraete" },
       { key: "ausleihen", title: "Ausleihen", href: "/admin/ausleihen" },
     ];
     expect(aktiverEintrag("/admin/geraete", liste)).toEqual({ schluessel: "geraete", genau: true });
@@ -464,10 +486,9 @@ describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", 
       schluessel: "geraete",
       genau: false,
     });
-    // ohne Opt-in bleibt es beim Suffix-Vergleich
-    expect(aktiverEintrag("/admin/ausleihen/7", liste)).toBeNull();
-    // ein bloßer Namensanfang ist keine Unterseite
-    expect(aktiverEintrag("/admin/geraetegruppen", liste)).toBeNull();
+    expect(aktiverEintrag("/admin/ausleihen/7", liste)).toEqual({ schluessel: "ausleihen", genau: false });
+    // ein bloßer Namensanfang ist keine Unterseite: es bleibt der kürzere Pfadanfang `/admin`
+    expect(aktiverEintrag("/admin/geraetegruppen", liste)).toEqual({ schluessel: "uebersicht", genau: false });
   });
 
   it("gibt null, wenn nichts passt und es keine Wurzel gibt", () => {

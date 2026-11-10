@@ -54,10 +54,10 @@ describe("Modulleiste", () => {
   /*
    * NICHT-VAKUÄR, UND ZWAR NACHWEISLICH: die vorige Zusicherung ("markiert die
    * aufgerufene Seite als page") bliebe auch dann grün, wenn `navLinks` den
-   * dritten Parameter gar nicht bekäme — in `NAV` ist kein Href Suffix eines
-   * anderen, jede Gruppe fände ihren Treffer für sich allein zum selben
-   * Ergebnis. Diese Vorlage erzwingt den Unterschied: `kurz` ("/artikel",
-   * Gruppe "Bestand") ist Suffix von `lang` ("/verwaltung/artikel", Gruppe
+   * dritten Parameter gar nicht bekäme — in `NAV` liegt kein Eintrag einer
+   * Gruppe unter dem einer anderen, jede Gruppe fände ihren Treffer für sich allein zum selben
+   * Ergebnis. Diese Vorlage erzwingt den Unterschied: `kurz` ("/verwaltung/artikel",
+   * Gruppe "Bestand") ist Pfadanfang von `lang` (".../artikel/archiv", Gruppe
    * "Archiv") — der aufgerufene Pfad passt auf BEIDE. `aktiverEintrag` wählt
    * global den längsten Treffer (`lang`); nur wenn beide Gruppen denselben
    * dritten Parameter (die VOLLSTÄNDIGE Liste) bekommen, sehen sie dieselbe
@@ -71,10 +71,10 @@ describe("Modulleiste", () => {
   it("markiert nur den global spezifischsten Treffer, nicht jede Gruppe für sich", async () => {
     const UEBERLAPPEND: SuiteNavItem[] = [
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung" },
-      { key: "kurz", title: "Kurz", href: "/artikel", abschnitt: "Bestand" },
-      { key: "lang", title: "Lang", href: "/verwaltung/artikel", abschnitt: "Archiv" },
+      { key: "kurz", title: "Kurz", href: "/verwaltung/artikel", abschnitt: "Bestand" },
+      { key: "lang", title: "Lang", href: "/verwaltung/artikel/archiv", abschnitt: "Archiv" },
     ];
-    pathnameMock.mockReturnValue("/verwaltung/artikel");
+    pathnameMock.mockReturnValue("/verwaltung/artikel/archiv");
     await mount(<Modulleiste nav={UEBERLAPPEND} modulKey="lagerbuch" />);
     const aktiv = queryAll('[data-testid="nav-link"]').filter((l) => l.hasAttribute("aria-current"));
     expect(aktiv.length).toBe(1);

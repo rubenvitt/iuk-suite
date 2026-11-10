@@ -34,6 +34,14 @@ allowBuilds:
 # Telefon (`inputMode` aus `precision`/`step`/`min`) und das Komma als Dezimaltrenner (ohne wurde
 # „231,5" still 2315). Damit braucht kein Modul etwas dafuer zu tun. Wie beim util-Patch wandert die
 # Version mit antd; `src/core/formular/zahlenfelder.test.tsx` misst die WIRKUNG ueber antd.
+#
+# Derselbe Patch (IDA-392) benennt die Stepper: sie heissen
+# ab Werk „Increase Value"/„Decrease Value", hart kodiert in `StepHandler.js` (es/ und lib/).
+# Weder antds `InputNumber` noch dessen `locale` reicht einen Namen durch, und ein eigenes
+# `upHandler`-Zeichen landet nur IM benannten Element. Der Patch ersetzt die beiden Literale
+# durch „Wert erhöhen"/„Wert verringern". Die Version wandert mit antd (`~1.6.2`, antd 6.6.4):
+# beim antd-Upgrade nachziehen. `src/rc-component-input-number.test.tsx` misst die WIRKUNG am
+# gerenderten antd-`InputNumber`.
 patchedDependencies:
   '@rc-component/input-number@1.6.2': patches/@rc-component__input-number@1.6.2.patch
   '@rc-component/util@1.13.0': patches/@rc-component__util@1.13.0.patch

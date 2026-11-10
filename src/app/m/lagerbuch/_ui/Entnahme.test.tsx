@@ -924,18 +924,12 @@ describe("Entnahme — Bauform", () => {
     expect(wahl.getAttribute("href")).toBe("/helfer/ziel?returnTo=%2Fa%2Fart-1");
   });
 
-  /**
-   * ⚠️ TINTE UND NICHT ROT. Rot gehoert dem Buchen-Knopf; zwei rote Flaechen
-   * uebereinander streiten um dieselbe Aufmerksamkeit, und Rot traegt in diesem
-   * Modul zusaetzlich fachliche Bedeutung (Falle 3). Der Unterschied „das
-   * zuerst" gegen „das ist die Buchung" muss an der FORM ablesbar sein.
-   */
-  it("faerbt die Zielwahl nicht wie die Buchung", async () => {
+  /** ⚠️ TINTE, NIE ROT (Falle 3, IDA-395). */
+  it("faerbt die Zielwahl in Tinte", async () => {
     await mount(<Entnahme kontoZugang={false} ziel={null} detail={DETAIL} />);
 
     const wahl = query("[data-rolle='entnahme-ziel-waehlen']");
     expect(wahl.className).toContain(s.knopfTinte);
-    expect(wahl.className).not.toContain(s.knopfRot);
   });
 
   /**

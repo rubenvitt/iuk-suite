@@ -32,3 +32,29 @@
   color: var(--iuk-gedaempft);
   font-variant-numeric: tabular-nums;
 }
+
+/* Wen man fragt und mit welchem Konto man angemeldet ist (IDA-392): unter dem Weg zurück, leise. */
+.zugang {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 36rem;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--iuk-gedaempft);
+  overflow-wrap: anywhere;
+}
+
+.zugang p {
+  margin: 0;
+}
+
+/* Zwei Wege nebeneinander (Fehlergrenze); am schmalen Telefon untereinander statt über den Rand. */
+.aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}

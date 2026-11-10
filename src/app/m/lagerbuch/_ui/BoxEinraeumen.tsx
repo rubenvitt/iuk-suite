@@ -604,7 +604,7 @@ export function BoxEinraeumen({
                           der Knopf in `BoxAbgabe` (Falle 3 betrifft Datenflaechen,
                           nicht die Handlung). */}
                       <button
-                        className={`${s.knopf} ${s.knopfRot} ${s.knopfBreit}`}
+                        className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit}`}
                         type="button"
                         disabled={!bereit}
                         onClick={() => absenden(p)}

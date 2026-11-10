@@ -5,6 +5,7 @@ import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Providers } from "@/components/providers";
 import { AntdProvider } from "@/core/theme/AntdProvider";
 import { zeitzone } from "@/core/zeit";
+import { portalUrl } from "./_lib/portal";
 import { appleIconFuer, faviconFuer } from "@/core/favicon";
 import { moduleForHost } from "@/core/registry";
 import { resolveHost } from "@/core/routing";
@@ -151,6 +152,9 @@ export default async function RootLayout({
       // Modulflaeche still auf helle Darstellung, waehrend antd dunkel rendert.
       // Den Wechsel ohne Reload schreibt `AntdProvider` mit.
       data-theme={mode} data-zeitzone={zeitzone()}
+      // Der Weg ins Portal fuer die Fehlergrenze (`app/error.tsx`, IDA-392): sie ist ein Client-Modul und
+      // sieht `AUTH_URL` nicht. Je Anfrage gelesen wie die Zone, nicht eingebacken (Falle 21).
+      data-portal={portalUrl()}
       style={{ colorScheme: mode }}
       suppressHydrationWarning
     >

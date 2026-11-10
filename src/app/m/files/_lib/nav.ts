@@ -36,7 +36,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * `feedback/(admin)/layout.tsx` und `portal/layout.tsx`.
  */
 export const FILES_NAV: SuiteNavItem[] = [
-  { key: "start", title: "Freigaben", href: "/" },
+  { key: "start", title: "Freigaben", href: "/", auffang: true },
   { key: "posteingang", title: "Posteingang", href: "/posteingang" },
   { key: "zugangslinks", title: "Abgabelinks", href: "/zugangslinks" },
 ];
