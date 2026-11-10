@@ -122,22 +122,25 @@ describe("Namensauflösung *.localtest.me (IDA-374)", () => {
     // Der Spion steht für den echten Resolver; `mockRestore` nimmt die Umbiegung wieder heraus.
     const echt = vi.spyOn(dns.default, "lookup").mockImplementation(((_n: string, _o: unknown, rueckruf: (...a: unknown[]) => void) =>
       rueckruf(null, "192.0.2.1", 4)) as never);
-    const geladen = createRequire(LOOPBACK_DNS)(LOOPBACK_DNS) as { istLoopbackName: (n: string) => boolean };
-    expect(geladen.istLoopbackName("feedback.localtest.me")).toBe(true);
-    expect(geladen.istLoopbackName("LOCALTEST.ME.")).toBe(true);
-    expect(geladen.istLoopbackName("localtest.me.example.org")).toBe(false);
+    try {
+      const geladen = createRequire(LOOPBACK_DNS)(LOOPBACK_DNS) as { istLoopbackName: (n: string) => boolean };
+      expect(geladen.istLoopbackName("feedback.localtest.me")).toBe(true);
+      expect(geladen.istLoopbackName("LOCALTEST.ME.")).toBe(true);
+      expect(geladen.istLoopbackName("localtest.me.example.org")).toBe(false);
 
-    const einzeln = await new Promise((fertig) =>
-      dns.default.lookup("portal.localtest.me", (_f, adresse, familie) => fertig([adresse, familie])),
-    );
-    expect(einzeln).toEqual(["127.0.0.1", 4]);
-    expect(await dns.promises.lookup("qr.localtest.me", { all: true })).toEqual([{ address: "127.0.0.1", family: 4 }]);
-    expect(await dns.promises.lookup("qr.localtest.me", { family: 6 })).toEqual({ address: "::1", family: 6 });
-    expect(echt).not.toHaveBeenCalled();
+      const einzeln = await new Promise((fertig) =>
+        dns.default.lookup("portal.localtest.me", (_f, adresse, familie) => fertig([adresse, familie])),
+      );
+      expect(einzeln).toEqual(["127.0.0.1", 4]);
+      expect(await dns.promises.lookup("qr.localtest.me", { all: true })).toEqual([{ address: "127.0.0.1", family: 4 }]);
+      expect(await dns.promises.lookup("qr.localtest.me", { family: 6 })).toEqual({ address: "::1", family: 6 });
+      expect(echt).not.toHaveBeenCalled();
 
-    dns.default.lookup("example.org", {}, () => {});
-    expect(echt).toHaveBeenCalledWith("example.org", {}, expect.any(Function));
-    echt.mockRestore();
+      dns.default.lookup("example.org", {}, () => {});
+      expect(echt).toHaveBeenCalledWith("example.org", {}, expect.any(Function));
+    } finally {
+      echt.mockRestore();
+    }
   });
 });
 
