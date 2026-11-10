@@ -43,7 +43,7 @@ function vorgabeKategorie(kategorien: KategorieDTO[]): string | null {
 /**
  * Meldungen fürs Band am Monitor: anlegen (Text, optional eine Uhrzeit zum Herunterzählen, optional ein
  * späterer Beginn, Laufzeit) und vorzeitig beenden. Geplant sein dürfen viele, am Monitor stehen höchstens
- * drei; die Liste sagt bei jeder, wo sie steht. Wirkt sofort, ohne „Speichern“ der Anzeige; die Vorschau daneben zeigt auch
+ * drei; die Liste unter dem Formular sagt bei jeder, wo sie steht. Wirkt sofort, ohne „Speichern“ der Anzeige; die Vorschau daneben zeigt auch
  * den Entwurf, solange er getippt wird.
  */
 export function Meldungen({
@@ -141,35 +141,9 @@ export function Meldungen({
   const feldUhr = feldFehler.uhrzeit;
   const feldAb = feldFehler.anzeigenAb;
   return (
-    <Card title="Meldungen am Monitor">
+    // Ohne eigenen Kartentitel: die Seite heißt schon „Meldungen“, und am Telefon zählt jede Zeile (IDA-396).
+    <Card>
       <div style={{ display: "grid", gap: SPACE.lg }}>
-        {offene.length > 0 ? (
-          <ul className={v.meldungen} aria-label="Laufende und geplante Meldungen">
-            {offene.map((m) => (
-              <li key={m.id}>
-                <div>
-                  <KategorieMarke kategorie={m.kategorie} /> <strong>{m.text}</strong>
-                  {m.zeitpunkt ? (
-                    <span>
-                      {" "}
-                      · um {UHR.format(new Date(m.zeitpunkt))}
-                      {jetzt !== null ? `, ${countdownText(Date.parse(m.zeitpunkt), jetzt)}` : ""}
-                    </span>
-                  ) : null}
-                  <div style={SCHRIFT.neben} className={v.gedaempft} data-testid="meldung-stand">
-                    {[stand(m, amMonitor, jetzt), `verschwindet ${ABLAUF.format(endeVon(m))}`, `von ${m.angelegtVon}`].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
-                <Button loading={laeuft === m.id} onClick={() => beenden(m)} aria-label={`Meldung beenden: ${m.text}`}>
-                  Beenden
-                </Button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <span>Gerade läuft keine Meldung.</span>
-        )}
-
         {voll ? (
           <Alert type="info" showIcon={false} title={`Es laufen oder warten ${MELDUNGEN_MAX_GEPLANT} Meldungen. Für eine neue bitte erst eine beenden.`} />
         ) : (
@@ -177,12 +151,10 @@ export function Meldungen({
             <EntwurfHinweis entwurf={entwurf} />
             {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
             {kategorien.length > 0 ? (
+              // Ohne sichtbare Überschrift: Zeichen und Namen sagen, was gewählt wird (IDA-396, Platz am Telefon).
               <div style={{ display: "grid", gap: SPACE.xs }}>
-                <span style={SCHRIFT.neben} id={`${basis}-kategorie`}>
-                  Kategorie
-                </span>
                 <Radio.Group
-                  aria-labelledby={`${basis}-kategorie`}
+                  aria-label="Kategorie"
                   value={kategorieId}
                   optionType="button"
                   style={{ display: "flex", flexWrap: "wrap" }}
@@ -213,43 +185,44 @@ export function Meldungen({
               />
               {feldText ? <div style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>{feldText}</div> : null}
             </div>
-            <div>
-              <label htmlFor={`${basis}-uhrzeit`} style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
-                Herunterzählen bis (freiwillig)
-              </label>
-              <Input
-                id={`${basis}-uhrzeit`}
-                type="time"
-                value={uhrzeit}
-                style={{ maxWidth: 160 }}
-                status={feldUhr ? "error" : undefined}
-                aria-describedby={feldUhr ? `${basis}-uhrzeit-hilfe` : undefined}
-                onChange={(e) => aendere(text, e.target.value)}
-              />
-              {feldUhr ? (
-                <div id={`${basis}-uhrzeit-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>
-                  {feldUhr}
-                </div>
-              ) : null}
-            </div>
-            <div>
-              <label htmlFor={`${basis}-ab`} style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
-                Anzeigen ab (freiwillig)
-              </label>
-              <Input
-                id={`${basis}-ab`}
-                type="time"
-                value={anzeigenAb}
-                style={{ maxWidth: 160 }}
-                status={feldAb ? "error" : undefined}
-                aria-describedby={feldAb ? `${basis}-ab-hilfe` : undefined}
-                onChange={(e) => aendere(text, uhrzeit, kategorieId, e.target.value)}
-              />
-              {feldAb ? (
-                <div id={`${basis}-ab-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>
-                  {feldAb}
-                </div>
-              ) : null}
+            {/* IDA-396: beide Uhrzeiten nebeneinander, damit „Meldung anlegen" am Telefon ohne Scrollen im Bild steht. */}
+            <div className={v.zeitfelder}>
+              <div>
+                <label htmlFor={`${basis}-uhrzeit`} style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
+                  Herunterzählen bis (freiwillig)
+                </label>
+                <Input
+                  id={`${basis}-uhrzeit`}
+                  type="time"
+                  value={uhrzeit}
+                  status={feldUhr ? "error" : undefined}
+                  aria-describedby={feldUhr ? `${basis}-uhrzeit-hilfe` : undefined}
+                  onChange={(e) => aendere(text, e.target.value)}
+                />
+                {feldUhr ? (
+                  <div id={`${basis}-uhrzeit-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>
+                    {feldUhr}
+                  </div>
+                ) : null}
+              </div>
+              <div>
+                <label htmlFor={`${basis}-ab`} style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
+                  Anzeigen ab (freiwillig)
+                </label>
+                <Input
+                  id={`${basis}-ab`}
+                  type="time"
+                  value={anzeigenAb}
+                  status={feldAb ? "error" : undefined}
+                  aria-describedby={feldAb ? `${basis}-ab-hilfe` : undefined}
+                  onChange={(e) => aendere(text, uhrzeit, kategorieId, e.target.value)}
+                />
+                {feldAb ? (
+                  <div id={`${basis}-ab-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>
+                    {feldAb}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div>
               <label htmlFor={`${basis}-laufzeit`} style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
@@ -270,12 +243,39 @@ export function Meldungen({
               ) : null}
             </div>
             <div>
-              <Button htmlType="submit" loading={laeuft === "neu"}>
+              <Button type="primary" htmlType="submit" loading={laeuft === "neu"}>
                 Meldung anlegen
               </Button>
             </div>
           </form>
         )}
+        {offene.length > 0 ? (
+          <ul className={v.meldungen} aria-label="Laufende und geplante Meldungen">
+            {offene.map((m) => (
+              <li key={m.id}>
+                <div>
+                  <KategorieMarke kategorie={m.kategorie} /> <strong>{m.text}</strong>
+                  {m.zeitpunkt ? (
+                    <span>
+                      {" "}
+                      · um {UHR.format(new Date(m.zeitpunkt))}
+                      {jetzt !== null ? `, ${countdownText(Date.parse(m.zeitpunkt), jetzt)}` : ""}
+                    </span>
+                  ) : null}
+                  <div style={SCHRIFT.neben} className={v.gedaempft} data-testid="meldung-stand">
+                    {[stand(m, amMonitor, jetzt), `verschwindet ${ABLAUF.format(endeVon(m))}`, `von ${m.angelegtVon}`].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                <Button loading={laeuft === m.id} onClick={() => beenden(m)} aria-label={`Meldung beenden: ${m.text}`}>
+                  Beenden
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span>Gerade läuft keine Meldung.</span>
+        )}
+
       </div>
     </Card>
   );

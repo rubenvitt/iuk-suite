@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Alert, Button, Card, Input, InputNumber, Radio, Switch } from "antd";
 import { fingerabdruck } from "@/core/entwurf/ablage";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
@@ -11,21 +11,21 @@ import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
-import { KARTEN_ZOOM, STANDORT_VORGABE, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
-import { istFaellig, type KategorieDTO } from "../_lib/kategorieRegeln";
-import { MELDUNGEN_MAX_AKTIV, planeMeldung, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
+import { KARTEN_ZOOM, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
+import type { KategorieDTO } from "../_lib/kategorieRegeln";
+import type { MeldungDTO } from "../_lib/meldungRegeln";
 import type { FahrzeugAuswahl, FahrzeugDTO } from "../_lib/fahrzeuge";
-import type { Lage, LagekarteObjektDTO } from "../_lib/lagekarteRegeln";
+import type { LagekarteObjektDTO } from "../_lib/lagekarteRegeln";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
 import type { StandortAuswahl, StandortDTO } from "../_lib/standort";
-import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
+import type { Szenario } from "../_lib/vorschau";
 import { Fahrzeuge } from "./Fahrzeuge";
 import { Kategorien } from "./Kategorien";
 import { Lagekarte } from "./Lagekarte";
-import { Meldungen, type MeldungEntwurf } from "./Meldungen";
-import { MonitorVorschau } from "./MonitorVorschau";
 import { OeffentlicheLinks } from "./OeffentlicheLinks";
+import { bandMeldungen, kartenMitte, useJetzt, vorschauOrtVon } from "./vorschauBand";
+import { VorschauSpalte } from "./VorschauSpalte";
 import { Zugaenge } from "./Zugaenge";
 import { ZumMonitor } from "./ZumMonitor";
 import v from "./verwaltung.module.css";
@@ -93,7 +93,8 @@ const TEIL_TEXT: { feld: keyof SuchlageTeile; titel: string }[] = [
 ];
 
 /**
- * Die Verwaltung des Lagemonitors: Formular und daneben die Vorschau, die jede Änderung sofort zeigt —
+ * Die Einrichtung des Lagemonitors (seit IDA-396 getrennt von den Meldungen): Formular und daneben die
+ * Vorschau, die jede Änderung sofort zeigt —
  * noch vor dem Speichern, mit Beispieldaten. Nur serialisierbare Props, die Actions direkt importiert
  * (Falle 9). Nach dem Speichern kommt der neue Stand über die Props (`revalidatePath`).
  */
@@ -128,15 +129,7 @@ export function AnzeigeVerwaltung({
   const [laeuft, setLaeuft] = useState(false);
   const [erfolg, setErfolg] = useState(false);
   const basis = useId();
-  const [entwurf, setEntwurf] = useState<MeldungEntwurf | null>(null);
-  // Die Uhr erst nach dem Hydrieren: Server und Browser zählten sonst verschieden herunter.
-  const [jetzt, setJetzt] = useState<number | null>(null);
-  useEffect(() => {
-    const tick = () => setJetzt(Date.now());
-    tick();
-    const t = window.setInterval(tick, 30_000);
-    return () => window.clearInterval(t);
-  }, []);
+  const jetzt = useJetzt();
 
   // Kommt ein neuer Stand vom Server (anderer Tab, anderes Gerät), wird er übernommen. Verglichen wird der
   // Inhalt: `revalidatePath` nach Anlegen oder Widerrufen eines Zugangs liefert ein neues, gleiches Objekt.
@@ -160,33 +153,11 @@ export function AnzeigeVerwaltung({
     stand: ablageAus(z),
     wiederherstellen: (w) => setZ({ ...zustandAus(gespeichert), ...w }),
   });
-  const bandMeldungen = useMemo<VorschauMeldung[]>(() => {
-    const zaehler = (ziel: number | null) => (ziel !== null && jetzt !== null ? countdownText(ziel, jetzt) : null);
-    const blinkt = (ziel: number | null, k: KategorieDTO | null) => jetzt !== null && istFaellig(ziel, k?.vorlaufMinuten ?? null, jetzt);
-    // Wie am Monitor: höchstens drei begonnene. Ohne Uhr (Server, vor dem Hydrieren) die ohne späteren Beginn.
-    const amMonitor = jetzt === null ? meldungen.filter((m) => m.anzeigenAb === null).slice(0, MELDUNGEN_MAX_AKTIV) : sichtbar(meldungen, jetzt);
-    const laufend = amMonitor.map((m) => {
-      const ziel = m.zeitpunkt ? Date.parse(m.zeitpunkt) : null;
-      return { text: m.text, countdown: zaehler(ziel), kategorie: m.kategorie, faellig: blinkt(ziel, m.kategorie) };
-    });
-    if (!entwurf) return laufend;
-    // Beginnt der Entwurf später oder stehen schon drei am Monitor, zeigt ihn der Monitor jetzt noch nicht.
-    if (laufend.length >= MELDUNGEN_MAX_AKTIV) return laufend;
-    const plan = jetzt === null ? null : planeMeldung({ uhrzeit: entwurf.uhrzeit, anzeigenAb: entwurf.anzeigenAb, laufzeitMinuten: 0 }, new Date(jetzt));
-    if (plan?.anzeigenAb) return laufend;
-    const ziel = plan?.zeitpunkt?.getTime() ?? null;
-    const k = kategorien.find((x) => x.id === entwurf.kategorieId) ?? null;
-    return [...laufend, { text: entwurf.text, countdown: zaehler(ziel), entwurf: true, kategorie: k, faellig: blinkt(ziel, k) }];
-  }, [meldungen, kategorien, entwurf, jetzt]);
+  const band = useMemo(() => bandMeldungen(meldungen, kategorien, null, jetzt), [meldungen, kategorien, jetzt]);
   const tomtom = z.tomtomSchluessel.trim() !== "" || (gespeichert.tomtomHinterlegt && !z.tomtomEntfernen);
-  // Die Vorschau zeigt den Namen des ersten Monitors mit Standort; jeder Monitor hat seinen eigenen.
-  const vorschauOrt = zugaenge.map((x) => standorte.je[x.id]?.name).find((n): n is string => !!n) ?? "";
-  // Die Lagekarte steht in der Vorschau und auf der Karte um den ersten Monitor mit Koordinaten.
-  const mitte = useMemo<Lage>(() => {
-    const s = zugaenge.map((x) => standorte.je[x.id]).find((o) => o && o.breite !== null && o.laenge !== null);
-    return s ? [s.laenge!, s.breite!] : [STANDORT_VORGABE.lon, STANDORT_VORGABE.lat];
-  }, [zugaenge, standorte]);
-  const bild = useMemo(() => vorschau({ ...z, standortName: vorschauOrt, tomtom }, szenario, bandMeldungen), [z, vorschauOrt, tomtom, szenario, bandMeldungen]);
+  const vorschauOrt = vorschauOrtVon(zugaenge, standorte.je);
+  const mitte = useMemo(() => kartenMitte(zugaenge, standorte.je), [zugaenge, standorte]);
+  const eingabe = useMemo(() => ({ ...z, standortName: vorschauOrt, tomtom }), [z, vorschauOrt, tomtom]);
 
   function absenden(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
@@ -244,13 +215,12 @@ export function AnzeigeVerwaltung({
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
       <Seitenkopf
-        titel="Lagemonitor"
+        titel="Einrichtung"
         aktionen={<ZumMonitor online={online} />}
       />
 
       <div className={v.raster}>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg, alignContent: "start" }}>
-          <Meldungen liste={meldungen} kategorien={kategorien} jetzt={jetzt} onEntwurf={setEntwurf} />
           <form onSubmit={absenden} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }} aria-label="Einstellungen des Lagemonitors">
             <EntwurfHinweis entwurf={formEntwurf} />
             {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
@@ -466,26 +436,14 @@ export function AnzeigeVerwaltung({
           </form>
         </div>
 
-        <aside className={v.vorschauSpalte} aria-label="Vorschau">
-          <Card
-            title="Vorschau"
-            extra={<span style={SCHRIFT.neben} className={v.gedaempft}>mit Beispieldaten</span>}
-          >
-            <div style={{ display: "grid", gap: SPACE.md }}>
-              <div role="status" className={v.entwurfStatus}>
-                {geaendert ? <span className={v.entwurfMarke} data-rolle="vorschau-entwurf">Entwurf – noch nicht am Monitor</span> : null}
-              </div>
-              <Radio.Group
-                aria-label="Beispiellage"
-                value={szenario}
-                onChange={(e) => setSzenario(e.target.value as Szenario)}
-                options={SZENARIEN.map((s) => ({ value: s.wert, label: s.text }))}
-                optionType="button"
-              />
-              <MonitorVorschau v={bild} szenario={szenario} standort={vorschauOrt} lagekarte={{ objekte: lagekarte.liste, mitte, zoom: z.kartenZoom ?? KARTEN_ZOOM.vorgabe }} />
-            </div>
-          </Card>
-        </aside>
+        <VorschauSpalte
+          eingabe={eingabe}
+          band={band}
+          szenario={szenario}
+          onSzenario={setSzenario}
+          geaendert={geaendert}
+          lagekarte={{ objekte: lagekarte.liste, mitte, zoom: z.kartenZoom ?? KARTEN_ZOOM.vorgabe }}
+        />
       </div>
 
       <Kategorien liste={kategorien} />
