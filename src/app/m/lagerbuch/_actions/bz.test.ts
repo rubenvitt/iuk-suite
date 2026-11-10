@@ -634,6 +634,21 @@ describe("kontrolleErfassen", () => {
     expect(revalidiert).toEqual([]);
   });
 
+  it("nimmt ein geleertes Feld (null) als fehlend, nicht als 0", async () => {
+    const geraetId = await geraetMitBereichen();
+    revalidiert.length = 0;
+
+    const erg = await kontrolleErfassen({
+      geraetId,
+      level1Wert: 50,
+      level2Wert: null,
+      kompresseVerfall: KOMPRESSE,
+    } as unknown as Parameters<typeof kontrolleErfassen>[0], t.db);
+
+    expect(fehlerVon(erg).feldFehler).toEqual({ level2Wert: "Bitte den Messwert eingeben." });
+    expect(kontrollZeilen()).toEqual([]);
+  });
+
   it("verlangt jedes konfigurierte Level und schreibt ohne es nichts", async () => {
     const geraetId = await geraetMitBereichen();
     revalidiert.length = 0;

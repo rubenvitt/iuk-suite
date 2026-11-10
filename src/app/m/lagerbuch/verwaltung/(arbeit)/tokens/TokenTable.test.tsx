@@ -330,6 +330,7 @@ const OFFENE_RUECKFRAGE = ".ant-popover:not(.ant-popover-hidden)";
 /** Liefert den Text der Folge, wie er in der Rueckfrage stand, und bestaetigt. */
 async function bestaetigen(): Promise<string> {
   for (let i = 0; i < 40 && !existsPortal(`${OFFENE_RUECKFRAGE} [data-rolle='token-folge']`); i++) await warte();
+  if (!existsPortal(`${OFFENE_RUECKFRAGE} [data-rolle='token-folge']`)) throw new Error("Rückfrage fehlt.");
   const folge = queryPortal(`${OFFENE_RUECKFRAGE} [data-rolle='token-folge']`).textContent ?? "";
   await clickPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons .ant-btn-primary`);
   await warte();

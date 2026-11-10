@@ -51,10 +51,21 @@ const AktivSchema = z.object({
   aktiv: z.boolean(),
 });
 
+/**
+ * IDA-379: ein geleertes Zahlenfeld kommt als `null` (oder `""`) an, und
+ * `z.coerce.number()` machte daraus still eine 0 — die Pflichtpruefung saehe
+ * dann einen Messwert, wo keiner war. Leer wird deshalb vorher `undefined`;
+ * eine eingegebene 0 bleibt 0.
+ */
+const messwert = z.preprocess(
+  (wert) => (wert === null || wert === "" ? undefined : wert),
+  z.coerce.number().int().optional(),
+);
+
 const KontrolleSchema = z.object({
   geraetId: z.string().min(1),
-  level1Wert: z.coerce.number().int().optional(),
-  level2Wert: z.coerce.number().int().optional(),
+  level1Wert: messwert,
+  level2Wert: messwert,
   kompresseVerfall: z.string()
     .regex(MONAT_REGEX, "Verfall muss YYYY-MM sein")
     .optional(),
