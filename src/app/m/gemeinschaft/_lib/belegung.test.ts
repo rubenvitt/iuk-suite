@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   amTag, belegend, harteKonflikte, konflikte, liegtAmTag, monatPlus, monatsRaster, monatsZeitraum, oeffentlicheBelegung, sichtbar,
-  sperrenAusEvents, tagesstuecke, ueberlappt, type Eintrag, type Zustand,
+  sperrenAusEvents, tagesstuecke, vorschlagAmTag, ueberlappt, type Eintrag, type Zustand,
 } from "./belegung";
 import { zeitpunkt } from "./zeit";
 
@@ -158,5 +158,33 @@ describe("Monatsraster", () => {
     const z = monatsZeitraum("2026-11");
     expect(z.von).toBe(um("2026-11-01", "00:00"));
     expect(z.bis).toBe(um("2026-12-01", "00:00"));
+  });
+});
+
+describe("Vorbelegung für „An diesem Tag anfragen“ (IDA-387)", () => {
+  const um = (tag: string, uhr: string) => zeitpunkt(tag, uhr);
+  const T = "2026-11-07";
+  const belegt = (ab: string, bis: string, bisTag = T) => ({ von: um(T, ab), bis: um(bisTag, bis) });
+
+  it("freier Tag: der übliche Abend", () => {
+    expect(vorschlagAmTag([], T)).toEqual({ vonTag: T, vonUhr: "18:00", bisTag: T, bisUhr: "23:00" });
+  });
+
+  it("17–21 belegt: der freie Rest des Abends", () => {
+    expect(vorschlagAmTag([belegt("17:00", "21:00")], T)).toEqual({ vonTag: T, vonUhr: "21:00", bisTag: T, bisUhr: "23:00" });
+  });
+
+  it("ab 19 belegt: fünf Stunden davor; ab 18 bis in die Nacht: der Nachmittag", () => {
+    expect(vorschlagAmTag([belegt("19:00", "23:30")], T)).toEqual({ vonTag: T, vonUhr: "14:00", bisTag: T, bisUhr: "19:00" });
+    expect(vorschlagAmTag([belegt("18:00", "02:00", "2026-11-08")], T)).toEqual({ vonTag: T, vonUhr: "13:00", bisTag: T, bisUhr: "18:00" });
+  });
+
+  it("schiefe Grenzen nach innen auf die Viertelstunde, Ende Mitternacht als Folgetag 00:00", () => {
+    expect(vorschlagAmTag([belegt("00:00", "20:10")], T)).toEqual({ vonTag: T, vonUhr: "20:15", bisTag: T, bisUhr: "23:00" });
+    expect(vorschlagAmTag([belegt("00:00", "22:30")], T)).toEqual({ vonTag: T, vonUhr: "22:30", bisTag: "2026-11-08", bisUhr: "00:00" });
+  });
+
+  it("keine Stunde frei: kein Vorschlag", () => {
+    expect(vorschlagAmTag([belegt("00:00", "23:30")], T)).toBeNull();
   });
 });

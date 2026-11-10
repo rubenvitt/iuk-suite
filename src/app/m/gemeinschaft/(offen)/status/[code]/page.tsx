@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "Deine Anfrage", robots: { index: fal
  * formal falscher Code ist `notFound()`, aufgefangen von `status/not-found.tsx` ohne Details. Bewusst KEINE
  * `loading.tsx` in diesem Zweig: darunter würde das `notFound()` zu einem HTTP 200 (Falle 23).
  */
-export default async function StatusSeite({ params }: { params: Promise<{ code: string }> }) {
+export default async function StatusSeite({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ neu?: string | string[] }> }) {
   requireGemeinschaftHost(await headers());
   const { code } = await params;
   if (!istLinkCode(code)) notFound();
@@ -26,7 +26,7 @@ export default async function StatusSeite({ params }: { params: Promise<{ code: 
   return (
     <OffenerRahmen kicker="Gemeinschaft · Bar">
       <h1 className="go-titel">Stand deiner Anfrage</h1>
-      <Statusansicht code={code} a={a} />
+      <Statusansicht code={code} a={a} neu={(await searchParams).neu === "1"} />
     </OffenerRahmen>
   );
 }
