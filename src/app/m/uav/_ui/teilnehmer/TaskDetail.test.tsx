@@ -15,7 +15,7 @@ vi.mock("next/link", () => ({
 import type { TaskDTO } from "../../_lib/typen";
 import type { AufgabenFortschritt } from "../offline/progress";
 import { TaskDetail } from "./TaskDetail";
-import { exists, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
+import { click, exists, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
 
 const AUFGABE: TaskDTO = {
   id: "1-1",
@@ -42,7 +42,7 @@ const MIT_EINTRAG: AufgabenFortschritt = {
 
 const LEER: AufgabenFortschritt = { zielanzahl: 3, nichtAnwendbar: false, durchfuehrungen: [] };
 
-function rendern(aufgabe: TaskDTO, fortschritt: AufgabenFortschritt, nurLesen = false) {
+function rendern(aufgabe: TaskDTO, fortschritt: AufgabenFortschritt, nurLesen = false, onRemove = vi.fn()) {
   return mount(
     <TaskDetail
       aufgabe={aufgabe}
@@ -51,8 +51,7 @@ function rendern(aufgabe: TaskDTO, fortschritt: AufgabenFortschritt, nurLesen = 
       besitzer="p1"
       nurLesen={nurLesen}
       onAdd={vi.fn()}
-      onRemove={vi.fn()}
-      onZielanzahl={vi.fn()}
+      onRemove={onRemove}
       onNichtAnwendbar={vi.fn()}
     />,
   );
@@ -128,5 +127,33 @@ describe("TaskDetail", () => {
   it("kündigt das Erfassungsformular an, statt es unbeschriftet an die Liste zu hängen", async () => {
     await rendern(AUFGABE, MIT_EINTRAG);
     expect(document.body.textContent).toContain("Neue Durchführung");
+  });
+
+  // IDA-389: das Ziel setzt der Ausbilder — der Teilnehmer sieht es, ändert es nicht.
+  it("zeigt die Zielanzahl nur an, ohne Feld zum Ändern", async () => {
+    await rendern(AUFGABE, MIT_EINTRAG);
+    expect(document.body.textContent).toContain("Durchführungen 1 / 3");
+    expect(exists("input[type='number']")).toBe(false);
+  });
+
+  // IDA-389: die Rückfrage steht in der Zeile, nicht im Dialog des Browsers.
+  it("fragt vor dem Löschen in der Zeile nach", async () => {
+    const confirm = vi.spyOn(window, "confirm");
+    const onRemove = vi.fn();
+    await rendern(AUFGABE, MIT_EINTRAG, false, onRemove);
+
+    await click("button[aria-label^='Durchführung vom']");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(exists("[data-rolle='uav-loeschfrage']")).toBe(true);
+
+    await click("[data-rolle='uav-loeschfrage'] button:last-child");
+    expect(exists("[data-rolle='uav-loeschfrage']")).toBe(false);
+    expect(onRemove).not.toHaveBeenCalled();
+
+    await click("button[aria-label^='Durchführung vom']");
+    await click("[data-rolle='uav-loeschfrage'] button:first-child");
+    expect(onRemove).toHaveBeenCalledWith("e1");
+    confirm.mockRestore();
   });
 });

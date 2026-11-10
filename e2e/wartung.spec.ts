@@ -28,7 +28,16 @@ test("Verwalter zuordnen, Gerät anlegen, prüfen, Mangel ohne Anmeldung melden 
   await devLogin(admin, { host: HOST, email: "admin@localtest.me", groups: "wartung-admin", callbackPath: "/gruppen" });
   await admin.goto(url("/gruppen"));
   await warteAufGestreamteInhalte(admin);
-  await klickeWennRuhig(admin.getByRole("row", { name: /Technik/ }).getByRole("button", { name: "Bearbeiten" }));
+  // IDA-393: ohne Geräte hat die Gruppe zwei Aktionen und damit ein Menü, sonst steht „Bearbeiten" allein da.
+  const technikZeile = admin.getByRole("row", { name: /Technik/ });
+  const technikMenue = technikZeile.getByRole("button", { name: /^Aktionen für / });
+  await expect(technikZeile.getByRole("button", { name: "Bearbeiten" }).or(technikMenue)).toBeVisible();
+  if (await technikMenue.count()) {
+    await klickeWennRuhig(technikMenue);
+    await klickeWennRuhig(admin.getByRole("menuitem", { name: "Bearbeiten" }));
+  } else {
+    await klickeWennRuhig(technikZeile.getByRole("button", { name: "Bearbeiten" }));
+  }
   const gruppe = admin.getByRole("dialog", { name: "Gruppe bearbeiten" });
   await gruppe.getByLabel("Verwalter").fill("Dev");
   await klickeWennRuhig(admin.locator(`[data-vorschlag="${technik}"]`));

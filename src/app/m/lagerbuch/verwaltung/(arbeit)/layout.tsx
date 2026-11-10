@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
+import { getDb } from "../../_db/client";
 import { requireLagerbuchHost } from "../../_lib/host";
 import { LAGERBUCH_NAV } from "../../_lib/nav";
+import { lagerbuchSprungziele } from "../../_lib/sprungziele";
 import { requireLagerbuchAdmin } from "../../_lib/zugang";
 import { VerwaltungsRahmen } from "../../_ui/VerwaltungsRahmen";
 
@@ -11,6 +13,9 @@ import { VerwaltungsRahmen } from "../../_ui/VerwaltungsRahmen";
  *
  * `requireLagerbuchAdmin` behaelt seinen eigenen Host-Riegel: Server Actions
  * rufen die Funktion ohne dieses Layout auf und brauchen denselben Backstop.
+ *
+ * ⚠️ DIE SPRUNGZIELE (IDA-380) WERDEN ERST NACH DEM ADMIN-RIEGEL GELESEN: sie tragen Artikel- und
+ * Einheitennamen, und die gehören nur in die Hand derer, die die Verwaltung sehen dürfen.
  */
 export default async function LagerbuchArbeitLayout({
   children,
@@ -21,5 +26,9 @@ export default async function LagerbuchArbeitLayout({
   requireLagerbuchHost(kopf);
   await requireLagerbuchAdmin();
 
-  return <VerwaltungsRahmen nav={LAGERBUCH_NAV}>{children}</VerwaltungsRahmen>;
+  return (
+    <VerwaltungsRahmen nav={LAGERBUCH_NAV} sprungziele={lagerbuchSprungziele(getDb())}>
+      {children}
+    </VerwaltungsRahmen>
+  );
 }

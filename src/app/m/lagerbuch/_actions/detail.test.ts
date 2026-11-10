@@ -224,7 +224,7 @@ describe("getDetail", () => {
     });
     const nurHandlager = (menge: number) =>
       [{
-        id: HANDLAGER_ID, name: "Handlager", menge, zugangshinweis: null,
+        id: HANDLAGER_ID, name: "Handlager ohne Schrank", menge, zugangshinweis: null,
         // Das Handlager ist ein Lager — `standortMeta` sagt dort „Lager",
         // nicht „nicht zugeordnet" (DRK-309).
         typ: "lager" as const, kennung: null, einheitenart: null,

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, Form, Input, InputNumber, Modal } from "antd";
+import { Alert, App, Button, Form, Input, InputNumber, Modal } from "antd";
 import { createArtikel } from "../../../_actions/artikel";
 import { Ikone } from "../../../_ui/ikonen";
 import { EntwurfZeile } from "../../../_ui/EntwurfZeile";
@@ -29,9 +29,22 @@ function istFormFeld(name: string): name is keyof ArtikelWerte {
   return FORM_FELDER.has(name as keyof ArtikelWerte);
 }
 
-export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[] }) {
+export function NeuArtikel({
+  kategorien = [], onAngelegt,
+}: {
+  kategorien?: readonly string[];
+  /** IDA-378 — die Liste oeffnet danach die Schublade des neuen Artikels. */
+  onAngelegt?: (id: string) => void;
+}) {
   const [offen, setOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  /**
+   * IDA-378 — der Name, zu dem die Warnung „gibt es schon" steht. Der naechste
+   * Versuch mit DEMSELBEN Namen ist „Trotzdem anlegen"; wer den Namen aendert,
+   * wird wieder gefragt.
+   */
+  const [dublette, setDublette] = useState<string | null>(null);
+  const { message } = App.useApp();
   const [laeuft, start] = useTransition();
   const [form] = Form.useForm<ArtikelWerte>();
   // IDA-358: die Eingaben ueberstehen ein Neuladen; liegt ein Entwurf, steht
@@ -41,11 +54,13 @@ export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[]
 
   function oeffnen(): void {
     setFehler(null);
+    setDublette(null);
     setOffen(true);
   }
 
   function schliessen(): void {
     setFehler(null);
+    setDublette(null);
     setOffen(false);
     entwurf.verwerfen();
   }
@@ -53,11 +68,17 @@ export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[]
   function speichern(werte: ArtikelWerte): void {
     setFehler(null);
     form.setFields(Array.from(FORM_FELDER, (name) => ({ name, errors: [] })));
+    const name = werte.name.trim();
+    const bestaetigt = dublette !== null && dublette === name;
     start(async () => {
       try {
-        const ergebnis = await createArtikel(werte);
+        const ergebnis = await createArtikel(
+          bestaetigt ? { ...werte, dublettBestaetigt: true } : werte,
+        );
         if (!ergebnis.ok) {
-          if (ergebnis.feldFehler) {
+          if ("dublette" in ergebnis) {
+            setDublette(name);
+          } else if (ergebnis.feldFehler) {
             form.setFields(Object.entries(ergebnis.feldFehler)
               .filter((eintrag): eintrag is [keyof ArtikelWerte, string] => (
                 istFormFeld(eintrag[0])
@@ -69,6 +90,10 @@ export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[]
         }
         schliessen();
         router.refresh();
+        // IDA-378: vorher schloss „Anlegen" den Dialog ohne Rueckmeldung, und
+        // der Artikel stand unmarkiert am Listenende.
+        void message.success(`„${name}“ angelegt.`);
+        onAngelegt?.(ergebnis.wert.id);
       } catch {
         setFehler("Artikel konnte nicht angelegt werden.");
       }
@@ -87,7 +112,7 @@ export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[]
       <Modal
         open={offen || entwurf.wiederhergestellt}
         title="Neuer Artikel"
-        okText="Anlegen"
+        okText={dublette ? "Trotzdem anlegen" : "Anlegen"}
         cancelText="Abbrechen"
         confirmLoading={laeuft}
         // Waehrend des Speicherns kein Weg nach draussen: sonst laeuft ein
@@ -106,7 +131,13 @@ export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[]
           disabled={laeuft}
           initialValues={{ mindestbestand: 0 }}
           onFinish={speichern}
-          onValuesChange={entwurf.onValuesChange}
+          onValuesChange={(geaendert: Partial<ArtikelWerte>, alle: ArtikelWerte) => {
+            if ("name" in geaendert && dublette !== null) {
+              setDublette(null);
+              setFehler(null);
+            }
+            entwurf.onValuesChange(geaendert, alle);
+          }}
           data-rolle="neuer-artikel"
         >
           <EntwurfZeile entwurf={entwurf} />

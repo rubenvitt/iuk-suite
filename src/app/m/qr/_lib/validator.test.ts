@@ -69,6 +69,24 @@ describe("validatePresetInput", () => {
     expect(ok({ label: "L", kind: "text", value: "Freitext" }).value).toBe("Freitext");
     expect(ok({ label: "L", kind: "tel", value: "+49 30 1234" }).value).toBe("+49 30 1234");
   });
+  // IDA-390: „drk.de" ist gemeint als https://drk.de. Ergänzt wird auch serverseitig, damit kein
+  // Weg an der Formularlogik vorbei eine schemalose Adresse speichert.
+  it("url: ergänzt https:// und lässt ein vorhandenes Schema stehen", () => {
+    expect(ok({ label: "L", kind: "url", value: "drk.de" }).value).toBe("https://drk.de");
+    expect(ok({ label: "L", kind: "url", value: "  www.drk.de/kurse  " }).value).toBe(
+      "https://www.drk.de/kurse",
+    );
+    expect(ok({ label: "L", kind: "url", value: "http://intern.example" }).value).toBe(
+      "http://intern.example",
+    );
+    expect(ok({ label: "L", kind: "url", value: "mailto:info@example.org" }).value).toBe(
+      "mailto:info@example.org",
+    );
+  });
+  it("url: lehnt eine Fehleingabe mit eigener Meldung ab", () => {
+    fails({ label: "L", kind: "url", value: "drk de" }, "Das ist keine gültige Web-Adresse.");
+    fails({ label: "L", kind: "url", value: "   " }, "value");
+  });
   it("wifi: ssid Pflicht, encryption aus der Liste", () => {
     fails({ label: "L", kind: "wifi", value: { encryption: "WPA" } }, "ssid");
     fails({ label: "L", kind: "wifi", value: { ssid: "S", encryption: "WPA3" } }, "encryption");

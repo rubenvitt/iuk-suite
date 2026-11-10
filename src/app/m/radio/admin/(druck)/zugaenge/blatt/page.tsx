@@ -79,7 +79,7 @@ import "../../druck.css";
  * erfundene waere genau die Klasse, gegen die die eiserne Regel steht.
  */
 const BLATT_TEXTE = {
-  titel: "Zugänge zur Funkgeräte-Ausleihe",
+  titel: "Zugangscodes zur Funkgeräte-Ausleihe",
   /**
    * ⛔ ER STEHT AUF DEM PAPIER UND ERKLAERT DEN BOGEN DEM, DER IHN AUFHAENGT. Ohne ihn ist ein
    * QR-Code ohne Kontext. ⚠️ Was am Alt-Kiosk BELEGT ist, ist die Papierseite des Problems,
@@ -87,13 +87,13 @@ const BLATT_TEXTE = {
    * Repo weiß, wie viele Kärtchen im Umlauf sind" (`Spec:7025`, woertlich).
    */
   anleitung:
-    "QR-Code scannen oder den Code auf der Startseite eingeben. Ein gesperrter Zugang steht nicht auf diesem Bogen.",
+    "QR-Code scannen oder den Code auf der Startseite eingeben. Ein gesperrter Zugangscode steht nicht auf diesem Bogen.",
   /** ⛔ Der leere Bogen ist ein ZUSTAND, keine leere Seite (Global Constraint „jeder gestaltete Zustand traegt einen benannten Weg zurueck"). */
-  leer: "Es ist kein aktiver Zugang ausgestellt. Ein neuer Zugang entsteht in der Zugangsverwaltung.",
+  leer: "Es gibt keinen aktiven Zugangscode. Ein neuer entsteht unter Zugangscodes.",
   /** ⬜ Der benannte Zustand zur Leerstelle oben — er nennt die Variable, nicht ein Adjektiv. */
   basisFehlt:
     "Für die Funkgeräte ist noch keine öffentliche Domain konfiguriert (SUITE_HOST_RADIO). Ohne sie trüge jeder QR-Code eine falsche Adresse — der Bogen bleibt deshalb leer.",
-  zurueck: "Zurück zur Zugangsverwaltung",
+  zurueck: "Zurück zu den Zugangscodes",
 } as const;
 
 /** Der aeussere Pfad der Zugangsverwaltung (`_lib/routen.ts:64`, `_lib/nav.ts:81`). */

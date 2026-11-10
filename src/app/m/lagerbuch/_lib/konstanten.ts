@@ -71,6 +71,9 @@ export const istEntnahmebox = (lagerortId: string): boolean => lagerortId === EN
  *  FEFO-Sortierung (fefo.ts sortiert ueber den String) fuer jede so angelegte Charge. */
 export const PSEUDO_VERFALL = "2099-12";
 export const istOhneVerfall = (verfall: string): boolean => verfall === PSEUDO_VERFALL;
+/** So heisst `PSEUDO_VERFALL` auf jeder Anzeige und im Export — nie „12/99"
+ *  (IDA-380): das Platzhalterdatum liest niemand als „laeuft nicht ab". */
+export const OHNE_VERFALL_TEXT = "ohne Verfall";
 
 /** Herkunftshinweise in chargen.chargen_nr — NICHT Bedeutungstraeger. Die Bedeutung
  *  „ohne Verfall" haengt am Verfallswert (§5.3.2). */
@@ -163,6 +166,9 @@ export const AUFLADEN_KOMMENTAR = "Aufgeladen";
 export const CHARGE_KORREKTUR = "Korrektur";
 export const CHARGE_INVENTUR = "Inventur";
 export const CHARGE_OHNE_VERFALL = "ohne Verfall";
+/** IDA-378: Material ohne aufgedruckte Chargennummer. Wie die drei darueber ein
+ *  Herkunftshinweis; die Bedeutung (Verfall) haengt am Verfallswert. */
+export const CHARGE_OHNE_NUMMER = "ohne Nummer";
 /** DRK-404: beim Einraeumen aus der Box von der Packung abgelesen — ein Datum
  *  ohne Nummer. Herkunftshinweis wie die drei darueber, nicht Bedeutungstraeger. */
 export const CHARGE_ABGELESEN = "abgelesen";

@@ -28,6 +28,7 @@ import { geraetAktiv, geraetAnlegen, inhaltSpeichern, neueId } from "../_lib/sch
 import { merkePerson, verwalterHinzufuegen } from "../_lib/personen";
 import { START } from "../_lib/startbestand";
 import { testDb } from "../_lib/testDb";
+import { stundenEintragenVorgang } from "../_lib/vorgaenge";
 import { wartungMcp } from "./werkzeuge";
 
 const OHNE_VERZEICHNIS: DirectoryResult = { status: "unconfigured", people: [] };
@@ -342,5 +343,28 @@ describe("Unterlagen über den MCP-Server", () => {
     expect(t.db.select().from(unterlage).all()).toEqual([]);
     // Nutzer ohne Verwaltung sehen das Werkzeug gar nicht.
     expect((await verbinde(NUTZER)).namen).not.toContain("wartung_unterlage_hochladen");
+  });
+});
+
+describe("Betriebsstunden korrigieren (IDA-381)", () => {
+  const viewer = (p: McpPerson) => ({ ...p, id: p.sub }) as unknown as import("../_lib/zugang").Viewer;
+  const stand = (id: string) => t.db.select().from(geraet).where(eq(geraet.id, id)).get()!.stunden;
+
+  it("nach unten nur, wer die Gruppe des Geräts verwaltet", async () => {
+    const nutzer = { viewer: viewer(NUTZER), rechte: { admin: false, gruppen: [] } };
+    const verwalter = { viewer: viewer(VERWALTER), rechte: { admin: false, gruppen: [START.gruppe.technik] } };
+    expect(await stundenEintragenVorgang(nutzer, stromerzeuger, { stunden: 90, korrektur: true })).toMatchObject({ ok: false });
+    expect(await stundenEintragenVorgang(verwalter, akkuIuk, { stunden: 1, korrektur: true })).toMatchObject({ ok: false, fehler: expect.stringContaining("nicht verwaltest") });
+    expect(await stundenEintragenVorgang(verwalter, stromerzeuger, { stunden: 90 })).toMatchObject({ ok: false });
+    expect([stand(stromerzeuger), stand(akkuIuk)]).toEqual([100, 5]);
+    expect(await stundenEintragenVorgang(verwalter, stromerzeuger, { stunden: 90, korrektur: true })).toEqual({ ok: true });
+    expect(stand(stromerzeuger)).toBe(90);
+    expect(t.db.select().from(eintrag).where(eq(eintrag.geraetId, stromerzeuger)).all().map((e) => e.titel)).toContain("Betriebsstunden korrigiert");
+  });
+
+  it("das MCP-Werkzeug liest weiter nach oben wie bisher", async () => {
+    const { rufe } = await verbinde(NUTZER);
+    expect((await rufe("wartung_stunden_eintragen", { geraet_id: stromerzeuger, stunden: 2000 })).isError).toBeFalsy();
+    expect(stand(stromerzeuger)).toBe(2000);
   });
 });

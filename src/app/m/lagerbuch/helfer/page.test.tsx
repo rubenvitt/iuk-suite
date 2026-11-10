@@ -169,7 +169,7 @@ import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../_lib/konstanten";
  * unten ausgeschrieben und wird NICHT aus denselben Feldern zusammengesetzt.
  */
 const TOKEN_ID = "tk1";
-const ETIKETT = "Zugang: Token 482-137 · RTW 1";
+const ETIKETT = "Zugangscode · RTW 1";
 
 let t: TestDb;
 

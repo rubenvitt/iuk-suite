@@ -1,5 +1,4 @@
 import { auditActor, auditDenied } from "@/core/audit/server";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { canAdminModule } from "@/core/auth/guards";
 import { isDirectoryConfigured } from "@/core/directory";
@@ -8,11 +7,9 @@ import { allePersonen } from "../_db/queries";
 import { isoTag } from "../_lib/datum";
 import { akteurFuerSeite, darfPersonenVerwalten, istAktiv, subFuerSitzung } from "../_lib/zugang";
 import { NichtEingetragenSeite } from "../_ui/NichtEingetragenSeite";
-import { PersonenFormular } from "../_ui/PersonenFormular";
+import { PersonenSchublade } from "../_ui/PersonenSchublade";
 import { PersonenTabelle, type PersonenZeile } from "../_ui/PersonenTabelle";
 import { SeitenKopf } from "../_ui/SeitenKopf";
-import { SCHRIFT } from "@/core/theme/schrift";
-import { SPACE } from "@/core/theme/tokens";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +51,10 @@ export const dynamic = "force-dynamic";
  * `personenInhalt` IST DIE REINE, EXPORTIERTE INHALTSFUNKTION (Vorbild `routinenInhalt`) — kein
  * `akteurFuerSeite`/`darfPersonenVerwalten`/`canAdminModule`-Aufruf darin, `page.test.tsx` ruft sie
  * direkt.
+ *
+ * DIE LISTE STEHT ZUERST (IDA-386): das Formular liegt in einer Schublade hinter dem Knopf
+ * „Person anlegen" im Seitenkopf (`_ui/PersonenSchublade.tsx`); `?bearbeiten=<id>` oeffnet dieselbe
+ * Schublade mit der Person, die HIER aus der Datenbank kommt.
  *
  * `istAktiv` WIRD HIER, SERVERSEITIG, JE ZEILE BERECHNET (nicht in `_ui/PersonenTabelle.tsx`) —
  * s. deren Kopfkommentar: ein Import aus `_lib/zugang.ts` in eine Client-Insel wuerde next-auths
@@ -98,23 +99,8 @@ export function personenInhalt(
         titel="Personenverwaltung"
         hilfe="personen"
         kontext={kontext}
+        aktionen={<PersonenSchublade bearbeiten={bearbeiten} verzeichnisAktiv={verzeichnisAktiv} />}
       />
-
-      <section id="person-formular" style={{ marginBlockEnd: SPACE.xl }}>
-        <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.sm}px` }}>
-          {bearbeiten ? `Person „${bearbeiten.name}“ ändern` : "Neue Person anlegen"}
-        </h2>
-        <PersonenFormular
-          person={bearbeiten ?? undefined}
-          verzeichnisAktiv={verzeichnisAktiv}
-          key={bearbeiten?.id ?? "neu"}
-        />
-        {bearbeiten ? (
-          <Link href="/personen" style={{ display: "inline-block", marginBlockStart: SPACE.sm }}>
-            Abbrechen
-          </Link>
-        ) : null}
-      </section>
 
       <PersonenTabelle zeilen={zeilen} />
     </>

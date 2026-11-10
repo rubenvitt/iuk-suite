@@ -26,8 +26,8 @@ const istMac = () => /mac|iphone|ipad/i.test(navigator.platform || navigator.use
 
 /**
  * Das Kürzel, wie es auf diesem Gerät heißt: „⌘K“ am Mac, sonst „Strg+K“. Server und erste
- * Hydration sagen „Strg+K“; erst der Browser weiß, ob es ein Mac ist. Auch das Suchfeld der
- * Portal-Startseite zeigt es an.
+ * Hydration sagen „Strg+K“; erst der Browser weiß, ob es ein Mac ist. Auch „Springen zu“ im
+ * Menü zeigt es an (`Navigator`), dort nur mit Tastatur und Maus.
  */
 export function usePalettenKuerzel(): string {
   return useSyncExternalStore(ohneAbo, istMac, () => false) ? "⌘K" : "Strg+K";

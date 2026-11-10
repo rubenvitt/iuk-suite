@@ -28,6 +28,7 @@ import { scrollMasse, type MassSpalte, type Scrollmass } from "./masse";
 import { angezeigteAnzahl, type AnzeigeSpalte } from "./angezeigt";
 import { RollenAnbieter, mitRollen, mitZeilenindex } from "./rollen";
 import { mitGrossenKreuzchen } from "./auswahl";
+import { AKTIONS_SCHLUESSEL } from "./aktionsspalte";
 
 export type DatentabelleProps<T> = Omit<TableProps<T>, "pagination" | "virtual" | "scroll"> & {
   /**
@@ -108,6 +109,27 @@ function mitKicker<T>(spalten: TableProps<T>["columns"]): TableProps<T>["columns
   });
 }
 
+/**
+ * DIE AKTIONSSPALTE STEHT RECHTS FEST (IDA-393). Eine Spalte mit dem Schlüssel `aktion` oder
+ * `aktionen` bleibt beim waagerechten Scrollen am rechten Rand stehen, und antd zeichnet an
+ * ihrer Kante einen Schatten — der einzige sichtbare Hinweis, dass die Zeile weitergeht.
+ *
+ * ⚠️ NUR MIT `scroll`. Ohne Scrollcontainer gibt es nichts, an dem sie haften könnte; und
+ * `fixed` schaltet rc-table bei `scroll.x: "max-content"` NICHT auf `table-layout: fixed`
+ * (`Table.js`, `mergedTableLayout`: `fixColumn` → `max-content` ? `auto`), das Desktop-Bild der
+ * übrigen Spalten bleibt also, wie es war. Wer `fixed` selbst setzt, behält seinen Wert.
+ */
+function mitFesterAktion<T>(
+  spalten: TableProps<T>["columns"],
+  scrollt: boolean,
+): TableProps<T>["columns"] {
+  if (!spalten || !scrollt) return spalten;
+  return spalten.map((spalte) => {
+    if (spalte.fixed !== undefined || !AKTIONS_SCHLUESSEL.includes(String(spalte.key ?? ""))) return spalte;
+    return { ...spalte, fixed: "right" as const };
+  });
+}
+
 export function Datentabelle<T extends object>({
   virtuell = false,
   virtuellAbZeilen,
@@ -119,7 +141,6 @@ export function Datentabelle<T extends object>({
   "aria-label": beschriftung,
   ...rest
 }: DatentabelleProps<T>) {
-  const spalten = useMemo(() => mitKicker(columns), [columns]);
 
   /**
    * ⚠️ DIE AUSWAHLSPALTE STEHT NICHT IN `columns`. antd fügt sie aus
@@ -167,6 +188,11 @@ export function Datentabelle<T extends object>({
       { anzahl: zeilenAnzahl, ab: virtuellAbZeilen },
     ),
     [columns, virtuell, scroll, zusatzBreite, zeilenAnzahl, virtuellAbZeilen],
+  );
+
+  const spalten = useMemo(
+    () => mitFesterAktion(mitKicker(columns), masse.scroll !== undefined),
+    [columns, masse.scroll],
   );
 
   // Kein Wurf: eine Tabelle, die gewöhnlich scrollt, ist langsam — eine, die auf

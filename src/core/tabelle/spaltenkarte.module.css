@@ -73,7 +73,14 @@
   overflow-wrap: anywhere;
   text-align: start;
   flex: 1 1 auto;
-  min-width: 0;
+  /*
+   * ⚠️ EINE UNTERGRENZE, NICHT 0 (IDA-380). Mit `min-width: 0` gab der Titel
+   * jeden Pixel an die Kennzeichen ab: zwei Chips daneben ließen ihm auf 390px
+   * eine Buchstabenbreite, und der Name stand senkrecht da („B/Z/-/T/e/s/t").
+   * Neun Zeichenbreiten halten ein Wort lesbar; `min()` lässt die Grenze auf
+   * einem Schirm, der selbst schmaler ist, nicht über den Rand ragen.
+   */
+  min-width: min(9em, 50%);
 }
 
 .kennzeichen {
@@ -82,7 +89,20 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  flex: 0 0 auto;
+  /* Darf schrumpfen und umbrechen, statt den Titel zu verdrängen oder rechts
+     aus dem Schirm zu laufen — die Untergrenze des Titels gewinnt. */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* IDA-380 — die Zeile unter dem Titel (`Kartenwunsch.unterTitel`): volle
+   Breite, Chips brechen untereinander um statt neben dem Titel zu drängeln. */
+.unterTitel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
 /*

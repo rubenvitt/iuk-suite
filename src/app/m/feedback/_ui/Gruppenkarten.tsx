@@ -187,7 +187,7 @@ export function Gruppenkarten({
             </label>
             <label style={T.kicker}>
               FRIST (STUNDEN)
-              <Input name="closeAfterHours" placeholder="Frist (h)" type="number" />
+              <Input name="closeAfterHours" placeholder="Frist (h)" type="number" inputMode="numeric" />
             </label>
             <div>
               <Button htmlType="submit" type="primary">

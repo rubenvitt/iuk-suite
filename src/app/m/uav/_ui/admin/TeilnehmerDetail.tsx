@@ -150,7 +150,7 @@ export function TeilnehmerDetail({
           <div>{datumZeit(detail.letzteAktivitaet) || "—"}</div>
         </div>
         <div>
-          <div style={SCHRIFT.neben}>Login-Code</div>
+          <div style={SCHRIFT.neben}>Persönlicher Code</div>
           <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
             <span style={SCHRIFT.zahl}>{teilnehmer.loginCode}</span>
             <Button onClick={() => kopieren(teilnehmer.loginCode, "code")}>
@@ -159,7 +159,7 @@ export function TeilnehmerDetail({
           </div>
         </div>
         <div>
-          <div style={SCHRIFT.neben}>Magic-Link</div>
+          <div style={SCHRIFT.neben}>Anmeldelink</div>
           <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, flexWrap: "wrap" }}>
             <span style={{ ...SCHRIFT.mono, userSelect: "text", wordBreak: "break-all" }}>{link}</span>
             <Button onClick={() => kopieren(link, "link")}>{kopiert === "link" ? "Kopiert" : "Kopieren"}</Button>
@@ -195,7 +195,7 @@ export function TeilnehmerDetail({
         </Button>
         <Popconfirm
           title="Neuen Code erzeugen?"
-          description="Der bisherige Login-Code und Magic-Link werden ungültig."
+          description="Der bisherige Code und Anmeldelink werden ungültig."
           okText="Erzeugen"
           cancelText="Abbrechen"
           onConfirm={codeNeuErzeugen}

@@ -7,7 +7,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 `docs/design/README.md` enthält die verbindlichen Querschnittsregeln. Referenzentwürfe:
 `docs/design/feedback-oeffentliche-ansicht.md` (öffentliche, login-freie Ansichten) und
-`docs/design/feedback-admin.md` (Admin-Arbeitsseiten).
+`docs/design/feedback-admin.md` (Admin-Arbeitsseiten). Wörter und Anrede: `docs/design/wortliste.md`.
 
 ### Fallen, die `pnpm build` nicht findet
 
@@ -204,6 +204,9 @@ DRK-489: der fragt `/favicon.ico` an, der 404 steht in der Konsole) und schaltet
 Anmeldefehler; `--no-proxy-server` reicht der Shell nicht, ihr WebSocket bleibt am Proxy). Ein neues Playwright-Profil
 geht ebenfalls durch `cloudTauglich(defineConfig(…))`, ein `test.use` mit `launchOptions`/`channel` durch
 `cloudTauglichUse(…)` (sonst ersetzt es den Cloud-Browser, DRK-503); `scripts/e2e-cloud.test.ts` prüft beides.
+Der Resolver dort löst `*.localtest.me` nie auf (IDA-374; Symptom: „Timed out waiting from config.webServer“
+nach 180 s, kein langsamer Server). `cloudTauglich` legt die Namen per `e2e/helpers/loopback-dns.cjs` in Lauf,
+Workern und Server (`NODE_OPTIONS`) und per `--host-resolver-rules` im Browser auf 127.0.0.1 — kein `/etc/hosts`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

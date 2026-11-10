@@ -25,8 +25,9 @@ export function FristChip({ f }: { f: Pick<FristStand, "stufe"> }) {
   return <Chip farbe={STUFE_FARBE[f.stufe]}>{STUFE_TEXT[f.stufe]}</Chip>;
 }
 
-export function ZustandChip({ z, text }: { z: Zustand; text?: string }) {
-  return <Chip farbe={ZUSTAND_FARBE[z]}>{text ?? ZUSTAND_TEXT[z]}</Chip>;
+/** Wort und Farbe des Zustands, ohne Abweichung je Stelle (IDA-381). */
+export function ZustandChip({ z }: { z: Zustand }) {
+  return <Chip farbe={ZUSTAND_FARBE[z]}>{ZUSTAND_TEXT[z]}</Chip>;
 }
 
 export function OrtText({ ortArt, ort }: { ortArt: "lager" | "fahrzeug"; ort: string }) {
@@ -41,8 +42,13 @@ export function ArtZeichen({ ikone, groesse = 20 }: { ikone: string; groesse?: n
   return <Icons8Ikone name={artIkone(ikone)} groesse={groesse} />;
 }
 
-export function Kicker({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={`${s.kicker} ${className ?? ""}`}>{children}</div>;
+/**
+ * `leise`: ohne Versalien, wie `SCHRIFT.kicker` — die Haarlinie der Verwaltungsflächen (`docs/design/README.md`,
+ * „Haarlinie“: keine Versalien; IDA-381). Ohne `leise` bleibt der versale Kicker der Telefonseiten am Gerät,
+ * die die Regel nicht deckt.
+ */
+export function Kicker({ children, className, leise }: { children: ReactNode; className?: string; leise?: boolean }) {
+  return <div className={[s.kicker, leise ? s.kickerLeise : "", className ?? ""].filter(Boolean).join(" ")}>{children}</div>;
 }
 
 export const stundenText = (h: number | null): string => (h === null ? "—" : `${h.toLocaleString("de-DE")} h`);

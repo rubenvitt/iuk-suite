@@ -30,7 +30,7 @@ async function zielHoehen(page: Page, wahl: string): Promise<{ text: string; h: 
 
 const NAMENSLINKS = [
   { pfad: "/verwaltung/fahrzeuge", wahl: '.ant-layout-content a[href^="/verwaltung/fahrzeuge/"]', was: "Fahrzeugliste" },
-  { pfad: "/verwaltung", wahl: '.ant-layout-content a[href*="?artikel="]', was: "Kritische Artikel" },
+  { pfad: "/verwaltung", wahl: '.ant-layout-content a[href*="?artikel="]', was: "Was steht an" },
 ] as const;
 
 for (const breite of [390, 1280] as const) {

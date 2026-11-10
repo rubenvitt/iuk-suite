@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
 import {
+  abschlussFolge, korrekturenIn,
   abweichungFuer, ausbuchenSetzen, istSetzen, neueChargeAendern, stepperCharge,
   abweichungenIn, artikelBestaetigen, artikelSetzen, ausgeblendetGezaehlt, bestaetigungZuruecknehmen,
   chargeSetzen, chargenzaehlungVerwerfen, fortschritt, neueChargeEntfernen, neueChargeHinzufuegen,
@@ -178,5 +179,43 @@ describe("Ergänzte Chargen nachträglich ändern (IDA-276)", () => {
     const stand = neueChargeHinzufuegen(neueChargeHinzufuegen(LEER, "a1", NEU), "a1", zweite);
     expect(neueChargeAendern(stand, "a1", zweite.schluessel, { ...NEU, ist: 9 })).toBe(stand);
     expect(neueChargeAendern(stand, "a1", "gibt-es-nicht", NEU)).toBe(stand);
+  });
+});
+
+describe("IDA-379 — die Folge des Abschlusses für die Rückfrage", () => {
+  const PFLASTER: InventurZeile = {
+    ...ZEILE, id: "a2", name: "Pflaster", bestand: 4, chargen: [],
+  };
+
+  it("nennt je Artikel vorher → nachher und lässt unveränderte weg", () => {
+    const stand = artikelSetzen(artikelSetzen(LEER, "a1", 10), "a2", 1);
+    expect(korrekturenIn([ZEILE, PFLASTER], stand)).toEqual([
+      { artikelId: "a2", name: "Pflaster", vorher: 4, nachher: 1 },
+    ]);
+  });
+
+  it("rechnet im Chargenmodus über alle Chargen des Artikels", () => {
+    // c1: 4 → 1; c2 bleibt ungezaehlt bei 6.
+    const stand = chargeSetzen(LEER, "a1", "c1", 1);
+    expect(korrekturenIn([ZEILE], stand)).toEqual([{ artikelId: "a1", name: "Mullbinde", vorher: 10, nachher: 7 }]);
+  });
+
+  it("zählt eine reine Umlagerung aus „Nicht zugeordnet“ nicht als Korrektur", () => {
+    const zeile: InventurZeile = {
+      ...ZEILE, bestand: 0, ungeordnet: 5,
+      chargen: [{ id: "c1", chargenNr: "L1", verfall: "2026-10", rest: 0, ungeordnet: 5, ampel: "gelb" }],
+    };
+    expect(korrekturenIn([zeile], chargeSetzen(LEER, "a1", "c1", 5))).toEqual([]);
+  });
+
+  it("sagt, was ungezählt bleibt und welche Bestände sich ändern", () => {
+    expect(abschlussFolge(12, [{ artikelId: "a1", name: "Mullbinde", vorher: 98, nachher: 90 }]))
+      .toEqual(["12 nicht gezählt", "1 Korrektur: Mullbinde 98 → 90"]);
+    expect(abschlussFolge(0, [])).toEqual(["Keine Korrektur"]);
+  });
+
+  it("kürzt viele Korrekturen auf die ersten drei und zählt den Rest", () => {
+    const viele = ["A", "B", "C", "D", "E"].map((name, i) => ({ artikelId: name, name, vorher: i, nachher: i + 1 }));
+    expect(abschlussFolge(0, viele)).toEqual(["5 Korrekturen: A 0 → 1, B 1 → 2, C 2 → 3 + 2 weitere"]);
   });
 });

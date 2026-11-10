@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
@@ -12,7 +12,7 @@ import { SendeStatus } from "./SendeStatus";
 // „Server Actions duerfen als einzige ueber die Grenze — aber direkt
 // importiert, nicht als Prop durchgereicht." Dieselbe Form wie in
 // `_ui/Auffuellen.tsx` und `_ui/BoxAbgabe.tsx`.
-import { bucheEntnahmeHelfer } from "../_actions/buchung";
+import { bucheEntnahmeHelfer, macheEntnahmeRueckgaengig } from "../_actions/buchung";
 import { einheitMeta, ortZeile, type Einheitenart } from "../_lib/konstanten";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import type { Ampel } from "../_lib/domain/verfall";
@@ -92,10 +92,58 @@ export type EntnahmeDetail = {
     }[];
     ampel: Ampel;
     text: string;
+    /**
+     * IDA-378 — abgelaufen (`istAbgelaufen`, serverseitig entschieden). Eine
+     * solche Charge ist nicht waehlbar, FEFO ueberspringt sie, und sie zaehlt
+     * nicht zur Hoechstmenge.
+     */
+    abgelaufen: boolean;
   }[];
 };
 
-type Rueckmeldung = { art: "ok" | "fehler"; text: string; grund?: HelferGrund };
+type Rueckmeldung = {
+  art: "ok" | "fehler";
+  text: string;
+  grund?: HelferGrund;
+  /** IDA-378 — die Sendung, die „Rückgängig" adressiert, und das Ende des Fensters (ms). */
+  rueckgaengig?: { sendungId: string; bis: number };
+};
+
+/** IDA-378 — Restminuten, aufgerundet: „1 min" bis zur letzten Sekunde. */
+function restMinuten(bis: number, jetzt: number): number {
+  return Math.ceil((bis - jetzt) / 60_000);
+}
+
+/**
+ * IDA-378 — DER KNOPF „RÜCKGÄNGIG", solange das Fenster offen ist.
+ *
+ * ⚠️ DIE UHR IST NUR ANZEIGE. Das Fenster misst der Server an der Journalzeile
+ * (`macheEntnahmeRueckgaengig`); hier verschwindet der Knopf, wenn es abgelaufen
+ * ist, damit niemand auf einen Knopf tippt, der nur noch eine Absage bringt.
+ */
+function RueckgaengigKnopf({
+  bis, laeuft, beiKlick,
+}: { bis: number; laeuft: boolean; beiKlick: () => void }) {
+  const [jetzt, setJetzt] = useState(() => Date.now());
+  useEffect(() => {
+    const takt = setInterval(() => setJetzt(Date.now()), 15_000);
+    return () => clearInterval(takt);
+  }, []);
+  const minuten = restMinuten(bis, jetzt);
+  if (minuten <= 0) return null;
+  return (
+    <button
+      type="button"
+      className={`${s.knopf} ${s.knopfGeist} ${s.knopfBreit}`}
+      style={{ marginTop: 10 }}
+      disabled={laeuft}
+      onClick={beiKlick}
+      data-rolle="entnahme-rueckgaengig"
+    >
+      Rückgängig ({minuten} min)
+    </button>
+  );
+}
 
 export function Entnahme({
   detail,
@@ -128,8 +176,20 @@ export function Entnahme({
    */
   schrank?: { id: string; name: string; bestand: number } | null;
 }) {
-  const [menge, setMenge] = useState(1);
+  const [menge, setMengeRoh] = useState(1);
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
+  /*
+   * IDA-378 — HAT DIE KLEMME GEGRIFFEN? Bis hierher kappte der Stepper 999 still
+   * auf den Bestand, und „Entnahme buchen" buchte die kleinere Zahl, ohne dass
+   * sie je jemand gelesen hatte. Jede andere Mengenaenderung nimmt den Status
+   * wieder weg.
+   */
+  const [gekappt, setGekappt] = useState(false);
+  const setMenge = (m: number | ((vorher: number) => number)) => {
+    setMengeRoh(m);
+    setGekappt(false);
+  };
+  const [nimmtZurueck, setNimmtZurueck] = useState(false);
   /*
    * DIE CHARGENLISTE ZEIGT ZUERST, WAS HIER LIEGT — DRK-397.
    *
@@ -148,6 +208,16 @@ export function Entnahme({
    */
   const [zeigeOhneBestand, setZeigeOhneBestand] = useState(false);
   const imHandlager = detail.chargen.filter((c) => c.rest > 0);
+  /*
+   * IDA-378 — VERWENDBAR IST, WAS IM HANDLAGER LIEGT UND NICHT ABGELAUFEN IST.
+   * Die abgelaufenen bleiben in der Liste stehen (sie liegen ja im Fach, und
+   * jemand muss sie dort finden und aussondern), sind aber nicht waehlbar.
+   */
+  const verwendbar = imHandlager.filter((c) => !c.abgelaufen);
+  const verwendbarSumme = verwendbar.reduce((summe, c) => summe + c.rest, 0);
+  const abgelaufenSumme = imHandlager
+    .filter((c) => c.abgelaufen)
+    .reduce((summe, c) => summe + c.rest, 0);
   const ohneBestand = detail.chargen.filter((c) => c.rest <= 0);
   const sichtbareChargen = zeigeOhneBestand ? detail.chargen : imHandlager;
 
@@ -168,7 +238,7 @@ export function Entnahme({
   const [chargeId, setChargeId] = useState<string | null>(null);
   const gewaehlteCharge = chargeId === null
     ? null
-    : (imHandlager.find((c) => c.id === chargeId) ?? null);
+    : (verwendbar.find((c) => c.id === chargeId) ?? null);
 
   /*
    * ⚠️ EINE VERSCHWUNDENE CHARGE FAELLT AUF FEFO ZURUECK — Codex-Befund P1 zu
@@ -207,14 +277,24 @@ export function Entnahme({
    * Stepper und die Menge, die `absenden` schickt. Zwei Rechnungen liefen beim
    * naechsten Griff auseinander, und die zweite ist die, die bucht.
    */
-  const hoechstmenge = gewaehlteCharge ? gewaehlteCharge.rest : detail.bestand;
+  // IDA-378: ohne Wahl der Rest der VERWENDBAREN Chargen, nicht der Kopfbestand.
+  const hoechstmenge = gewaehlteCharge ? gewaehlteCharge.rest : verwendbarSumme;
+  /*
+   * IDA-378 — DER STATUS AM FELD, wenn die Klemme gegriffen hat. Nur die Zahl
+   * und ihr Grund, kein Erklaertext.
+   */
+  const kappungsText = gewaehlteCharge
+    ? `Nur ${hoechstmenge} ${detail.einheit} in dieser Charge`
+    : abgelaufenSumme > 0
+      ? `Nur ${hoechstmenge} ${detail.einheit} verwendbar, ${abgelaufenSumme} abgelaufen`
+      : `Nur ${hoechstmenge} ${detail.einheit} verfügbar`;
   /*
    * ⚠️ DIE WAHL WIRD NUR ANGEBOTEN, WENN ES ETWAS ZU WAEHLEN GIBT — dieselbe
    * Bedingung wie in `_ui/BoxAbgabe.tsx`. Bei genau einer Charge ist die Frage
    * beantwortet, bevor sie gestellt wird, und eine Radiogruppe mit einem Knopf
    * ist eine Bedienung ohne Wirkung.
    */
-  const wahlMoeglich = imHandlager.length > 1;
+  const wahlMoeglich = verwendbar.length > 1;
 
   /*
    * DER WEG ZUR ZIELWAHL UND ZURÜCK. `returnTo` ist keine Bequemlichkeit: ohne
@@ -245,7 +325,7 @@ export function Entnahme({
   const entwurf = useEntwurf<
     { menge: number; chargeId: string | null },
     Nutzlast,
-    { r: Awaited<ReturnType<typeof bucheEntnahmeHelfer>>; n: Nutzlast }
+    { r: Awaited<ReturnType<typeof bucheEntnahmeHelfer>>; n: Nutzlast; sendungId: string }
   >({
     schluessel: `lagerbuch:entnahme:${detail.id}:${schrank?.id ?? "handlager"}`,
     stand: { menge, chargeId },
@@ -253,8 +333,8 @@ export function Entnahme({
       setMenge(w.menge);
       setChargeId(w.chargeId);
     },
-    senden: async (n, sendungId) => ({ r: await bucheEntnahmeHelfer({ ...n.eingabe, sendungId }), n }),
-    antwort: ({ r, n }) => {
+    senden: async (n, sendungId) => ({ r: await bucheEntnahmeHelfer({ ...n.eingabe, sendungId }), n, sendungId }),
+    antwort: ({ r, n, sendungId }) => {
       if (!r.ok) {
         // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
         // Das gilt auch fuer den fuenften Grund `"eingabe"`
@@ -269,19 +349,42 @@ export function Entnahme({
       // von einem reinen Verbrauch nicht zu unterscheiden — und der Satz ist
       // der einzige Beleg, den die Person am Regal zu sehen bekommt.
       const wohin = n.zielName ? ` → ${n.zielName}` : "";
+      // IDA-378 — das Fenster kommt vom Server (Zeitpunkt der Journalzeile).
+      const bis = r.wert.rueckgaengigBis ? Date.parse(r.wert.rueckgaengigBis) : NaN;
+      const rueckgaengig = Number.isFinite(bis) ? { sendungId, bis } : undefined;
       setRueck(
         gebucht < n.angefragt
           ? // §7.3, zweiter Zustand: heute ein GRUENER Chip mit der KLEINEREN
             // Zahl, ohne Hinweis — der Helfer legt fuenf Teile ins Fahrzeug
             // und das Journal kennt drei.
-            { art: "ok", text: `${gebucht} von ${n.angefragt} gebucht; mehr lag nicht im Handlager.${wohin}` }
-          : { art: "ok", text: `Entnahme gebucht: ${gebucht} × ${detail.name}${wohin}` },
+            { art: "ok", text: `${gebucht} von ${n.angefragt} gebucht; mehr lag nicht im Handlager.${wohin}`, rueckgaengig }
+          : { art: "ok", text: `Entnahme gebucht: ${gebucht} × ${detail.name}${wohin}`, rueckgaengig },
       );
       setMenge(1);
       return true;
     },
   });
   const laeuft = entwurf.zustand !== "ruhe";
+
+  /*
+   * IDA-378 — RÜCKGÄNGIG. Kein Entwurf wie beim Buchen: die Gegenbuchung ist
+   * am Primaerschluessel gegen Doppel geschuetzt, ein zweiter Tipp nach einem
+   * Netzfehler bekommt hoechstens die Absage „schon gegengebucht".
+   */
+  async function rueckgaengig(sendungId: string) {
+    setNimmtZurueck(true);
+    try {
+      const r = await macheEntnahmeRueckgaengig({ sendungId });
+      setRueck(r.ok
+        ? { art: "ok", text: `Rückgängig gemacht: ${detail.name}` }
+        : { art: "fehler", text: r.text, grund: r.grund });
+    } catch {
+      // "netz" entsteht nur im Client (Global Constraint 12); der Knopf bleibt.
+      setRueck((vorher) => vorher && { ...vorher, art: "fehler", text: "Keine Verbindung — Rückgängig nicht gebucht.", grund: "netz" });
+    } finally {
+      setNimmtZurueck(false);
+    }
+  }
 
   function absenden() {
     // ⚠️ OHNE ZIEL WIRD NICHT GEBUCHT. Der Knopf ist dann bereits gesperrt;
@@ -367,8 +470,19 @@ export function Entnahme({
               */
               max={Math.max(hoechstmenge, 1)}
               beschriftung="Menge"
+              beiKappung={() => setGekappt(true)}
             />
           </div>
+          {gekappt && (
+            <span
+              className={`${s.chip} ${s.gelb} ${s.warnhinweis}`}
+              style={{ marginBottom: 10 }}
+              role="status"
+              data-rolle="entnahme-kappung"
+            >
+              {kappungsText}
+            </span>
+          )}
 
           {/*
             DIE ZIELZEILE STEHT ÜBER DEM KNOPF, nicht darunter und nicht im
@@ -440,7 +554,7 @@ export function Entnahme({
           <button
             className={`${s.knopf} ${s.knopfRot} ${s.knopfBreit}`}
             type="button"
-            disabled={ziel === null || detail.bestand === 0 || laeuft}
+            disabled={ziel === null || verwendbarSumme === 0 || laeuft || nimmtZurueck}
             onClick={absenden}
             data-rolle="entnahme-buchen"
           >
@@ -464,6 +578,15 @@ export function Entnahme({
                 */}
                 {kontoZugang && rueck.grund === "sitzung" ? ANMELDUNG_TEXT : rueck.text}
               </span>
+              {rueck.rueckgaengig && (
+                <RueckgaengigKnopf
+                  // Neu je Sendung — sonst liefe die Uhr der vorigen weiter.
+                  key={rueck.rueckgaengig.sendungId}
+                  bis={rueck.rueckgaengig.bis}
+                  laeuft={nimmtZurueck}
+                  beiKlick={() => void rueckgaengig(rueck.rueckgaengig!.sendungId)}
+                />
+              )}
               {/*
                 Bei `sitzung` fuehrt der Weg zurueck aufs Gate — MIT `returnTo`,
                 damit der Artikel nach dem erneuten Einloesen wieder offen ist.
@@ -506,13 +629,13 @@ export function Entnahme({
       <div className={s.karte}>
         {/*
           ⚠️ DIE UEBERSCHRIFT SAGT SEIT DRK-418 ETWAS ANDERES, SOBALD MAN WAEHLEN
-          KANN. „Nächste Charge zuerst (FEFO)" beschreibt eine Regel, die die
+          KANN. „Zuerst ablaufende" (IDA-380, vorher „… (FEFO)") beschreibt eine Regel, die die
           Anwendung befolgt; wo eine Wahl steht, ist sie nur noch die VORGABE,
           und die Ueberschrift muss sagen, dass hier etwas zu tun ist. Eine
           Liste, die aussieht wie eine Auskunft, tippt niemand an.
         */}
         <div className={s.karteTitel}>
-          {wahlMoeglich ? "Charge wählen" : "Nächste Charge zuerst (FEFO)"}
+          {wahlMoeglich ? "Charge wählen" : "Zuerst ablaufende"}
         </div>
         {/*
           ⚠️ DIE FEFO-ZEILE IST EINE ZEILE IN DERSELBEN LISTE, kein Leerlassen —
@@ -545,7 +668,8 @@ export function Entnahme({
            * das die Action danach ablehnt, und zwar mit einem Satz ueber
            * Bestand, den die Zeile daneben gerade mit „0" erklaert.
            */
-          const waehlbar = wahlMoeglich && c.rest > 0;
+          // IDA-378: eine abgelaufene Charge ist Auskunft, keine Wahl.
+          const waehlbar = wahlMoeglich && c.rest > 0 && !c.abgelaufen;
           const Zeile = waehlbar ? "label" : "div";
           return (
           <Zeile
@@ -579,7 +703,10 @@ export function Entnahme({
                 */
                 onChange={() => {
                   setChargeId(c.id);
+                  const zuViel = menge > c.rest;
                   setMenge((m) => Math.min(m, c.rest));
+                  // IDA-378: auch dieses Kappen ist sichtbar.
+                  if (zuViel) setGekappt(true);
                 }}
               />
             )}
@@ -589,7 +716,9 @@ export function Entnahme({
                 {/* Beide Angaben stehen NEBENEINANDER: der Chip traegt den
                     Status als TEXT (nie allein ueber Farbe), `fmtVerfall` das
                     Datum in der Form „MM/JJ" (Teil 3, T39). */}
-                <HelferChip ton={ampelTon(c.ampel)}>{c.text}</HelferChip>
+                {c.abgelaufen
+                  ? <HelferChip ton="rot">Abgelaufen, nicht verwenden</HelferChip>
+                  : <HelferChip ton={ampelTon(c.ampel)}>{c.text}</HelferChip>}
                 <span>{fmtVerfall(c.verfall)}</span>
               </div>
               {/*

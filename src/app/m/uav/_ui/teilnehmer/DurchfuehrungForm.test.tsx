@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { DurchfuehrungForm } from "./DurchfuehrungForm";
-import { fill, mount, query, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { exists, fill, mount, query, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 
 /**
  * Port aus uav-praxis/src/components/DurchfuehrungForm.test.tsx — über das
@@ -71,5 +71,52 @@ describe("DurchfuehrungForm", () => {
     await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-03" besitzer="p2" />);
     expect(query<HTMLInputElement>("#df-drohnensteuerer").value).toBe("");
     expect(query<HTMLInputElement>("#df-luftraumbeobachter").value).toBe("");
+  });
+
+  // IDA-389: eine leere Durchführung zählte auf die Zielanzahl („— / —").
+  it("speichert ohne Drohnensteuerer nichts und sagt, was fehlt", async () => {
+    const onAdd = vi.fn();
+    await mount(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" besitzer="p1" />);
+    await fill("#df-drohnensteuerer", "   ");
+    await fill("#df-luftraumbeobachter", "Erika");
+    await submitForm();
+
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(query("[role='alert']").textContent).toContain("Drohnensteuerer");
+    expect(query("#df-drohnensteuerer").getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("belegt den Drohnensteuerer mit dem eigenen Namen vor", async () => {
+    const onAdd = vi.fn();
+    await mount(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" besitzer="p1" eigenerName="Ada Muster" />);
+    expect(query<HTMLInputElement>("#df-drohnensteuerer").value).toBe("Ada Muster");
+    await submitForm();
+    expect(onAdd).toHaveBeenCalledWith({ datum: "2026-06-02", drohnensteuerer: "Ada Muster", luftraumbeobachter: "" });
+    expect(exists("[role='alert']")).toBe(false);
+  });
+
+  it("übernimmt einen erst später bestätigten eigenen Namen, solange das Feld unberührt ist", async () => {
+    const onAdd = vi.fn();
+    await mount(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" besitzer="p1" />);
+    expect(query<HTMLInputElement>("#df-drohnensteuerer").value).toBe("");
+    await rerender(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" besitzer="p1" eigenerName="Ada Muster" />);
+    expect(query<HTMLInputElement>("#df-drohnensteuerer").value).toBe("Ada Muster");
+  });
+
+  it("überschreibt eine eigene Eingabe nicht mit dem später bestätigten Namen", async () => {
+    const onAdd = vi.fn();
+    await mount(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" besitzer="p1" />);
+    await fill("#df-drohnensteuerer", "Max");
+    await rerender(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" besitzer="p1" eigenerName="Ada Muster" />);
+    expect(query<HTMLInputElement>("#df-drohnensteuerer").value).toBe("Max");
+  });
+
+  it("speichert ohne gültiges Datum nichts", async () => {
+    const onAdd = vi.fn();
+    await mount(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" besitzer="p1" eigenerName="Ada" />);
+    await fill("#df-datum", "");
+    await submitForm();
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(query("[role='alert']").textContent).toContain("Datum fehlt");
   });
 });

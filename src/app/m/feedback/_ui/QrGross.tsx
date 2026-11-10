@@ -16,8 +16,8 @@ import { T } from "./typo";
  * `darstellung` deckt genau die zwei Rollen aus der §2.3-Tabelle ab, damit die
  * Lagekarte keinen zweiten Knopf-Typ erfindet:
  * - `primaer` — Belegungen C/D: dort ist „QR-Code groß zeigen" die laute Aktion,
- *   „Feedback jetzt beenden" die Nebenaktion.
- * - `sekundaer` — Belegungen A/B: dort ist „Feedback starten" der EINE
+ *   „Umfrage beenden" die Nebenaktion.
+ * - `sekundaer` — Belegungen A/B: dort ist „Umfrage starten" der EINE
  *   Primärknopf der Seite (§2.6), dieser hier also `default`.
  *
  * DER KASTEN UM DEN CODE IST HART `#ffffff`, auch im Dunkelmodus — ein QR auf

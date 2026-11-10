@@ -72,6 +72,62 @@
   margin: 4mm;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * DIE FLÄCHE UNTER DEM MENÜ IST FEST HELL (IDA-380, `FestHell.tsx`).
+ *
+ * Das Blatt war es schon (Literale, s. u.); die Bedienleiste darüber folgte dem
+ * Theme und stand im Dunkelmodus als helle Schrift auf dem weißen Bogen
+ * (1,04:1). Hier werden deshalb die EIGENEN Variablen mit Dunkelzweig auf ihre
+ * hellen Werte gesetzt — eine Deklaration am Element schlägt den geerbten
+ * Wert, gleich wie spezifisch die Regel am Vorfahren ist. Die Werte sind
+ * Abschriften; `festHell.test.tsx` hält sie an `app/globals.css` (`:root`) und
+ * `_ui/verwaltung.module.css` (`.modul`) fest.
+ *
+ * antds Bauteile stellt `FEST_HELL` um, nicht diese Datei (kein `.ant-`, kein
+ * `--ant-`). Ein nackter Link ohne Klasse bekommt seine Farbe aber aus antds
+ * globaler Grundregel `a { color: var(--ant-color-link) }`, und die löst über
+ * den dunklen Vorfahren auf — deshalb die Linkregel unten. `:not([class])`
+ * lässt `Button href` (ein `<a>` MIT Klassen) bei antd.
+ * ══════════════════════════════════════════════════════════════════════════ */
+.lb-festHell {
+  color-scheme: light;
+  color: var(--iuk-tinte);
+  --iuk-marke: #c8000f;
+  --iuk-gedaempft: #62626b;
+  --iuk-linie: #e7e7e4;
+  --iuk-flaeche-aktiv: rgb(24 24 27 / 0.05);
+  --iuk-grund: #fafaf9;
+  --iuk-karte: #ffffff;
+  --iuk-tinte: #18181b;
+  --iuk-fokus: #18181b;
+  --lb-tinte: #1a1d20;
+  --lb-stahl: #5b6570;
+  --lb-linie: #d9dde1;
+  --lb-papier: #eef0f1;
+  --lb-karte: #ffffff;
+  --lb-rot: #c8000f;
+  --lb-ampel-ok-text: #1e7a3c;
+  --lb-ampel-ok-flaeche: #e4f2e9;
+  --lb-ampel-gelb-text: #8a5200;
+  --lb-ampel-gelb-flaeche: #fbf1dc;
+  --lb-ampel-rot-text: #8c0d16;
+  --lb-ampel-rot-flaeche: #f6e3e0;
+  --lb-ampel-grau-text: #5b6570;
+  --lb-ampel-grau-flaeche: #e7eaec;
+}
+
+/* Hell steht die Fläche auf demselben Grund wie die Seite und fällt nicht auf;
+ * dunkel ist sie eine helle Insel mit etwas Luft zum Menü. */
+:root[data-theme="dark"] .lb-festHell {
+  background: var(--iuk-grund);
+  padding: 16px;
+  border-radius: 14px;
+}
+
+.lb-festHell a:not([class]) {
+  color: var(--iuk-tinte);
+}
+
 .lb-etikettbogen {
   display: grid;
   grid-template-columns: repeat(auto-fill, 48.5mm);   /* :265 */
@@ -942,6 +998,15 @@
    */
   .lb-nichtDrucken {
     display: none !important;
+  }
+
+  /* Die helle Insel des Dunkelmodus (IDA-380) hat auf Papier nichts zu suchen:
+   * ihre Luft gäbe einen zweiten Rand, ihr Grund eine graue Fläche. Derselbe
+   * Selektor wie am Bildschirm, sonst gewänne der spezifischere. */
+  :root[data-theme="dark"] .lb-festHell {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
   }
 
   body {

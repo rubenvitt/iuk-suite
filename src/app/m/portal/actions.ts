@@ -2,8 +2,8 @@
 import { withAuditContext, auditActor, auditDenied } from "@/core/audit/server";
 import { revalidatePath } from "next/cache";
 import { requireModuleAdmin } from "@/core/auth/guards";
-import { createService, deleteService, updateService } from "@/app/m/portal/_lib/services";
-import { sichtbarkeitAusFormular } from "@/app/m/portal/_lib/gruppen";
+import { deleteService, DienstEingabeFehler, dienstFelderAusFormular, legeDienstAn, updateService } from "@/app/m/portal/_lib/services";
+import { OHNE_GRUPPE_FEHLER, sichtbarkeitAusFormular } from "@/app/m/portal/_lib/gruppen";
 import { setzeAnsprechpartner, setzeZeitzone } from "@/app/m/portal/_lib/einstellungen";
 import { auth } from "@/core/auth";
 import { launcherEintraege } from "@/core/shell/launcherEintraege";
@@ -19,16 +19,44 @@ import { faelligkeitenSeitenUrl, nachrichtFuerPerson } from "@/app/m/portal/_lib
 
 const assertAdmin = () => requireModuleAdmin("portal");
 
-export async function createServiceAction(formData: FormData) {
+/** Antwort der beiden Dienst-Formulare: eine abgelehnte Eingabe kommt als Text zurück, nicht als Wurf —
+ *  ein geworfener Fehler erreichte im gebauten Stand nur als „An error occurred" das Formular. */
+export type DienstErgebnis = { ok: true } | { ok: false; fehler: string };
+
+/** Liest das Formular; jede Ablehnung hier liegt VOR dem Schreiben. */
+function dienstAusFormular(formData: FormData) {
+  try {
+    return { ok: true as const, felder: { ...dienstFelderAusFormular(formData), ...sichtbarkeitAusFormular(formData) } };
+  } catch (fehler) {
+    if (fehler instanceof DienstEingabeFehler || (fehler instanceof Error && fehler.message === OHNE_GRUPPE_FEHLER)) {
+      return { ok: false as const, fehler: fehler.message };
+    }
+    throw fehler;
+  }
+}
+
+/** Die Kennung vergibt `legeDienstAn` aus dem Namen (IDA-391) — ein Feld dafür gibt es nicht mehr. */
+export async function createServiceAction(formData: FormData): Promise<DienstErgebnis> {
   const auditViewer = await assertAdmin();
+  const eingabe = dienstAusFormular(formData);
+  if (!eingabe.ok) return eingabe;
   return withAuditContext({ actor: auditActor(auditViewer) }, async () => {
-    await createService({
-      slug: String(formData.get("slug")),
-      name: String(formData.get("name")),
-      url: String(formData.get("url")),
-      ...sichtbarkeitAusFormular(formData),
-    });
+    await legeDienstAn(eingabe.felder);
     revalidatePath("/m/portal");
+    return { ok: true as const };
+  });
+}
+
+/** Alles, was die Kachel zeigt (IDA-391); die Kennung bleibt, wie sie beim Anlegen vergeben wurde. */
+export async function bearbeiteServiceAction(formData: FormData): Promise<DienstErgebnis> {
+  const auditViewer = await assertAdmin();
+  const eingabe = dienstAusFormular(formData);
+  if (!eingabe.ok) return eingabe;
+  return withAuditContext({ actor: auditActor(auditViewer) }, async () => {
+    const dienst = await updateService(String(formData.get("id") ?? ""), eingabe.felder);
+    if (!dienst) return { ok: false as const, fehler: "Diesen Dienst gibt es nicht mehr." };
+    revalidatePath("/m/portal");
+    return { ok: true as const };
   });
 }
 

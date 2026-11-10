@@ -26,11 +26,11 @@
  * Check-Transaktion gelesen wird. Die naheliegende Abhilfe waere dann der Cast,
  * den H11 gerade verbietet.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { bzGeraete, bzKontrollen, lagerorte } from "../../_db/schema";
 import { istEntnahmebox, type Einheitenart, type StandortAngabe } from "../konstanten";
 import { quelleAufloeser } from "../../_db/quelle";
-import { akkuLebensdauer, bzBeachtung, bzFaelligkeit,
+import { akkuLebensdauer, bzBeachtung, bzFaelligkeit, fristKontrolle,
          type BzAkkuKennzahl, type BzBeachtung, type BzFaelligkeit } from "../domain/bz";
 import { BZ_LOGBUCH_GRENZE } from "../grenzen";
 import type { DB } from "../../_db/client";
@@ -65,6 +65,8 @@ export type BzKontrolleZeile = {
   batterieGewechselt: boolean; kommentar: string | null;
   /** ⚠️ Die DAMALS gueltigen Grenzen — nicht die heutigen aus `bz_geraete`. */
   refDamals: RefBereiche | null;
+  /** IDA-379: der Storno-Vermerk, sonst `null`. Die Zeile bleibt lesbar und zaehlt nirgends. */
+  storniert: { am: Date; wer: string } | null;
 };
 
 function toZeile(
@@ -78,6 +80,10 @@ function toZeile(
     kompresseVerfall: k.kompresseVerfall, sticks: k.sticks, lanzetten: k.lanzetten,
     batterieGewechselt: k.batterieGewechselt, kommentar: k.kommentar,
     refDamals: refDamalsAus(k.refSnapshot),
+    // Storniert wird nur aus der Verwaltung, also immer von einer OIDC-Person.
+    storniert: k.storniertAt === null
+      ? null
+      : { am: k.storniertAt, wer: wer("oidc", k.storniertVon ?? "") },
   };
 }
 
@@ -141,7 +147,10 @@ export type BzGeraetZeile = {
   /** DRK-309: Der Standort wird BENANNT, nicht nur genannt — `standortZeile`. */
   lagerortStandort: StandortAngabe;
   aktiv: boolean;
-  letzteKontrolle: Date | null; letztesBestanden: boolean | null; faelligkeit: BzFaelligkeit;
+  /** Die juengste NICHT stornierte Kontrolle, gleich mit welchem Ergebnis. */
+  letzteKontrolle: Date | null; letztesBestanden: boolean | null;
+  /** ⚠️ IDA-379: laeuft von der letzten BESTANDENEN, nicht von `letzteKontrolle`. */
+  faelligkeit: BzFaelligkeit;
   /**
    * DRK-311 — DER KOMMENTAR DER LETZTEN KONTROLLE, sonst `null`.
    *
@@ -166,23 +175,22 @@ export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraet
   const geraete = db.select().from(bzGeraete).all();
   const stamm = standorte(db);
   const kontrollen = db.select().from(bzKontrollen).all();
-  const letzteProGeraet = new Map<string, (typeof kontrollen)[number]>();
+  const proGeraet = new Map<string, (typeof kontrollen)[number][]>();
   for (const k of kontrollen) {
-    const prev = letzteProGeraet.get(k.geraetId);
-    // id-Tiebreaker bei GLEICHEM `ts` (§5.14.4) — MUSS mit der Sortierung in
-    // `bzGeraetDetail`/`bzLogbuchGesamt` (`orderBy(desc(ts), desc(id))`)
-    // uebereinstimmen: sonst kann diese Uebersicht eine ANDERE Kontrolle als
-    // „die letzte" behandeln als das Logbuch — bei zwei Kontrollen in
-    // derselben Sekunde (ts ist Sekunden-genau) eine reale Divergenz auf
-    // einem Medizinprodukte-Nachweis, nicht nur ein theoretischer Fall.
-    const istSpaeter = !prev
-      || k.ts.getTime() > prev.ts.getTime()
-      || (k.ts.getTime() === prev.ts.getTime() && k.id > prev.id);
-    if (istSpaeter) letzteProGeraet.set(k.geraetId, k);
+    const liste = proGeraet.get(k.geraetId) ?? [];
+    liste.push(k);
+    proGeraet.set(k.geraetId, liste);
   }
   return geraete
     .map((g) => {
-      const letzte = letzteProGeraet.get(g.id) ?? null;
+      // id-Tiebreaker bei GLEICHEM `ts` (§5.14.4) steht in `fristKontrolle` und
+      // MUSS mit der Sortierung in `bzGeraetDetail`/`bzLogbuchGesamt`
+      // (`orderBy(desc(ts), desc(id))`) uebereinstimmen: sonst kann diese
+      // Uebersicht eine ANDERE Kontrolle als „die letzte" behandeln als das
+      // Logbuch — bei zwei Kontrollen in derselben Sekunde (ts ist
+      // Sekunden-genau) eine reale Divergenz auf einem Medizinprodukte-Nachweis.
+      // IDA-379: stornierte Zeilen zaehlen dabei nicht mit.
+      const { letzte, frist } = fristKontrolle(proGeraet.get(g.id) ?? []);
       return {
         id: g.id, name: g.name, barcode: g.barcode,
         lagerortName: (stamm.get(g.lagerortId) ?? STANDORT_UNBEKANNT).name,
@@ -196,7 +204,7 @@ export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraet
         beachtung: bzBeachtung(g),
         // ⚠️ `null` → rot MIT ueberfaellig false. Die Anzeige muss `nieGeprueft`
         // eigenstaendig behandeln (§5.11).
-        faelligkeit: bzFaelligkeit(letzte ? letzte.ts : null, now),
+        faelligkeit: bzFaelligkeit(frist ? frist.ts : null, now, letzte !== null),
       };
     })
     .sort((a, b) => Number(b.aktiv) - Number(a.aktiv) || a.name.localeCompare(b.name));
@@ -215,7 +223,9 @@ export type BzGeraetDetail = {
    */
   beachtung: BzBeachtung;
   akku: BzAkkuKennzahl;
-  /** chronologisch ABSTEIGEND */
+  /** IDA-379: die juengste NICHT stornierte Kontrolle — nicht `logbuch[0]`. */
+  letzteKontrolle: { ts: Date; bestanden: boolean } | null;
+  /** chronologisch ABSTEIGEND, stornierte Zeilen eingeschlossen */
   logbuch: BzKontrolleZeile[];
   /** Mehr als die sichtbaren 100 Kontrollen sind vorhanden. */
   logbuchMehrVorhanden: boolean;
@@ -236,21 +246,28 @@ export function bzGeraetDetail(
     .orderBy(desc(bzKontrollen.ts), desc(bzKontrollen.id))
     .limit(BZ_LOGBUCH_GRENZE + 1)
     .all();
-  const letzte = sichtbareRows[0] ?? null;
+  // IDA-379: Frist und „letzte Kontrolle" aus der schmalen Vollhistorie — die
+  // juengste sichtbare Zeile kann storniert oder nicht bestanden sein.
+  const { letzte, frist } = fristKontrolle(db.select({
+    id: bzKontrollen.id, ts: bzKontrollen.ts, bestanden: bzKontrollen.bestanden,
+    storniertAt: bzKontrollen.storniertAt,
+  }).from(bzKontrollen).where(eq(bzKontrollen.geraetId, id)).all());
   // Die Tabellenbegrenzung darf die medizinische Kennzahl nicht veraendern:
   // fuer den Akku wird die geraetegebundene Vollhistorie getrennt gelesen.
   const batterieWechsel = db.select({ ts: bzKontrollen.ts }).from(bzKontrollen)
     .where(and(
       eq(bzKontrollen.geraetId, id),
       eq(bzKontrollen.batterieGewechselt, true),
+      isNull(bzKontrollen.storniertAt),
     ))
     .all();
   const wer = quelleAufloeser(db);
   return {
     geraet: g, lagerortName: lagerortStandort.name, lagerortStandort,
-    faelligkeit: bzFaelligkeit(letzte ? letzte.ts : null, now),
+    faelligkeit: bzFaelligkeit(frist ? frist.ts : null, now, letzte !== null),
     beachtung: bzBeachtung(g),
     akku: akkuLebensdauer(batterieWechsel.map((k) => k.ts)),
+    letzteKontrolle: letzte ? { ts: letzte.ts, bestanden: letzte.bestanden } : null,
     logbuch: sichtbareRows.slice(0, BZ_LOGBUCH_GRENZE).map((k) => toZeile(k, wer)),
     logbuchMehrVorhanden: sichtbareRows.length > BZ_LOGBUCH_GRENZE,
   };
@@ -302,7 +319,7 @@ export function bzLogbuchGesamt(db: DB, grenze: number = BZ_LOGBUCH_GRENZE) {
  */
 export function bzAkkuKennzahlGesamt(db: Leser): BzAkkuKennzahl {
   const ks = db.select().from(bzKontrollen)
-    .where(eq(bzKontrollen.batterieGewechselt, true)).all();
+    .where(and(eq(bzKontrollen.batterieGewechselt, true), isNull(bzKontrollen.storniertAt))).all();
   const proGeraet = new Map<string, Date[]>();
   for (const k of ks) {
     const arr = proGeraet.get(k.geraetId) ?? [];

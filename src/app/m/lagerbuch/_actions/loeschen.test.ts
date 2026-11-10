@@ -230,7 +230,7 @@ function tokenAnlegen(args: {
   t.db.insert(tokens).values({
     id,
     code: args.code ?? "111-111",
-    label: "Zugangs-Code",
+    label: "Zugangscode",
     scopeLagerortId: args.scopeLagerortId ?? null,
     ortId: args.ortId ?? null,
     zielTyp: args.zielTyp ?? null,
@@ -423,8 +423,8 @@ describe("pruefeLoeschbar — Artikel", () => {
       anlegen: (artikelId: string) => { inventurPositionAnlegen(artikelId); },
     },
     {
-      name: "passender Zugangs-Code",
-      grund: "1 Zugangs-Code",
+      name: "passender Zugangscode",
+      grund: "1 Zugangscode",
       anlegen: (artikelId: string) => {
         tokenAnlegen({ zielTyp: "artikel", zielId: artikelId });
       },
@@ -485,8 +485,8 @@ describe("pruefeLoeschbar — Fahrzeug", () => {
       anlegen: (fahrzeugId: string) => { o2FlascheAnlegen(fahrzeugId); },
     },
     {
-      name: "passender Zugangs-Code",
-      grund: "1 Zugangs-Code",
+      name: "passender Zugangscode",
+      grund: "1 Zugangscode",
       anlegen: (fahrzeugId: string) => {
         tokenAnlegen({ zielTyp: "fahrzeug", zielId: fahrzeugId });
       },
@@ -630,7 +630,7 @@ describe("pruefeLoeschbar — Historien der uebrigen Arten", () => {
    * Die Buchungshistorie bleibt der GRUND, aber sie ist nicht mehr die
    * BEDINGUNG — die Ablehnung ist jetzt unbedingt.
    */
-  it("blockiert einen Zugangs-Code unabhaengig von seinen Buchungen", async () => {
+  it("blockiert einen Zugangscode unabhaengig von seinen Buchungen", async () => {
     const tokenId = tokenAnlegen({ code: "333-333" });
     buchungAnlegen({
       artikelId: artikelAnlegen(),
@@ -931,7 +931,7 @@ describe("Fehlpfade revalidieren nie", () => {
  * Import weiterhin vollstaendig mit (§4.12, 1:1-Pflicht 5). Es ist danach kein
  * Loeschbarkeitsschalter mehr, sondern nur noch ein Anzeigewert.
  */
-describe("8-F: Zugangs-Codes werden gesperrt, nicht geloescht", () => {
+describe("8-F: Zugangscodes werden gesperrt, nicht geloescht", () => {
   it("verweigert das Loeschen auch bei nie benutztem Code", async () => {
     const id = tokenAnlegen({ code: "555-555" });
 
@@ -1116,7 +1116,7 @@ describe("DRK-406 — Ortscodes blockieren ihre eigene Einheit nicht", () => {
     const id = fahrzeugAnlegen();
     tokenAnlegen({ code: "800-800", ortId: null, zielTyp: "fahrzeug", zielId: id });
 
-    erwarteBlockiert(await pruefeLoeschbar("lagerort", id, t.db), "1 Zugangs-Code");
+    erwarteBlockiert(await pruefeLoeschbar("lagerort", id, t.db), "1 Zugangscode");
   });
 
   it("sperrt den Ortscode beim Loeschen, statt ihn zu entfernen", async () => {

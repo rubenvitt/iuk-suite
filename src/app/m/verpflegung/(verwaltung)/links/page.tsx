@@ -12,4 +12,4 @@ export default async function LinksSeite() {
   return <LinksVerwaltung links={await linkZeilen(getDb(), linkBasisAus(await headers()))} />;
 }
 
-export const metadata = { title: "Helfer-Links" };
+export const metadata = { title: "Zugangscodes" };

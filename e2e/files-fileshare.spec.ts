@@ -126,6 +126,8 @@ async function ladeHochUndWarteAufBytes(
   expect(shareId, "die Insel muss die Freigabe-Kennung ausweisen").toBeTruthy();
 
   await expect(eintrag).toHaveAttribute("data-zustand", "fertig", { timeout: 120_000 });
+  // IDA-388: der Link steht nach dem Hochladen ohne weiteren Klick da.
+  await expect(page.getByTestId("files-neu-adresse")).toHaveText(new RegExp(`/s/${shareId}$`));
   return { shareId: shareId!, fileId: fileId! };
 }
 

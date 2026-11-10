@@ -17,6 +17,7 @@ vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
 import { auth } from "@/core/auth";
 import { suiteAdminGroup } from "@/core/groups";
 import PortalLayout, { navFuerPortal } from "./layout";
+import { NAV_IKONEN } from "@/core/shell/navIkonen";
 
 const authMock = vi.mocked(auth);
 
@@ -58,18 +59,18 @@ function sessionFor(groups: string[]) {
 describe("Portal — Navigationseintraege", () => {
   it("gibt Modul-Admins Uebersicht, Neuigkeiten und Verwaltung", () => {
     expect(navFuerPortal(true)).toEqual([
-      { key: "start", title: "Übersicht", href: "/" },
-      { key: "suche", title: "Suche", href: "/suche" },
-      { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
-      { key: "admin", title: "Verwaltung", href: "/admin" },
+      { key: "start", title: "Übersicht", href: "/", ikon: "uebersicht" },
+      { key: "suche", title: "Suche", href: "/suche", ikon: "suche" },
+      { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten", ikon: "neuigkeiten" },
+      { key: "admin", title: "Verwaltung", href: "/admin", ikon: "einstellungen" },
     ]);
   });
 
   it("gibt allen anderen Uebersicht und Neuigkeiten, aber nicht die Verwaltung", () => {
     expect(navFuerPortal(false)).toEqual([
-      { key: "start", title: "Übersicht", href: "/" },
-      { key: "suche", title: "Suche", href: "/suche" },
-      { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
+      { key: "start", title: "Übersicht", href: "/", ikon: "uebersicht" },
+      { key: "suche", title: "Suche", href: "/suche", ikon: "suche" },
+      { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten", ikon: "neuigkeiten" },
     ]);
   });
 });
@@ -97,7 +98,7 @@ describe("Portal-Layout: Verdrahtung von nav an <Shell>", () => {
       nav?: unknown;
     }>;
 
-    expect(element.props.nav).toEqual(navFuerPortal(true, true));
+    expect(element.props.nav).toEqual(navFuerPortal(true, true, false, false, true));
   });
 
   it("ohne Verwaltungsrecht: <Shell> bekommt ein leeres nav-Prop", async () => {
@@ -125,7 +126,7 @@ it("portal-only override never gets an audit navigation entry", async () => {
  * ausgedacht (`_lib/serverwartung.ts`: das echte gehoert nie ins Repo).
  */
 describe("Portal-Layout: Serverwartung in der Navigation", () => {
-  const eintrag = { key: "serverwartung", title: "Serverwartung", href: "/serverwartung" };
+  const eintrag = { key: "serverwartung", title: "Serverwartung", href: "/serverwartung", ikon: "serverwartung" };
 
   beforeEach(() => {
     authMock.mockReset();
@@ -134,9 +135,9 @@ describe("Portal-Layout: Serverwartung in der Navigation", () => {
 
   it("steht hinter den Neuigkeiten, auch ohne Verwaltungsrecht", () => {
     expect(navFuerPortal(false, false, true)).toEqual([
-      { key: "start", title: "Übersicht", href: "/" },
-      { key: "suche", title: "Suche", href: "/suche" },
-      { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
+      { key: "start", title: "Übersicht", href: "/", ikon: "uebersicht" },
+      { key: "suche", title: "Suche", href: "/suche", ikon: "suche" },
+      { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten", ikon: "neuigkeiten" },
       eintrag,
     ]);
   });
@@ -167,7 +168,7 @@ describe("Portal-Layout: Serverwartung in der Navigation", () => {
 
 /** „Was steht an" (IDA-297): dasselbe Prädikat wie die Seite, sonst führte der Eintrag auf 404. */
 describe("Portal-Layout: „Was steht an“ in der Navigation", () => {
-  const eintrag = { key: "faelligkeiten", title: "Was steht an", href: "/faelligkeiten" };
+  const eintrag = { key: "faelligkeiten", title: "Was steht an", href: "/faelligkeiten", ikon: "kalender" };
 
   beforeEach(() => {
     authMock.mockReset();
@@ -176,7 +177,7 @@ describe("Portal-Layout: „Was steht an“ in der Navigation", () => {
 
   it("steht direkt hinter der Übersicht", () => {
     expect(navFuerPortal(false, false, false, true).slice(0, 2)).toEqual([
-      { key: "start", title: "Übersicht", href: "/" },
+      { key: "start", title: "Übersicht", href: "/", ikon: "uebersicht" },
       eintrag,
     ]);
   });
@@ -189,5 +190,38 @@ describe("Portal-Layout: „Was steht an“ in der Navigation", () => {
     authMock.mockResolvedValue(sessionFor(["betrieb"]));
     expect((await PortalLayout({ children: null })).props.nav).not.toContainEqual(eintrag);
     vi.unstubAllEnvs();
+  });
+});
+
+/**
+ * „Rechte" (IDA-391) stand bis dahin nur als Textlink auf der Verwaltungsseite. Er hängt an der
+ * Suite-Betriebsgruppe (`darfRechteVergeben`), nicht am Portal-Admin: eine per
+ * `SUITE_ADMIN_GROUP_PORTAL` benannte Gruppe pflegt Kacheln, sie vergibt keine Rechte.
+ */
+describe("Portal-Layout: Rechte und Zeichen in der Navigation", () => {
+  const rechte = { key: "rechte", title: "Rechte", href: "/admin/rechte", ikon: "rechte" };
+
+  beforeEach(() => {
+    authMock.mockReset();
+    vi.unstubAllEnvs();
+  });
+
+  it("steht zwischen Verwaltung und Audit-Log", () => {
+    expect(navFuerPortal(true, true, false, false, true).slice(-3).map((e) => e.key)).toEqual(["admin", "rechte", "audit"]);
+  });
+
+  it("erscheint für die Suite-Betriebsgruppe, nicht für eine reine Portal-Gruppe", async () => {
+    authMock.mockResolvedValue(sessionFor([suiteAdminGroup()]));
+    expect((await PortalLayout({ children: null })).props.nav).toContainEqual(rechte);
+    vi.stubEnv("SUITE_ADMIN_GROUP_PORTAL", "portal-only");
+    authMock.mockResolvedValue(sessionFor(["portal-only"]));
+    expect((await PortalLayout({ children: null })).props.nav).not.toContainEqual(rechte);
+    vi.unstubAllEnvs();
+  });
+
+  it("gibt jedem Eintrag ein Zeichen, das die Navigation kennt", () => {
+    const alle = navFuerPortal(true, true, true, true, true);
+    expect(alle).toHaveLength(8);
+    expect(alle.filter((e) => !e.ikon || !(e.ikon in NAV_IKONEN)).map((e) => e.key)).toEqual([]);
   });
 });

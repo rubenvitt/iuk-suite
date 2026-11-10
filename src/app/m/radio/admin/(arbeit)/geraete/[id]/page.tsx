@@ -2,8 +2,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, Tag } from "antd";
+import { Rueckweg } from "@/core/shell/Seitenkopf";
 import { getDb } from "../../../../_db/client";
 import { offeneLeiheZuGeraet } from "../../../../_db/leihen";
+import { BEREITSCHAFT_TON, einsatzbereitschaftAus, statusText } from "../../../../_lib/einsatzbereitschaft";
 import { STAND_TON, STAND_WORT } from "../../../../_lib/geraeteFelder";
 import { geraetTitel } from "../../../../_lib/geraetTitel";
 import { geraet, geraetFormWerte, vorschlaege } from "../../../../_lib/lesepfade/geraete";
@@ -151,6 +153,8 @@ export default async function RadioGeraetAktePage({
      * ⛔ KEIN `Card.Meta`, KEIN `Card.Grid`: das waere Compound-Zugriff und damit HTTP 500.
      */
     <div className={s.akte}>
+      {/* Der Rückweg wie in Gerätewartung und Fahrzeugen (`core/shell/Seitenkopf`, `Rueckweg`). */}
+      <Rueckweg titel="Geräte" href="/admin/geraete" />
       <div className={s.akteKopf}>
         <div className={s.akteKopfText}>
           <h1 className={s.titel}>
@@ -169,13 +173,17 @@ export default async function RadioGeraetAktePage({
             Datenflaeche saehe aus wie eine Primaeraktion. Die Toene sind antds eigene
             (`success`, `warning`, Vorgabe), dieselben wie in der Geraeteliste.
           */}
-          <div className={s.akteMarken}>
+          <div className={`${s.akteMarken} ${s.akteMarkenAbstand}`}>
             {/*
-              ⛔ NUR WENN GESETZT: die Spalte ist nullable, und `zuZeile` faltet sie auf die
-              LEERE Zeichenkette (`_lib/lesepfade/geraete.ts`, `status: d.status ?? ""`). Eine
-              leere Marke waere ein farbiger Fleck ohne Aussage.
+              Der Status steht immer da, mit Etikett; leer heißt einsatzbereit (`statusText`).
+              Der Ton folgt `einsatzbereitschaftAus`: grün, Warnfarbe, grau — kein Rot.
             */}
-            {akte.status !== "" && <Tag data-rolle="radio-marke-status">{akte.status}</Tag>}
+            <Tag
+              color={BEREITSCHAFT_TON[einsatzbereitschaftAus(akte.status)]}
+              data-rolle="radio-marke-status"
+            >
+              {`Status: ${statusText(akte.status)}`}
+            </Tag>
             {/*
               ⛔ DAS `data-rolle` BLEIBT WORTGLEICH `radio-update-stand`: der Stand stand bis
               DRK-462 als Anzeige-Slot IM Formular und traegt dort denselben Griff. Der
@@ -187,11 +195,11 @@ export default async function RadioGeraetAktePage({
               HTTP 500, bei gruenem typecheck, build und Vitest).
             */}
             <Tag color={STAND_TON[akte.updateStand]} data-rolle="radio-update-stand">
-              {STAND_WORT[akte.updateStand]}
+              {`Software: ${STAND_WORT[akte.updateStand]}`}
             </Tag>
             {/* 1:1 `DeviceDetailDrawer.tsx:81-85`: gruen bei ja, Vorgabeton bei nein. */}
             <Tag color={akte.ausleihbar ? "green" : "default"} data-rolle="radio-marke-ausleihbar">
-              {akte.ausleihbar ? "Ausleihbar" : "Nicht ausleihbar"}
+              {`Ausleihbar: ${akte.ausleihbar ? "ja" : "nein"}`}
             </Tag>
             {/*
               ⛔ DIE OFFENE LEIHE IST NEU AUF DIESER FLAECHE (DRK-462) UND KOSTET KEINE ABFRAGE:
@@ -201,7 +209,7 @@ export default async function RadioGeraetAktePage({
             */}
             {offeneLeihe !== null && (
               <Tag color="processing" data-rolle="radio-marke-verliehen">
-                {`Verliehen an ${offeneLeihe.entleiher}`}
+                {`ausgeliehen von ${offeneLeihe.entleiher}`}
               </Tag>
             )}
             {/*
@@ -290,15 +298,21 @@ export default async function RadioGeraetAktePage({
       </Card>
 
       {/*
-        ⚠️ DER KARTENTITEL ERSETZT DIE UEBERSCHRIFT IN DER INSEL (DRK-454): `NotizFeld` trug sie
-        bis dahin selbst als `<strong>`, und unter einem gleichlautenden Kartenkopf staende
-        dasselbe Wort zweimal untereinander.
+        DIE UPDATE-ANMERKUNG STEHT AN EINER STELLE (IDA-383): die Admin-Stufe sieht und ändert sie
+        im Formularfeld `updateNote` (dort auch Kürzen und Leeren, wenn die Abweichung behoben
+        ist); die Updater-Stufe, für die das Feld nicht gerendert wird (`gesperrtFuer`), liest sie
+        hier und hängt gezeichnete Zeilen an. Bis dahin stand für Admins zusätzlich diese Karte —
+        dieselbe Anmerkung an zwei Stellen.
+        ⚠️ `rolle === "updater"` ist hier dieselbe Bedingung wie `gesperrtFuer(rolle)("updateNote")`;
+        die Funktion selbst ist aus einer Server Component nicht lesbar (Falle 6).
       */}
-      <div className={s.abstand}>
-        <Card title="Update-Anmerkung">
-          <NotizFeld geraetId={akte.id} anmerkung={akte.updateAnmerkung} rolle={rolle} />
-        </Card>
-      </div>
+      {rolle === "updater" && (
+        <div className={s.abstand}>
+          <Card title="Update-Anmerkung">
+            <NotizFeld geraetId={akte.id} anmerkung={akte.updateAnmerkung} rolle={rolle} />
+          </Card>
+        </div>
+      )}
 
       {/*
         ⛔ NUR FUER DIE ADMIN-STUFE, 1:1 aus `DeviceDetailDrawer.tsx:111` (`{isAdmin && …}`).

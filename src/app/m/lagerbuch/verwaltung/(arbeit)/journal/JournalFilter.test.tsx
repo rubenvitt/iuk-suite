@@ -101,13 +101,23 @@ describe("JournalFilter", () => {
       "umlagerung",
       "aussondern",
       "inventur",
+      // IDA-378 — die Gegenbuchung, ebenfalls am Referenz-Praefix.
+      "gegenbuchung",
     ]);
-    expect(deckelText(3, false)).toBe("3 Treffer");
+    expect(deckelText(3, 3, false)).toBe("3 Treffer");
     expect(mitGetipptem(
       { q: "", typ: "", von: "", bis: "", ort: "", artikel: "" },
       " Mull ",
       { typ: "zugang" },
     ).q).toBe("Mull");
+  });
+
+  it("beschriftet die beiden Datumsfelder als „von\" und „bis\" (IDA-380)", async () => {
+    await mount(<JournalFilter q="" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
+    const von = document.querySelector<HTMLInputElement>("[aria-label='Zeitraum von']");
+    const bis = document.querySelector<HTMLInputElement>("[aria-label='Zeitraum bis']");
+    expect(von?.placeholder).toBe("von");
+    expect(bis?.placeholder).toBe("bis");
   });
 
   it("debounced 300 ms ab der letzten Eingabe und ist kein Throttle", async () => {
@@ -261,7 +271,7 @@ describe("JournalFilter", () => {
    * Wert in die Adresszeile schreibt. Beides liesse sich einzeln kaputtmachen,
    * ohne die Konstante anzufassen.
    */
-  it("bietet alle sechs Vorgangsarten an und schreibt die gewaehlte in die URL", async () => {
+  it("bietet alle sieben Vorgangsarten an und schreibt die gewaehlte in die URL", async () => {
     await mount(<JournalFilter q="" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
     // antds `Select` oeffnet auf `mousedown`, nicht auf `click` — derselbe
     // Griff wie in `waehleVorgang`.
@@ -280,6 +290,7 @@ describe("JournalFilter", () => {
       "Umlagerung",
       "Aussonderung",
       "Inventur",
+      "Gegenbuchung",
     ]);
 
     await waehleVorgang("Aussonderung");

@@ -26,12 +26,14 @@ import type { HelferErgebnis } from "../_lib/actionTypen";
  * ⚠️ OHNE DEN MOCK ZOEGE `_actions/buchung.ts` `better-sqlite3` und
  * `next/headers` in diese jsdom-Umgebung.
  */
-const { buchenSpion } = vi.hoisted(() => ({
+const { buchenSpion, rueckSpion } = vi.hoisted(() => ({
   buchenSpion: vi.fn<(eingabe: unknown) => Promise<unknown>>(),
+  rueckSpion: vi.fn<(eingabe: unknown) => Promise<unknown>>(),
 }));
 
 vi.mock("../_actions/buchung", () => ({
   bucheEntnahmeHelfer: (eingabe: unknown) => buchenSpion(eingabe),
+  macheEntnahmeRueckgaengig: (eingabe: unknown) => rueckSpion(eingabe),
 }));
 
 import { Entnahme, type EntnahmeDetail } from "./Entnahme";
@@ -194,7 +196,7 @@ const DETAIL: EntnahmeDetail = {
     {
       id: "ch-1", chargenNr: "L1", verfall: "2027-03", rest: 30, restGesamt: 30,
       orte: [{ id: "handlager", name: "Handlager", menge: 30, zugangshinweis: null, typ: "lager" as const, kennung: null, einheitenart: null }],
-      ampel: "gruen", text: "bis 03/27",
+      ampel: "gruen", text: "bis 03/27", abgelaufen: false,
     },
     /**
      * DRK-297, Aufgabe 12 — L2 liegt an ZWEI Orten: 5 hinter dem GF-Schrank
@@ -216,7 +218,7 @@ const DETAIL: EntnahmeDetail = {
         { id: "schrank-gf", name: "GF-Schrank", menge: 5, zugangshinweis: "Zugang über LvD — anrufen", typ: "lager" as const, kennung: null, einheitenart: null },
         { id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null, typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const },
       ],
-      ampel: "gelb", text: "läuft bald ab",
+      ampel: "gelb", text: "läuft bald ab", abgelaufen: false,
     },
   ],
 };
@@ -365,7 +367,7 @@ describe("Entnahme — die Anzeige", () => {
           {
             id: "ch-3", chargenNr: "R-9", verfall: "2027-01", rest: 0, restGesamt: 7,
             orte: [{ id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null, typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const }],
-            ampel: "gruen", text: "bis 01/27",
+            ampel: "gruen", text: "bis 01/27", abgelaufen: false,
           },
         ],
       };
@@ -418,7 +420,7 @@ describe("Entnahme — die Anzeige", () => {
     const CH_FAHRZEUG = {
       id: "ch-3", chargenNr: "R-9", verfall: "2027-01", rest: 0, restGesamt: 7,
       orte: [{ id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null, typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const }],
-      ampel: "gruen" as const, text: "bis 01/27",
+      ampel: "gruen" as const, text: "bis 01/27", abgelaufen: false,
     };
     const MIT_FAHRZEUGCHARGE: EntnahmeDetail = {
       ...DETAIL, chargen: [...DETAIL.chargen, CH_FAHRZEUG],
@@ -1101,7 +1103,8 @@ describe("Entnahme — Bauform", () => {
    */
   it("importiert die Action direkt und nimmt sie NICHT als Prop", () => {
     const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
-    expect(q).toMatch(/import \{ bucheEntnahmeHelfer \} from "\.\.\/_actions\/buchung"/);
+    // IDA-378: daneben `macheEntnahmeRueckgaengig`, aus derselben Datei, auf demselben Weg.
+    expect(q).toMatch(/import \{ bucheEntnahmeHelfer, macheEntnahmeRueckgaengig \} from "\.\.\/_actions\/buchung"/);
     expect(q, "kein `buchen`-Prop mehr").not.toMatch(/\bbuchen[?]?:/);
   });
 
@@ -1210,10 +1213,15 @@ describe("Entnahme — die Charge waehlen (DRK-418)", () => {
    * `input.max` gibt es dort gar nicht. Wer darauf zusichert, prueft eine
    * leere Zeichenkette gegen eine leere Zeichenkette.
    */
+  /*
+   * ⚠️ IDA-378: OHNE WAHL DECKELT DIE SUMME DER VERWENDBAREN CHARGEN (30 + 5),
+   * nicht mehr die Kopfzahl 42 — die Fixture fuehrt bewusst 7 Stueck mehr im
+   * Kopf, als ihre Chargen tragen. Vorher stand hier „42".
+   */
   it("deckelt die Menge an der gewaehlten Charge, nicht am Handlagerbestand", async () => {
     await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     await fill(MENGE, "42");
-    expect(query<HTMLInputElement>(MENGE).value).toBe("42");
+    expect(query<HTMLInputElement>(MENGE).value).toBe("35");
 
     /*
      * ⚠️ DIE ANZEIGE FAELLT SCHON MIT DEM KLICK, nicht erst mit dem naechsten
@@ -1230,7 +1238,7 @@ describe("Entnahme — die Charge waehlen (DRK-418)", () => {
     // Und die Wahl laesst sich zuruecknehmen, ohne den Schirm neu zu laden.
     await click(FEFO);
     await fill(MENGE, "42");
-    expect(query<HTMLInputElement>(MENGE).value).toBe("42");
+    expect(query<HTMLInputElement>(MENGE).value).toBe("35");
   });
 
   /**
@@ -1285,7 +1293,7 @@ describe("Entnahme — die Charge waehlen (DRK-418)", () => {
         { id: "ch-3", chargenNr: "L3", verfall: "2028-05", rest: 10, restGesamt: 10,
           orte: [{ id: "handlager", name: "Handlager", menge: 10, zugangshinweis: null,
                    typ: "lager" as const, kennung: null, einheitenart: null }],
-          ampel: "gruen" as const, text: "bis 05/28" },
+          ampel: "gruen" as const, text: "bis 05/28", abgelaufen: false },
       ],
     };
     await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={drei} />);
@@ -1323,7 +1331,7 @@ describe("Entnahme — die Charge waehlen (DRK-418)", () => {
         { id: "ch-3", chargenNr: "L3", verfall: "2028-01", rest: 0, restGesamt: 4,
           orte: [{ id: "rtw-1", name: "RTW 1", menge: 4, zugangshinweis: null,
                    typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const }],
-          ampel: "gruen" as const, text: "bis 01/28" },
+          ampel: "gruen" as const, text: "bis 01/28", abgelaufen: false },
       ],
     };
     await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={mitLeerer} />);
@@ -1368,5 +1376,112 @@ describe("Entnahme — mit Schrank (IDA-295)", () => {
     await click(BUCHEN);
     expect("ortId" in (spion.mock.calls[0]![0] as object)).toBe(false);
     expect(exists("[data-rolle='bestand-schrank']")).toBe(false);
+  });
+});
+
+/**
+ * IDA-378 — ABGELAUFENES, SICHTBARE KAPPUNG, RÜCKGÄNGIG.
+ *
+ * `CH_ALT` liegt mit 15 im Handlager und ist abgelaufen: sie steht in der Liste
+ * (jemand muss sie im Fach finden), traegt den Chip und ist nicht waehlbar.
+ */
+describe("Entnahme — IDA-378", () => {
+  const CH_ALT = {
+    id: "ch-alt", chargenNr: "L0", verfall: "2026-01", rest: 15, restGesamt: 15,
+    orte: [{ id: "handlager", name: "Handlager", menge: 15, zugangshinweis: null, typ: "lager" as const, kennung: null, einheitenart: null }],
+    ampel: "rot" as const, text: "abgelaufen", abgelaufen: true,
+  };
+  const MIT_ALT: EntnahmeDetail = { ...DETAIL, bestand: 50, chargen: [CH_ALT, ...DETAIL.chargen] };
+  const KAPPUNG = "[data-rolle='entnahme-kappung']";
+  const RUECK = "[data-rolle='entnahme-rueckgaengig']";
+
+  it("zeigt eine abgelaufene Charge mit Chip und bietet sie nicht zur Wahl an", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={MIT_ALT} />);
+    const zeile = queryAll("[data-rolle='charge-zeile']").find((z) => z.textContent?.includes("Charge L0"))!;
+    expect(zeile.getAttribute("data-waehlbar")).toBe("nein");
+    expect(zeile.textContent).toContain("Abgelaufen, nicht verwenden");
+    expect(exists("[data-rolle='charge-wahl'][value='ch-alt']")).toBe(false);
+    // Die beiden anderen bleiben waehlbar.
+    expect(queryAll("[data-rolle='charge-wahl']").length).toBe(2);
+  });
+
+  it("kappt an den verwendbaren Chargen und sagt es am Feld", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={MIT_ALT} />);
+    expect(exists(KAPPUNG)).toBe(false);
+    await fill(MENGE, "999");
+    expect(query<HTMLInputElement>(MENGE).value).toBe("35");
+    expect(query(KAPPUNG).textContent).toBe("Nur 35 Stk verwendbar, 15 abgelaufen");
+  });
+
+  it("ohne Abgelaufenes heisst der Status „verfügbar“ — und verschwindet bei der naechsten Aenderung", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await fill(MENGE, "999");
+    expect(query(KAPPUNG).textContent).toBe("Nur 35 Stk verfügbar");
+    await click("button[aria-label='Menge verringern']");
+    expect(exists(KAPPUNG)).toBe(false);
+  });
+
+  it("auch `+` ueber den Rest hinaus zeigt den Status", async () => {
+    const zwei: EntnahmeDetail = { ...DETAIL, bestand: 2, chargen: [{ ...DETAIL.chargen[0]!, rest: 2, restGesamt: 2 }] };
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={zwei} />);
+    await click(PLUS);
+    expect(exists(KAPPUNG)).toBe(false);
+    await click(PLUS);
+    expect(query(KAPPUNG).textContent).toBe("Nur 2 Stk verfügbar");
+  });
+
+  it("mit gewaehlter Charge nennt der Status die Charge", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click("[data-rolle='charge-wahl'][value='ch-2']");
+    await fill(MENGE, "9");
+    expect(query(KAPPUNG).textContent).toBe("Nur 5 Stk in dieser Charge");
+  });
+
+  it("liegt nur Abgelaufenes da, bucht der Knopf nicht", async () => {
+    const nurAlt: EntnahmeDetail = { ...DETAIL, bestand: 15, chargen: [CH_ALT] };
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={nurAlt} />);
+    expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(true);
+  });
+
+  it("bietet nach der Buchung „Rückgängig“ an und adressiert dieselbe Sendung", async () => {
+    const bis = new Date(Date.now() + 10 * 60_000).toISOString();
+    const buchen = antwortet(async () => ({ ok: true, wert: { gebucht: 2, rueckgaengigBis: bis } }));
+    rueckSpion.mockResolvedValue({ ok: true, wert: { zurueck: 1 } });
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click(BUCHEN);
+
+    expect(query(RUECK).textContent).toBe("Rückgängig (10 min)");
+    await click(RUECK);
+    const sendungId = (buchen.mock.calls[0]![0] as { sendungId: string }).sendungId;
+    expect(rueckSpion).toHaveBeenCalledWith({ sendungId });
+    expect(query(ERGEBNIS + "[role='status']").textContent).toBe("Rückgängig gemacht: Kompresse 10×10");
+    expect(exists(RUECK)).toBe(false);
+  });
+
+  it("zeigt die Absage des Servers und laesst den Knopf stehen", async () => {
+    const bis = new Date(Date.now() + 10 * 60_000).toISOString();
+    antwortet(async () => ({ ok: true, wert: { gebucht: 2, rueckgaengigBis: bis } }));
+    rueckSpion.mockResolvedValue({ ok: false, grund: "eingabe", text: "Rückgängig machen kann nur, wer die Entnahme gebucht hat." });
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click(BUCHEN);
+    await click(RUECK);
+    expect(query(ERGEBNIS + "[role='status']").textContent)
+      .toBe("Rückgängig machen kann nur, wer die Entnahme gebucht hat.");
+  });
+
+  it("ohne Fenster vom Server (alte Antwort) oder nach Ablauf gibt es keinen Knopf", async () => {
+    antwortet(async () => ({ ok: true, wert: { gebucht: 2 } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click(BUCHEN);
+    expect(exists(RUECK)).toBe(false);
+    await unmount();
+
+    localStorage.clear();
+    vergissFluechtig();
+    antwortet(async () => ({ ok: true, wert: { gebucht: 2, rueckgaengigBis: new Date(Date.now() - 1000).toISOString() } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click(BUCHEN);
+    expect(exists(ERGEBNIS + "[role='status']")).toBe(true);
+    expect(exists(RUECK)).toBe(false);
   });
 });

@@ -31,8 +31,31 @@
 .kp-token-zeile { margin: 0; color: var(--kp-token-leise); }
 .kp-token-vermerk { justify-self: start; margin: 0; padding: 2px 8px; border: 1px solid var(--kp-token-text); border-radius: 4px; font-weight: 600; }
 .kp-token-aktionen { grid-column: 1 / -1; }
-.kp-token-flaeche, .kp-token-flaeche .kp-betrachter-wurzel, .kp-token-flaeche .kp-flaeche-wurzel { min-height: 0; display: flex; flex-direction: column; }
-.kp-token-flaeche .kp-betrachter-wurzel, .kp-token-flaeche .kp-flaeche-wurzel { flex: 1 1 auto; }
+.kp-token-flaeche, .kp-token-flaeche .kp-token-ansicht, .kp-token-flaeche .kp-token-diagramm, .kp-token-flaeche .kp-betrachter-wurzel, .kp-token-flaeche .kp-flaeche-wurzel { min-height: 0; display: flex; flex-direction: column; }
+.kp-token-flaeche .kp-token-ansicht, .kp-token-flaeche .kp-token-diagramm, .kp-token-flaeche .kp-betrachter-wurzel, .kp-token-flaeche .kp-flaeche-wurzel { flex: 1 1 auto; }
+/*
+ * Liste und Diagramm (IDA-390, `TokenFlaeche.tsx`): ausdrücklich über data-tokenansicht, ohne Wahl entscheidet der
+ * Suite-Breakpoint in den Blöcken unten — dasselbe Muster wie data-editoransicht in `kommplan.css`. Die Regeln tragen
+ * eine Klasse mehr als die Flex-Kette darüber und als antds Segmented (Falle 5), damit „ausgeblendet" gewinnt.
+ * Die Liste rollt in sich: die Seite selbst rollt nie (Entscheidung 8, `ohneSeitenrolle` im e2e).
+ */
+.kp-token-ansicht[data-tokenansicht="liste"] .kp-token-diagramm,
+.kp-token-ansicht[data-tokenansicht="diagramm"] .kp-token-liste { display: none; }
+.kp-token-umschalter { flex: none; margin-block-end: 8px; }
+.kp-token-flaeche .kp-token-liste { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.kp-tl { list-style: none; margin: 0; padding: 0; }
+.kp-tl-zeile { padding: 10px 0 10px calc(min(var(--ebene), 4) * 14px); border-block-end: 1px solid var(--kp-token-linie); min-width: 0; overflow-wrap: anywhere; }
+.kp-tl-titel { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3; }
+.kp-tl-leiter { margin: 2px 0 0; color: var(--kp-token-leise); }
+.kp-tl-angaben { margin: 4px 0 0; display: grid; gap: 0 12px; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
+.kp-tl-angaben > div { display: contents; }
+.kp-tl-angaben dt { color: var(--kp-token-leise); font-size: 14px; align-self: center; }
+.kp-tl-angaben dd { margin: 0; min-width: 0; align-self: center; }
+/* Antippbar heißt 44 px (README, Falle 4) — der Verweis ist die Bedienung dieser Ansicht. Tinte statt Rot (Falle 3). */
+.kp-tl-angaben a { display: inline-flex; align-items: center; min-height: 44px; color: var(--kp-token-text); text-decoration: underline; text-underline-offset: 3px; }
+.kp-tl-einheiten { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px; }
+.kp-tl-einheiten li { padding: 0 6px; border: 1px solid var(--kp-token-linie); border-radius: 4px; font-size: 14px; }
+.kp-tl-leer { margin: 0; padding: 16px 0; }
 /* Überschreibt die Grundhöhe calc(100dvh - 240px) des Betrachters: hier füllt er, was Kopf, Werkzeuge und Legende lassen. */
 .kp-token-flaeche .kp-betrachter { flex: 1 1 auto; height: auto; min-height: 320px; }
 .kp-token-ungueltig h1 { margin: 0; font-size: 22px; line-height: 1.25; }
@@ -40,11 +63,13 @@
 /* Ab 768 px steht „Drucken“ rechts unter dem Briefkopf (ohne Briefkopf oben rechts) statt in einer eigenen Zeile über
    die ganze Breite (Review Phase 5: bei 1440 × 900 begann der Betrachter erst bei y ≈ 291). DOM-Reihenfolge bleibt. */
 @media (min-width: 768px) {
+  .kp-token-ansicht[data-tokenansicht="auto"] .kp-token-liste, .kp-token-ansicht .kp-token-nur-schmal { display: none; }
   .kp-token-links { grid-row: 1 / span 2; }
   .kp-token-briefkopf { grid-column: 2; grid-row: 1; }
   .kp-token-aktionen { grid-column: 2; grid-row: 2; justify-self: end; }
 }
 @media (max-width: 767.98px) {
+  .kp-token-ansicht[data-tokenansicht="auto"] .kp-token-diagramm, .kp-token-ansicht .kp-token-nur-breit { display: none; }
   .kp-token-blatt { padding: 12px 16px; gap: 8px; }
   .kp-token-kopf { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .kp-token-kopf h1 { font-size: 19px; }

@@ -1,12 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useMemo, useRef, useState } from "react";
-import { Alert, Button, Popconfirm, Skeleton } from "antd";
+import { Alert, App, Button, Skeleton } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import {
   Kartentabelle,
+  Kurzkennung,
+  Zeilenaktionen,
   nachDatum,
-  nachJaNein,
   nachText,
   nachZahl,
   trifftWert,
@@ -26,6 +28,7 @@ import { shareLoeschenAction, type ShareFormZustand } from "../(verwaltung)/acti
  */
 import type { AvSammelwert } from "../_db/queries";
 import { QrDialog } from "./QrDialog";
+import styles from "./sharesTabelle.module.css";
 
 /**
  * DIE FREIGABEN-TABELLE (Spec §7.3, §10.1, §10.2; Plan T36).
@@ -171,36 +174,46 @@ function fehlerText(zustand: ShareFormZustand): string | null {
  * gepflegte Liste — ein Filtereintrag, den keine Zeile trifft, ist die
  * haeufigste Enttaeuschung an Spaltenfiltern.
  */
-function spalten(zeilen: ShareZeile[], qrOeffnen: (zeile: ShareZeile) => void) {
+function spalten(
+  zeilen: ShareZeile[],
+  qrOeffnen: (zeile: ShareZeile) => void,
+  linkBasis: string,
+) {
+  /*
+   * BEI 1280px PASST DIE ZEILE IN DEN RAHMEN (IDA-393). Gemessen ragte sie 626px
+   * hinaus. Deshalb: der AV-Zustand steht direkt hinter dem Titel, Typ und
+   * Passwortschutz stehen leise unter dem Titel, die Dateizahl unter der Groesze,
+   * die Downloads unter dem Ablauf, und die drei Aktionen liegen in einem Menue.
+   * Keine Aussage ist weg — nur die eigenen Spalten (und damit deren Filter fuer
+   * Typ und Passwort).
+   */
   return [
     {
       key: "titel",
       title: "Titel",
-      dataIndex: "titel",
       sorter: nachText<ShareZeile>((zeile) => zeile.titel),
+      render: (_: unknown, zeile: ShareZeile) => <TitelZelle zeile={zeile} />,
     },
     {
-      key: "typ",
-      title: "Typ",
-      dataIndex: "typText",
-      sorter: nachText<ShareZeile>((zeile) => zeile.typText),
-      filters: werteAlsFilter(zeilen, (zeile) => zeile.typText),
-      onFilter: trifftWert<ShareZeile>((zeile) => zeile.typText),
-    },
-    {
-      key: "dateien",
-      title: "Dateien",
-      // Sortiert wird ueber die VOLLSTAENDIGEN Dateien — die Zahl, die in der
-      // Zelle vorn steht. Die unvollstaendigen stehen daneben in Klammern und
-      // sind eine zweite Aussage, keine zweite Menge derselben Ordnung.
-      sorter: nachZahl<ShareZeile>((zeile) => zeile.anzahlDateien),
-      render: (_: unknown, zeile: ShareZeile) => <Dateimenge zeile={zeile} />,
+      key: "av",
+      title: "AV-Zustand",
+      /* Sortiert und gefiltert wird ueber den SATZ aus `AV_TEXT`, nicht ueber
+         den Sammelwert: `wirdGeprueft` und `pruefungFehlt` sind interne Namen,
+         und eine Filterliste in dieser Schreibweise stuende neben einer Zelle,
+         die etwas anderes sagt. */
+      sorter: nachText<ShareZeile>((zeile) => AV_TEXT[zeile.avSammelwert]),
+      filters: werteAlsFilter(zeilen, (zeile) => AV_TEXT[zeile.avSammelwert]),
+      onFilter: trifftWert<ShareZeile>((zeile) => AV_TEXT[zeile.avSammelwert]),
+      render: (_: unknown, zeile: ShareZeile) => <AvZustand wert={zeile.avSammelwert} />,
     },
     {
       key: "groesse",
       title: "Größe",
-      dataIndex: "groesseText",
+      /* ⚠️ Sortiert ueber die BYTES, nie ueber `groesseText` — „476,8 MiB"
+         stuende als Zeichenkette vor „11 KiB". Die Dateizahl steht leise
+         darunter (IDA-393: vorher eine eigene Spalte). */
       sorter: nachZahl<ShareZeile>((zeile) => zeile.groesseBytes),
+      render: (_: unknown, zeile: ShareZeile) => <Dateimenge zeile={zeile} />,
     },
     {
       key: "ablauf",
@@ -217,40 +230,14 @@ function spalten(zeilen: ShareZeile[], qrOeffnen: (zeile: ShareZeile) => void) {
       render: (_: unknown, zeile: ShareZeile) => <Ablauf zeile={zeile} />,
     },
     {
-      key: "downloads",
-      title: "Downloads",
-      dataIndex: "downloadsText",
-      sorter: nachZahl<ShareZeile>((zeile) => zeile.downloadsZahl),
-    },
-    {
-      key: "passwort",
-      title: "Passwort",
-      sorter: nachJaNein<ShareZeile>((zeile) => zeile.hatPasswort),
-      /* Die Filterbeschriftung ist WOERTLICH die der Zelle: zwei Woerter fuer
-         denselben Zustand waeren zwei Aussagen. */
-      ...zustandsFilter<ShareZeile>([
-        { wert: "ja", text: "Ja", trifft: (zeile) => zeile.hatPasswort },
-        { wert: "nein", text: "Nein", trifft: (zeile) => !zeile.hatPasswort },
-      ]),
-      // Ja/Nein als WORT: ein Schloss-Symbol allein traegt die Aussage nicht.
-      render: (_: unknown, zeile: ShareZeile) => <span>{zeile.hatPasswort ? "Ja" : "Nein"}</span>,
-    },
-    {
-      key: "av",
-      title: "AV-Zustand",
-      /* Sortiert und gefiltert wird ueber den SATZ aus `AV_TEXT`, nicht ueber
-         den Sammelwert: `wirdGeprueft` und `pruefungFehlt` sind interne Namen,
-         und eine Filterliste in dieser Schreibweise stuende neben einer Zelle,
-         die etwas anderes sagt. */
-      sorter: nachText<ShareZeile>((zeile) => AV_TEXT[zeile.avSammelwert]),
-      filters: werteAlsFilter(zeilen, (zeile) => AV_TEXT[zeile.avSammelwert]),
-      onFilter: trifftWert<ShareZeile>((zeile) => AV_TEXT[zeile.avSammelwert]),
-      render: (_: unknown, zeile: ShareZeile) => <AvZustand wert={zeile.avSammelwert} />,
-    },
-    {
       key: "erstelltVon",
       title: "Erstellt von",
-      dataIndex: "erstelltVonText",
+      /* Eine Kontokennung ohne Leerzeichen (die `sub` aus der Anmeldung) ist
+         lang und wird nur verglichen, nie gelesen — gekuerzt, mit Kopieren. */
+      render: (_: unknown, zeile: ShareZeile) =>
+        /\s/.test(zeile.erstelltVonText) || zeile.erstelltVonText.length <= 13
+          ? zeile.erstelltVonText
+          : <Kurzkennung wert={zeile.erstelltVonText} zeichen={8} was="Kennung" />,
       sorter: nachText<ShareZeile>((zeile) => zeile.erstelltVonText),
       filters: werteAlsFilter(zeilen, (zeile) => zeile.erstelltVonText),
       onFilter: trifftWert<ShareZeile>((zeile) => zeile.erstelltVonText),
@@ -259,7 +246,7 @@ function spalten(zeilen: ShareZeile[], qrOeffnen: (zeile: ShareZeile) => void) {
       key: "aktionen",
       title: "",
       render: (_: unknown, zeile: ShareZeile) => (
-        <ZeilenAktionen zeile={zeile} qrOeffnen={qrOeffnen} />
+        <ZeilenAktionen zeile={zeile} qrOeffnen={qrOeffnen} adresse={`${linkBasis}${zeile.id}`} />
       ),
     },
   ];
@@ -274,15 +261,42 @@ function spalten(zeilen: ShareZeile[], qrOeffnen: (zeile: ShareZeile) => void) {
  * unten selbst ein. Ohne das saehen die Kopfzeilen des Skeletts anders aus als
  * die der Tabelle, die es ankuendigt.
  */
-const SPALTEN_TITEL: string[] = spalten([], () => undefined).map((spalte) => spalte.title);
+const SPALTEN_TITEL: string[] = spalten([], () => undefined, "").map((spalte) => spalte.title);
+
+/** Die leise zweite Zeile einer Zelle — eigene Variable, kein `--ant-*` (Falle 2). */
+const LEISE = { display: "block", fontSize: 12, color: "var(--iuk-gedaempft)" } as const;
+
+function TitelZelle({ zeile }: { zeile: ShareZeile }) {
+  // Lesebreite: ein langer Titel bricht um, statt die Zeile aus dem Rahmen zu schieben.
+  return (
+    <span style={{ display: "inline-block", maxWidth: "28ch", overflowWrap: "anywhere" }}>
+      {/* IDA-388: der Titel ist der Weg auf die Detailseite (Zugriffsprotokoll,
+          Prüfung, Aufstocken). Vorher fuehrte nur „Bearbeiten → Abbrechen" dorthin. */}
+      <Link
+        href={`/shares/${zeile.id}`}
+        className={styles.titelLink}
+        data-testid={`files-share-detail-${zeile.id}`}
+      >
+        {zeile.titel}
+      </Link>
+      {/* Ja/Nein als WORT: ein Schloss-Symbol allein traegt die Aussage nicht. */}
+      <span style={LEISE}>
+        {zeile.typText} · {zeile.hatPasswort ? "mit Passwort" : "ohne Passwort"}
+      </span>
+    </span>
+  );
+}
 
 function Dateimenge({ zeile }: { zeile: ShareZeile }) {
   return (
     <span>
-      {zeile.anzahlDateien}
-      {/* §4.4: der Zwischenzustand „Zeile ohne Bytes" ist SICHTBAR. In der
-          Alt-App war er unsichtbar und dauerhaft. */}
-      {zeile.anzahlUnvollstaendig > 0 && <> ({zeile.anzahlUnvollstaendig} unvollständig)</>}
+      {zeile.groesseText}
+      <span style={LEISE}>
+        {zeile.anzahlDateien} {zeile.anzahlDateien === 1 ? "Datei" : "Dateien"}
+        {/* §4.4: der Zwischenzustand „Zeile ohne Bytes" ist SICHTBAR. In der
+            Alt-App war er unsichtbar und dauerhaft. */}
+        {zeile.anzahlUnvollstaendig > 0 && <> ({zeile.anzahlUnvollstaendig} unvollständig)</>}
+      </span>
     </span>
   );
 }
@@ -291,14 +305,23 @@ function Ablauf({ zeile }: { zeile: ShareZeile }) {
   return (
     <span>
       {zeile.ablaufText}
-      {zeile.abgelaufen && <> — abgelaufen</>}
+      <span style={LEISE}>
+        {zeile.abgelaufen ? `abgelaufen · ${zeile.downloadsText}` : `${zeile.downloadsText} Downloads`}
+      </span>
     </span>
   );
 }
 
 // ---------------------------------------------------------------------------
 
-export function SharesTabelle({ zeilen }: { zeilen: ShareZeile[] }) {
+export function SharesTabelle({
+  zeilen,
+  linkBasis,
+}: {
+  zeilen: ShareZeile[];
+  /** Öffentliche Adresse ohne Kennung (`…/s/`), serverseitig aus `oeffentlicheUrl`. */
+  linkBasis: string;
+}) {
   /*
    * EIN Dialog fuer beide Darstellungen. Zwei — je einer pro Darstellung —
    * traegen dieselbe `data-testid` doppelt im Dokument und zeigen im
@@ -308,7 +331,7 @@ export function SharesTabelle({ zeilen }: { zeilen: ShareZeile[] }) {
   /* Gemerkt: `Kartentabelle` leitet Karte, Filter und angezeigte Liste aus den
      Spalten ab, und eine bei jedem Render neue Liste risse jede dieser
      Ableitungen mit. `setQrZeile` hat eine feste Identitaet. */
-  const spaltenListe = useMemo(() => spalten(zeilen, setQrZeile), [zeilen]);
+  const spaltenListe = useMemo(() => spalten(zeilen, setQrZeile, linkBasis), [zeilen, linkBasis]);
 
   return (
     <div data-testid="files-shares-tabelle">
@@ -402,7 +425,7 @@ export function SharesTabelleSkelett() {
 // ---------------------------------------------------------------------------
 
 /**
- * DIE DREI EINSTIEGSPUNKTE EINER ZEILE (§10.2). „Bearbeiten" und „Löschen"
+ * DIE EINSTIEGSPUNKTE EINER ZEILE (§10.2, IDA-388). „Bearbeiten" und „Löschen"
  * stehen laut §10.2 in Tabelle UND auf der Detailseite — ohne diese Haelfte
  * haetten `bearbeitenAction` und `shareLoeschenAction` in der Liste gar keinen
  * Weg in der Oberflaeche, und eine Action ohne Aufrufer ist kein Feature.
@@ -423,66 +446,67 @@ export function SharesTabelleSkelett() {
 function ZeilenAktionen({
   zeile,
   qrOeffnen,
+  adresse,
 }: {
   zeile: ShareZeile;
   qrOeffnen: (zeile: ShareZeile) => void;
+  /** Vollständige öffentliche Adresse dieser Freigabe. */
+  adresse: string;
 }) {
   const [zustand, abschicken] = useActionState(shareLoeschenAction, LOESCHEN_START);
+  const { message } = App.useApp();
+  // Aus dem Menü heraus sieht niemand einen Knopf „Kopiert ✓" — die Meldung sagt es, und
+  // wenn die Zwischenablage nicht will, nennt sie die Adresse.
+  const linkKopieren = async () => {
+    try {
+      await navigator.clipboard.writeText(adresse);
+      void message.success("Link kopiert.");
+    } catch {
+      void message.info({ content: `Kopieren ging nicht. Link: ${adresse}`, duration: 15 });
+    }
+  };
   const formular = useRef<HTMLFormElement>(null);
   const fehler = fehlerText(zustand);
 
   return (
     <div>
       {/*
-       * KORREKTUR (Aufgabe 12): dieser Kommentar behauptete, das Ziel entstehe
-       * erst in T42 (Welle 7) und der Knopf fuehre bis dahin in einen 404 aus
-       * ABWESENHEIT — das war zum Zeitpunkt des Kommentars richtig, ist aber
-       * seit T42s Umsetzung UEBERHOLT: `/shares/<id>/bearbeiten` existiert
-       * (`shares/[id]/bearbeiten/page.tsx`) und ist selbst Teil dieses
-       * Zuschnitts. Der Riegel-Teil der Begruendung bleibt gueltig: es gibt
-       * genau EINE Zugriffsstufe, und wer die Tabelle sieht, darf auch
-       * bearbeiten (§2.4) — die Gegenprobe „kein Einstiegspunkt fuehrt dorthin,
-       * wo die aufrufende Person nicht hindarf" ist damit weiterhin erfuellt,
-       * nur nicht mehr ueber eine Abwesenheit, sondern ueber ein bestehendes Ziel.
+       * DIE DREI AKTIONEN IN EINEM MENUE (IDA-393): nebeneinander trugen sie die
+       * Zeile bei 1280px aus dem Rahmen. „Bearbeiten" ist ein echter Anker auf
+       * `/shares/<id>/bearbeiten` — es gibt genau EINE Zugriffsstufe, wer die
+       * Tabelle sieht, darf auch bearbeiten (§2.4). „Löschen" fragt im Dialog
+       * nach und schickt danach das Formular darunter ab.
+       *
+       * DATEIZAHL UND GROESZE in der Rueckfrage, beide (§7.3). „2 Dateien" allein
+       * sagt nicht, was verloren geht, und eine Groesze allein nicht, wie viele
+       * Empfaenger ins Leere laufen. Das Zugriffsprotokoll wird ausdruecklich
+       * genannt, weil es NICHT mitstirbt (§4.5).
        */}
-      <Button
-        href={`/shares/${zeile.id}/bearbeiten`}
-        data-testid={`files-share-bearbeiten-${zeile.id}`}
-      >
-        Bearbeiten
-      </Button>
-      <Button onClick={() => qrOeffnen(zeile)} data-testid={`files-share-qr-${zeile.id}`}>
-        QR
-      </Button>
+      <Zeilenaktionen
+        name={zeile.titel}
+        aktionen={[
+          { key: "bearbeiten", label: "Bearbeiten", ikone: "pencil", href: `/shares/${zeile.id}/bearbeiten` },
+          { key: "kopieren", label: "Link kopieren", ikone: "copy", onClick: () => linkKopieren() },
+          { key: "qr", label: "QR", onClick: () => qrOeffnen(zeile) },
+          {
+            key: "loeschen",
+            label: "Löschen",
+            danger: true,
+            bestaetigen: {
+              titel: "Freigabe löschen?",
+              text: `„${zeile.titel}" mit ${zeile.anzahlDateien} ${
+                zeile.anzahlDateien === 1 ? "Datei" : "Dateien"
+              } (${zeile.groesseText}) wird mit allen Dateien gelöscht. ` +
+                `Das Zugriffsprotokoll bleibt erhalten.`,
+              ok: "Löschen",
+            },
+            onClick: () => formular.current?.requestSubmit(),
+          },
+        ]}
+      />
 
       <form action={abschicken} ref={formular}>
         <input type="hidden" name="id" value={zeile.id} />
-        <Popconfirm
-          title="Freigabe löschen?"
-          /*
-           * DATEIZAHL UND GROESZE, beide (§7.3). „2 Dateien" allein sagt nicht,
-           * was verloren geht, und eine Groesze allein nicht, wie viele Empfaenger
-           * ins Leere laufen. Das Zugriffsprotokoll wird ausdruecklich genannt,
-           * weil es NICHT mitstirbt (§4.5) — sonst zoegert jemand vor dem
-           * Loeschen aus einem falschen Grund.
-           */
-          description={`„${zeile.titel}" mit ${zeile.anzahlDateien} ${
-            zeile.anzahlDateien === 1 ? "Datei" : "Dateien"
-          } (${zeile.groesseText}) wird mit allen Dateien gelöscht. ` +
-            `Das Zugriffsprotokoll bleibt erhalten.`}
-          okText="Löschen"
-          cancelText="Abbrechen"
-          onConfirm={() => formular.current?.requestSubmit()}
-        >
-          {/*
-           * `danger` OHNE `type="primary"`: `colorError === colorPrimary ===
-           * #c8000f`, ein roter Vollknopf waere pixelgleich mit einer
-           * Primaeraktion. Rot bleibt am Rand.
-           */}
-          <Button danger data-testid={`files-share-loeschen-${zeile.id}`}>
-            Löschen
-          </Button>
-        </Popconfirm>
       </form>
 
       {fehler !== null && (

@@ -32,7 +32,7 @@ import { artikel as artikelTabelle, buchungen, chargen } from "../../_db/schema"
 import { kategorieNormalisieren, kategorieOptionen, kategorieSchluessel, type KategorieOption } from "../kategorie";
 import { istOhneVerfall, ortZeile } from "../konstanten";
 import { monatsraster, type Monat, type Zeitraum } from "../statistik/zeitraum";
-import { AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX } from "../vorgang";
+import { AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX, STORNO_PRAEFIX } from "../vorgang";
 import { bestandJeArtikelUndLagerort, restJeChargeImBereich, type Leser } from "./bestand";
 import { handlagerOrte, ortStamm } from "./orte";
 import { lagerortVerfallListe } from "./verfall";
@@ -102,7 +102,7 @@ export type StatistikDaten = {
   einheitenVerfallWarnend: number;
 };
 
-type Klasse = "check" | "aussondern" | "inventur" | "";
+type Klasse = "check" | "aussondern" | "inventur" | "storno" | "";
 
 export type RohGruppe = {
   monat: number;
@@ -122,6 +122,16 @@ export type RohGruppe = {
 export function bewegungsArt(
   g: Pick<RohGruppe, "typ" | "klasse" | "summe">, anEinheit: boolean,
 ): { art: BewegungsArt; n: number } | null {
+  /*
+   * IDA-378 — EINE GEGENBUCHUNG ZAEHLT ALS SPIEGEL IHRES ORIGINALS: dieselbe Art
+   * mit umgekehrtem Vorzeichen, damit Original und Gegenzeile netto null
+   * ergeben. Gegenbuchbar sind nur Vorgaenge, deren Art am Typ haengt
+   * (`zeileGegenbuchbar`), die fehlende Original-Referenz kostet hier also nichts.
+   */
+  if (g.klasse === "storno") {
+    const original = bewegungsArt({ typ: g.typ, klasse: "", summe: -g.summe }, anEinheit);
+    return original ? { art: original.art, n: -original.n } : null;
+  }
   if (g.typ === "entnahme") return { art: "regal", n: -g.summe };
   if (g.typ === "zugang") return { art: "zugang", n: g.summe };
   if (g.typ === "umlagerung") return anEinheit && g.summe > 0 ? { art: "nachschub", n: g.summe } : null;
@@ -156,6 +166,7 @@ function rohGruppen(db: Leser, grenzen: Date[]): RohGruppe[] {
     when ${beginntMit(CHECK_PRAEFIX)} then 'check'
     when ${beginntMit(AUSSONDERN_PRAEFIX)} then 'aussondern'
     when ${beginntMit(INVENTUR_PRAEFIX)} then 'inventur'
+    when ${beginntMit(STORNO_PRAEFIX)} then 'storno'
     else '' end`;
   const negativ = sql<number>`${buchungen.menge} < 0`;
   return db

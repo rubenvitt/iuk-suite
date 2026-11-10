@@ -39,7 +39,7 @@ import s from "./aufgaben.module.css";
  * Spaltenkopf-Kicker.
  *
  * ⚠️ SORTIERT WIRD UEBER DEN ROHWERT, NIE UEBER DEN ANZEIGETEXT. Die Soll-Zeit steht als
- * „7,8 Std./Tag" auf dem Schirm — mit Dezimalkomma, als Zeichenkette also falsch geordnet;
+ * „7,8 Std." auf dem Schirm — mit Dezimalkomma, als Zeichenkette also falsch geordnet;
  * verglichen wird `sollMinutenTag`. Die beiden Datumsspalten zeigen `fmtTagKurz` („14.09."),
  * verglichen wird `aktivVon`/`aktivBis` als ISO-Tag. Beide Rohwerte liegen bereits in `PersonRow`;
  * ein zusaetzliches Feld war nicht noetig.
@@ -85,11 +85,11 @@ export function PersonenTabelle({ zeilen }: { zeilen: PersonenZeile[] }) {
           render: (_: unknown, zeile: PersonenZeile) => ROLLE_TEXT[zeile.person.rolle],
         },
         {
-          title: "Soll-Zeit",
+          title: "Zeit pro Tag",
           key: "soll",
           sorter: nachZahl<PersonenZeile>((zeile) => zeile.person.sollMinutenTag),
           render: (_: unknown, zeile: PersonenZeile) =>
-            `${fmtStunden(zeile.person.sollMinutenTag)} Std./Tag`,
+            `${fmtStunden(zeile.person.sollMinutenTag)} Std.`,
         },
         {
           title: "Aktiv von",

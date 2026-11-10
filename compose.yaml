@@ -434,7 +434,7 @@ services:
   # in Wartung ist oder ausfällt; die Wartung bleibt deshalb auf ntfy.sh
   # (`portal/_lib/serverwartung.ts`). Für eine Fristen-Erinnerung ist ein Ausfall unkritisch.
   ntfy:
-    image: ${SUITE_NTFY_IMAGE:-binwiederhier/ntfy:v2.35.0}
+    image: ${SUITE_NTFY_IMAGE:-binwiederhier/ntfy:v2.37.2}
     profiles: [ntfy]
     restart: unless-stopped
     command: serve

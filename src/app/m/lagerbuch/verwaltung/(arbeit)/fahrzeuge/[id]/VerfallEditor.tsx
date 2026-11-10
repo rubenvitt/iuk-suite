@@ -70,13 +70,14 @@ export type VerfallAnzeigeZeile = {
  * auf ein Pixel zusammen, `Datentabelle` schaltet die Virtualisierung dann
  * lieber ab. Darunter misst die Tabelle wie bisher nach Inhalt.
  */
+// IDA-393: Summe 920 — bei 1280px hat der Inhalt 984px; bis dahin waren es 1020.
 const BREITE = {
-  artikel: 260,
-  fach: 170,
-  ist: 130,
+  artikel: 240,
+  fach: 130,
+  ist: 120,
   verfall: 150,
-  status: 220,
-  aktion: 90,
+  status: 200,
+  aktion: 80,
 } as const;
 
 /** Die Liste ordnet nach Dringlichkeit, danach nach Fach und Name. */
@@ -346,6 +347,15 @@ export function VerfallEditor({
       render: (name: string) => <strong>{name}</strong>,
     },
     {
+      // IDA-393: direkt hinter dem Artikel.
+      title: "Status",
+      dataIndex: "statusText",
+      key: "status",
+      width: BREITE.status,
+      sorter: nachZahl<VerfallAnzeigeZeile>(dringlichkeit),
+      render: (_statusText: string | null, eintrag) => statusChips(eintrag),
+    },
+    {
       title: "Fach",
       dataIndex: "fachText",
       key: "fach",
@@ -378,14 +388,6 @@ export function VerfallEditor({
       // die Zeile waehrend der Wahl weg.
       sorter: nachDatum<VerfallAnzeigeZeile>((eintrag) => eintrag.verfall),
       render: (_verfall: string | null, eintrag) => verfallZelle(eintrag),
-    },
-    {
-      title: "Status",
-      dataIndex: "statusText",
-      key: "status",
-      width: BREITE.status,
-      sorter: nachZahl<VerfallAnzeigeZeile>(dringlichkeit),
-      render: (_statusText: string | null, eintrag) => statusChips(eintrag),
     },
     {
       // Begründung bei `aktionsMenue`.

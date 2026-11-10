@@ -127,7 +127,7 @@ test.describe("Lagerbuch Auffuellen — der Weg der GF (DRK-313)", () => {
     // Schrank)" — sie ist ein Ziel wie jedes andere, kein Rueckfall.
     await page
       .locator('[data-rolle="ziel-zeile"]')
-      .filter({ hasText: "Handlager (ohne Schrank)" })
+      .filter({ hasText: "Handlager ohne Schrank" })
       .locator("input")
       .check();
 
@@ -138,7 +138,7 @@ test.describe("Lagerbuch Auffuellen — der Weg der GF (DRK-313)", () => {
 
     // AK3 — Ziel, Artikel und Menge stehen VOR der Buchung beieinander.
     await expect(page.locator('[data-rolle="auffuellen-zusammenfassung"]')).toContainText(
-      `${menge} Stk. ${artikelName} → Handlager (ohne Schrank)`,
+      `${menge} Stk. ${artikelName} → Handlager ohne Schrank`,
     );
 
     // ── 5) Buchen ─────────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ test.describe("Lagerbuch Auffuellen — der Weg der GF (DRK-313)", () => {
     expect((await buchungsAntwort).ok(), "Auffuellen: Server Action").toBe(true);
 
     await expect(page.locator('[data-rolle="auffuellen-ergebnis"]')).toHaveText(
-      `Aufgefüllt: ${menge} × ${artikelName} → Handlager (ohne Schrank)`,
+      `Aufgefüllt: ${menge} × ${artikelName} → Handlager ohne Schrank`,
     );
 
     // ── 6) Der Bestand steht danach wirklich da ───────────────────────────

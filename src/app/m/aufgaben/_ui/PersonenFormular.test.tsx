@@ -104,11 +104,44 @@ describe("PersonenFormular — Zeile 1 und die Action-Wahl", () => {
   });
 });
 
+/*
+ * IDA-386: die Schublade (`PersonenSchublade`) schliesst sich nach einer angenommenen Eingabe.
+ * `beiErfolg` feuert genau einmal je neuem Erfolgszustand — nie fuer den Startzustand, nie fuer
+ * einen Feldfehler, und ein erneutes Rendern mit demselben Zustand ruft nicht noch einmal.
+ */
+describe("PersonenFormular — beiErfolg", () => {
+  it("ruft nach einem neuen ok-Zustand genau einmal, nicht beim Start und nicht bei Feldfehlern", async () => {
+    const beiErfolg = vi.fn();
+    await mount(<PersonenFormular beiErfolg={beiErfolg} />);
+    expect(beiErfolg).not.toHaveBeenCalled();
+
+    stelleZustandEin({ ok: false, fieldErrors: { name: "Name fehlt." }, values: {} });
+    await rerender(<PersonenFormular beiErfolg={beiErfolg} />);
+    expect(beiErfolg).not.toHaveBeenCalled();
+
+    stelleZustandEin({ ok: true });
+    await rerender(<PersonenFormular beiErfolg={beiErfolg} />);
+    await rerender(<PersonenFormular beiErfolg={beiErfolg} />);
+    expect(beiErfolg).toHaveBeenCalledTimes(1);
+  });
+
+  it("beschriftet Kennung und Zeit in Alltagssprache, die Zeit in Stunden mit Komma", async () => {
+    await mount(<PersonenFormular />);
+    const texte = queryAll("label").map((l) => l.textContent);
+    expect(texte).toContain("Konto-Kennung");
+    expect(texte).toContain("Zeit pro Tag (Stunden)");
+    expect(document.body.textContent).not.toContain("Pocket");
+    expect(document.body.textContent).not.toContain("Minuten");
+    expect(query<HTMLInputElement>("#pf-soll").value).toBe("7,8");
+    expect(query<HTMLInputElement>("#pf-soll").getAttribute("inputmode")).toBe("decimal");
+  });
+});
+
 describe("PersonenFormular — Anlegen: der sub ist ein echtes Feld", () => {
   it("zeigt ein leeres sub-Feld und den Anlege-Knopf, kein verstecktes personId", async () => {
     await mount(<PersonenFormular />);
     expect(query<HTMLInputElement>("#pf-sub").value).toBe("");
-    expect(query("button[type='submit']").textContent).toBe("Person anlegen");
+    expect(query("button[type='submit']").textContent).toBe("Speichern");
     expect(queryAll("input[name='personId']")).toHaveLength(0);
   });
 
@@ -117,7 +150,7 @@ describe("PersonenFormular — Anlegen: der sub ist ein echtes Feld", () => {
     await fill("#pf-sub", "dev:neu@localtest.me");
     await fill("#pf-name", "Neu");
     await fill("#pf-initialen", "NE");
-    await fill("#pf-soll", "400");
+    await fill("#pf-soll", "6,5");
     await waehleDatum("#pf-aktiv-von", "2026-08-14");
     await submitForm();
 
@@ -126,7 +159,7 @@ describe("PersonenFormular — Anlegen: der sub ist ein echtes Feld", () => {
     expect(formData.get("sub")).toBe("dev:neu@localtest.me");
     expect(formData.get("name")).toBe("Neu");
     expect(formData.get("initialen")).toBe("NE");
-    expect(formData.get("sollMinutenTag")).toBe("400");
+    expect(formData.get("sollStundenTag")).toBe("6,5");
     expect(formData.get("aktivVon")).toBe("2026-08-14");
   });
 });
@@ -167,7 +200,7 @@ describe("PersonenFormular — Aendern: der sub ist NICHT mehr editierbar", () =
     expect(query<HTMLInputElement>("#pf-name").value).toBe("Alina");
     expect(query<HTMLInputElement>("#pf-initialen").value).toBe("AL");
     expect(feldWertImDom("rolle")).toBe("bufdi");
-    expect(query<HTMLInputElement>("#pf-soll").value).toBe("468");
+    expect(query<HTMLInputElement>("#pf-soll").value).toBe("7,8");
     // SICHTBAR deutsch, ABGESENDET in ISO — s. den Kommentar in `EinplanenFormular.test.tsx`.
     expect(query<HTMLInputElement>("#pf-aktiv-von").value).toBe("01.08.2026");
     expect(feldWertImDom("aktivVon")).toBe("2026-08-01");
@@ -195,7 +228,7 @@ describe("PersonenFormular — Feldfehler tragen die Eingaben mit", () => {
       fieldErrors: { name: "Name fehlt." },
       values: {
         sub: "dev:neu@localtest.me", name: "", initialen: "NE", rolle: "bufdi",
-        sollMinutenTag: "300", aktivVon: "2026-08-14", aktivBis: "",
+        sollStundenTag: "5", aktivVon: "2026-08-14", aktivBis: "",
       },
     });
     await mount(<PersonenFormular />);
@@ -209,7 +242,7 @@ describe("PersonenFormular — Feldfehler tragen die Eingaben mit", () => {
       fieldErrors: { sub: "Diese Kennung ist bereits vergeben." },
       values: {
         sub: "dev:doppelt@localtest.me", name: "Neu", initialen: "NE", rolle: "bufdi",
-        sollMinutenTag: "300", aktivVon: "2026-08-14", aktivBis: "",
+        sollStundenTag: "5", aktivVon: "2026-08-14", aktivBis: "",
       },
     });
     await mount(<PersonenFormular />);
@@ -341,7 +374,7 @@ describe("PersonenFormular — Anlegen MIT Verzeichnis: Suche statt blindem Text
     await clickElement(alina);
 
     expect(feldWertImDom("rolle")).toBe("auftrag");
-    expect(query<HTMLInputElement>("#pf-soll").value).toBe("468");
+    expect(query<HTMLInputElement>("#pf-soll").value).toBe("7,8");
     expect(feldWertImDom("aktivVon")).toBe("");
     expect(feldWertImDom("aktivBis")).toBe("");
   });
@@ -388,7 +421,7 @@ describe("PersonenFormular — Anlegen MIT Verzeichnis: Suche statt blindem Text
       fieldErrors: { sub: "Diese Kennung ist bereits vergeben." },
       values: {
         sub: "dev:doppelt@localtest.me", name: "Neu", initialen: "NE", rolle: "bufdi",
-        sollMinutenTag: "300", aktivVon: "2026-08-14", aktivBis: "",
+        sollStundenTag: "5", aktivVon: "2026-08-14", aktivBis: "",
       },
     });
     await rerender(<PersonenFormular verzeichnisAktiv sucheVerzoegerungMs={0} />);
@@ -422,10 +455,10 @@ describe("PersonenFormular — Anlegen MIT Verzeichnis: Suche statt blindem Text
     // Der Server bemaengelt ein ANDERES Feld und traegt alle gesendeten Werte zurueck.
     stelleZustandEin({
       ok: false,
-      fieldErrors: { aktivVon: "Aktiv von fehlt oder ist ungueltig." },
+      fieldErrors: { aktivVon: "Aktiv von fehlt oder ist ungültig." },
       values: {
         sub: "PID-Alina", name: "Alina Rathje", initialen: "AR", rolle: "auftrag",
-        sollMinutenTag: "468", aktivVon: "", aktivBis: "",
+        sollStundenTag: "7,8", aktivVon: "", aktivBis: "",
       },
     });
     await rerender(<PersonenFormular verzeichnisAktiv sucheVerzoegerungMs={0} />);
@@ -442,10 +475,10 @@ describe("PersonenFormular — Anlegen MIT Verzeichnis: Suche statt blindem Text
 
     stelleZustandEin({
       ok: false,
-      fieldErrors: { aktivVon: "Aktiv von fehlt oder ist ungueltig." },
+      fieldErrors: { aktivVon: "Aktiv von fehlt oder ist ungültig." },
       values: {
         sub: "dev:alina@localtest.me", name: "Alina Rathje", initialen: "AR", rolle: "auftrag",
-        sollMinutenTag: "468", aktivVon: "", aktivBis: "",
+        sollStundenTag: "7,8", aktivVon: "", aktivBis: "",
       },
     });
     await rerender(<PersonenFormular />);
@@ -464,13 +497,13 @@ describe("PersonenFormular — Entwurf auf dem Geraet (IDA-358)", () => {
   it("Name, Soll-Minuten und Datum ueberstehen das Neuladen; Erfolg raeumt den Entwurf", async () => {
     await mount(<PersonenFormular person={PERSON} />);
     await fill("#pf-name", "Alina Beispiel");
-    await fill("#pf-soll", "300");
+    await fill("#pf-soll", "5");
     await waehleDatum("#pf-aktiv-bis", "2027-07-31");
     await unmount();
 
     await mount(<PersonenFormular person={PERSON} />);
     expect(query<HTMLInputElement>("#pf-name").value).toBe("Alina Beispiel");
-    expect(query<HTMLInputElement>("#pf-soll").value).toBe("300");
+    expect(query<HTMLInputElement>("#pf-soll").value).toBe("5");
     expect(feldWertImDom("aktivBis")).toBe("2027-07-31");
     expect(query("[data-rolle='entwurf-hinweis']").textContent).toContain("Eingaben wiederhergestellt.");
 

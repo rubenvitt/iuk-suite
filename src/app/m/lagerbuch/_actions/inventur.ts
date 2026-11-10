@@ -41,6 +41,12 @@ export type InventurNutzlast = {
   ortId?: string | null;
   /** LABELS, nicht Schluessel — beschreibend fuer den Verlauf. */
   umfang?: { kategorien: string[]; faecher: string[] } | null;
+  /**
+   * IDA-379 — wie weit die Zaehlung IM UMFANG kam: erfasste Artikel und alle
+   * Artikel, die er auf dem Schirm umfasste („x von y erfasst"). Fehlt bei
+   * offenen alten Seiten; der Lauf bleibt dann ohne Angabe.
+   */
+  abdeckung?: { erfasst: number; gesamt: number } | null;
   positionen: Array<
     | { artikelId: string; ist: number }
     | {
@@ -106,12 +112,24 @@ const InventurSchema = z.object({
     .refine((ps) => new Set(ps.map((p) => p.artikelId)).size === ps.length,
       { message: "Artikel doppelt gezählt" }),
   /*
+   * IDA-379 — BESCHREIBEND wie `umfang`: der Server kennt den Spaltenfilter
+   * nicht und kann die Gesamtzahl nicht selbst bilden. Geprueft wird, was er
+   * pruefen kann — erfasst ist hoechstens gesamt und hoechstens die Zahl der
+   * gesendeten Artikel (ausgeblendete gezaehlte Artikel stehen nur dort).
+   */
+  abdeckung: z.object({
+    erfasst: z.number().int().min(0),
+    gesamt: z.number().int().min(0).max(1_000_000),
+  }).strict().refine((a) => a.erfasst <= a.gesamt, { message: "Mehr erfasst als vorhanden" })
+    .nullable().optional(),
+  /*
    * IDA-358: die Sendungs-ID des Geraets (`core/entwurf`), die ID des Laufs —
    * eine Wiederholung nach verlorener Antwort findet ihn vor und bucht die
    * Korrekturen nicht ein zweites Mal. Optional fuer offene alte Seiten.
    */
   sendungId: z.string().uuid().optional(),
-});
+}).refine((v) => !v.abdeckung || v.abdeckung.erfasst <= v.positionen.length,
+  { message: "Mehr erfasst als gezählt", path: ["abdeckung"] });
 
 type ArtikelPositionT = z.infer<typeof ArtikelPosition>;
 type ChargenPositionT = z.infer<typeof ChargenPosition>;
@@ -365,7 +383,7 @@ function bucheKorrektur(
  * waere eine zweite, ungepruefte Behauptung ueber denselben Ort, und im
  * Verlauf stuende sie unkorrigierbar (append-only).
  *
- * `null` heisst weiterhin „vollstaendig, kein Filter": ein Lauf ueber den
+ * `null` heisst weiterhin „kein Filter, ganzer Handlager": ein Lauf ueber den
  * ganzen Handlager ohne Spaltenfilter sieht im Verlauf aus wie vor DRK-337.
  */
 function umfangJson(
@@ -465,6 +483,8 @@ export async function inventurKorrektur(
           id: inventurId, ts: new Date(), quelleTyp: lauf.quelle.quelleTyp, quelleId: lauf.quelle.quelleId,
           kommentar: v.kommentar,
           umfang: umfangJson(v.umfang ?? null, ortId, zaehlOrtLabel(ortId, stamm.get(ortId ?? "")?.name)),
+          erfasst: v.abdeckung?.erfasst ?? null,
+          gesamt: v.abdeckung?.gesamt ?? null,
         }).run();
         for (const position of v.positionen) {
           korrigiert += "ist" in position

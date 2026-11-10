@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { nutzflaeche, type Eingabe, type Ergebnis, type Weg, type Zeltbestand } from "../_lib/rechner";
-import { RICHTWERTE, RICHTWERTE_STAND, ZELTTYPEN, richtwertBasis, zeltName, type Herkunft } from "../_lib/richtwerte";
+import { korrektur, markeFuer, type Markierung } from "../_lib/marken";
+import { RICHTWERTE, RICHTWERTE_STAND, ZELTTYPEN, zeltName } from "../_lib/richtwerte";
 import d from "./druck.module.css";
 
 /**
@@ -14,13 +15,10 @@ const z = (x: number | null | undefined) => (x == null ? "–" : ZAHL.format(x))
 const MASS = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 });
 
 const WEG_WORT: Record<Weg, string> = { personen: "Personen", raeume: "Räume", flaeche: "Schlaffläche", zelte: "Zeltbestand" };
-const HERKUNFT_WORT: Partial<Record<Herkunft, string>> = { annahme: "Annahme", korrigiert: "korrigiert" };
-
-function Marke({ herkunft }: { herkunft: Herkunft }) {
-  const wort = HERKUNFT_WORT[herkunft];
-  return wort ? <span className={d.marke}>{wort}</span> : null;
+function Marke({ m }: { m: Markierung | null }) {
+  return m ? <span className={d.marke}>{m.text}</span> : null;
 }
-const markeVon = (k: string) => <Marke herkunft={richtwertBasis(k)?.herkunft ?? "belegt"} />;
+const markeVon = (k: string) => <Marke m={markeFuer(k)} />;
 
 type Zeile = { etikett: string; soll: string; einheit?: string; marke?: ReactNode };
 
@@ -201,7 +199,7 @@ export function Druckblatt({ eingabe, er, erstellt }: { eingabe: Eingabe; er: Er
           titel="Sanitär"
           zeilen={[
             { etikett: "Toiletten", soll: z(er.sanitaer.toiletten), marke: markeVon("toilette_je_personen_gemischt") },
-            { etikett: "Urinale", soll: z(er.sanitaer.urinale), marke: <Marke herkunft="korrigiert" /> },
+            { etikett: "Urinale", soll: z(er.sanitaer.urinale), marke: <Marke m={korrektur("urinale")} /> },
             { etikett: "Waschplätze", soll: z(er.sanitaer.waschplaetze), marke: markeVon("waschplatz_je_personen") },
             { etikett: "Duschen", soll: z(er.sanitaer.duschen), marke: markeVon("dusche_je_personen") },
           ]}
@@ -230,7 +228,7 @@ export function Druckblatt({ eingabe, er, erstellt }: { eingabe: Eingabe; er: Er
             { etikett: "Sitzplätze", soll: z(er.verpflegung.sitzplaetze), marke: markeVon("personen_je_sitzplatz") },
             { etikett: "Biergarnituren", soll: z(er.verpflegung.garnituren), marke: markeVon("plaetze_je_garnitur") },
           ]}
-          unten={<>Aufenthaltszelte<Marke herkunft="korrigiert" />, nur ein Typ: {er.verpflegung.aufenthaltszelte_je_typ.map((t) => `${zeltName(t.typ)}: ${z(t.anzahl)}`).join(" · ")}</>}
+          unten={<>Aufenthaltszelte, nur ein Typ: {er.verpflegung.aufenthaltszelte_je_typ.map((t) => `${zeltName(t.typ)}: ${z(t.anzahl)}`).join(" · ")}<Marke m={korrektur("aufenthaltszelte")} /></>}
         />
       </div>
     </article>

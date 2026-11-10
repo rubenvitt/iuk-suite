@@ -7,11 +7,11 @@ import { zeitpunkt } from "../../_lib/zeit";
 import { BarAnfrage } from "./BarAnfrage";
 import { Statusansicht } from "./Statusansicht";
 
-const aktion = vi.hoisted(() => ({ senden: vi.fn(), zurueck: vi.fn(), refresh: vi.fn(), unterschreiben: vi.fn() }));
+const aktion = vi.hoisted(() => ({ senden: vi.fn(), zurueck: vi.fn(), refresh: vi.fn(), push: vi.fn(), unterschreiben: vi.fn() }));
 vi.mock("../../_actions/anfrage", () => ({
   anfrageSendenAction: aktion.senden, anfrageZurueckziehenAction: aktion.zurueck, vertragUnterschreibenAction: aktion.unterschreiben,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: aktion.refresh }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: aktion.refresh, push: aktion.push }) }));
 
 const BELEGT = [{ von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-08", "01:00") }];
 const knopf = (text: string) => queryAll<HTMLButtonElement>("button, a").find((b) => b.textContent === text)!;
@@ -19,7 +19,7 @@ const tag = (t: string) => query<HTMLButtonElement>(`[data-tag="${t}"]`);
 
 // IDA-358: die Anfrage liegt im Entwurf auf dem Gerät — jeder Fall beginnt leer.
 beforeEach(() => { localStorage.clear(); vergissFluechtig(); });
-afterEach(async () => { await unmount(); aktion.senden.mockReset(); aktion.zurueck.mockReset(); aktion.refresh.mockReset(); });
+afterEach(async () => { await unmount(); aktion.senden.mockReset(); aktion.zurueck.mockReset(); aktion.refresh.mockReset(); aktion.push.mockReset(); });
 
 describe("Bar anfragen", () => {
   it("Kalender zeigt belegte Tage als „belegt“, vergangene Tage sind aus", async () => {
@@ -54,7 +54,7 @@ describe("Bar anfragen", () => {
     expect(query<HTMLInputElement>('input[autocomplete="email"]').value).toBe("mira@example.org");
   });
 
-  it("schickt die Felder, zeigt Serverfehler am Feld und danach die Danke-Seite mit Statuslink", async () => {
+  it("schickt die Felder, zeigt Serverfehler am Feld und geht danach auf die Statusseite", async () => {
     await mount(<BarAnfrage belegt={[]} heute="2026-11-03" vorbelegung={null} anmeldeHref="/login" />);
     await clickElement(knopf("Bar anfragen"));
     await fill('input[autocomplete="name"]', "Erika Sommer");
@@ -67,9 +67,22 @@ describe("Bar anfragen", () => {
     aktion.senden.mockResolvedValueOnce({ ok: true, wert: { code: "abcdefghijklmnopqrstuv" } });
     await act(async () => { window.scrollTo = () => {}; });
     await submitForm();
-    expect(document.body.textContent).toContain("Danke.");
-    expect(query('[data-testid="statuslink"]').textContent).toMatch(/\/status\/abcdefghijklmnopqrstuv$/);
-    expect(knopf("Zum Stand deiner Anfrage").getAttribute("href")).toBe("/status/abcdefghijklmnopqrstuv");
+    // IDA-387: die Statusadresse steht danach in der Adresszeile.
+    expect(aktion.push).toHaveBeenCalledWith("/status/abcdefghijklmnopqrstuv?neu=1");
+    expect(knopf("Zum Stand deiner Anfrage").getAttribute("href")).toBe("/status/abcdefghijklmnopqrstuv?neu=1");
+  });
+
+  it("IDA-387: „An diesem Tag anfragen“ legt die Zeit in die freie Zeit; die Belegung steht unter der Zeitwahl", async () => {
+    const teils = [{ von: zeitpunkt("2026-11-07", "17:00"), bis: zeitpunkt("2026-11-07", "21:00") }];
+    await mount(<BarAnfrage belegt={teils} heute="2026-11-03" vorbelegung={null} anmeldeHref="/login" />);
+    await clickElement(tag("2026-11-07"));
+    await clickElement(knopf("An diesem Tag anfragen"));
+    expect(queryAll<HTMLInputElement>('input[type="time"]').map((u) => u.value)).toEqual(["21:00", "23:00"]);
+    const wahl = query('[data-testid="zeitwahl-belegung"]');
+    expect(wahl.textContent).toContain("belegt 17:00–21:00 Uhr");
+    expect(wahl.textContent).not.toContain("überschneidet");
+    await fill('input[type="time"]', "18:00");
+    expect(query('[data-testid="zeitwahl-belegung"]').textContent).toContain("Deine Zeit überschneidet sich mit einer belegten Zeit.");
   });
 });
 
@@ -114,7 +127,7 @@ describe("Bar anfragen — Entwurf auf dem Gerät (IDA-358)", () => {
     await act(async () => { window.scrollTo = () => {}; });
     await ansicht();
     expect(aktion.senden).toHaveBeenCalledWith(expect.objectContaining({ person: "Erika Sommer", sendung: erste }));
-    expect(document.body.textContent).toContain("Danke.");
+    expect(aktion.push).toHaveBeenCalledWith("/status/abcdefghijklmnopqrstuv?neu=1");
     expect(ladeEntwurf("gemeinschaft:bar-anfrage:neu")).toBeNull();
   });
 });
@@ -128,6 +141,19 @@ describe("Statusseite", () => {
     await unmount();
     await mount(<Statusansicht code="abcdefghijklmnopqrstuv" a={{ ...A, status: "angefragt" }} />);
     expect(exists('[data-testid="test-hinweis"]')).toBe(false);
+  });
+
+  it("IDA-387: frisch abgeschickt Danke mit Link, Kopieren und „Per E-Mail an mich“; ?neu verschwindet aus der Adresse", async () => {
+    window.history.replaceState(null, "", "/status/abcdefghijklmnopqrstuv?neu=1");
+    await mount(<Statusansicht code="abcdefghijklmnopqrstuv" a={{ ...A, status: "angefragt" }} neu />);
+    await act(async () => { await Promise.resolve(); });
+    expect(window.location.pathname + window.location.search).toBe("/status/abcdefghijklmnopqrstuv");
+    expect(document.body.textContent).toContain("Danke.");
+    expect(query('[data-testid="statuslink"]').textContent).toBe(`${window.location.origin}/status/abcdefghijklmnopqrstuv`);
+    expect(knopf("Per E-Mail an mich").getAttribute("href")).toContain(encodeURIComponent(`${window.location.origin}/status/abcdefghijklmnopqrstuv`));
+    await unmount();
+    await mount(<Statusansicht code="abcdefghijklmnopqrstuv" a={{ ...A, status: "angefragt" }} />);
+    expect(exists('[data-testid="gesichert"]')).toBe(false);
   });
 
   it("Absage mit Begründung, ohne Zurückziehen", async () => {

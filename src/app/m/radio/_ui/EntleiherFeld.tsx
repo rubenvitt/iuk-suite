@@ -177,7 +177,7 @@ export function EntleiherFeld({
        */
       virtual={false}
       placeholder="Name eingeben"
-      aria-label="Name des Entleihers"
+      aria-label="Ausgeliehen von"
       data-rolle="radio-entleiher-feld"
       options={optionen.map((v) => ({
         value: v.name,

@@ -1,12 +1,14 @@
 "use client";
 
 // src/app/m/radio/admin/(arbeit)/geraete/GeraeteTabelle.tsx
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
+import Link from "next/link";
 import { Card, Tag, type TableProps } from "antd";
 import { Datentabelle, Schmalkarten } from "@/core/tabelle";
 import { usePathname, useRouter } from "next/navigation";
 import type { GeraetCursor, GeraetZeile, Vorschlagsfeld } from "../../../_lib/lesepfade/geraete";
 import { GERAETE_NACHLADE_FEHLER } from "../../../_lib/nachladen";
+import { BEREITSCHAFT_TON, einsatzbereitschaftAus, statusText } from "../../../_lib/einsatzbereitschaft";
 import { STAND_TON, STAND_WORT } from "../../../_lib/geraeteFelder";
 import {
   angewandt,
@@ -318,6 +320,47 @@ export function baueSpalten(sichtbar: string[]): NonNullable<TableProps<GeraetZe
   return COLUMN_DEFS.filter((d) => gewaehlt.has(d.schluessel)).map((d) => d.spalte);
 }
 
+/** Die Geräteakte — Ziel von Zeile, Zeilenlink und Telefonkarte. */
+const aktenPfad = (id: string) => `/admin/geraete/${id}`;
+
+/** Der Name einer Zeile, wie die Telefonkarte ihn zeigt. */
+const zeilenName = (d: GeraetZeile) => d.rufname || d.opta || d.issi;
+
+type Spalten = NonNullable<TableProps<GeraetZeile>["columns"]>;
+
+/**
+ * Die erste sichtbare Spalte trägt einen echten Link auf die Akte (IDA-383): mit Tab und Enter
+ * erreichbar, Mittelklick öffnet einen neuen Tab. Der Zeilenklick bleibt; der Link hält sein
+ * Klickereignis von ihm fern, sonst navigierte ein Klick zweimal.
+ * Erste Spalte statt fest „Rufname": die Spalte lässt sich in der Spaltenwahl abschalten.
+ */
+export function mitAktenLink(spalten: Spalten): Spalten {
+  const [erste, ...rest] = spalten;
+  if (!erste || !("render" in erste || "dataIndex" in erste)) return spalten;
+  const eigen = "render" in erste ? erste.render : undefined;
+  return [
+    {
+      ...erste,
+      render: (wert: unknown, zeile: GeraetZeile, index: number) => {
+        const inhalt = (eigen ? eigen(wert, zeile, index) : wert) as ReactNode;
+        const leer = inhalt === null || inhalt === undefined || inhalt === "" || inhalt === false;
+        return (
+          <Link
+            href={aktenPfad(zeile.id)}
+            className={s.zeilenLink}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={leer ? zeilenName(zeile) : undefined}
+            data-rolle="radio-geraet-link"
+          >
+            {leer ? LEER : inhalt}
+          </Link>
+        );
+      },
+    },
+    ...rest,
+  ];
+}
+
 /** Die Optionen der Spaltenauswahl — abgeleitet, nie zweitgeschrieben (`ColumnPicker.tsx:16`). */
 const SPALTEN_OPTIONEN: SpaltenOption[] = COLUMN_DEFS.map((d) => ({
   schluessel: d.schluessel,
@@ -422,7 +465,7 @@ export function GeraeteTabelle({
     return gelesen.richtung === "desc" ? "descend" : "ascend";
   };
 
-  const sichtbareSpalten = baueSpalten(spalten).map((spalte) =>
+  const sichtbareSpalten = mitAktenLink(baueSpalten(spalten)).map((spalte) =>
     spalte.sorter
       ? { ...spalte, sortOrder: spaltenSortierung(String(spalte.key ?? "")) }
       : spalte,
@@ -471,33 +514,44 @@ export function GeraeteTabelle({
         leertext="Kein Gerät gefunden"
         kartenHoehe={150}
         karte={(zeile) => (
-          <Card
-            hoverable
-            className={s.mobilKarte}
-            onClick={() => router.push(`/admin/geraete/${zeile.id}`)}
-          >
-            <div className={s.mobilKopf}>
-              <span className={s.mobilName}>
-                {zeile.rufname || zeile.opta || zeile.issi}
-              </span>
-              <Tag color={STAND_TON[zeile.updateStand]}>{STAND_WORT[zeile.updateStand]}</Tag>
-            </div>
-            <span className={s.mobilNeben}>ISSI: {zeile.issi}</span>
-            {(zeile.funktion || zeile.geraeteTyp) && (
-              <span className={s.mobilNeben}>
-                {[zeile.funktion, zeile.geraeteTyp].filter(Boolean).join(" · ")}
-              </span>
-            )}
-            <div className={s.mobilMarken}>
-              {zeile.lagerort && <Tag>{zeile.lagerort}</Tag>}
-              {/* Die Marke „Abweichung" 1:1 aus `DeviceList.tsx:220-224`, mit Warndreieck. */}
-              {zeile.hatAbweichung && (
-                <Tag color="warning" icon={<VIkone name="warnung" />}>
-                  Abweichung
-                </Tag>
+          /* Die ganze Karte ist ein Link (IDA-383): per Tastatur erreichbar wie die Zeile. */
+          <Link href={aktenPfad(zeile.id)} className={s.mobilLink} data-rolle="radio-geraet-karte">
+            <Card hoverable className={s.mobilKarte}>
+              <div className={s.mobilKopf}>
+                <span className={`${s.mobilName} ${s.mobilKopfName}`}>{zeilenName(zeile)}</span>
+                <span className={s.mobilKopfMarken}>
+                  {/*
+                    Der Status nur, wenn er nicht einsatzbereit ist — so bleibt die Karte ruhig,
+                    und „in Reparatur" oder „ausgemustert" sind am Telefon erkennbar.
+                  */}
+                  {einsatzbereitschaftAus(zeile.status) !== "einsatzbereit" && (
+                    <Tag
+                      color={BEREITSCHAFT_TON[einsatzbereitschaftAus(zeile.status)]}
+                      data-rolle="radio-karte-status"
+                    >
+                      {statusText(zeile.status)}
+                    </Tag>
+                  )}
+                  <Tag color={STAND_TON[zeile.updateStand]}>{STAND_WORT[zeile.updateStand]}</Tag>
+                </span>
+              </div>
+              <span className={s.mobilNeben}>ISSI: {zeile.issi}</span>
+              {(zeile.funktion || zeile.geraeteTyp) && (
+                <span className={s.mobilNeben}>
+                  {[zeile.funktion, zeile.geraeteTyp].filter(Boolean).join(" · ")}
+                </span>
               )}
-            </div>
-          </Card>
+              <div className={s.mobilMarken}>
+                {zeile.lagerort && <Tag>{zeile.lagerort}</Tag>}
+                {/* Die Marke „Abweichung" 1:1 aus `DeviceList.tsx:220-224`, mit Warndreieck. */}
+                {zeile.hatAbweichung && (
+                  <Tag color="warning" icon={<VIkone name="warnung" />}>
+                    Abweichung
+                  </Tag>
+                )}
+              </div>
+            </Card>
+          </Link>
         )}
       >
         {/*
@@ -528,7 +582,7 @@ export function GeraeteTabelle({
           }}
           onRow={(zeile) => ({
             className: s.tabelleZeile,
-            onClick: () => router.push(`/admin/geraete/${zeile.id}`),
+            onClick: () => router.push(aktenPfad(zeile.id)),
           })}
         />
       </Schmalkarten>

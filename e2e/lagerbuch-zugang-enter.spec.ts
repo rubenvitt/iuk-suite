@@ -52,6 +52,7 @@ test.describe("Lagerbuch Zugang — Enter im Verfallsmonat (DRK-483)", () => {
     const einheit = "Stk.";
     // Nicht der Sentinel „2099-12" (der meint „kein Verfall").
     const verfallsmonat = "2091-07";
+    const verfallsAnzeige = "07/2091";
 
     // ── 1) Eigenen Artikel anlegen ────────────────────────────────────────
     const artikelSeite = await page.goto(lagerbuchUrl("/verwaltung/artikel"));
@@ -67,15 +68,11 @@ test.describe("Lagerbuch Zugang — Enter im Verfallsmonat (DRK-483)", () => {
     await klickeWennRuhig(page.getByRole("button", { name: "Anlegen" }));
     expect((await artikelAntwort).ok(), "Artikel anlegen: Server Action").toBe(true);
 
-    // Ueber die Suche finden, nie ueber Bildlauf (Falle 14).
-    await page.getByRole("searchbox").fill(artikelName);
-    const artikelKnopf = page.getByRole("button", { name: artikelName, exact: true });
-    await expect(artikelKnopf).toBeVisible();
-    await klickeWennRuhig(artikelKnopf);
+    // IDA-378: nach „Anlegen" steht die Schublade des neuen Artikels schon
+    // offen, auf „Buchen" (Zugang) — kein Suchen und Anklicken mehr.
+    await expect(page.getByRole("dialog", { name: artikelName })).toBeVisible();
 
     // ── 2) Zugang ausfuellen, den Monat mit Enter uebernehmen ─────────────
-    // IDA-235: die Schublade oeffnet auf „Übersicht"; „Buchen" steht auf Zugang.
-    await klickeWennRuhig(page.getByRole("tab", { name: "Buchen" }));
     const zugangForm = page.locator('form[data-rolle="zugang-form"]');
     await expect(zugangForm).toBeVisible();
     await zugangForm.getByLabel("Zugangsmenge").fill("3");
@@ -95,7 +92,8 @@ test.describe("Lagerbuch Zugang — Enter im Verfallsmonat (DRK-483)", () => {
     // Der Picker hat uebernommen: das Panel ist zu, der Monat steht im Feld.
     await expect(page.locator(".ant-picker-dropdown:not(.ant-picker-dropdown-hidden)"))
       .toHaveCount(0);
-    await expect(verfallFeld).toHaveValue(verfallsmonat);
+    // IDA-378: angezeigt wird MM/JJJJ, gleich in welcher Schreibweise getippt.
+    await expect(verfallFeld).toHaveValue(verfallsAnzeige);
 
     // ⚠️ EINE NEGATIVE ZUSICHERUNG BRAUCHT EIN ZEITFENSTER. Vor DRK-483 ging die Buchung im
     // selben Tastendruck los (Absendung → Validierung → Server Action, gemessen deutlich unter
@@ -104,7 +102,7 @@ test.describe("Lagerbuch Zugang — Enter im Verfallsmonat (DRK-483)", () => {
     expect(aktionen, "Enter im Verfallsmonat darf nicht buchen").toEqual([]);
     // Und das Formular steht noch — ein Absenden haette es zurueckgesetzt.
     await expect(zugangForm.getByLabel("Chargennummer")).toHaveValue(chargenNr);
-    await expect(verfallFeld).toHaveValue(verfallsmonat);
+    await expect(verfallFeld).toHaveValue(verfallsAnzeige);
 
     // ── 3) Erst der Knopf bucht, mit dem per Enter uebernommenen Monat ────
     const zugangAntwort = serverActionAntwort(page);

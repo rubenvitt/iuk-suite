@@ -155,6 +155,10 @@
     "kind": "excluded",
     "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
   },
+  "src/app/m/verpflegung/(verwaltung)/mhd/page.tsx#redirect:unconditional/catch:1": {
+    "kind": "excluded",
+    "reason": "Alte Adresse der MHD-Kontrolle (IDA-382) — Weiterleitung auf die Bestandsstufe, keine Zugriffsentscheidung; der Riegel ist requireZugang davor."
+  },
   "src/app/m/lagerbuch/o/[ortId]/page.tsx#redirect:unconditional/catch:1": {
     "kind": "excluded",
     "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."

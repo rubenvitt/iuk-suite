@@ -238,7 +238,7 @@ describe("radio-Ausleihen: die sieben Spalten", () => {
     expect(SPALTEN.map((spalte) => spalte.title)).toEqual([
       "Gerät",
       "Typ",
-      "Ausleihende:r",
+      "Ausgeliehen von",
       "Ausgeliehen",
       "Zurückgegeben",
       "Status",
@@ -263,7 +263,7 @@ describe("radio-Ausleihen: die sieben Spalten", () => {
       </>,
     );
 
-    expect(texte("radio-leihe-status")).toEqual(["Aktiv", "Zurückgegeben"]);
+    expect(texte("radio-leihe-status")).toEqual(["Ausgeliehen", "Zurückgegeben"]);
   });
 
   it("das Statuszeichen ist nicht der einzige Traeger", async () => {
@@ -388,7 +388,7 @@ describe("radio-Ausleihen: Nachladen und Filter", () => {
       parameter: { geraet: "g-1", von: "2026-06-01", bis: "", seite: "" },
       cursor: { ausgeliehen: 1_780_000_000, id: "l-1" },
     });
-    expect(texte("radio-leihe-mobil-entleiher")).toEqual(["Anna Beispiel", "Berta Nachgeladen"]);
+    expect(texte("radio-leihe-mobil-entleiher")).toEqual(["Ausgeliehen von Anna Beispiel", "Ausgeliehen von Berta Nachgeladen"]);
     expect(texte("radio-nachladen-stand")).toEqual(["2 Ausleihen"]);
     vi.unstubAllGlobals();
   });
@@ -474,7 +474,7 @@ describe("radio-Ausleihen: Nachladen und Filter", () => {
      */
     await mount(<AusleihenTabelle {...props()} />);
 
-    expect(exists('[aria-label="Ausgeliehen von"]'), "das Von-Feld fehlt").toBe(true);
+    expect(exists('[aria-label="Ausgeliehen ab"]'), "das Von-Feld fehlt").toBe(true);
     expect(exists('[aria-label="Ausgeliehen bis"]'), "das Bis-Feld fehlt").toBe(true);
     /*
      * ⛔ DAS GERAETEFELD HAENGT AN SEINER ROLLE UND NICHT AN SEINER BESCHRIFTUNG. Die zwei
@@ -516,7 +516,7 @@ describe("radio-Ausleihen: Nachladen und Filter", () => {
       queryAll(`${KARTEN} [data-rolle="radio-leihe-status"]`)
         .map((el) => (el.textContent ?? "").trim()),
     ).toEqual(["Zurückgegeben"]);
-    expect(texte("radio-leihe-mobil-entleiher")).toEqual(["Anna Beispiel"]);
+    expect(texte("radio-leihe-mobil-entleiher")).toEqual(["Ausgeliehen von Anna Beispiel"]);
     expect(texte("radio-leihe-mobil-ausgeliehen")).toEqual(["Ausgeliehen: 14.06.2026, 09:12"]);
     expect(texte("radio-leihe-mobil-zurueck")).toEqual(["Zurückgegeben: 15.06.2026, 08:00"]);
     expect(texte("radio-leihe-mobil-notiz")).toEqual(["Kratzer"]);
@@ -750,7 +750,7 @@ describe("radio-Ausleihen: die breite Darstellung (DRK-423)", () => {
     expect(queryAll(`${BREIT} thead th`).map((th) => (th.textContent ?? "").trim())).toEqual([
       "Gerät",
       "Typ",
-      "Ausleihende:r",
+      "Ausgeliehen von",
       "Ausgeliehen",
       "Zurückgegeben",
       "Status",
@@ -780,7 +780,7 @@ describe("radio-Ausleihen: die breite Darstellung (DRK-423)", () => {
       queryAll(`${BREIT} [data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
     expect(queryAll(`${BREIT} tr[data-row-key]`).map((tr) => tr.getAttribute("data-row-key")))
       .toEqual(["l-1", "l-2"]);
-    expect(imBreiten("radio-leihe-status")).toEqual(["Aktiv", "Zurückgegeben"]);
+    expect(imBreiten("radio-leihe-status")).toEqual(["Ausgeliehen", "Zurückgegeben"]);
     expect(imBreiten("radio-leihe-typ")).toEqual(["Motorola MTP3550", "—"]);
     expect(imBreiten("radio-leihe-zurueck")).toEqual(["—", "15.06.2026, 08:00"]);
   });

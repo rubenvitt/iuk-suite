@@ -36,7 +36,7 @@ describe("gateMeldung — die einzige Stelle, an der diese Saetze stehen", () =>
     expect(gateMeldung("code", null))
       .toBe("Dieser Code ist unbekannt oder wurde gesperrt. Wende dich an die Leitung.");
     expect(gateMeldung("gesperrt", null))
-      .toBe("Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung.");
+      .toBe("Dieser Zugangscode wurde gesperrt. Wende dich an die Leitung.");
     expect(gateMeldung("abgelaufen", null))
       .toBe("Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut.");
     expect(gateMeldung("anmeldung", null))

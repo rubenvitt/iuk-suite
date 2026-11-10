@@ -1,7 +1,7 @@
 "use client";
 
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { Kartentabelle, nachZahl, trifftWert, werteAlsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachZahl, trifftWert, werteAlsFilter, Zellentext } from "@/core/tabelle";
 import { zeitText } from "../_lib/heute";
 import { datumLang, mengeText } from "../_lib/mhd";
 import { BUCHUNGS_TEXT, type BuchungDTO } from "../_lib/typen";
@@ -32,12 +32,21 @@ export function BuchungenListe({ zeilen }: { zeilen: BuchungDTO[] }) {
           },
           {
             title: "Artikel", key: "artikel", filters: werteAlsFilter(zeilen, (b) => b.artikelName), filterSearch: true,
-            onFilter: trifftWert<BuchungDTO>((b) => b.artikelName), render: (_: unknown, b: BuchungDTO) => <strong>{b.artikelName}</strong>,
+            onFilter: trifftWert<BuchungDTO>((b) => b.artikelName),
+            // IDA-393: das MHD als leise zweite Zeile unter dem Artikel statt als eigene Spalte.
+            render: (_: unknown, b: BuchungDTO) => (
+              <div>
+                <strong>{b.artikelName}</strong>
+                <div className={`${s.neben} ${s.ziffern}`}>MHD {datumLang(b.mhd)}</div>
+              </div>
+            ),
           },
           { title: "Menge", key: "menge", align: "right", render: (_: unknown, b: BuchungDTO) => <span className={s.ziffern}>{mengeText(b.menge, b.einheit)}</span> },
-          { title: "MHD", key: "mhd", render: (_: unknown, b: BuchungDTO) => <span className={s.mhd}>{datumLang(b.mhd)}</span> },
           { title: "Ort", key: "ort", filters: werteAlsFilter(zeilen, (b) => b.ortKurz), onFilter: trifftWert<BuchungDTO>((b) => b.ortKurz), render: (_: unknown, b: BuchungDTO) => b.ortKurz },
-          { title: "Wofür / Grund", key: "grund", render: (_: unknown, b: BuchungDTO) => b.grund ?? b.ziel ?? "—" },
+          { title: "Wofür / Grund", key: "grund", render: (_: unknown, b: BuchungDTO) => {
+            const text = b.grund ?? b.ziel;
+            return text ? <Zellentext text={text} style={{ maxWidth: "20ch" }} /> : "—";
+          } },
           { title: "Wer", key: "wer", filters: werteAlsFilter(zeilen, (b) => b.wer), filterSearch: true, onFilter: trifftWert<BuchungDTO>((b) => b.wer), render: (_: unknown, b: BuchungDTO) => b.wer },
         ]}
       />

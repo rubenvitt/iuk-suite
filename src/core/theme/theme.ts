@@ -491,7 +491,10 @@ function tabelle(dark: boolean) {
   // `::before` jeder Kopfzelle in `headerSplitColor`; die Haarlinie trennt Spalten nur durch
   // Abstand, Zeilen durch die waagrechte Linie. Über den Token, nicht über CSS gegen
   // `.ant-table-thead` (Falle 5 und 20) — hell wie dunkel, und die Dichten erben ihn.
-  return { ...auswahl, headerSplitColor: "transparent" };
+  // ZEILENHÖHE HÖCHSTENS 56PX MIT EINEM 44PX-BEDIENELEMENT (IDA-393): antds 16px oben und unten
+  // machten jede Zeile mit Knopf 77px hoch, und 12px statt 16px seitlich geben bei zehn Spalten
+  // rund 80px Breite zurück. 44 + 2 × 5 + 1px Linie = 55.
+  return { ...auswahl, headerSplitColor: "transparent", cellPaddingBlock: 5, cellPaddingInline: 12 };
 }
 
 /**

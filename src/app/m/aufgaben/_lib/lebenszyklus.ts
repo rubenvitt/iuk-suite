@@ -209,14 +209,14 @@ export function uebergang(
     if (!ZURUECKZIEHBAR.includes(a.status)) {
       return {
         erlaubt: false,
-        grund: `Zurueckziehen ist nur moeglich, solange niemand an der Aufgabe arbeitet — diese Aufgabe ist "${a.status}" und hat bereits eine Geschichte mit Dokumentationswert.`,
+        grund: `Zurückziehen ist nur möglich, solange niemand an der Aufgabe arbeitet — diese Aufgabe ist "${a.status}" und hat bereits eine Geschichte mit Dokumentationswert.`,
       };
     }
     if (!darfAufgabeVerwalten(akteur, a, heute)) {
       return {
         erlaubt: false,
         accessDenied: true,
-        grund: "Nur die Erstellerin bzw. der Ersteller oder die Koordination kann diese Aufgabe zurueckziehen.",
+        grund: "Nur die Erstellerin bzw. der Ersteller oder die Koordination kann diese Aufgabe zurückziehen.",
       };
     }
     return { erlaubt: true, wirkung: "loeschen" };
@@ -235,7 +235,7 @@ export function uebergang(
     return {
       erlaubt: false,
       accessDenied: true,
-      grund: `Diese Person darf die Aktion "${aktion}" fuer diese Aufgabe nicht ausfuehren.`,
+      grund: `Diese Person darf die Aktion "${aktion}" für diese Aufgabe nicht ausführen.`,
     };
   }
   return { erlaubt: true, wirkung: "aendern", nach: regel.nach, planLoeschen: regel.planLoeschen ?? false };
@@ -278,7 +278,7 @@ export function anfangsZustand(
   if (!darfEinstellenFuerAndere(ersteller, heute)) {
     return {
       erlaubt: false,
-      grund: "Nur Auftraggeber oder die Koordination koennen Aufgaben fuer andere einstellen.",
+      grund: "Nur Auftraggeber oder die Koordination können Aufgaben für andere einstellen.",
     };
   }
   return { erlaubt: true, status: "eingegangen", zugewiesenAn: null, istSelbst: false };

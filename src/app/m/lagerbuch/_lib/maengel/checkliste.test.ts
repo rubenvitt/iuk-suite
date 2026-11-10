@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bereinigePunkte, checklisteFuer, ortsartAus, SONSTIGES } from "./checkliste";
+import { bereinigePunkte, checklisteFuer, ortsartAus, punktFuerGeraet, SONSTIGES } from "./checkliste";
 
 describe("Checkliste einer Mängelmeldung", () => {
   it("leitet die Ortsart aus Typ und Einheitenart ab", () => {
@@ -22,5 +22,15 @@ describe("Checkliste einer Mängelmeldung", () => {
     expect(bereinigePunkte([SONSTIGES, "erfunden", fahrzeug[0], fahrzeug[0], 7], "fahrzeug"))
       .toEqual([fahrzeug[0], SONSTIGES]);
     expect(bereinigePunkte(["Tasche beschädigt"], "schrank")).toEqual([]);
+  });
+});
+
+describe("punktFuerGeraet — IDA-377", () => {
+  it("nimmt den Punkt der Ortsart, sonst „Etwas anderes“", () => {
+    expect(punktFuerGeraet("fahrzeug", false)).toBe("Gerät im Fahrzeug defekt");
+    expect(punktFuerGeraet("tasche", false)).toBe("Gerät in der Tasche defekt");
+    expect(punktFuerGeraet("einheit", false)).toBe("Gerät defekt");
+    expect(punktFuerGeraet("fahrzeug", true)).toBe("Ausrüstung fehlt");
+    expect(punktFuerGeraet("schrank", true)).toBe(SONSTIGES);
   });
 });

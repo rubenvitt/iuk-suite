@@ -288,7 +288,7 @@ test("4 — die anonyme Abgabe erscheint im Posteingang des anderen Hosts und is
   // abgebende Person gemacht hat, und ohne sie wäre die Ansicht eine
   // Dateiliste statt eines Postfachs.
   await expect(zeile()).toContainText(hinweis);
-  await expect(zeile()).toContainText("dokumente");
+  await expect(zeile()).toContainText("Dokumente");
   // Und der Abgabelink, an dem sie hängt: `token_start` im Klartext.
   await expect(zeile()).toContainText(token.slice(0, 7));
 
@@ -297,8 +297,11 @@ test("4 — die anonyme Abgabe erscheint im Posteingang des anderen Hosts und is
     await expect(zeile()).toContainText("freigegeben");
   }).toPass({ timeout: 60_000 });
 
-  const adresse = await zeile()
-    .locator("[data-testid^='files-inbox-download-']")
+  // Seit IDA-393 liegt „Herunterladen" im Zeilenmenue.
+  await zeile().getByRole("button", { name: `Aktionen für ${dateiname}` }).click();
+  const adresse = await page
+    .getByRole("menuitem", { name: "Herunterladen" })
+    .getByRole("link")
     .getAttribute("href");
   expect(adresse, "der Download-Knopf trägt keine Adresse").not.toBeNull();
 

@@ -20,6 +20,7 @@ import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import type { DB } from "../../_db/client";
 import { devices, users, type Geraet } from "../../_db/schema";
 import { datumMitUhrzeit } from "../anzeige";
+import { einsatzbereitschaftAus, statusText } from "../einsatzbereitschaft";
 import { berechneUpdateStand, type UpdateStand } from "../updateStand";
 import { SORTIER_SCHLUESSEL, SUCHFELDER, SUCHFELDER_VORGABE, type Sortierspalte, type Suchfeld } from "../geraeteFelder";
 import { zielVersion } from "./versionen";
@@ -977,4 +978,33 @@ export function geraetFormWerte(db: DB, id: string): GeraetFormWerte | null {
     updateNote: d.updateNote,
     updateStand: berechneUpdateStand(d.softwareVersion, zielVersion(db)),
   };
+}
+
+/** Ein Gerät, das nicht raus darf — für „Nicht einsatzbereit" auf der Übersicht (IDA-383). */
+export type NichtEinsatzbereitZeile = Pick<GeraetZeile, "id" | "rufname" | "opta" | "issi"> & {
+  status: string;
+};
+
+/**
+ * DIE GERÄTE, DIE NICHT EINSATZBEREIT SIND, nach Rufname sortiert. `devices.status` ist Freitext;
+ * die Einteilung macht `einsatzbereitschaftAus` in JavaScript, deshalb liest SQL nur die Zeilen
+ * mit einem gepflegten Wert. Ausgemusterte fallen heraus.
+ */
+export function nichtEinsatzbereit(db: DB): NichtEinsatzbereitZeile[] {
+  return db
+    .select({
+      id: devices.id,
+      rufname: devices.rufname,
+      opta: devices.opta,
+      issi: devices.issi,
+      status: devices.status,
+    })
+    .from(devices)
+    .where(and(isNotNull(devices.status), ne(devices.status, "")))
+    .all()
+    .filter((z) => einsatzbereitschaftAus(z.status) === "nicht-einsatzbereit")
+    .map((z) => ({ ...z, status: statusText(z.status) }))
+    .sort((a, b) =>
+      (a.rufname || a.opta || a.issi).localeCompare(b.rufname || b.opta || b.issi, "de"),
+    );
 }

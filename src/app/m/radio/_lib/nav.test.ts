@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { radioNav } from "./nav";
 import { VERWALTUNGS_PFADE } from "./routen";
 
@@ -83,7 +84,7 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
     const nurAdmin = radioNav("admin").filter((eintrag) => !updaterSchluessel.has(eintrag.key));
 
     expect(nurAdmin.map((eintrag) => eintrag.key)).toEqual(["import", "versionen", "zugaenge"]);
-    expect(nurAdmin.map((eintrag) => eintrag.title)).toEqual(["Import", "Softwareversionen", "Zugänge"]);
+    expect(nurAdmin.map((eintrag) => eintrag.title)).toEqual(["Import", "Softwareversionen", "Zugangscodes"]);
   });
 
   it("jeder href der Admin-Navigation zeigt auf eine Route der Routenkarte", () => {
@@ -201,7 +202,7 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
    *
    * ⚠️ DIE TITEL TRAGEN IHRE UMLAUTE: es sind Bildschirmtexte, keine Bezeichner — die
    * ausdrueckliche Ausnahme der Hausregel (`.superpowers/sdd/planteil4/briefs/KOPF.md:259-261`),
-   * mit Vorbild in derselben Datei auf `:86` („Zugänge").
+   * mit Vorbild in derselben Datei auf `:86` („Zugangscodes").
    *
    * ⬜ DIE STAERKERE FORM IST HEUTE NICHT BAUBAR, EIGENTUEMER V20. Das Vorbild des Hauses
    * schluesselt die Navigation gegen den ECHTEN Seiten-Export und begruendet es woertlich
@@ -221,7 +222,7 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
       ["software", "Update-Modus", "/admin/software", "update"],
       ["import", "Import", "/admin/import", "import"],
       ["versionen", "Softwareversionen", "/admin/versionen", "versionen"],
-      ["zugaenge", "Zugänge", "/admin/zugaenge", "tokens"],
+      ["zugaenge", "Zugangscodes", "/admin/zugaenge", "tokens"],
     ]);
   });
 
@@ -268,5 +269,18 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
       radioNav("admin"),
       "radioNav reicht den Modulzustand nach draussen — eine Aenderung am Prop schriebe zurueck",
     ).not.toBe(radioNav("admin"));
+  });
+});
+
+describe("radioNav — die Akte markiert „Geräte“", () => {
+  it("Geräteakte und Änderungshistorie markieren den Eintrag Geräte", () => {
+    const nav = radioNav("admin");
+    expect(aktiverEintrag("/admin/geraete", nav)).toEqual({ schluessel: "geraete", genau: true });
+    expect(aktiverEintrag("/admin/geraete/g-1", nav)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/admin/geraete/g-1/ereignisse", nav)).toEqual({
+      schluessel: "geraete",
+      genau: false,
+    });
+    expect(aktiverEintrag("/admin", nav)).toEqual({ schluessel: "uebersicht", genau: true });
   });
 });

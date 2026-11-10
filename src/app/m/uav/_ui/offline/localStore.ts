@@ -221,7 +221,14 @@ export function personenSpeicher(besitzer: string) {
         const idx = queue.findIndex((q) => q.art === "taskStatus" && q.daten.taskId === eintrag.daten.taskId);
         if (idx >= 0) {
           const bestehend = queue[idx] as { art: "taskStatus"; daten: TaskStatusDTO };
-          if (eintrag.daten.updatedAt >= bestehend.daten.updatedAt) queue[idx] = eintrag;
+          // `zielanzahl: null` heißt „Ziel nicht anfassen" (IDA-389) — ein noch
+          // ausstehendes, ausdrücklich gesetztes Ziel bleibt beim Zusammenfassen stehen.
+          if (eintrag.daten.updatedAt >= bestehend.daten.updatedAt) {
+            queue[idx] = {
+              art: "taskStatus",
+              daten: { ...eintrag.daten, zielanzahl: eintrag.daten.zielanzahl ?? bestehend.daten.zielanzahl },
+            };
+          }
         } else {
           queue.push(eintrag);
         }
@@ -313,7 +320,7 @@ export function personenSpeicher(besitzer: string) {
      * Baut aus einem autoritativen Server-Snapshot den lokalen Fortschritt neu
      * auf (Server ist autoritativ) und schreibt ihn (inkl. Benachrichtigung).
      * Universum = aktueller Katalog; effektive Zielanzahl =
-     * `taskStatus.zielanzahl ?? task.zielanzahlDefault`; Tombstones zählen nicht.
+     * `max(task.zielanzahlDefault, taskStatus.zielanzahl)`; Tombstones zählen nicht.
      */
     snapshotAnwenden(
       snapshot: ProgressSnapshot,
@@ -339,7 +346,10 @@ export function personenSpeicher(besitzer: string) {
       // Änderungen gewinnen, damit eine während des Syncs eingegangene Änderung
       // nicht kurz aus der UI verschwindet (§9).
       for (const e of pending.executions) execAufnehmen(e);
-      for (const s of pending.taskStatus) statusByTask.set(s.taskId, s);
+      for (const s of pending.taskStatus) {
+        // `null` = Ziel nicht anfassen: das Ziel aus dem Snapshot gilt weiter.
+        statusByTask.set(s.taskId, { ...s, zielanzahl: s.zielanzahl ?? statusByTask.get(s.taskId)?.zielanzahl ?? null });
+      }
 
       // Lokal-only Executions nachqueuen (Spec §3 #4): eine Execution, die im
       // Fortschritt DIESES Besitzers (oder in seinem Altbestand) steht, aber WEDER
@@ -387,7 +397,8 @@ export function personenSpeicher(besitzer: string) {
         if (!statusWeichtAb(f, t)) continue;
         const daten: TaskStatusDTO = {
           taskId: t.id,
-          zielanzahl: f.zielanzahl,
+          // Das Katalogziel nicht als Statusziel festschreiben (IDA-389).
+          zielanzahl: f.zielanzahl === t.zielanzahlDefault ? null : f.zielanzahl,
           nichtAnwendbar: f.nichtAnwendbar,
           updatedAt: new Date().toISOString(),
         };
@@ -403,7 +414,7 @@ export function personenSpeicher(besitzer: string) {
       const fortschritt: FortschrittMap = {};
       for (const t of katalog) {
         const st = statusByTask.get(t.id);
-        const ziel = Math.max(1, st?.zielanzahl ?? t.zielanzahlDefault);
+        const ziel = Math.max(1, t.zielanzahlDefault, st?.zielanzahl ?? 0); // IDA-389: nie unter dem Katalogziel
         const durchfuehrungen = (execByTask.get(t.id) ?? []).map((e) => ({
           id: e.id,
           datum: e.datum,

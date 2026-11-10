@@ -293,7 +293,7 @@ function istRekursivJsonSicher(wert: unknown): boolean {
 }
 
 describe("FahrzeugeListe — Spalten und Status", () => {
-  it("trägt die sieben Spalten, stabile Zeilen und den äußeren Detail-Link", async () => {
+  it("trägt die sechs Spalten, stabile Zeilen und den äußeren Detail-Link", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
     /**
@@ -304,18 +304,17 @@ describe("FahrzeugeListe — Spalten und Status", () => {
      */
     expect(queryAll("thead th").map((spalte) => spalte.textContent)).toEqual([
       /*
-       * ⚠️ „Einheit" UND „Art" SIND DRK-309. Die Liste fuehrt seither
-       * Fahrzeuge UND Taschen; „Fahrzeug" als Spaltenkopf ueber einer Zeile,
-       * die „Sanitätstasche 1" heisst, waere die Behauptung, es gaebe nur
-       * eine Art. Die Art steht DIREKT daneben, weil sie „was ist das hier?"
-       * beantwortet — die Frage vor „wie voll ist es?".
+       * ⚠️ „Einheit" IST DRK-309. Die Liste fuehrt seither Fahrzeuge UND
+       * Taschen; „Fahrzeug" als Spaltenkopf ueber einer Zeile, die
+       * „Sanitätstasche 1" heisst, waere die Behauptung, es gaebe nur eine
+       * Art. Die Art steht seit IDA-393 DIREKT UNTER dem Namen (vorher eine
+       * Spalte daneben), der Status direkt dahinter.
        */
       "Einheit",
-      "Art",
+      "Status",
       "Vorlage",
       "Bestückung",
       "Verfall",
-      "Status",
       "Zuletzt geprüft",
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Fahrzeuge und Taschen");
@@ -332,10 +331,10 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     expect(query(`tr[data-row-key='f1'] [data-statuschip=fehler]`).textContent).toContain("2 unter Soll");
     expect(query(`tr[data-row-key='f2'] [data-statuschip=warnung]`).textContent).toContain("1 läuft ab");
     expect(query(`tr[data-row-key='f2'] [data-statuschip=ok]`).textContent).toContain("auf Soll");
-    // Der Verfallschip sitzt in Spalte 4, der Statuschip in Spalte 5.
+    // Der Verfallschip sitzt in Spalte 5, der Statuschip in Spalte 2.
     expect(query(`tr[data-row-key='f2'] td:nth-child(5) [data-statuschip=warnung]`).textContent)
       .toContain("1 läuft ab");
-    expect(query(`tr[data-row-key='f3'] td:nth-child(6) [data-statuschip=neutral]`).textContent)
+    expect(query(`tr[data-row-key='f3'] td:nth-child(2) [data-statuschip=neutral]`).textContent)
       .toContain("inaktiv");
     expect(query("tr[data-row-key='f4']").textContent).toContain("noch nie geprüft");
   });
@@ -614,21 +613,22 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
   it("zeigt die Art als Chip und macht auch den Zwischenstand anwählbar", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
-    const artSpalte = (id: string) => query(`tr[data-row-key='${id}'] td:nth-child(2)`);
+    // IDA-393: die Art ist die zweite Zeile der Spalte „Einheit", ihr Filter sitzt dort im Kopf.
+    const artSpalte = (id: string) => query(`tr[data-row-key='${id}'] td:nth-child(1) > div`);
     expect(artSpalte("f1").textContent).toBe("Fahrzeug");
     expect(artSpalte("f4").textContent).toBe("Tasche");
     expect(artSpalte("f2").textContent).toBe("nicht zugeordnet");
 
-    await spaltenFilter("Art", "Tasche");
+    await spaltenFilter("Einheit", "Tasche");
     expect(zeilenIds()).toEqual(["f4"]);
 
-    await spaltenFilter("Art");
-    await spaltenFilter("Art", "nicht zugeordnet");
+    await spaltenFilter("Einheit");
+    await spaltenFilter("Einheit", "nicht zugeordnet");
     expect(zeilenIds()).toEqual(["f2"]);
 
-    await spaltenFilter("Art");
+    await spaltenFilter("Einheit");
     // Veroderung INNERHALB der Spalte, wie ueberall sonst auch.
-    await spaltenFilter("Art", "Fahrzeug", "Tasche");
+    await spaltenFilter("Einheit", "Fahrzeug", "Tasche");
     expect(zeilenIds()).toEqual(["f1", "f3", "f4"]);
   });
 
@@ -642,15 +642,15 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
   it("faerbt den Zwischenstand grau und nicht warnend", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
-    const offen = query("tr[data-row-key='f2'] td:nth-child(2)");
+    const offen = query("tr[data-row-key='f2'] td:nth-child(1) > div");
     expect(offen.querySelector(`[data-statuschip=neutral]`)).not.toBeNull();
     expect(offen.querySelector(`[data-statuschip=warnung]`)).toBeNull();
     expect(offen.querySelector(`[data-statuschip=fehler]`)).toBeNull();
     expect(offen.querySelector("[data-zeichen]")).toBeNull();
 
-    expect(query("tr[data-row-key='f4'] td:nth-child(2) [data-zeichen]")
+    expect(query("tr[data-row-key='f4'] td:nth-child(1) [data-zeichen]")
       .getAttribute("data-zeichen")).toBe("tasche");
-    expect(query("tr[data-row-key='f1'] td:nth-child(2) [data-zeichen]")
+    expect(query("tr[data-row-key='f1'] td:nth-child(1) [data-zeichen]")
       .getAttribute("data-zeichen")).toBe("fahrzeug");
   });
 

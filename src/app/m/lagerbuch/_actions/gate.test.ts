@@ -391,18 +391,23 @@ describe("einloesenAmGate — Schritt 6: Misserfolg", () => {
     expect(gesperrt.fehler).toBe(CODE_TEXT);
   });
 
-  it("ein leeres Feld ist ein Fehlversuch wie jeder andere", async () => {
-    // „Wie jeder andere" ist die Zusage, und sie hat drei Haelften: der leere
-    // Code laeuft bis in die Einloesung (keine Abkuerzung davor), er wird
-    // gebucht, und er bekommt denselben Satz. Ein `toBeTruthy()` auf `fehler`
-    // allein truege keine davon.
+  it("ein leeres Feld bekommt seinen eigenen Satz — ohne Codesuche und ohne Buchung", async () => {
+    // IDA-380: vorher lief das leere Feld bis in die Einloesung, wurde gebucht
+    // und bekam „unbekannt oder gesperrt". Ein leeres Feld kann nie ein Treffer
+    // sein; es zu buchen, kostete den gemeinsamen Eimer einen Versuch fuer ein
+    // zu frueh getipptes „Weiter". Leerzeichen und Trenner zaehlen als leer.
+    for (const roh of ["", "   ", " - "]) {
+      const r = await einloesenAmGate({}, form({ code: roh }));
+      expect(r.fehler).toBe("Bitte den Code eingeben.");
+    }
+    expect(redeemToken).not.toHaveBeenCalled();
+    expect(gateFehlversuchBuchen).not.toHaveBeenCalled();
+  });
+
+  it("Leerzeichen am Rand und als Gruppierung stoeren nicht: ` 100 100 ` findet `100-100`", async () => {
     redeemToken.mockResolvedValue({ ok: false });
-
-    const r = await einloesenAmGate({}, form({ code: "" }));
-
-    expect(redeemToken.mock.calls[0]?.[0]).toBe("");
-    expect(gateFehlversuchBuchen).toHaveBeenCalledTimes(1);
-    expect(r.fehler).toBe(CODE_TEXT);
+    await einloesenAmGate({}, form({ code: " 100 100 " }));
+    expect(redeemToken.mock.calls[0]?.[0]).toBe("100-100");
   });
 });
 

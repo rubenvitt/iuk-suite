@@ -180,7 +180,7 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
 
     // 5) Eine im Regal gefundene Charge ergaenzen.
     const menge = breit(page).getByLabel("Menge der neuen Charge", { exact: true });
-    await breit(page).getByLabel("MHD der neuen Charge", { exact: true }).fill(NEU_MHD);
+    await breit(page).getByLabel("Verfall der neuen Charge", { exact: true }).fill(NEU_MHD);
     await breit(page).getByLabel("Chargennummer der neuen Charge", { exact: true }).fill(neueNr);
     await menge.fill(String(NEU_MENGE));
     const ergaenzen = page.getByRole("button", { name: "Charge ergänzen", exact: true });
@@ -199,6 +199,8 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
       r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined
     ));
     await klickeWennRuhig(abschluss);
+    // IDA-379 — erst die Rueckfrage mit der Folge, dann wird gebucht.
+    await klickeWennRuhig(page.locator(".ant-popconfirm").getByRole("button", { name: "Buchen", exact: true }));
     expect((await antwort).ok()).toBe(true);
     const erfolg = page.locator(".ant-alert-success");
     await expect(erfolg).toContainText("Inventur gebucht");
@@ -293,6 +295,7 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
       r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined
     ));
     await klickeWennRuhig(page.locator("button[data-rolle='abschluss']"));
+    await klickeWennRuhig(page.locator(".ant-popconfirm").getByRole("button", { name: "Buchen", exact: true }));
     expect((await antwort).ok()).toBe(true);
     await expect(page.locator(".ant-alert-success")).toContainText("1 Position korrigiert");
 

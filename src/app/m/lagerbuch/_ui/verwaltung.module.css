@@ -87,6 +87,23 @@
   align-items: start;
 }
 
+/*
+ * IDA-378 — Monatsfeld und „ohne Verfall" untereinander in einer Spalte von
+ * `.buchungsfelder`. Die Checkbox-Zeile bekommt die Trefferflaeche der
+ * Arbeitsdichte (44px, Falle 4) — wie bei `.ortWahl` erbt sie keine Hoehe von
+ * `controlHeight`. Zwei Klassen gegen antds eine (Falle 5): `align-items`
+ * setzt antd am Wrapper auf `baseline`.
+ */
+.verfallsmonat {
+  display: grid;
+  gap: 4px;
+}
+
+.verfallsmonat .ohneVerfall {
+  min-height: 44px;
+  align-items: center;
+}
+
 /* IDA-235 — Lesemodus der Stammdaten: Feldname ueber Wert, im selben Raster. */
 .stammdatenListe {
   display: grid;

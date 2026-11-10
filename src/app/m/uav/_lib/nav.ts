@@ -34,29 +34,16 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * (Begruendung dort).
  */
 export const UAV_NAV: SuiteNavItem[] = [
-  { key: "teilnehmer", title: "Teilnehmer", href: "/admin", ikon: "teilnehmer", abschnitt: "Verwaltung" },
-  { key: "katalog", title: "Aufgabenkatalog", href: "/admin/katalog", ikon: "katalog", abschnitt: "Verwaltung" },
+  // `unterseiten`: `/admin/teilnehmer/<id>` markiert „Teilnehmer" mit (IDA-389); der
+  // längere `/admin/katalog` gewinnt für seine eigenen Unterseiten.
+  { key: "teilnehmer", title: "Teilnehmer", href: "/admin", ikon: "teilnehmer", abschnitt: "Verwaltung", unterseiten: true },
+  { key: "katalog", title: "Aufgabenkatalog", href: "/admin/katalog", ikon: "katalog", abschnitt: "Verwaltung", unterseiten: true },
 
-  // ⚠️ `href: "/"` IST ZUGLEICH DER WURZEL-FALLBACK VON `aktiverEintrag`
-  // (`core/shell/SuiteNav.tsx`), UND DAS HAT EINE HEUTE SICHTBARE NEBENWIRKUNG: auf
-  // jeder Seite, auf die kein anderer Eintrag passt, wird DIESER hervorgehoben — mit
-  // `aria-current="true"` statt `"page"`. Auf `/admin/teilnehmer/<id>` heisst das:
-  // „Trainingsansicht" traegt die Markierung, obwohl man in der Teilnehmerverwaltung
-  // steht. `aktiverEintrag` vergleicht per SUFFIX (wegen des Proxy-Rewrites), und
-  // `/admin/teilnehmer/<id>` endet nicht auf `/admin`.
-  //
-  // Im Browser nachgemessen und BESTEHT SEIT AUFGABE 15, nicht erst seit dieser
-  // Ueberarbeitung — die Leiste trug schon vorher einen Eintrag mit `href: "/"`.
-  // `lagerbuch/_lib/nav.ts` kennt genau diese Falle und weicht ihr aus, indem es
-  // GAR KEINEN Wurzel-Eintrag fuehrt; hier geht das nicht: der Weg zurueck in die
-  // Trainingsansicht ist die Modulwurzel, und die Kopfzeile bietet ihn nicht an (der
-  // Modultitel ist dort der App-Umschalter, kein Link).
-  //
-  // ⛔ NICHT IM ALLEINGANG IN `core` REPARIERT. Die saubere Abhilfe waere, dass
-  // `aktiverEintrag` einen Pfad, der UNTER einem anderen Eintrag liegt, diesem Eintrag
-  // zuschlaegt statt der Wurzel — das ist eine Verhaltensaenderung fuer JEDES Modul mit
-  // Navigation und gehoert einer eigenen Aufgabe mit eigenem Browser-Lauf, nicht dieser.
-  // Der Massstab aus `docs/design/README.md` verlangt fuer `core` ohnehin einen zweiten,
-  // heute belegbaren Nutzniesser.
+  // `href: "/"` IST ZUGLEICH DER WURZEL-FALLBACK VON `aktiverEintrag`
+  // (`core/shell/SuiteNav.tsx`). Bis IDA-389 hiess das: auf `/admin/teilnehmer/<id>`
+  // trug „Trainingsansicht" die Markierung, weil der Pfad auf keinen Eintrag ENDET.
+  // Seither traegt „Teilnehmer" `unterseiten` und nimmt die Markierung
+  // (`aria-current="true"`); die Wurzel bleibt fuer Seiten, die unter gar
+  // keinem Eintrag mit diesem Opt-in liegen.
   { key: "training", title: "Trainingsansicht", href: "/", ikon: "training", abschnitt: "Ansehen" },
 ];

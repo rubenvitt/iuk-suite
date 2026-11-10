@@ -27,6 +27,8 @@ function alsKarte(m: MangelZeile, format: ZeitFormat): MangelKarte {
     gemeldet: format.format(m.createdAt),
     erledigt: m.erledigtAt ? format.format(m.erledigtAt) : null,
     erledigtVermerk: m.erledigtVermerk,
+    geraet: m.geraet,
+    ausCheck: m.ausCheck,
   };
 }
 
