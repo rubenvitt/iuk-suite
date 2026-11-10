@@ -48,11 +48,11 @@ const NIE_AENDERND = () => () => {};
  * aufgerufene Seite WIRKLICH ist.
  *
  * `genau` ist keine Feinheit, sondern der Unterschied zwischen einer wahren und
- * einer falschen Aussage gegenueber einem Screenreader. Der Wurzel-Fallback
- * unten greift auf JEDER Seite, auf die kein Eintrag passt (`/wifi`, `/tel`,
- * `/contact`, `/groups/17`, `/trend`, `/auswertung` — gemessen sechs Routen).
- * Truege der Wurzel-Eintrag dort `aria-current="page"`, behauptete er „das hier
- * ist die aktuelle Seite" ueber eine Seite, die es nicht ist. Deshalb liefert
+ * einer falschen Aussage gegenueber einem Screenreader. Auf einer Unterseite
+ * (`/geraete/123` unter „Geräte") ist der Eintrag der Abschnitt, nicht die
+ * Seite; truege er dort `aria-current="page"`, behauptete er „das hier ist die
+ * aktuelle Seite" ueber eine Seite, die es nicht ist (der Fund aus dem
+ * Abschlussreview, damals am Wurzel-Fallback auf `/wifi`). Deshalb liefert
  * diese Funktion beides, und der Aufrufer waehlt daraus `"page"` (genau) oder
  * `"true"` (Abschnitt).
  */
@@ -61,53 +61,69 @@ export interface AktiverEintrag {
   schluessel: string;
   /**
    * `true` — dieser Eintrag IST die aufgerufene Seite (`aria-current="page"`).
-   * `false` — nur der Abschnitt stimmt (Wurzel-Fallback, `aria-current="true"`).
+   * `false` — nur der Abschnitt stimmt (Unterseite oder `auffang`, `aria-current="true"`).
    */
   genau: boolean;
 }
 
 /**
+ * Der innere Pfadraum eines Moduls auf dem Apex-Host (`core/routing.ts`,
+ * `decideRoute`: `/vergleich` -> `/m/feedback/vergleich`). Nur dieses EINE
+ * fuehrende Paar wird abgeschnitten, und nur, wenn es vorne steht.
+ */
+const INNERER_PRAEFIX = /^\/m\/[^/]+(?=\/|$)/;
+
+/** `true`, wenn `href` segmentgenau am Anfang von `pfad` steht — `/geraete` passt auf `/geraete/7`, nie auf `/geraete-x`. */
+function istPfadanfang(href: string, pfad: string): boolean {
+  if (href === "/") return pfad === "/";
+  return pfad === href || pfad.startsWith(`${href}/`);
+}
+
+/**
  * Welcher Navigationseintrag ist der aktive? Exportiert, weil das die einzige
  * Stelle mit echter Logik in dieser Datei ist und sie sich ohne DOM pruefen
- * laeszt.
+ * laeszt. DIE REGEL (IDA-392): der Eintrag, dessen `href` segmentgenau am
+ * ANFANG des Pfads steht, gewinnt, der laengste zuerst; exakt -> `genau`.
  *
- * Drei Faellen wird hier ausgewichen:
+ * 1. **Der Proxy schreibt um.** Was `usePathname()` liefert, ist unter Next
+ *    16.2.6 NACHGEMESSEN der aeuszere Pfad (`data-pfad` am `modulnav`, `curl`
+ *    gegen `qr.localtest.me`: `/` -> `/`, `/wifi` -> `/wifi`); auf dem
+ *    Apex-Host ist es der innere (`/m/feedback/vergleich`). Bis IDA-392 fing
+ *    ein SUFFIX-Vergleich beides ab — er fand aber nur die Seite des Eintrags
+ *    selbst: `/geraete/123` endet nicht auf `/geraete`, und die Geraeteakte
+ *    fiel auf die Uebersicht zurueck. Ein Pfadanfang braucht dagegen den
+ *    Anfang, und der ist unter dem Rewrite `/m/<key>`. Deshalb wird GENAU
+ *    dieses Praefix abgeschnitten (`INNERER_PRAEFIX`) — die Funktion kennt
+ *    damit die Rewrite-Konvention, aber nur ihre eine feste Form. Die
+ *    Alternative, `href` an JEDER Segmentgrenze zu suchen, kaeme ohne dieses
+ *    Wissen aus, schluege aber fremde Pfadraeume zu (`/admin/geraete/7`
+ *    markierte einen Eintrag `/geraete`); das ist der schlechtere Tausch.
  *
- * 1. **Der Proxy schreibt um.** `/vergleich` wird zu `/m/feedback/vergleich`,
- *    und was `usePathname()` unter einem Rewrite liefert — den aeuszeren oder
- *    den inneren Pfad — haengt an der Next-Version. Ein Vergleich auf
- *    Gleichheit waere still falsch: nichts wuerde je markiert, und der
- *    Unit-Test faellt nicht darauf herein, weil er `usePathname` mockt. Deshalb
- *    Suffix-Vergleich, und deshalb prueft der E2E `aria-current` am laufenden
- *    Server.
+ * 2. **Die Wurzel `/` ist Pfadanfang von allem** und deshalb nur exakt ein
+ *    Treffer. Seiten, die zu keinem Eintrag gehoeren (`/profil` im Portal,
+ *    `/etiketten` in der Verpflegung), markieren NICHTS: die „Übersicht"
+ *    dort hervorzuheben behauptete einen Ort, an dem man nicht ist — genau der
+ *    Befund aus IDA-392. Wo die Wurzel fachlich die Seiten ohne eigenen
+ *    Eintrag TRAEGT (der QR-Generator seine Arten `/wifi`, `/tel`; die
+ *    Planliste ihre Plaene `/p/<id>`), sagt das Modul es am Eintrag
+ *    (`auffang: true`, `types.ts`) — dann ist er Abschnitt (`genau: false`),
+ *    wie bis IDA-392 jede Wurzel. Opt-in, weil nur das Modul weiss, ob seine
+ *    Wurzel eine Uebersicht oder eine Liste ist.
  *
- * 2. **`/` ist Suffix von nichts.** `"/m/feedback".endsWith("/")` ist `false` —
- *    die Uebersicht waere auf ihrer eigenen Seite nie markiert. Und ein
- *    naiver Suffix-Test in die andere Richtung markierte sie auf JEDER
- *    Unterseite mit. Deshalb: der spezifischste Nicht-Wurzel-Treffer gewinnt,
- *    und nur wenn keiner passt, ist die Wurzel dran.
- *
- * 3. **Der Fallback ist kein Treffer.** Genau deshalb `genau: pfad === "/"` und
- *    nicht `genau: true` fuer die Wurzel. Dass die Modulwurzel unter dem
- *    Rewrite tatsaechlich als `"/"` ankommt (und nicht als `/m/qr`), ist
- *    NACHGEMESSEN und nicht angenommen: ein `data-pfad`-Attribut am
- *    `modulnav`, `curl` gegen `qr.localtest.me` unter Next 16.2.6 — `/` -> `/`,
- *    `/wifi` -> `/wifi`. `usePathname()` liefert den AEUSZEREN Pfad. Sollte
- *    eine kuenftige Next-Version den inneren liefern, faellt die Wurzel von
- *    `"page"` auf `"true"` zurueck — eine schwaechere, aber immer noch wahre
- *    Aussage, und der E2E „markiert die Uebersicht auf der Modulwurzel" zeigt
- *    es sofort an. Ein Praefix-Abschneiden von `/m/<key>` waere die Alternative
- *    gewesen und ist bewusst NICHT gewaehlt: diese Funktion soll die
- *    Rewrite-Konvention gerade nicht kennen.
+ * 3. **Unterseite ist kein Treffer.** `genau` nur, wenn der Pfad dem `href`
+ *    gleich ist (aeuszere oder innere Form); jede Unterseite und der Auffang
+ *    sagen `"true"`.
  */
 export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintrag | null {
+  const ohneSchraegstrich = pfad.length > 1 ? pfad.replace(/\/+$/, "") || "/" : pfad;
+  const innen = INNERER_PRAEFIX.exec(ohneSchraegstrich);
+  const formen = innen ? [ohneSchraegstrich, ohneSchraegstrich.slice(innen[0].length) || "/"] : [ohneSchraegstrich];
   const treffer = nav
-    .filter((e) => e.href !== "/" && (pfad === e.href || pfad.endsWith(e.href)))
+    .filter((e) => formen.some((f) => istPfadanfang(e.href, f)))
     .sort((a, b) => b.href.length - a.href.length)[0];
-  if (treffer) return { schluessel: treffer.key, genau: true };
-  const wurzel = nav.find((e) => e.href === "/");
-  if (!wurzel) return null;
-  return { schluessel: wurzel.key, genau: pfad === wurzel.href };
+  if (treffer) return { schluessel: treffer.key, genau: formen.includes(treffer.href) };
+  const auffang = nav.find((e) => e.auffang);
+  return auffang ? { schluessel: auffang.key, genau: false } : null;
 }
 
 /**

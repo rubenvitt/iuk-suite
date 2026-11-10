@@ -4,7 +4,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * Die Modulnavigation der Verwaltung. Dieser Wert wird von einer Server
  * Component gelesen und liegt deshalb bewusst in `_lib/` ohne "use client".
  * Die hrefs tragen die äußere Pfadform, damit `aktiverEintrag` sie sowohl
- * gegen äußere als auch gegen umgeschriebene Pfade per Suffix auflösen kann.
+ * gegen äußere als auch gegen umgeschriebene Pfade per Pfadanfang auflösen kann.
  *
  * Es gibt absichtlich keinen `/`-Eintrag: Der Wurzel-Fallback würde sonst auf
  * nicht zugeordneten Detailseiten eine falsche aktive Navigation anzeigen.
@@ -20,7 +20,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
  *
  * ⚠️ DREI EINTRÄGE ZEIGEN NICHT AUF `/verwaltung/…`: „Entnahme" und „Check
  * durchführen" führen in den Helfer-Ast (DRK-305), „Auffüllen" auf eine eigene
- * Fläche im selben Stil (DRK-313). `aktiverEintrag` löst sie per Suffix genauso
+ * Fläche im selben Stil (DRK-313). `aktiverEintrag` löst sie per Pfadanfang genauso
  * auf wie die übrigen; sichtbar markiert wird dort ohnehin nichts, weil keine
  * der drei Flächen diese Navigation rendert.
  */

@@ -352,6 +352,26 @@ select {
 }
 
 /*
+ * Sortierbare Spaltenköpfe sind per Tab erreichbar (`tabindex="0"`), aber antd nimmt ihnen
+ * den Ring (`outline: none`) und färbt beim Fokus nur die Schrift, in Tinte auf Tinte also
+ * unsichtbar (IDA-392). Dieselbe Linie wie bei antds Knöpfen (`genFocusOutline`:
+ * `lineWidthFocus`, `colorPrimaryBorder`), aber nach INNEN versetzt: ein Ring nach außen
+ * wird an der Kante der Tabelle und unter dem fixen Kopf abgeschnitten. Kein Token dafür in
+ * antd, daher CSS; `:root` hebt die Regel über antds (0,4,1). Die Variablen stehen auf antds
+ * Scope-Klasse am `.ant-table-wrapper` und folgen damit Hell/Dunkel. Die Klassen sind
+ * antd-Namen (Falle 20): `core/tabelle/spaltenkopf-fokus.test.ts` prüft das am Gerenderten.
+ */
+:root .ant-table-wrapper .ant-table-thead th.ant-table-column-has-sorters:focus-visible {
+  outline: var(--ant-line-width-focus) solid var(--ant-color-primary-border);
+  outline-offset: calc(-1 * var(--ant-line-width-focus));
+  transition:
+    all var(--ant-motion-duration-slow),
+    left 0s,
+    outline 0s,
+    outline-offset 0s;
+}
+
+/*
  * Reduzierte Bewegung gilt für alles, antd eingeschlossen. Animationen kürzt die
  * Regel auf 0.01ms (dann feuert `animationend` noch, auf das antds Motion wartet);
  * Übergänge stellt sie auf 0s, NICHT auf 0.01ms: `transition-property` ist ab Werk

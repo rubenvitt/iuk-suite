@@ -29,6 +29,22 @@ test("404 bleibt 404 und zeigt die Figur samt einem Weg zurück", async ({ page 
   await expect(page.getByRole("link", { name: "Zur Startseite" })).toHaveAttribute("href", "/");
 });
 
+test("404 ohne Modulgruppe: kein Kreis zurück auf dieselbe Seite, sondern ins Portal (IDA-392)", async ({ page }) => {
+  // Die Gerätewartung riegelt erst im Modul: ohne Gruppe ist schon ihre Wurzel eine 404.
+  await devLogin(page, { host: "wartung.localtest.me", groups: "" });
+  const antwort = await page.goto(`http://wartung.localtest.me:${E2E_PORT}/geraete`);
+  expect(antwort?.status()).toBe(404);
+  await expect(page.getByRole("heading", { level: 1, name: "Diese Seite gibt es hier nicht." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Zur Startseite" })).toHaveCount(0);
+  const portal = page.getByRole("link", { name: "Zum Portal" });
+  await expect(portal).toHaveAttribute("href", /portal\.localtest\.me|^https?:\/\/[^/]+\/$/);
+  await expect(page.getByTestId("zugang-kontakt")).toContainText("Oder dir fehlt der Zugang.");
+  await expect(page.getByTestId("zugang-konto")).toHaveText("Angemeldet als dev@localtest.me");
+
+  await portal.click();
+  await expect(page.getByTestId("portal-grid").or(page.getByTestId("portal-leer"))).toBeVisible();
+});
+
 test("die Fläche der Figur steht schon im Server-HTML — nichts verschiebt sich", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "admin" });
   const html = await (await page.request.get(`${PORTAL}/gibt-es-nicht-ssr`)).text();
@@ -43,6 +59,7 @@ test("ohne Zugangsgruppe: 403 mit Suite-Seite, die API behält das nackte 403", 
   await expect(page.getByRole("heading", { level: 1, name: "Kein Zugriff" })).toBeVisible();
   await figurGezeichnet(page, "padlock");
   await expect(page.getByRole("link", { name: "Zum Portal" })).toBeVisible();
+  await expect(page.getByTestId("zugang-konto")).toHaveText("Angemeldet als dev@localtest.me");
 
   const api = await page.request.get(`http://aufgaben.localtest.me:${E2E_PORT}/`, { headers: { accept: "application/json" } });
   expect(api.status()).toBe(403);

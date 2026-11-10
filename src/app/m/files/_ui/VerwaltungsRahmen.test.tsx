@@ -82,7 +82,7 @@ describe("FILES_NAV", () => {
    */
   it("hat genau drei Eintraege: Freigaben, Posteingang, Abgabelinks", () => {
     expect(FILES_NAV).toEqual([
-      { key: "start", title: "Freigaben", href: "/" },
+      { key: "start", title: "Freigaben", href: "/", auffang: true },
       { key: "posteingang", title: "Posteingang", href: "/posteingang" },
       { key: "zugangslinks", title: "Abgabelinks", href: "/zugangslinks" },
     ]);

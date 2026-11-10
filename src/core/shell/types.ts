@@ -162,4 +162,14 @@ export interface SuiteNavItem {
    * Gruppierung reine Darstellung.
    */
   abschnitt?: string;
+  /**
+   * Dieser Eintrag nimmt die Seiten des Moduls auf, die zu KEINEM Eintrag
+   * gehoeren — markiert als Abschnitt (`aria-current="true"`). Nur setzen, wo
+   * das fachlich stimmt: an einer Liste, deren Detailseiten anderswo liegen
+   * (QR-Generator -> `/wifi`, Plaene -> `/p/<id>`), nie an einer „Übersicht",
+   * sonst steht sie auf dem Profil oder dem Etikettendruck hervorgehoben
+   * (IDA-392). Ohne das Feld markiert eine solche Seite nichts. Regel:
+   * `aktiverEintrag` in `SuiteNav.tsx`.
+   */
+  auffang?: boolean;
 }

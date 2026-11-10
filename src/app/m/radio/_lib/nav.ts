@@ -8,7 +8,7 @@ import type { RadioRolle } from "./rollen";
  * Dieser Wert wird von einer Server Component gelesen und liegt deshalb bewusst in
  * `_lib/` OHNE "use client" (Falle 6). Die hrefs tragen die AEUSSERE Pfadform, damit
  * `aktiverEintrag` sie sowohl gegen aeussere als auch gegen umgeschriebene Pfade per
- * Suffix aufloesen kann (Vorbild `lagerbuch/_lib/nav.ts:1-20`).
+ * Pfadanfang aufloesen kann (Vorbild `lagerbuch/_lib/nav.ts:1-20`).
  *
  * ⛔ EINE FUNKTION UND KEINE KONSTANTE, und der Parameter ist die Rechtestufe
  * (Spec:4203-4210, Spec:4289): „Ohne diesen Parameter sieht eine Person der Updater-Stufe

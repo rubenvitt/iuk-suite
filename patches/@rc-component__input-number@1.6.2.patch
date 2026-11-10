@@ -1,0 +1,26 @@
+diff --git a/es/StepHandler.js b/es/StepHandler.js
+index 4d8ecd87a48456f76ee2528a37e59496c90cee87..1dd95ad32f3b9ffb3c98bc524d8fc0a70aa4c107 100644
+--- a/es/StepHandler.js
++++ b/es/StepHandler.js
+@@ -73,7 +73,7 @@ export default function StepHandler({
+     onMouseDown: e => {
+       onStepMouseDown(e);
+     },
+-    "aria-label": isUpAction ? 'Increase Value' : 'Decrease Value',
++    "aria-label": isUpAction ? 'Wert erhöhen' : 'Wert verringern',
+     "aria-disabled": disabled,
+     className: mergedClassName,
+     style: style
+diff --git a/lib/StepHandler.js b/lib/StepHandler.js
+index ab6251210322ce133931265c97dd75875f2016df..d11ece902ca0817371939ac4b214d9e94e22a430 100644
+--- a/lib/StepHandler.js
++++ b/lib/StepHandler.js
+@@ -82,7 +82,7 @@ function StepHandler({
+     onMouseDown: e => {
+       onStepMouseDown(e);
+     },
+-    "aria-label": isUpAction ? 'Increase Value' : 'Decrease Value',
++    "aria-label": isUpAction ? 'Wert erhöhen' : 'Wert verringern',
+     "aria-disabled": disabled,
+     className: mergedClassName,
+     style: style

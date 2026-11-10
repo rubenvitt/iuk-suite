@@ -56,7 +56,7 @@ export default async function FeedbackAdminLayout({
   // liest, hat in Übersicht und Vergleich nichts zu suchen und sieht nur diesen Eintrag.
   const nurLeser = nurEhrlichLeser(viewer);
   const nav: SuiteNavItem[] = [
-    ...(nurLeser ? [] : [{ key: "start", title: "Übersicht", href: "/" }]),
+    ...(nurLeser ? [] : [{ key: "start", title: "Übersicht", href: "/", auffang: true }]),
     ...(isFeedbackAdmin(viewer)
       ? [{ key: "vergleich", title: "Vergleich", href: "/vergleich" }]
       : []),

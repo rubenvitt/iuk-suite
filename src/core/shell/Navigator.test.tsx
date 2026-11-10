@@ -276,6 +276,25 @@ describe("SuiteLeiste", () => {
     expect(ort.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("nennt auf einer Unterseite den Elterneintrag und markiert ihn als Abschnitt (IDA-392)", async () => {
+    pathnameMock.mockReturnValue("/verwaltung/journal/17");
+    await mount(<SuiteLeiste daten={daten()} />);
+    expect(query('[data-testid="menue-knopf"]').textContent).toBe("LagerbuchJournal");
+    const aktiv = queryAll('[data-testid="modulleiste"] [data-testid="nav-link"][aria-current]');
+    expect(aktiv.map((l) => [l.textContent, l.getAttribute("aria-current")])).toEqual([["Journal", "true"]]);
+  });
+
+  it("nennt auf einer Seite ohne Eintrag nur die App — nicht „Übersicht“ (Profil am Telefon, IDA-392)", async () => {
+    pathnameMock.mockReturnValue("/profil");
+    const portalNav: SuiteNavItem[] = [
+      { key: "start", title: "Übersicht", href: "/" },
+      { key: "suche", title: "Suche", href: "/suche" },
+    ];
+    await mount(<SuiteLeiste daten={daten({ modulTitel: "Portal", nav: portalNav })} />);
+    expect(query('[data-testid="menue-knopf"]').textContent).toBe("Portal");
+    expect(queryAll('[data-testid="modulleiste"] [data-testid="nav-link"][aria-current]')).toEqual([]);
+  });
+
   it("öffnet am Ort-Knopf dasselbe Menü als Blatt, mit eigenen testIds", async () => {
     await mount(<SuiteLeiste daten={daten()} />);
     expect(existsPortal('[data-testid="suite-drawer"]')).toBe(false);

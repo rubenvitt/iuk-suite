@@ -28,6 +28,15 @@ allowBuilds:
 # Patch haengt einen leeren `error`-Zuhoerer an und stellt damit Nodes eigene Regel wieder her
 # (ohne Zuhoerer kein `error`); wer den Koerper liest, bekommt den Fehler weiter. Bis 16.4 canary
 # unveraendert upstream. `src/next-anfrageabbruch.test.ts` misst die WIRKUNG in einem Kindprozess.
+#
+# Der Patch an `@rc-component/input-number` (IDA-392): die Stepper jedes Zahlenfeldes heissen
+# ab Werk „Increase Value"/„Decrease Value", hart kodiert in `StepHandler.js` (es/ und lib/).
+# Weder antds `InputNumber` noch dessen `locale` reicht einen Namen durch, und ein eigenes
+# `upHandler`-Zeichen landet nur IM benannten Element. Der Patch ersetzt die beiden Literale
+# durch „Wert erhöhen"/„Wert verringern". Die Version wandert mit antd (`~1.6.2`, antd 6.6.4):
+# beim antd-Upgrade nachziehen. `src/rc-component-input-number.test.tsx` misst die WIRKUNG am
+# gerenderten antd-`InputNumber`.
 patchedDependencies:
+  '@rc-component/input-number@1.6.2': patches/@rc-component__input-number@1.6.2.patch
   '@rc-component/util@1.13.0': patches/@rc-component__util@1.13.0.patch
   next@16.3.3: patches/next@16.3.3.patch

@@ -129,17 +129,17 @@ describe("aktiverEintrag gegen LAGERBUCH_NAV", () => {
   });
 
   it.each([
-    ["/verwaltung/bz/17/kontrolle"],
-    ["/verwaltung/geraete/scan"],
-    ["/verwaltung/geraete/17"],
-    ["/verwaltung/checks/abc"],
-    ["/verwaltung/fahrzeuge/42"],
-    ["/verwaltung/sauerstoff/7"],
-    ["/verwaltung/vorlagen/3"],
-    ["/verwaltung/bz/scan"],
-    ["/verwaltung/bz/17"],
-  ])("%s bekommt KEINE Markierung", (pfad) => {
-    expect(aktiverEintrag(pfad, LAGERBUCH_NAV)).toBeNull();
+    ["/verwaltung/bz/17/kontrolle", "bz"],
+    ["/verwaltung/geraete/scan", "geraete"],
+    ["/verwaltung/geraete/17", "geraete"],
+    ["/verwaltung/checks/abc", "checks"],
+    ["/verwaltung/fahrzeuge/42", "fahrzeuge"],
+    ["/verwaltung/sauerstoff/7", "sauerstoff"],
+    ["/verwaltung/vorlagen/3", "vorlagen"],
+    ["/verwaltung/bz/scan", "bz"],
+    ["/verwaltung/bz/17", "bz"],
+  ])("%s markiert den Elterneintrag %s als Abschnitt (IDA-392)", (pfad, schluessel) => {
+    expect(aktiverEintrag(pfad, LAGERBUCH_NAV)).toEqual({ schluessel, genau: false });
   });
 
   it("die Uebersicht gewinnt NICHT gegen eine laengere Uebereinstimmung", () => {
