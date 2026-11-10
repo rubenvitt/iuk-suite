@@ -30,3 +30,8 @@ export function monatAusText(text: string): string | undefined {
   if (m < 1 || m > 12) return undefined;
   return `${jahr}-${String(m).padStart(2, "0")}`;
 }
+
+/** IDA-403 — die Feldmeldung fuer einen getippten Nicht-Monat, in jedem Monatsfeld gleich. */
+export function keinMonat(text: string): string {
+  return `„${text}“ ist kein Monat. Bitte als MM/JJJJ eingeben.`;
+}

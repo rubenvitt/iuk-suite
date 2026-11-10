@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, DatePicker, Dropdown, Flex, Select, type TableProps } from "antd";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Alert, Button, Dropdown, Typography, Flex, Select, type TableProps } from "antd";
 import {
   Kartentabelle,
   nachDatum,
@@ -24,7 +24,8 @@ import { AussondernDialog } from "./AussondernDialog";
 import { RuecklaufDialog, type RuecklaufZiel } from "./RuecklaufDialog";
 import { Chip } from "../../../../_ui/Chip";
 import { Ikone } from "../../../../_ui/ikonen";
-import { monatAusPicker } from "../../../../_ui/monat";
+import { keinMonat, monatAusPicker, monatAusText } from "../../../../_ui/monat";
+import { MonatsFeld } from "../../../../_ui/MonatsFeld";
 import { Suchfeld } from "../../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../../_ui/Trefferanzeige";
 import {
@@ -36,7 +37,6 @@ import {
 import { STATUS_FILTER, STATUS_TEXT, statusAus } from "./reiter";
 import { useAdressParameter } from "./useAdressParameter";
 import { useVerfallStand } from "./useVerfallStand";
-import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 const VERFALL_FEHLER = "Verfall konnte nicht gespeichert werden.";
 
@@ -104,6 +104,13 @@ function sucheTrifft(zeile: VerfallAnzeigeZeile, suche: string): boolean {
  *
  * ⚠️ DER WERT KOMMT AUS `verfallVon`, NICHT AUS DER PROP — derselbe eine Stand
  * wie vorher (DRK-345); diese Zelle zeigt ihn nur anders an.
+ *
+ * IDA-403 — EIN GETIPPTER MONAT GEHT BEIM SCHLIESSEN NICHT VERLOREN. Der Wähler
+ * schließt beim Klick daneben, bevor sein Feld den Text auswertet; deshalb liest
+ * `zuMachen` den Text selbst. Ein Monat wird gespeichert, ein Nicht-Monat
+ * bleibt im Feld stehen und meldet sich darunter, per `aria-describedby` am
+ * Feld; Escape bricht ab. Die Meldung gehoert der Zelle, nicht dem Fehlersatz
+ * der Tabelle: der traegt Schreibfehler, und beide duerfen sich nicht loeschen.
  */
 function VerfallZelle({
   artikelName,
@@ -117,8 +124,44 @@ function VerfallZelle({
   onWahl: (wert: Parameters<typeof monatAusPicker>[0]) => void;
 }) {
   const [offen, setOffen] = useState(false);
+  const [aufgeklappt, setAufgeklappt] = useState(true);
+  const [ungueltig, setUngueltig] = useState<string | null>(null);
+  const meldungId = useId();
   const knopf = useRef<HTMLButtonElement>(null);
+  const huelle = useRef<HTMLSpanElement>(null);
   const warOffen = useRef(false);
+  /** Nach dem Schließen meldet das abgebaute Feld nichts mehr nach. */
+  const fertig = useRef(false);
+
+  function oeffnen(): void {
+    fertig.current = false;
+    setAufgeklappt(true);
+    setUngueltig(null);
+    setOffen(true);
+  }
+
+  function schliessen(neu: string | null): void {
+    if (fertig.current) return;
+    fertig.current = true;
+    setUngueltig(null);
+    setOffen(false);
+    if (neu !== monat) onWahl(neu ? dayjs(`${neu}-01`) : null);
+  }
+
+  function meldeUngueltig(text: string | null): void {
+    if (fertig.current) return;
+    setUngueltig(text);
+  }
+
+  function zuMachen(): void {
+    if (fertig.current) return;
+    const text = (huelle.current?.querySelector("input")?.value ?? "").trim();
+    if (text === "") return schliessen(null);
+    const neu = monatAusText(text);
+    if (neu) return schliessen(neu);
+    setAufgeklappt(false);
+    meldeUngueltig(text);
+  }
 
   /*
    * Der Fokus geht nach dem Schließen auf den Knopf zurück — aber nur, wenn er
@@ -135,26 +178,38 @@ function VerfallZelle({
 
   if (offen) {
     return (
-      // KEIN size (Falle 4) — 44px Arbeitsdichte, wie der Knopf davor.
-      <DatePicker
-        open
-        autoFocus
-        picker="month"
-        popupAlign={WAEHLER_IM_BILD}
-        format="YYYY-MM"
-        allowClear
-        disabled={gesperrt}
-        value={monat ? dayjs(`${monat}-01`) : null}
-        onChange={(wert) => {
-          setOffen(false);
-          onWahl(wert);
-        }}
-        onOpenChange={(auf) => {
-          if (!auf) setOffen(false);
-        }}
-        aria-label={`Verfall ${artikelName}`}
-        style={{ width: BREITE.verfall - 24 }}
-      />
+      <span ref={huelle} style={{ display: "inline-flex", flexDirection: "column", maxWidth: BREITE.verfall - 24 }}>
+        {/* KEIN size (Falle 4) — 44px Arbeitsdichte, wie der Knopf davor. */}
+        <MonatsFeld
+          open={aufgeklappt}
+          autoFocus
+          allowClear
+          disabled={gesperrt}
+          status={ungueltig ? "error" : undefined}
+          aria-invalid={ungueltig ? true : undefined}
+          aria-describedby={ungueltig ? meldungId : undefined}
+          value={monat ? dayjs(`${monat}-01`) : null}
+          onChange={(wert) => schliessen(monatAusPicker(wert) ?? null)}
+          onUngueltig={meldeUngueltig}
+          onOpenChange={(auf) => {
+            if (auf) setAufgeklappt(true);
+            else zuMachen();
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            fertig.current = true;
+            setUngueltig(null);
+            setOffen(false);
+          }}
+          aria-label={`Verfall ${artikelName}`}
+          style={{ width: BREITE.verfall - 24 }}
+        />
+        {ungueltig ? (
+          <Typography.Text type="danger" id={meldungId} role="alert">
+            {keinMonat(ungueltig)}
+          </Typography.Text>
+        ) : null}
+      </span>
     );
   }
 
@@ -163,7 +218,7 @@ function VerfallZelle({
       ref={knopf}
       type="text"
       disabled={gesperrt}
-      onClick={() => setOffen(true)}
+      onClick={oeffnen}
       icon={<Ikone name="stift" groesse={14} />}
       iconPlacement="end"
       aria-label={`Verfall ${artikelName} ändern`}

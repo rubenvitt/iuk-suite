@@ -194,3 +194,50 @@ describe("AufladenDialog", () => {
     expect(document.body.textContent).toContain("In „Schrank 1“ liegen von dieser Charge nur 4 Pkg.");
   });
 });
+
+/** IDA-403 — tippt in das Monatsfeld und verlässt es, wie jemand, der weitertabbt. */
+async function tippeMonat(text: string): Promise<HTMLInputElement> {
+  const feld = queryPortal<HTMLInputElement>("input[aria-label='Verfallsmonat']");
+  await act(async () => {
+    feld.focus();
+  });
+  await tippe("Verfallsmonat", text);
+  await act(async () => {
+    feld.blur();
+  });
+  await warte();
+  await warte();
+  return feld;
+}
+
+describe("AufladenDialog: getippter Verfallsmonat (IDA-403)", () => {
+  it.each([["01/2028"], ["1/2028"], ["01.2028"], ["2028-01"]])(
+    "nimmt getipptes „%s“ als Januar 2028 an",
+    async (text) => {
+      await oeffnen();
+      await waehle("Woher", "Neu angeliefert");
+      await waehle("Charge", "Neue Charge");
+      await tippe("Chargennummer", "L-42");
+      const feld = await tippeMonat(text);
+      expect(feld.value).toBe("01/2028");
+      await absenden();
+
+      expect(mocks.aufladen).toHaveBeenCalledWith({
+        fahrzeugId: "fz-1", artikelId: "a1", menge: 1,
+        herkunft: { art: "neu", charge: { art: "neu", chargenNr: "L-42", verfall: "2028-01" } },
+      });
+    },
+  );
+
+  it("verwirft keinen Nicht-Monat still, sondern meldet ihn am Feld", async () => {
+    await oeffnen();
+    await waehle("Woher", "Neu angeliefert");
+    await waehle("Charge", "Neue Charge");
+    await tippe("Chargennummer", "L-42");
+    const feld = await tippeMonat("13/2028");
+    expect(document.body.textContent).toContain("„13/2028“ ist kein Monat.");
+    expect(feld.value).toBe("13/2028");
+    await absenden();
+    expect(mocks.aufladen).not.toHaveBeenCalled();
+  });
+});

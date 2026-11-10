@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Alert, Button, DatePicker, Form, Input, InputNumber, Modal, Select } from "antd";
+import { Alert, Button, Form, Input, InputNumber, Modal, Select } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { aussondernVomLagerort } from "../../../../_actions/aussondernLagerort";
@@ -10,8 +10,8 @@ import { inDerEinheit, type Einheitenart } from "../../../../_lib/konstanten";
 import type { VerfallWert } from "../../../../_lib/verfallStand";
 import type { ChargeZeile } from "../../../../_lib/lesepfade/artikel";
 import { monatAusPicker } from "../../../../_ui/monat";
+import { MonatsFeld, useMonatsPruefung } from "../../../../_ui/MonatsFeld";
 import { Ikone } from "../../../../_ui/ikonen";
-import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 const ALLGEMEIN = "Aussondern fehlgeschlagen.";
 
@@ -110,6 +110,7 @@ export function AussondernDialog({
   onSchliessen?: () => void;
 }) {
   const [form] = Form.useForm<Werte>();
+  const verfallPruefung = useMonatsPruefung(form, "verfall");
   // IDA-232: gesteuert, wenn `offen` gesetzt ist — sonst wie bisher mit eigenem Knopf.
   const gesteuert = offenVonAussen !== undefined;
   const [eigenOffen, setEigenOffen] = useState(false);
@@ -140,13 +141,14 @@ export function AussondernDialog({
    */
   useEffect(() => {
     if (!offen) return;
+    verfallPruefung.vergessen();
     form.setFieldsValue({
       menge: 1,
       chargeId: undefined,
       verfall: verfall ? dayjs(`${verfall}-01`) : null,
       kommentar: "",
     });
-  }, [offen, verfall, form]);
+  }, [offen, verfall, form, verfallPruefung]);
 
   function oeffnen() {
     setFehler(null);
@@ -168,6 +170,7 @@ export function AussondernDialog({
    */
   function schliessen() {
     if (laeuft) return;
+    verfallPruefung.vergessen();
     form.resetFields();
     setOffen(false);
   }
@@ -207,6 +210,7 @@ export function AussondernDialog({
         }));
         if (ergebnis.ok) {
           // Gleiche Reihenfolge wie in `schliessen`: erst leeren, dann zu.
+          verfallPruefung.vergessen();
           form.resetFields();
           setOffen(false);
           return;
@@ -300,15 +304,13 @@ export function AussondernDialog({
               ? "Der ganze Bestand geht raus — die Verfallsangabe entfällt."
               : `Das früheste Datum, das jetzt noch ${inDerEinheit(einheitenart)} `
                 + "auf einer Packung steht."}
+            rules={allesRaus ? [] : [verfallPruefung.regel]}
           >
-            <DatePicker
-              picker="month"
-              popupAlign={WAEHLER_IM_BILD}
-              format="YYYY-MM"
+            <MonatsFeld
               allowClear
               disabled={allesRaus}
-              style={{ width: "100%" }}
               aria-label="Verfall"
+              onUngueltig={verfallPruefung.onUngueltig}
             />
           </Form.Item>
           <Form.Item

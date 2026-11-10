@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
-import { Alert, Button, DatePicker, Form, Input, InputNumber, Radio, type FormRule } from "antd";
+import { Alert, Button, Form, Input, InputNumber, Radio, type FormRule } from "antd";
 import type { Dayjs } from "dayjs";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { SPACE } from "@/core/theme/tokens";
@@ -13,7 +13,7 @@ import {
   KONTROLLWERT_FEHLT,
 } from "../../../../../_lib/domain/bz";
 import { monatAusPicker } from "../../../../../_ui/monat";
-import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
+import { MonatsFeld, useMonatsPruefung } from "../../../../../_ui/MonatsFeld";
 import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
 import { EntwurfZeile } from "../../../../../_ui/EntwurfZeile";
 
@@ -89,6 +89,7 @@ export function KontrolleForm({
   beachtungAktiv: boolean;
 }) {
   const [form] = Form.useForm<KontrolleWerte>();
+  const kompressePruefung = useMonatsPruefung(form, "kompresseVerfall", KOMPRESSE_FEHLT);
   const [bestanden, setBestanden] = useState<boolean | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   /*
@@ -219,16 +220,15 @@ export function KontrolleForm({
       <Form.Item
         name="kompresseVerfall"
         label="Kompressen-Verfall"
-        rules={[{ required: true, message: KOMPRESSE_FEHLT }]}
+        required
+        rules={[kompressePruefung.regel]}
       >
-        <DatePicker
+        <MonatsFeld
           data-rolle="kompresse"
-          picker="month"
-          popupAlign={WAEHLER_IM_BILD}
-          format="YYYY-MM"
           aria-label="Kompressen-Verfall"
           onKeyDown={enterUebernimmtNurDasFeld}
           style={SCHMALES_FELD}
+          onUngueltig={kompressePruefung.onUngueltig}
         />
       </Form.Item>
       {/* 9999 bleibt absichtlich erlaubt: echter Überbestand muss beim Abgleich

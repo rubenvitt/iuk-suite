@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { Dayjs } from "dayjs";
-import { Alert, Button, DatePicker, Form, Input, InputNumber, Modal, Select } from "antd";
+import { Alert, Button, Form, Input, InputNumber, Modal, Select } from "antd";
 import { bucheAufladen } from "../../../../_actions/aufladen";
 import { getDetail, type ArtikelDetailResult } from "../../../../_actions/detail";
 import { fmtVerfall } from "../../../../_lib/format";
 import { dieseEinheit, ortZeile, type Einheitenart } from "../../../../_lib/konstanten";
 import { Ikone } from "../../../../_ui/ikonen";
 import { monatAusPicker } from "../../../../_ui/monat";
-import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
+import { MonatsFeld, useMonatsPruefung } from "../../../../_ui/MonatsFeld";
 
 /**
  * Der Wert der Herkunft „neu angeliefert" und der Charge „neue Charge".
@@ -85,6 +85,7 @@ export function AufladenDialog({
   artikel: AufladenArtikel[];
 }) {
   const [form] = Form.useForm<Werte>();
+  const verfallPruefung = useMonatsPruefung(form, "verfall", "Bitte Verfallsmonat auswählen.");
   const [offen, setOffen] = useState(false);
   const [detail, setDetail] = useState<ArtikelDetailResult | null>(null);
   const [laedt, setLaedt] = useState(false);
@@ -112,11 +113,12 @@ export function AufladenDialog({
   // Bei jedem Oeffnen frisch — die Form-Instanz ueberlebt `destroyOnHidden`.
   useEffect(() => {
     if (!offen) return;
+    verfallPruefung.vergessen();
     form.setFieldsValue({
       artikelId: undefined, herkunft: undefined, chargeId: undefined,
       chargenNr: undefined, verfall: null, menge: 1,
     });
-  }, [offen, form]);
+  }, [offen, form, verfallPruefung]);
 
   function oeffnen() {
     setFehler(null);
@@ -128,11 +130,13 @@ export function AufladenDialog({
 
   function schliessen() {
     if (laeuft) return;
+    verfallPruefung.vergessen();
     form.resetFields();
     setOffen(false);
   }
 
   async function artikelGewaehlt(id: string | undefined) {
+    verfallPruefung.vergessen();
     form.setFieldsValue({ herkunft: undefined, chargeId: undefined, chargenNr: undefined, verfall: null });
     setDetail(null);
     setFehler(null);
@@ -199,6 +203,7 @@ export function AufladenDialog({
           return;
         }
         setBeleg(`Aufgeladen: ${ergebnis.wert.gebucht} × ${name} → ${ergebnis.wert.ziel}`);
+        verfallPruefung.vergessen();
         form.setFieldsValue({
           artikelId: undefined, herkunft: undefined, chargeId: undefined,
           chargenNr: undefined, verfall: null, menge: 1,
@@ -331,14 +336,12 @@ export function AufladenDialog({
               <Form.Item
                 name="verfall"
                 label="Verfallsmonat"
-                rules={[{ required: true, message: "Bitte Verfallsmonat auswählen." }]}
+                required
+                rules={[verfallPruefung.regel]}
               >
-                <DatePicker
-                  picker="month"
-                  popupAlign={WAEHLER_IM_BILD}
-                  format="YYYY-MM"
+                <MonatsFeld
                   aria-label="Verfallsmonat"
-                  style={{ width: "100%" }}
+                  onUngueltig={verfallPruefung.onUngueltig}
                 />
               </Form.Item>
             </>
