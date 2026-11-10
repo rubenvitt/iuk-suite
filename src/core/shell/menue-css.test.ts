@@ -45,6 +45,11 @@ describe("menue.module.css", () => {
     }
   });
 
+  it("zeigt das Tastenkürzel nur mit Tastatur und Maus, nie am Telefon (IDA-391)", () => {
+    expect(regel(".kuerzel")).toContain("display: none");
+    expect(CSS).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.kuerzel \{\s*display: inline-block;/);
+  });
+
   it("nimmt das Menü aus dem Druck", () => {
     expect(CSS).toMatch(/@media print[\s\S]*\.druckRahmen \.kopf \{\s*display: none !important;/);
   });

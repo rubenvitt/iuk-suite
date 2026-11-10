@@ -28,10 +28,13 @@ import { FaelligkeitenKarte } from "@/app/m/portal/_ui/FaelligkeitenKarte";
  */
 export default async function PortalPage() {
   const session = await auth();
-  const [eintraege, ansprechpartner] = await Promise.all([
+  const [alleEintraege, ansprechpartner] = await Promise.all([
     launcherEintraege(session?.user?.groups ?? null),
     leseAnsprechpartner(),
   ]);
+  // Das Portal ist hier keine Kachel (IDA-391): man steht schon darauf. Im Menü anderer Module
+  // bleibt es der Weg zurück; gefiltert wird deshalb hier und nicht in `launcherEintraege`.
+  const eintraege = alleEintraege.filter((e) => e.key !== "portal");
   /*
    * ⚠️ DIE KACHEL STEHT AUSSERHALB VON `DiensteRaster`, UND ZWAR ABSICHTLICH.
    * Drinnen wäre sie ein Eintrag der Suche und verschwände beim Tippen — und

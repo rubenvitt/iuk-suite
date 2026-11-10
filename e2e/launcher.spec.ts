@@ -13,10 +13,11 @@ test("Umschalter öffnet, filtert und wechselt das Modul", async ({ page }) => {
   await expect(menue.getByTestId("app-panel")).toHaveAttribute("inert", "");
 
   // Gefiltert wird im Feld „Springen zu" (das alte `app-suche` im Panel ist
-  // entfallen): „gamma" trifft genau eine App, dazu die suiteweite Suche.
+  // entfallen): „gamma" trifft genau eine App; Inhalte darf diese Sitzung in
+  // keinem durchsuchbaren Modul sehen (IDA-391).
   const feld = menue.getByTestId("befehlspalette-eingabe");
   await feld.fill("gamma");
-  await expect(menue.getByTestId("befehl").filter({ hasNotText: "In allen Modulen" })).toHaveText([/^Gamma/]);
+  await expect(menue.getByTestId("befehl")).toHaveText([/^Gamma/]);
   await feld.fill("");
 
   // `link`, nicht `menuitem`: das Panel trägt bewusst keine ARIA-Menürollen.

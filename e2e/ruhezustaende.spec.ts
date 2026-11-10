@@ -56,7 +56,7 @@ test("die Anmeldung trägt die Figur und meldet weiter an", async ({ page }) => 
   await expect(page.getByTestId("portal-grid")).toBeVisible();
 });
 
-test("Portal ohne Angeheftetes zeigt den Ruhezustand", async ({ page }, testInfo) => {
+test("Portal ohne Angeheftetes sagt es in einer Zeile, ohne Figur (IDA-391)", async ({ page }, testInfo) => {
   const VIELE = [
     "admin", "lagerbuch-admin", "files-admin", "feedback-admin", "kommplan-admin", "helfer-nutzer",
     "fahrzeuge-nutzer", "schichtplan-nutzer", "gemeinschaft-admin", "lagemonitor-admin", "uav-admin",
@@ -65,8 +65,12 @@ test("Portal ohne Angeheftetes zeigt den Ruhezustand", async ({ page }, testInfo
   // Eine eigene Person: andere Specs heften für `dev@localtest.me` an.
   await devLogin(page, { host: "portal.localtest.me", email: `ruhe-${testInfo.retry}-${Date.now()}@localtest.me`, groups: VIELE });
   await warteAufGestreamteInhalte(page);
-  await expect(page.getByTestId("portal-ohne-angeheftet")).toContainText("Noch nichts angeheftet");
-  await figurGezeichnet(page, "hub");
+  const zeile = page.getByTestId("portal-ohne-angeheftet");
+  await expect(zeile).toHaveText("Noch nichts angeheftet");
+  await expect(zeile.locator('[data-icons8="pin"]')).toHaveCount(1);
+  // Eine Zeile: „Alle Apps & Dienste“ steht gleich darunter offen, nicht unter einer Figur.
+  expect((await zeile.boundingBox())!.height).toBeLessThan(48);
+  await expect(page.getByTestId("portal-alle-liste")).toBeVisible();
 });
 
 test.describe("reduzierte Bewegung", () => {

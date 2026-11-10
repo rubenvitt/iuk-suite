@@ -1,130 +1,200 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Alert, Card, Result, Segmented } from "antd";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Button, Card, Result } from "antd";
 
+import { Filterchips } from "@/core/filterchips/Filterchips";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { Statuschip } from "@/core/status/Statuschip";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
+import type { NeuigkeitenGesehen } from "@/app/m/portal/_db/schema";
 import { formatiereDatum } from "@/app/m/portal/_lib/neuigkeiten/datum";
-import type { Neuigkeit } from "@/app/m/portal/_lib/neuigkeiten/auswahl";
+import type { Neuigkeit, NeuigkeitenApp, NeuigkeitenSeite } from "@/app/m/portal/_lib/neuigkeiten/auswahl";
+import { ALLE_APPS, istNeu } from "@/app/m/portal/_lib/neuigkeiten/neu";
 import type { Notizblock } from "@/app/m/portal/_lib/neuigkeiten/typen";
-
-const ALLE = "alle";
+import { ladeNeuigkeitenAction, merkeNeuigkeitenGesehenAction } from "@/app/m/portal/neuigkeiten/actions";
 
 /**
- * DIE NEUIGKEITEN ALS LESBARE SEITE — Client-Insel aus zwei Gründen zugleich,
- * denselben wie bei `DiensteRaster`: der Filter braucht Zustand, und die
- * App-Zeichen dürfen nur hier auflösen (`@ant-design/icons` in einer Server
- * Component ist HTTP 500 schon beim Import, `docs/design/README.md`, Falle 7).
- * Die Seite darüber bleibt Server Component und übergibt fertige, serialisierbare
- * Daten — keine Funktionen über die Grenze (Falle 9).
+ * DIE NEUIGKEITEN ALS LESBARE SEITE — Client-Insel, weil Filter und Nachladen Zustand brauchen. Die
+ * Seite darüber bleibt Server Component und übergibt nur serialisierbare Daten (Falle 9).
  *
- * DER FILTER LIEGT IM ZUSTAND, NICHT IN DER ADRESSE, und das ist der Unterschied
- * zu `feedback/_ui/Segment.tsx`, wo dieselbe Bauform `?monate=` schreibt: dort
- * entscheidet die Wahl, WELCHE DATEN der Server holt, hier blendet sie in einer
- * bereits vollständig gelieferten Liste etwas aus. Ein Server-Umlauf für eine
- * Sichtfrage wäre eine Rechteprüfung mehr für nichts.
+ * SEITENWEISE (IDA-391): die Insel bekommt nur die erste Seite; „Ältere anzeigen" und der App-Filter
+ * fragen den Server (`neuigkeiten/actions.ts`). Der Filter kann deshalb nicht mehr in einer
+ * vollständig gelieferten Liste ausblenden — eine App, deren Notizen alle weiter hinten liegen, wäre
+ * sonst leer. Werte nur aus `neu.ts`, nie aus `auswahl.ts`: das zöge das Register ins Bundle.
+ *
+ * „NEU" vergleicht gegen den Stand VOR diesem Besuch (`neuSeit` von der Seite). Der Besuch selbst
+ * wird erst nach dem Anzeigen gemerkt; die Chips bleiben bis zum nächsten Aufruf stehen.
  */
-export function NeuigkeitenListe({ neuigkeiten }: { neuigkeiten: Neuigkeit[] }) {
-  const [modul, setModul] = useState<string>(ALLE);
+export function NeuigkeitenListe({
+  erste,
+  apps,
+  neuSeit,
+  merken,
+}: {
+  erste: NeuigkeitenSeite;
+  apps: readonly NeuigkeitenApp[];
+  neuSeit: NeuigkeitenGesehen | null;
+  merken: boolean;
+}) {
+  const [modul, setModul] = useState<string>(ALLE_APPS);
+  const [eintraege, setEintraege] = useState<Neuigkeit[]>(erste.eintraege);
+  const [weitere, setWeitere] = useState(erste.weitere);
+  const [laedt, setLaedt] = useState<"filter" | "aeltere" | null>(null);
+  const [fehler, setFehler] = useState(false);
+  // Sprungziel, auf das nach dem Nachladen gerollt wird — ein Ref, kein Zustand: es löst kein Rendern aus.
+  const ziel = useRef<string | null>(null);
+  // Nur die jüngste Anfrage darf die Liste setzen — ein schneller Filterwechsel überholt sonst.
+  const anfrage = useRef(0);
 
-  /**
-   * Die Filterknöpfe kommen aus den vorhandenen Notizen, nicht aus der Registry:
-   * ein Knopf für eine App ohne Notiz führte auf eine leere Liste. Reihenfolge =
-   * Reihenfolge des ersten Auftretens, also nach Datum — die zuletzt geänderte
-   * App steht vorn.
-   *
-   * `apps` und nicht `module`: `@next/next/no-assign-module-variable` verbietet
-   * den Bezeichner, weil er in CommonJS-Modulen `module.exports` verdeckt.
-   */
-  const apps = useMemo(() => {
-    const gesehen = new Map<string, string>();
-    for (const n of neuigkeiten) if (!gesehen.has(n.modul)) gesehen.set(n.modul, n.modulTitel);
-    return [...gesehen.entries()];
-  }, [neuigkeiten]);
+  useEffect(() => {
+    if (merken) merkeNeuigkeitenGesehenAction().catch(() => undefined);
+  }, [merken]);
 
-  const sichtbar = useMemo(
-    () => (modul === ALLE ? neuigkeiten : neuigkeiten.filter((n) => n.modul === modul)),
-    [neuigkeiten, modul],
-  );
+  // Sprungmarke auf eine Notiz, die nicht auf der ersten Seite steht: bis dorthin nachladen.
+  useEffect(() => {
+    let slug = "";
+    try {
+      slug = decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return; // kaputte Prozent-Kodierung in der Adresszeile: wie keine Sprungmarke
+    }
+    if (!slug || erste.eintraege.some((n) => n.slug === slug)) return;
+    const nr = ++anfrage.current;
+    ladeNeuigkeitenAction(ALLE_APPS, 0, slug).then((seite) => {
+      if (!seite || nr !== anfrage.current) return;
+      setEintraege(seite.eintraege);
+      ziel.current = slug;
+      setWeitere(seite.weitere);
+    }, () => {
+      if (nr === anfrage.current) setFehler(true);
+    });
+  }, [erste]);
 
-  // Kein Filter über einer leeren Liste — dieselbe Reihenfolge wie im
-  // Kachelraster, wo der Leerzustand vor dem Suchfeld steht. `Result
-  // status="info"` und kein `Alert type="error"`: hier fehlt nichts, hier ist
-  // schlicht noch nichts passiert (Falle 3).
-  if (neuigkeiten.length === 0) {
-    return (
-      <Result
-        data-testid="neuigkeiten-leer"
-        status="info"
-        title="Hier steht noch nichts"
-      />
-    );
+  useEffect(() => {
+    if (!ziel.current) return;
+    document.getElementById(ziel.current)?.scrollIntoView();
+    ziel.current = null;
+  }, [eintraege]);
+
+  async function lade(art: "filter" | "aeltere", filter: string, ab: number) {
+    const nr = ++anfrage.current;
+    setLaedt(art);
+    setFehler(false);
+    try {
+      const seite = await ladeNeuigkeitenAction(filter, ab);
+      if (nr !== anfrage.current) return;
+      if (!seite) throw new Error("keine Seite");
+      setEintraege((bisher) => (ab === 0 ? seite.eintraege : [...bisher, ...seite.eintraege]));
+      setWeitere(seite.weitere);
+    } catch {
+      if (nr === anfrage.current) setFehler(true);
+    } finally {
+      if (nr === anfrage.current) setLaedt(null);
+    }
   }
+
+  function wechsle(wert: string) {
+    setModul(wert);
+    if (wert === ALLE_APPS) {
+      // Die erste Seite ohne Filter liegt schon vor.
+      anfrage.current += 1;
+      setEintraege(erste.eintraege);
+      setWeitere(erste.weitere);
+      setLaedt(null);
+      setFehler(false);
+      return;
+    }
+    void lade("filter", wert, 0);
+  }
+
+  // `Result status="info"` und kein Fehler: hier fehlt nichts, es ist schlicht noch nichts passiert.
+  if (apps.length === 0) {
+    return <Result data-testid="neuigkeiten-leer" status="info" title="Hier steht noch nichts" />;
+  }
+
+  const gesamt = apps.reduce((summe, a) => summe + a.anzahl, 0);
 
   return (
     <div
       data-testid="neuigkeiten"
-      style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
+      aria-busy={laedt !== null}
+      style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, minInlineSize: 0 }}
     >
+      {/* Ein Schalter mit „Alle" und genau einer App wäre eine Beschriftung, kein Filter. */}
       {apps.length > 1 ? (
-        /* `overflowX` am Wickel, nicht am Schalter: `Segmented` hat kein
-           eigenes Rollverhalten, und bei fünf Apps auf 390px stünde die Zeile
-           sonst über den Rand hinaus. `alignSelf` hält den Schalter auf seiner
-           Inhaltsbreite, statt ihn über die ganze Spalte zu ziehen. */
-        <div
-          data-testid="neuigkeiten-filter"
-          style={{ overflowX: "auto", alignSelf: "flex-start", maxWidth: "100%" }}
-        >
-          <Segmented
-            value={modul}
-            onChange={(wert) => setModul(String(wert))}
-            options={[
-              { value: ALLE, label: "Alle" },
-              ...apps.map(([key, titel]) => ({ value: key, label: titel })),
+        <div data-testid="neuigkeiten-filter" style={{ minInlineSize: 0, maxInlineSize: "100%" }}>
+          <Filterchips
+            aria-label="App"
+            wert={modul}
+            onChange={wechsle}
+            optionen={[
+              { wert: ALLE_APPS, label: "Alle", anzahl: gesamt },
+              ...apps.map((a) => ({ wert: a.key, label: a.titel, anzahl: a.anzahl })),
             ]}
           />
         </div>
       ) : null}
 
-      {sichtbar.map((n) => {
-        return (
-          // `id` = Sprungmarke: `/neuigkeiten#checkliste-als-pdf` führt auf
-          // genau diese Notiz, und damit lässt sich eine einzelne Änderung
-          // verschicken, ohne sie abzuschreiben.
-          <Card key={n.slug} id={n.slug} data-testid="notiz" data-modul={n.modul}>
-            <div
-              style={{
-                ...SCHRIFT.kicker,
-                color: "var(--iuk-gedaempft)",
-                display: "flex",
-                alignItems: "center",
-                gap: SPACE.sm,
-                marginBlockEnd: SPACE.xs,
-              }}
-            >
-              <Icons8Ikone name={n.icon} />
-              <span>{n.modulTitel}</span>
-              <span aria-hidden="true">·</span>
-              {/* `<time>` mit Maschinendatum: die Anzeige ist ausgeschrieben
-                  („16. August 2026"), der Wert bleibt sortier- und lesbar. */}
-              <time dateTime={n.datum}>{formatiereDatum(n.datum)}</time>
-            </div>
+      {fehler ? (
+        <Alert type="error" showIcon title="Laden hat nicht geklappt. Versuch es noch einmal." />
+      ) : null}
 
-            {/* Nacktes `<h2>` mit Typo-Rolle statt `Typography.Title`: die Seite
-                trägt schon ein `<h1>` im `Seitenkopf`, und die Notizen sind
-                dessen zweite Ebene. */}
-            <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.md}px` }}>{n.titel}</h2>
+      <div
+        style={{
+          display: "flex", flexDirection: "column", gap: SPACE.lg,
+          opacity: laedt === "filter" ? 0.6 : 1,
+        }}
+      >
+        {eintraege.map((n) => {
+          const neu = istNeu(n, neuSeit);
+          return (
+            // `id` = Sprungmarke: `/neuigkeiten#checkliste-als-pdf` führt auf genau diese Notiz.
+            <Card key={`${n.modul}/${n.slug}`} id={n.slug} data-testid="notiz" data-modul={n.modul} data-neu={neu ? "ja" : undefined}>
+              <div
+                style={{
+                  ...SCHRIFT.kicker,
+                  color: "var(--iuk-gedaempft)",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: SPACE.sm,
+                  marginBlockEnd: SPACE.xs,
+                }}
+              >
+                <Icons8Ikone name={n.icon} />
+                <span>{n.modulTitel}</span>
+                <span aria-hidden="true">·</span>
+                {/* `<time>` mit Maschinendatum: die Anzeige ist ausgeschrieben, der Wert bleibt lesbar. */}
+                <time dateTime={n.datum}>{formatiereDatum(n.datum)}</time>
+                {neu ? <Statuschip ton="info">Neu</Statuschip> : null}
+              </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
-              {n.inhalt.map((block, i) => (
-                <NotizBlock key={i} block={block} />
-              ))}
-            </div>
-          </Card>
-        );
-      })}
+              {/* Nacktes `<h2>`: die Seite trägt schon ein `<h1>` im `Seitenkopf`. */}
+              <h2 style={{ ...SCHRIFT.unterTitel, margin: `0 0 ${SPACE.md}px`, overflowWrap: "anywhere" }}>{n.titel}</h2>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
+                {n.inhalt.map((block, i) => (
+                  <NotizBlock key={i} block={block} />
+                ))}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {weitere ? (
+        <Button
+          data-testid="neuigkeiten-aeltere"
+          loading={laedt === "aeltere"}
+          disabled={laedt === "filter"}
+          onClick={() => void lade("aeltere", modul, eintraege.length)}
+          style={{ alignSelf: "flex-start" }}
+        >
+          Ältere anzeigen
+        </Button>
+      ) : null}
     </div>
   );
 }
