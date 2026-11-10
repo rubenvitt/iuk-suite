@@ -308,6 +308,19 @@ describe("VerfallEditor — getippter Monat (IDA-403)", () => {
     expect(document.body.textContent).toContain("„13/2027“ ist kein Monat.");
     expect(feld.isConnected).toBe(true);
     expect(feld.value).toBe("13/2027");
+    // Die Meldung haengt am Feld, nicht am Fehlersatz der Tabelle.
+    const meldung = document.getElementById(feld.getAttribute("aria-describedby") ?? "");
+    expect(meldung?.textContent).toBe("„13/2027“ ist kein Monat. Bitte als MM/JJJJ eingeben.");
+    expect(feld.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("loescht mit einem gueltigen Monat keinen fremden Schreibfehler", async () => {
+    mocks.setzen.mockResolvedValueOnce({ ok: false, fehler: "Artikel steht an diesem Lagerort nicht im Soll." });
+    await mountListe();
+    await monatWaehlen("Mullbinde", "2027-05");
+    expect(document.body.textContent).toContain("Artikel steht an diesem Lagerort nicht im Soll.");
+    await tippeInZelle("Mullbinde", "13/2027");
+    expect(document.body.textContent).toContain("Artikel steht an diesem Lagerort nicht im Soll.");
   });
 
   it("bricht mit Escape ab, ohne zu speichern", async () => {

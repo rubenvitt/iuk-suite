@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, Dropdown, Flex, Select, type TableProps } from "antd";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Alert, Button, Dropdown, Typography, Flex, Select, type TableProps } from "antd";
 import {
   Kartentabelle,
   nachDatum,
@@ -108,24 +108,25 @@ function sucheTrifft(zeile: VerfallAnzeigeZeile, suche: string): boolean {
  * IDA-403 — EIN GETIPPTER MONAT GEHT BEIM SCHLIESSEN NICHT VERLOREN. Der Wähler
  * schließt beim Klick daneben, bevor sein Feld den Text auswertet; deshalb liest
  * `zuMachen` den Text selbst. Ein Monat wird gespeichert, ein Nicht-Monat
- * bleibt im Feld stehen und meldet sich (`onUngueltig`); Escape bricht ab.
+ * bleibt im Feld stehen und meldet sich darunter, per `aria-describedby` am
+ * Feld; Escape bricht ab. Die Meldung gehoert der Zelle, nicht dem Fehlersatz
+ * der Tabelle: der traegt Schreibfehler, und beide duerfen sich nicht loeschen.
  */
 function VerfallZelle({
   artikelName,
   monat,
   gesperrt,
   onWahl,
-  onUngueltig,
 }: {
   artikelName: string;
   monat: string | null;
   gesperrt: boolean;
   onWahl: (wert: Parameters<typeof monatAusPicker>[0]) => void;
-  onUngueltig: (text: string | null) => void;
 }) {
   const [offen, setOffen] = useState(false);
   const [aufgeklappt, setAufgeklappt] = useState(true);
-  const [ungueltig, setUngueltig] = useState(false);
+  const [ungueltig, setUngueltig] = useState<string | null>(null);
+  const meldungId = useId();
   const knopf = useRef<HTMLButtonElement>(null);
   const huelle = useRef<HTMLSpanElement>(null);
   const warOffen = useRef(false);
@@ -135,23 +136,21 @@ function VerfallZelle({
   function oeffnen(): void {
     fertig.current = false;
     setAufgeklappt(true);
-    setUngueltig(false);
+    setUngueltig(null);
     setOffen(true);
   }
 
   function schliessen(neu: string | null): void {
     if (fertig.current) return;
     fertig.current = true;
-    setUngueltig(false);
-    onUngueltig(null);
+    setUngueltig(null);
     setOffen(false);
     if (neu !== monat) onWahl(neu ? dayjs(`${neu}-01`) : null);
   }
 
   function meldeUngueltig(text: string | null): void {
     if (fertig.current) return;
-    setUngueltig(text !== null);
-    onUngueltig(text);
+    setUngueltig(text);
   }
 
   function zuMachen(): void {
@@ -179,7 +178,7 @@ function VerfallZelle({
 
   if (offen) {
     return (
-      <span ref={huelle}>
+      <span ref={huelle} style={{ display: "inline-flex", flexDirection: "column", maxWidth: BREITE.verfall - 24 }}>
         {/* KEIN size (Falle 4) — 44px Arbeitsdichte, wie der Knopf davor. */}
         <MonatsFeld
           open={aufgeklappt}
@@ -187,6 +186,8 @@ function VerfallZelle({
           allowClear
           disabled={gesperrt}
           status={ungueltig ? "error" : undefined}
+          aria-invalid={ungueltig ? true : undefined}
+          aria-describedby={ungueltig ? meldungId : undefined}
           value={monat ? dayjs(`${monat}-01`) : null}
           onChange={(wert) => schliessen(monatAusPicker(wert) ?? null)}
           onUngueltig={meldeUngueltig}
@@ -197,12 +198,17 @@ function VerfallZelle({
           onKeyDown={(e) => {
             if (e.key !== "Escape") return;
             fertig.current = true;
-            onUngueltig(null);
+            setUngueltig(null);
             setOffen(false);
           }}
           aria-label={`Verfall ${artikelName}`}
           style={{ width: BREITE.verfall - 24 }}
         />
+        {ungueltig ? (
+          <Typography.Text type="danger" id={meldungId} role="alert">
+            {keinMonat(ungueltig)}
+          </Typography.Text>
+        ) : null}
       </span>
     );
   }
@@ -325,7 +331,6 @@ export function VerfallEditor({
       monat={verfallVon(eintrag)}
       gesperrt={laeuft}
       onWahl={(wert) => monatSetzen(eintrag, wert)}
-      onUngueltig={(text) => setFehler(text ? keinMonat(text) : null)}
     />
   );
 
