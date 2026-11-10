@@ -163,6 +163,9 @@ export const AUFLADEN_KOMMENTAR = "Aufgeladen";
 export const CHARGE_KORREKTUR = "Korrektur";
 export const CHARGE_INVENTUR = "Inventur";
 export const CHARGE_OHNE_VERFALL = "ohne Verfall";
+/** IDA-378: Material ohne aufgedruckte Chargennummer. Wie die drei darueber ein
+ *  Herkunftshinweis; die Bedeutung (Verfall) haengt am Verfallswert. */
+export const CHARGE_OHNE_NUMMER = "ohne Nummer";
 /** DRK-404: beim Einraeumen aus der Box von der Packung abgelesen — ein Datum
  *  ohne Nummer. Herkunftshinweis wie die drei darueber, nicht Bedeutungstraeger. */
 export const CHARGE_ABGELESEN = "abgelesen";

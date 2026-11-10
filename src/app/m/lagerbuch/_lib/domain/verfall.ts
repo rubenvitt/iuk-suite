@@ -12,6 +12,7 @@
  */
 import { monatsEnde } from "../zeit";
 import { grenzen } from "../grenzen";
+import { istOhneVerfall } from "../konstanten";
 
 /**
  * Die drei Ampelzustaende. EIN Typ fuer vier Rechnungen — `verfallStatus`,
@@ -95,4 +96,14 @@ export function verfallSchwellen(
 ): VerfallSchwellen {
   const g = grenzen(env);
   return { rotTage: g.verfallRotTage, gelbTage: g.verfallGelbTage };
+}
+
+/**
+ * IDA-378 — ABGELAUFEN heisst: das Monatsende des Verfalls liegt vor `now`
+ * (dieselbe Grenze wie `verfallStatus(...).abgelaufen`, ohne Schwellen). Eine
+ * Charge „ohne Verfall" laeuft nie ab.
+ */
+export function istAbgelaufen(verfall: string, now: Date): boolean {
+  if (istOhneVerfall(verfall)) return false;
+  return monatsEnde(verfall).getTime() < now.getTime();
 }
