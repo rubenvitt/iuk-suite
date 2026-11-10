@@ -753,7 +753,7 @@ async function oeffneNachweisAufgabe(page: import("@playwright/test").Page): Pro
   const startenKnopf = page.getByRole("button", { name: "Bearbeitung starten" });
   if (await startenKnopf.isVisible().catch(() => false)) {
     await startenKnopf.click();
-    await expect(page.getByRole("button", { name: "Nachweis speichern" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Fertig melden" })).toBeVisible();
   }
 }
 
@@ -775,24 +775,20 @@ async function wartenAufNachweisStatus(
 }
 
 /**
- * KLICKT „NACHWEIS SPEICHERN" UND PRUEFT DIE ANTWORT SELBST, STATT NUR AUF EINEN
- * SPAETEREN ZUSTANDSWECHSEL ZU WARTEN (Befund `task-19-befund.md`): ohne diese
- * Pruefung lief eine abgelehnte Antwort (404/405/413 — Routenkollision,
- * Zustandsriegel, zu grosse Anfrage) STILL in `wartenAufNachweisStatus`s
- * Zeitbudget, und die Fehlermeldung lautete „Zustand nicht eingetreten" statt
- * „Upload abgelehnt". `page.waitForResponse` faengt GENAU die Antwort auf
- * `.../nachweis/hochladen` ab — unabhaengig davon, ob sie ankommt, bevor oder
- * nachdem der Klick selbst aufgeloest ist.
+ * KLICKT „FERTIG MELDEN" (IDA-386: ein Formular, ein Knopf — das Foto geht zuerst an die Route) UND
+ * PRUEFT DIE UPLOAD-ANTWORT SELBST, STATT NUR AUF EINEN SPAETEREN ZUSTANDSWECHSEL ZU WARTEN (Befund
+ * `task-19-befund.md`): ohne diese Pruefung lief eine abgelehnte Antwort (404/405/413) STILL ins
+ * Zeitbudget, und die Fehlermeldung lautete „Zustand nicht eingetreten" statt „Upload abgelehnt".
  */
 async function sendeNachweis(page: import("@playwright/test").Page): Promise<void> {
   const [antwort] = await Promise.all([
     page.waitForResponse((r) => r.url().includes("/nachweis/hochladen")),
-    page.getByRole("button", { name: "Nachweis speichern" }).click(),
+    page.getByRole("button", { name: "Fertig melden" }).click(),
   ]);
   expect(antwort.ok(), `Upload abgelehnt: HTTP ${antwort.status()} — ${antwort.ok() ? "" : await antwort.text()}`).toBe(true);
 }
 
-test("Nachweis hochladen — ein Fund (Fake-clamd „found“) wird NICHT ausgeliefert, Fertig melden bleibt verweigert", async ({
+test("Nachweis — ein Fund (Fake-clamd „found“) wird NICHT ausgeliefert, Fertig melden bleibt verweigert", async ({
   page,
 }) => {
   setzeAvModus("found");
@@ -800,27 +796,18 @@ test("Nachweis hochladen — ein Fund (Fake-clamd „found“) wird NICHT ausgel
 
   await page.locator("#nf-datei").setInputFiles({ name: "beweisfoto.png", mimeType: "image/png", buffer: PNG });
   await sendeNachweis(page);
-  await expect(page.getByRole("button", { name: "Nachweis speichern" })).toBeVisible();
 
-  await wartenAufNachweisStatus(page, async () => {
-    const grund = page.getByTestId("nachweis-bild-grund");
-    if ((await grund.count()) === 0) return false;
-    const text = (await grund.textContent()) ?? "";
-    return !text.includes("wird noch geprüft");
-  });
+  // EIN SCHRITT: „Fertig melden" wartet auf die Pruefung — ein Fund verlangt ein anderes Foto.
+  await expect(page.getByText(/Sicherheitsprüfung nicht bestanden/).first()).toBeVisible();
+  await expect(page.getByText("In Bearbeitung")).toBeVisible();
 
   // KEIN BILD — der Fund wird nicht ausgeliefert, weder inline noch als direkter Abruf.
+  await page.reload();
+  await expect(page.getByTestId("nachweis-bild-grund")).toBeVisible();
   await expect(page.getByTestId("nachweis-bild")).toHaveCount(0);
-
-  // FERTIG MELDEN BLEIBT VERWEIGERT — die genaue Wortwahl ("wird noch geprueft" vs. "nicht
-  // freigegeben") ist Vitest-Sache (`actions.test.ts`); hier zaehlt nur die Invariante, die fuer
-  // JEDEN Nicht-„sauber"-Zustand gilt: kein Fortschritt, die Aufgabe bleibt „In Bearbeitung".
-  await page.getByRole("button", { name: "Fertig melden" }).click();
-  await expect(page.getByText(/Für diese Aufgabe ist ein Bildnachweis erforderlich\.|nicht freigegeben|geprüft/)).toBeVisible();
-  await expect(page.getByText("In Bearbeitung")).toBeVisible();
 });
 
-test("Nachweis hochladen — ein sauberes Bild (Fake-clamd „ok“) wird ausgeliefert, Fertig melden geht danach durch", async ({
+test("Nachweis — ein sauberes Bild (Fake-clamd „ok“): Fertig melden in EINEM Schritt, das Bild wird ausgeliefert", async ({
   page,
 }) => {
   setzeAvModus("ok");
@@ -829,6 +816,9 @@ test("Nachweis hochladen — ein sauberes Bild (Fake-clamd „ok“) wird ausgel
   await page.locator("#nf-datei").setInputFiles({ name: "beweisfoto.png", mimeType: "image/png", buffer: PNG });
   await sendeNachweis(page);
 
+  // FERTIG MELDEN GEHT DURCH — die Action hat auf die Pruefung gewartet, das Bild ist `sauber`.
+  await expect(page.getByRole("heading", { name: NACHWEIS_AUFGABE, level: 1 })).toBeVisible();
+  await expect(page.getByText("Freigabe offen")).toBeVisible();
   await wartenAufNachweisStatus(page, async () => (await page.getByTestId("nachweis-bild").count()) > 0);
 
   // DIE ECHTE AUSLIEFERUNG: Bytes UND Content-Type kommen tatsaechlich vom Server, nicht nur die
@@ -839,11 +829,6 @@ test("Nachweis hochladen — ein sauberes Bild (Fake-clamd „ok“) wird ausgel
   expect(antwort.status()).toBe(200);
   expect(antwort.headers()["content-type"]).toBe("image/png");
   expect(Buffer.compare(await antwort.body(), PNG)).toBe(0);
-
-  // FERTIG MELDEN GEHT JETZT DURCH — die Nachweispflicht ist mit einem `sauber`en Bild erfuellt.
-  await page.getByRole("button", { name: "Fertig melden" }).click();
-  await expect(page.getByRole("heading", { name: NACHWEIS_AUFGABE, level: 1 })).toBeVisible();
-  await expect(page.getByText("Freigabe offen")).toBeVisible();
 
   // Fuer die IDOR-/Sichtrecht-Gegenprobe im NAECHSTEN Test aufgehoben — ein zweiter `devLogin`
   // INNERHALB dieses Tests waere ein zweiter echter Anmeldevorgang mit bereits gueltiger Sitzung
@@ -1451,17 +1436,16 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     .setInputFiles({ name: "rundlauf.png", mimeType: "image/png", buffer: PNG });
   const [uploadAntwort] = await Promise.all([
     page.waitForResponse((r) => r.url().includes("/nachweis/hochladen")),
-    page.getByRole("button", { name: "Nachweis speichern" }).click(),
+    // IDA-386: EIN Knopf — Foto hochladen und fertig melden in einem Schritt.
+    page.getByRole("button", { name: "Fertig melden" }).click(),
   ]);
   expect(
     uploadAntwort.ok(),
     `Upload abgelehnt: HTTP ${uploadAntwort.status()} — ${uploadAntwort.ok() ? "" : await uploadAntwort.text()}`,
   ).toBe(true);
 
-  await wartenAufNachweisStatus(page, async () => (await page.getByTestId("nachweis-bild").count()) > 0);
-
-  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Fertig melden" }));
   await expect(page.getByText("Freigabe offen")).toBeVisible();
+  await wartenAufNachweisStatus(page, async () => (await page.getByTestId("nachweis-bild").count()) > 0);
 
   // 6. FREIGEBEN — zurueck zu Malte: Auftraggeber UND (weil keine Selbstaufgabe) automatisch der
   // eingetragene Pruefer (s. Kopfkommentar).

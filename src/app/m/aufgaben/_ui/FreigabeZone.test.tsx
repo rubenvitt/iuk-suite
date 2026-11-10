@@ -230,7 +230,7 @@ describe("FreigabeZone — der Bildteil eines Nachweises (Aufgabe 19)", () => {
     await mount(<FreigabeZone meine={meine} vertretung={[]} heute="2026-08-13" />);
     expect(document.querySelector("img")).toBeNull();
     expect(query("[data-testid='nachweis-bild-grund']").textContent).toContain(
-      "wird noch geprüft",
+      "Bild wird geprüft",
     );
   });
 });

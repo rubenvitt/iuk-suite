@@ -44,7 +44,7 @@ import {
 import { FORM_START, type FormState } from "./_lib/formState";
 import { anfangsZustand, bearbeitung, uebergang, type Aktion } from "./_lib/lebenszyklus";
 import { loescheNachweis } from "./_lib/ablage";
-import { istFreigegeben } from "./_lib/scan";
+import { istFreigegeben, pruefeBildVorFertigmeldung } from "./_lib/scan";
 import {
   darfPersonenVerwalten,
   darfPlanAendern,
@@ -743,12 +743,16 @@ export async function einplanenAnnehmenAction(formData: FormData): Promise<void>
  * vorhanden", sondern „ein Bild, dessen zugehoerige Datei GENAU `sauber` ist" — `offen` (der Zustand
  * direkt nach jedem Upload) und `befund`/`fehler` erfuellen die Pflicht ausdruecklich NICHT.
  *
- * DIE FOLGE, DIE DIE OBERFLAECHE ERKLAEREN MUSS (Brief): direkt nach dem Upload ist der Status
- * `offen`. Ein Klick auf „Fertig melden" in genau diesem Moment wird abgelehnt — und die Meldung sagt
- * „wird noch geprueft", nicht „fehlt": eine Person, die GERADE ein Bild hochgeladen hat, wird sonst
- * beschuldigt, gar nichts eingereicht zu haben. `bildMeldung` unten unterscheidet drei Faelle: KEIN
- * Bild vorhanden (die urspruengliche Meldung), das NEUESTE Bild ist noch `offen` (Auskunft, keine
- * Luege), oder es ist `befund`/`fehler` (abgelehnt — ein neues Bild ist noetig).
+ * IDA-386 — EIN SCHRITT: das Formular laedt das Foto hoch und meldet gleich danach fertig. Diese
+ * Action WARTET deshalb auf die Pruefung des neuesten Bildes (`pruefeBildVorFertigmeldung`,
+ * `_lib/scan.ts`, hoechstens `FERTIG_PRUEF_WARTEZEIT_MS`), statt `offen` sofort abzulehnen. Die
+ * Regel bleibt: nur `sauber` erfuellt die Pflicht — eine Fertigmeldung mit ungeprueftem Bild geht
+ * NICHT durch (sonst landete ein nie geprueftes Bild als Beleg beim Pruefer oder, bei einer
+ * Selbstaufgabe, direkt im Abschluss). `bildMeldung` unterscheidet vier Faelle: KEIN Bild
+ * (urspruengliche Meldung), noch `offen` nach der Wartezeit („wird geprueft"), `fehler` (die
+ * Pruefung kam nicht zustande — das Bild bleibt, beim naechsten Druck wird erneut geprueft; KEIN
+ * neues Bild verlangen, das war die Schleife aus IDA-386) und `befund` (dieses Bild nicht — ein
+ * anderes noetig).
  */
 function neuesterBildNachweis(vorhandene: readonly NachweisRow[]): NachweisRow | undefined {
   const bilder = vorhandene.filter((n) => n.art === "bild" && n.dateiId !== null);
@@ -761,16 +765,22 @@ function neuesterBildNachweis(vorhandene: readonly NachweisRow[]): NachweisRow |
   );
 }
 
-function bildMeldung(db: DB, vorhandene: readonly NachweisRow[]): string | null {
+async function bildMeldung(db: DB, vorhandene: readonly NachweisRow[]): Promise<string | null> {
   const neuester = neuesterBildNachweis(vorhandene);
-  if (neuester === undefined) return "Für diese Aufgabe ist ein Bildnachweis erforderlich.";
+  if (neuester === undefined) return "Für diese Aufgabe ist ein Foto erforderlich.";
   const datei = neuester.dateiId !== null ? dateiNachId(db, neuester.dateiId) : null;
-  if (datei !== null && istFreigegeben(datei.scanStatus)) return null;
-  if (datei !== null && datei.scanStatus === "offen") {
-    return "Der Nachweis wird noch geprüft — bitte gleich erneut versuchen.";
-  }
-  return "Der hochgeladene Nachweis wurde nicht freigegeben. Bitte ein neues Bild hochladen.";
+  if (datei === null) return "Für diese Aufgabe ist ein Foto erforderlich.";
+  const status = istFreigegeben(datei.scanStatus) ? datei.scanStatus : await pruefeBildVorFertigmeldung(db, datei.id);
+  if (status !== null && istFreigegeben(status)) return null;
+  if (status === "offen") return BILD_WIRD_GEPRUEFT;
+  if (status === "fehler") return BILD_PRUEFUNG_NICHT_MOEGLICH;
+  return "Das Foto hat die Sicherheitsprüfung nicht bestanden. Bitte ein anderes Foto wählen.";
 }
+
+/** Die Pruefmeldungen in Alltagssprache (IDA-386) — beide verlangen KEIN neues Bild. */
+const BILD_WIRD_GEPRUEFT = "Bild wird geprüft… Bitte gleich noch einmal „Fertig melden“ drücken.";
+const BILD_PRUEFUNG_NICHT_MOEGLICH =
+  "Prüfung gerade nicht möglich. Das Foto bleibt gespeichert — bitte später erneut „Fertig melden“ drücken.";
 
 export async function fertigMeldenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
@@ -795,7 +805,7 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
     if (task.nachweisPflicht) {
       const vorhandene = nachweiseSeitLetzterZurueckweisung(db, task.id);
       if (task.nachweisArt === "bild") {
-        const meldung = bildMeldung(db, vorhandene);
+        const meldung = await bildMeldung(db, vorhandene);
         if (meldung !== null) {
           return {
             ok: false,
@@ -813,7 +823,7 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
         if (!hatText) {
           return {
             ok: false,
-            fieldErrors: { nachweisText: "Fuer diese Aufgabe ist ein Textnachweis erforderlich." },
+            fieldErrors: { nachweisText: "Für diese Aufgabe ist ein Textnachweis erforderlich." },
             values,
           };
         }
