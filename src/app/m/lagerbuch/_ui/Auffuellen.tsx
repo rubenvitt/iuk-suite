@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
@@ -12,7 +12,10 @@ import { SendeStatus } from "./SendeStatus";
 // nicht als Prop durchgereicht."
 import { bucheAuffuellung } from "../_actions/buchung";
 import { fmtVerfall, ampelTon } from "../_lib/format";
-import type { Ampel } from "../_lib/domain/verfall";
+import { istAbgelaufen, type Ampel } from "../_lib/domain/verfall";
+import {
+  CHARGE_OHNE_NUMMER, CHARGE_OHNE_VERFALL, MONAT_REGEX, PSEUDO_VERFALL, istOhneVerfall,
+} from "../_lib/konstanten";
 import s from "./helfer.module.css";
 
 /**
@@ -87,6 +90,9 @@ const NEUE_CHARGE = "neu:";
 
 type Rueckmeldung = { art: "ok" | "fehler"; text: string };
 
+/** Der Verfall als Anzeige — „ohne Verfall" statt des Platzhalters 12/99. */
+const verfallText = (v: string) => (istOhneVerfall(v) ? "ohne Verfall" : fmtVerfall(v));
+
 export function Auffuellen({
   detail,
   ziele,
@@ -99,6 +105,9 @@ export function Auffuellen({
   const [chargeWahl, setChargeWahl] = useState(NEUE_CHARGE);
   const [chargenNr, setChargenNr] = useState("");
   const [verfall, setVerfall] = useState("");
+  /** IDA-378 — „ohne Verfall" ist eine eigene Wahl, kein Monat: gesendet wird
+   *  `PSEUDO_VERFALL`, das Monatsfeld bleibt leer und gesperrt. */
+  const [ohneVerfall, setOhneVerfall] = useState(false);
   const [menge, setMenge] = useState(1);
   /**
    * DIE GERADE ANGELEGTE CHARGE — Codex-Befund P1 zu PR #174.
@@ -124,6 +133,15 @@ export function Auffuellen({
    */
   const [zielId, setZielId] = useState(ziele.length === 1 ? ziele[0]!.id : "");
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
+  /*
+   * IDA-378 — DIE RUECKMELDUNG STEHT UEBER DEM KNOPF und wird in den Blick
+   * geholt. Unter dem Knopf lag sie am Telefon unter dem unteren Bildrand: die
+   * Buchung gelang, und niemand sah es.
+   */
+  const meldungRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (rueck) meldungRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [rueck]);
 
   /*
    * IDA-358 — CHARGE, MENGE UND SCHRANK LIEGEN AUF DEM GERAET, die Buchung bis
@@ -136,17 +154,22 @@ export function Auffuellen({
   type Eingabe = {
     artikelId: string; menge: number; zielLagerortId: string;
     charge: { art: "neu"; chargenNr: string; verfall: string } | { art: "vorhanden"; chargeId: string };
+    abgelaufenBestaetigt?: true;
   };
   const entwurf = useEntwurf<
-    { chargeWahl: string; chargenNr: string; verfall: string; menge: number; zielId: string },
+    {
+      chargeWahl: string; chargenNr: string; verfall: string; menge: number; zielId: string;
+      /** Optional: ein Entwurf von vor IDA-378 kennt das Feld nicht. */
+      ohneVerfall?: boolean;
+    },
     Eingabe,
     { r: Awaited<ReturnType<typeof bucheAuffuellung>>; n: Eingabe }
   >({
     schluessel: `lagerbuch:auffuellen:${detail.id}`,
-    stand: { chargeWahl, chargenNr, verfall, menge, zielId },
+    stand: { chargeWahl, chargenNr, verfall, menge, zielId, ohneVerfall },
     wiederherstellen: (w) => {
       setChargeWahl(w.chargeWahl); setChargenNr(w.chargenNr); setVerfall(w.verfall);
-      setMenge(w.menge); setZielId(w.zielId);
+      setMenge(w.menge); setZielId(w.zielId); setOhneVerfall(w.ohneVerfall ?? false);
     },
     senden: async (n, sendungId) => ({ r: await bucheAuffuellung({ ...n, sendungId }), n }),
     antwort: ({ r, n }) => {
@@ -186,10 +209,17 @@ export function Auffuellen({
        * anzulegen — also genau zurueck in den Fehler.
        */
       if (n.charge.art === "neu") {
-        setAngelegt({ id: r.wert.chargeId, chargenNr: n.charge.chargenNr, verfall: n.charge.verfall });
+        setAngelegt({
+          id: r.wert.chargeId,
+          // Derselbe Platzhalter, den der Server speichert (`zugangBuchen`).
+          chargenNr: n.charge.chargenNr
+            || (istOhneVerfall(n.charge.verfall) ? CHARGE_OHNE_VERFALL : CHARGE_OHNE_NUMMER),
+          verfall: n.charge.verfall,
+        });
         setChargeWahl(r.wert.chargeId);
         setChargenNr("");
         setVerfall("");
+        setOhneVerfall(false);
       }
       /*
        * ⚠️ DIE MENGE FAELLT AUF 1 ZURUECK. Sie ist bei jeder Buchung eine
@@ -209,7 +239,13 @@ export function Auffuellen({
    * provisorisch und einmal echt.
    */
   const uebergang = angelegt && !detail.chargen.some((c) => c.id === angelegt.id) ? angelegt : null;
-  const chargeVollstaendig = neu ? chargenNr.trim() !== "" && verfall !== "" : true;
+  /*
+   * IDA-378 — PFLICHT IST NUR NOCH DER VERFALL (ein Monat oder „ohne Verfall").
+   * Eine leere Chargennummer heisst „ohne Nummer"; der Server macht daraus den
+   * Hinweis und nimmt je Verfall denselben Topf (`zugangBuchen`).
+   */
+  const neuerVerfall = ohneVerfall ? PSEUDO_VERFALL : verfall;
+  const chargeVollstaendig = neu ? MONAT_REGEX.test(neuerVerfall) : true;
   /*
    * ⚠️ `detail.aktiv` STEHT IN DERSELBEN BEDINGUNG WIE DIE OFFENE ENTSCHEIDUNG
    * (DRK-380), nicht in einer eigenen Weiche davor. `bereit` traegt schon
@@ -220,6 +256,30 @@ export function Auffuellen({
    */
   const bereit = detail.aktiv && chargeVollstaendig && zielId !== "" && menge > 0 && !laeuft;
   const zielName = ziele.find((z) => z.id === zielId)?.name ?? null;
+
+  /*
+   * IDA-378 — WAS NOCH FEHLT, STEHT AM KNOPF. Ein grauer Knopf unter einer
+   * Zeile, die „1 Stk → Handlager" verspricht, sagt sonst nicht, warum.
+   * Der deaktivierte Artikel fehlt hier bewusst: sein Satz steht oben.
+   */
+  const fehlt = [
+    neu && !chargeVollstaendig ? "den Verfall" : null,
+    zielId === "" ? "einen Schrank" : null,
+  ].filter((x): x is string => x !== null);
+  const fehltText = detail.aktiv && fehlt.length > 0 ? `Wähle noch ${fehlt.join(" und ")}.` : null;
+
+  /*
+   * IDA-378 — ABGELAUFENES MATERIAL GEHT NUR NACH RUECKFRAGE ins Lager. Die
+   * Warnung steht direkt am Knopf, und der Knopf heisst dann „Trotzdem
+   * buchen"; erst dieser Tipp sendet `abgelaufenBestaetigt` mit. Die Uhr ist
+   * die des Geraets — der Server prueft mit seiner noch einmal.
+   */
+  const gewaehlterVerfall = neu
+    ? (chargeVollstaendig ? neuerVerfall : null)
+    : (detail.chargen.find((c) => c.id === chargeWahl)?.verfall
+      ?? (uebergang?.id === chargeWahl ? uebergang.verfall : null));
+  const abgelaufen = gewaehlterVerfall !== null && istAbgelaufen(gewaehlterVerfall, new Date());
+  const rueckfrage = bereit && abgelaufen;
 
   function absenden() {
     // Die zweite Haelfte derselben Zusage wie der gesperrte Knopf: ein
@@ -233,8 +293,9 @@ export function Auffuellen({
       menge,
       zielLagerortId: zielId,
       charge: neu
-        ? { art: "neu", chargenNr: chargenNr.trim(), verfall }
+        ? { art: "neu", chargenNr: chargenNr.trim(), verfall: neuerVerfall }
         : { art: "vorhanden", chargeId: chargeWahl },
+      ...(abgelaufen ? { abgelaufenBestaetigt: true as const } : {}),
     });
   }
 
@@ -330,31 +391,58 @@ export function Auffuellen({
           sichtbare, meist gesperrte Felder waeren auf einem Telefon ein halber
           Schirm, den niemand liest.
         */}
+        {/*
+          IDA-378 — SICHTBARE BESCHRIFTUNG statt Platzhalter: ein Platzhalter
+          verschwindet beim ersten Zeichen. Die Nummer ist optional (leer =
+          „ohne Nummer"), der Verfall ist Pflicht und so markiert.
+        */}
         {neu && (
           <div className={s.kartePad} data-rolle="neue-charge-felder">
+            <label className={s.feldBeschriftung} htmlFor="lb-auffuellen-nr">
+              Chargennummer
+            </label>
             <input
+              id="lb-auffuellen-nr"
               className={s.feld}
               type="text"
               autoComplete="off"
-              aria-label="Chargennummer"
-              placeholder="Chargennummer"
+              placeholder="ohne Nummer"
               value={chargenNr}
               onChange={(e) => setChargenNr(e.target.value)}
               data-rolle="chargennummer"
             />
-            <div className={s.verfallZeile}>
+            <label
+              className={s.feldBeschriftung}
+              htmlFor="lb-auffuellen-verfall"
+              style={{ marginTop: 12 }}
+            >
+              Verfall <span className={s.feldPflicht} aria-hidden="true">Pflicht</span>
+            </label>
+            <div className={s.verfallZeile} style={{ marginTop: 0 }}>
               {/* `pattern` und `inputMode` sind der Rueckfall fuer Browser, die
                   `month` als Textfeld rendern. */}
               <input
+                id="lb-auffuellen-verfall"
                 type="month"
                 inputMode="numeric"
                 pattern="\d{4}-\d{2}"
-                aria-label="Verfallsmonat"
-                value={verfall}
+                required
+                disabled={ohneVerfall}
+                value={ohneVerfall ? "" : verfall}
                 onChange={(e) => setVerfall(e.target.value)}
                 data-rolle="verfallsmonat"
               />
             </div>
+            <label className={`${s.zeile} ${s.zeileWahl}`} style={{ borderTop: "none", padding: 0 }}>
+              <input
+                type="checkbox"
+                className={s.wahlKnopf}
+                checked={ohneVerfall}
+                onChange={(e) => setOhneVerfall(e.target.checked)}
+                data-rolle="ohne-verfall"
+              />
+              <span className={s.zeileHaupt}>ohne Verfall</span>
+            </label>
           </div>
         )}
 
@@ -379,7 +467,7 @@ export function Auffuellen({
               </div>
               <div className={s.zeileMeta}>
                 <span>gerade angelegt</span>
-                <span>{fmtVerfall(uebergang.verfall)}</span>
+                <span>{verfallText(uebergang.verfall)}</span>
               </div>
             </div>
           </label>
@@ -410,7 +498,7 @@ export function Auffuellen({
               <div className={s.zeileMeta}>
                 {/* Der Status steht als TEXT im Chip, nie allein ueber Farbe. */}
                 <HelferChip ton={ampelTon(c.ampel)}>{c.text}</HelferChip>
-                <span>{fmtVerfall(c.verfall)}</span>
+                <span>{verfallText(c.verfall)}</span>
               </div>
             </div>
             <div className={s.mengenChip}>
@@ -477,27 +565,59 @@ export function Auffuellen({
             </span>
           </div>
 
+          {/*
+            IDA-378 — DIE RUECKMELDUNG STEHT VOR DEM KNOPF, nicht dahinter: am
+            Telefon ist der Knopf die unterste sichtbare Zeile, alles darunter
+            liegt ausser Sicht (siehe `meldungRef`).
+          */}
+          <div ref={meldungRef} data-rolle="auffuellen-meldungen" style={{ marginBottom: 10 }}>
+            <SendeStatus entwurf={entwurf} rolle="auffuellen-ergebnis" verwerfbar />
+
+            {rueck && (
+              <span
+                className={`${s.chip} ${rueck.art === "ok" ? s.ok : s.rot} ${s.rueckmeldung}`}
+                data-rolle="auffuellen-ergebnis"
+                role="status"
+              >
+                {rueck.text}
+              </span>
+            )}
+          </div>
+
+          {fehltText && (
+            <p
+              id="lb-auffuellen-fehlt"
+              className={s.zielPflichtHinweis}
+              style={{ margin: "0 0 10px" }}
+              data-rolle="auffuellen-fehlt"
+            >
+              {fehltText}
+            </p>
+          )}
+
+          {rueckfrage && gewaehlterVerfall && (
+            <span
+              id="lb-auffuellen-abgelaufen"
+              className={`${s.chip} ${s.rot} ${s.warnhinweis}`}
+              style={{ marginBottom: 10 }}
+              data-rolle="auffuellen-abgelaufen"
+            >
+              Verfall {fmtVerfall(gewaehlterVerfall)} ist abgelaufen.
+            </span>
+          )}
+
           <button
             className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit}`}
             type="button"
             disabled={!bereit}
             onClick={absenden}
+            aria-describedby={
+              fehltText ? "lb-auffuellen-fehlt" : rueckfrage ? "lb-auffuellen-abgelaufen" : undefined
+            }
             data-rolle="auffuellen-buchen"
           >
-            Auffüllen buchen
+            {rueckfrage ? "Trotzdem buchen" : "Auffüllen buchen"}
           </button>
-
-          <SendeStatus entwurf={entwurf} rolle="auffuellen-ergebnis" verwerfbar />
-
-          {rueck && (
-            <span
-              className={`${s.chip} ${rueck.art === "ok" ? s.ok : s.rot} ${s.rueckmeldung}`}
-              data-rolle="auffuellen-ergebnis"
-              role="status"
-            >
-              {rueck.text}
-            </span>
-          )}
         </div>
       </div>
     </div>

@@ -210,7 +210,12 @@ describe("Auffuellen — die Charge", () => {
     );
   });
 
-  it("verlangt Nummer UND Verfall, bevor eine neue Charge gebucht werden kann", async () => {
+  /*
+   * IDA-378 — bis dahin war auch die NUMMER Pflicht, und Material ohne
+   * aufgedruckte Nummer liess sich gar nicht buchen. Pflicht ist nur noch der
+   * Verfall (ein Monat oder „ohne Verfall").
+   */
+  it("verlangt den Verfall, bevor eine neue Charge gebucht werden kann", async () => {
     const buchen = await zeige([ZIELE[0]!]);
     const knopf = () => query<HTMLButtonElement>('[data-rolle="auffuellen-buchen"]');
 
@@ -231,17 +236,139 @@ describe("Auffuellen — die Charge", () => {
     });
   });
 
-  it("schneidet Leerraum aus der Chargennummer — und ein reiner Leerraum gilt als leer", async () => {
+  it("IDA-378 — bucht OHNE Nummer: das leere Feld geht leer an den Server", async () => {
     const buchen = await zeige([ZIELE[0]!]);
     await fill('[data-rolle="chargennummer"]', "   ");
     await fill('[data-rolle="verfallsmonat"]', "2028-01");
-    expect(query<HTMLButtonElement>('[data-rolle="auffuellen-buchen"]').disabled).toBe(true);
+    expect(query<HTMLButtonElement>('[data-rolle="auffuellen-buchen"]').disabled).toBe(false);
+    await click('[data-rolle="auffuellen-buchen"]');
+    expect(buchen).toHaveBeenCalledWith(
+      expect.objectContaining({ charge: { art: "neu", chargenNr: "", verfall: "2028-01" } }),
+    );
+  });
 
+  it("schneidet Leerraum aus der Chargennummer", async () => {
+    const buchen = await zeige([ZIELE[0]!]);
     await fill('[data-rolle="chargennummer"]', "  L-NEU  ");
+    await fill('[data-rolle="verfallsmonat"]', "2028-01");
     await click('[data-rolle="auffuellen-buchen"]');
     expect(buchen).toHaveBeenCalledWith(
       expect.objectContaining({ charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" } }),
     );
+  });
+
+  it("IDA-378 — „ohne Verfall“ bucht den Platzhaltermonat und sperrt das Monatsfeld", async () => {
+    const buchen = await zeige([ZIELE[0]!]);
+    await clickElement(query<HTMLInputElement>('[data-rolle="ohne-verfall"]'));
+    expect(query<HTMLInputElement>('[data-rolle="verfallsmonat"]').disabled).toBe(true);
+    expect(query<HTMLButtonElement>('[data-rolle="auffuellen-buchen"]').disabled).toBe(false);
+    await click('[data-rolle="auffuellen-buchen"]');
+    expect(buchen).toHaveBeenCalledWith(
+      expect.objectContaining({ charge: { art: "neu", chargenNr: "", verfall: "2099-12" } }),
+    );
+    expect(buchen.mock.calls[0]![0]).not.toHaveProperty("abgelaufenBestaetigt");
+  });
+
+  it("IDA-378 — beschriftet Nummer und Verfall sichtbar und kennzeichnet die Pflicht", async () => {
+    await zeige();
+    const nr = query<HTMLInputElement>('[data-rolle="chargennummer"]');
+    const verfall = query<HTMLInputElement>('[data-rolle="verfallsmonat"]');
+    expect(query(`label[for="${nr.id}"]`).textContent).toBe("Chargennummer");
+    expect(query(`label[for="${verfall.id}"]`).textContent).toContain("Verfall");
+    expect(query(`label[for="${verfall.id}"]`).textContent).toContain("Pflicht");
+    expect(verfall.required).toBe(true);
+    expect(nr.required).toBe(false);
+    expect(nr.placeholder).toBe("ohne Nummer");
+  });
+});
+
+/**
+ * IDA-378 — DER GESPERRTE KNOPF SAGT, WAS FEHLT. Vorher stand am Telefon ein
+ * grauer Knopf unter „1 Stk → Handlager", und kein Wort dazu.
+ */
+describe("Auffuellen — der gesperrte Knopf nennt den fehlenden Schritt", () => {
+  const knopf = () => query<HTMLButtonElement>('[data-rolle="auffuellen-buchen"]');
+  const fehlt = () => query('[data-rolle="auffuellen-fehlt"]');
+
+  it("nennt Verfall und Schrank und haengt den Satz an den Knopf", async () => {
+    await zeige();
+    expect(fehlt().textContent).toBe("Wähle noch den Verfall und einen Schrank.");
+    expect(knopf().getAttribute("aria-describedby")).toBe(fehlt().id);
+  });
+
+  it("nennt nur, was noch offen ist — und verschwindet, wenn nichts mehr fehlt", async () => {
+    await zeige([ZIELE[0]!]);
+    expect(fehlt().textContent).toBe("Wähle noch den Verfall.");
+    await fill('[data-rolle="verfallsmonat"]', "2028-01");
+    expect(exists('[data-rolle="auffuellen-fehlt"]')).toBe(false);
+    expect(knopf().hasAttribute("aria-describedby")).toBe(false);
+  });
+
+  it("nennt den Schrank, wenn eine vorhandene Charge gewaehlt ist", async () => {
+    await zeige();
+    await clickElement(queryAll<HTMLInputElement>('[data-rolle="charge-zeile"] input')[0]!);
+    expect(fehlt().textContent).toBe("Wähle noch einen Schrank.");
+  });
+
+  it("schweigt beim deaktivierten Artikel — dessen Satz steht oben", async () => {
+    await zeigeInaktiv();
+    expect(exists('[data-rolle="auffuellen-fehlt"]')).toBe(false);
+  });
+});
+
+/**
+ * IDA-378 — ABGELAUFENES MATERIAL NUR NACH RUECKFRAGE. Die Warnung steht am
+ * Knopf, der Knopf heisst „Trotzdem buchen", und erst dann reist
+ * `abgelaufenBestaetigt` mit (der Server weist ohne das Feld ab).
+ */
+describe("Auffuellen — abgelaufene Charge", () => {
+  const knopf = () => query<HTMLButtonElement>('[data-rolle="auffuellen-buchen"]');
+
+  it("fragt bei einer NEUEN Charge mit vergangenem Verfall nach", async () => {
+    const buchen = await zeige([ZIELE[0]!]);
+    await fill('[data-rolle="verfallsmonat"]', "2020-01");
+    expect(query('[data-rolle="auffuellen-abgelaufen"]').textContent)
+      .toBe("Verfall 01/20 ist abgelaufen.");
+    expect(knopf().textContent).toBe("Trotzdem buchen");
+    expect(knopf().getAttribute("aria-describedby")).toBe("lb-auffuellen-abgelaufen");
+    await click('[data-rolle="auffuellen-buchen"]');
+    expect(buchen).toHaveBeenCalledWith(expect.objectContaining({
+      charge: { art: "neu", chargenNr: "", verfall: "2020-01" },
+      abgelaufenBestaetigt: true,
+    }));
+  });
+
+  it("fragt bei einer VORHANDENEN abgelaufenen Charge nach — die Liste nennt sie so", async () => {
+    const buchen = ok(1, "Handlager (ohne Schrank)", "ch-alt");
+    await mount(
+      <Auffuellen
+        detail={{
+          ...DETAIL,
+          chargen: [
+            { id: "ch-alt", chargenNr: "ALT", verfall: "2020-01", rest: 0, ampel: "rot", text: "abgelaufen" },
+            ...DETAIL.chargen,
+          ],
+        }}
+        ziele={[ZIELE[0]!]}
+      />,
+    );
+    const zeile = queryAll('[data-rolle="charge-zeile"]')[0]!;
+    expect(zeile.textContent).toContain("abgelaufen");
+    await clickElement(zeile.querySelector("input")!);
+    expect(knopf().textContent).toBe("Trotzdem buchen");
+    await click('[data-rolle="auffuellen-buchen"]');
+    expect(buchen).toHaveBeenCalledWith(expect.objectContaining({
+      charge: { art: "vorhanden", chargeId: "ch-alt" }, abgelaufenBestaetigt: true,
+    }));
+  });
+
+  it("bleibt bei einer gueltigen Charge still", async () => {
+    const buchen = await zeige([ZIELE[0]!]);
+    await clickElement(queryAll<HTMLInputElement>('[data-rolle="charge-zeile"] input')[0]!);
+    expect(exists('[data-rolle="auffuellen-abgelaufen"]')).toBe(false);
+    expect(knopf().textContent).toBe("Auffüllen buchen");
+    await click('[data-rolle="auffuellen-buchen"]');
+    expect(buchen.mock.calls[0]![0]).not.toHaveProperty("abgelaufenBestaetigt");
   });
 });
 
@@ -338,6 +465,31 @@ describe("Auffuellen — der Beleg (AK3)", () => {
     await click('[data-rolle="auffuellen-buchen"]');
     expect(query('[data-rolle="auffuellen-ergebnis"]').textContent)
       .toBe("Aufgefüllt: 3 × Mullbinde → GF-Schrank");
+  });
+
+  /*
+   * IDA-378 — unter dem Knopf lag die Meldung am Telefon (390x844) unter dem
+   * unteren Bildrand. Sie steht jetzt VOR ihm und wird in den Blick geholt.
+   */
+  it("IDA-378 — die Erfolgsmeldung steht VOR dem Knopf und wird in den Blick geholt", async () => {
+    const holen = vi.fn();
+    const vorher = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = holen;
+    try {
+      await zeige([ZIELE[0]!], ok(2, "Schrank 1"));
+      await fill('[data-rolle="verfallsmonat"]', "2028-01");
+      await click('[data-rolle="auffuellen-buchen"]');
+      const meldung = query('[data-rolle="auffuellen-ergebnis"]');
+      const knopf = query('[data-rolle="auffuellen-buchen"]');
+      expect(meldung.textContent).toBe("Aufgefüllt: 2 × Mullbinde → Schrank 1");
+      expect(
+        meldung.compareDocumentPosition(knopf) & Node.DOCUMENT_POSITION_FOLLOWING,
+        "der Knopf folgt der Meldung",
+      ).toBeTruthy();
+      expect(holen).toHaveBeenCalledWith({ block: "nearest" });
+    } finally {
+      Element.prototype.scrollIntoView = vorher;
+    }
   });
 
   it("zeigt den Fehlertext des Servers unveraendert — die Insel formuliert nicht neu", async () => {

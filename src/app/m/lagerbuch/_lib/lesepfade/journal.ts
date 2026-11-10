@@ -38,9 +38,11 @@ import { ortStamm, type OrtStammZeile } from "./orte";
 import { falte } from "../suche";
 import { JOURNAL_GRENZE } from "../grenzen";
 import {
-  AUSSONDERN_PRAEFIX,
-  INVENTUR_PRAEFIX,
+  PRAEFIXE_DER_ARTEN,
+  STORNO_PRAEFIX,
+  istGegenbuchung,
   istPraefixArt,
+  zeileGegenbuchbar,
   praefixVon,
   type BuchungTyp,
   type Vorgangsart,
@@ -85,12 +87,14 @@ function vorgangBedingung(art: Vorgangsart): SQL {
   if (istPraefixArt(art)) {
     return sql`${buchungen.referenz} LIKE ${`${praefixVon(art)}%`} ESCAPE '\\'`;
   }
+  // IDA-378: ALLE Praefix-Arten fallen heraus, seit der Gegenbuchung drei.
+  const ausser = sql.join(
+    PRAEFIXE_DER_ARTEN.map((p) => sql`${buchungen.referenz} NOT LIKE ${`${p}%`} ESCAPE '\\'`),
+    sql` AND `,
+  );
   return and(
     eq(buchungen.typ, art),
-    sql`(${buchungen.referenz} IS NULL OR (
-      ${buchungen.referenz} NOT LIKE ${`${AUSSONDERN_PRAEFIX}%`} ESCAPE '\\'
-      AND ${buchungen.referenz} NOT LIKE ${`${INVENTUR_PRAEFIX}%`} ESCAPE '\\'
-    ))`,
+    sql`(${buchungen.referenz} IS NULL OR (${ausser}))`,
   )!;
 }
 
@@ -190,6 +194,13 @@ export type JournalZeileRoh = {
    * Art — sie darf sie deshalb nennen.
    */
   ortStandort: StandortAngabe;
+  /**
+   * IDA-378 — bietet die Zeile „Gegenbuchen" an? Nur eine Anzeige: die Action
+   * loest den Vorgang serverseitig neu auf und prueft selbst.
+   */
+  gegenbuchbar: boolean;
+  /** IDA-378 — zu dieser Zeile steht schon eine Gegenbuchung im Journal. */
+  gegengebucht: boolean;
 };
 
 export type JournalErgebnis = {
@@ -265,6 +276,13 @@ export function journalEintraege(db: DB, f: JournalFilter = {}): JournalErgebnis
   const geliefert = rows.slice(0, grenze);
   const letzte = geliefert.at(-1);
   const wer = quelleAufloeser(db);
+  // IDA-378 — welche Zeilen dieser Seite schon eine Gegenzeile haben: EINE
+  // Abfrage ueber den Primaerschluessel, nicht eine je Zeile.
+  const gegen = geliefert.length === 0 ? new Set<string>() : new Set(
+    db.select({ id: buchungen.id }).from(buchungen)
+      .where(inArray(buchungen.id, geliefert.map((b) => `${STORNO_PRAEFIX}${b.id}`)))
+      .all().map((r) => r.id.slice(STORNO_PRAEFIX.length)),
+  );
   return {
     mehrVorhanden,
     // Nur wenn es WIRKLICH weitergeht. Ein Cursor auf der letzten Seite liesse
@@ -284,6 +302,8 @@ export function journalEintraege(db: DB, f: JournalFilter = {}): JournalErgebnis
       // das Journal ist append-only, die Zeile bleibt lesbar.
       ortName: orte.get(b.lagerortId)?.name ?? b.lagerortId,
       ortStandort: ortStandortVon(orte.get(b.lagerortId), b.lagerortId),
+      gegenbuchbar: zeileGegenbuchbar(b) && !istGegenbuchung(b),
+      gegengebucht: gegen.has(b.id),
     })),
   };
 }

@@ -159,6 +159,8 @@ export function ArtikelTable({
 }) {
   const [filter, setFilter] = useState<ArtikelFilterZustand>(LEERER_FILTER);
   const [offenerArtikel, setOffenerArtikel] = useState<string | null>(startArtikel ?? null);
+  /** IDA-378 — der eben angelegte Artikel: seine Schublade oeffnet auf „Buchen". */
+  const [neuAngelegt, setNeuAngelegt] = useState<string | null>(null);
   /*
    * Ein neuer Wunsch aus der Adresse (Link auf dieselbe Seite mit anderem
    * Artikel) öffnet dessen Schublade — im Rendern abgeglichen, nicht im Effekt
@@ -608,7 +610,13 @@ export function ArtikelTable({
               >
                 {exportLaeuft ? "Erzeuge…" : "Excel-Liste"}
               </Button>
-              <NeuArtikel kategorien={kategorien.map((option) => option.label)} />
+              <NeuArtikel
+                kategorien={kategorien.map((option) => option.label)}
+                onAngelegt={(id) => {
+                  setNeuAngelegt(id);
+                  setOffenerArtikel(id);
+                }}
+              />
             </Flex>
             {ausgewaehlt.length > 0 ? (
               <Flex
@@ -794,7 +802,11 @@ export function ArtikelTable({
           id={offenerArtikel}
           fahrzeuge={fahrzeuge}
           kategorien={kategorien.map((option) => option.label)}
-          onSchliessen={() => setOffenerArtikel(null)}
+          {...(offenerArtikel === neuAngelegt ? { startReiter: "buchen" as const } : {})}
+          onSchliessen={() => {
+            setOffenerArtikel(null);
+            setNeuAngelegt(null);
+          }}
         />
       ) : null}
     </>

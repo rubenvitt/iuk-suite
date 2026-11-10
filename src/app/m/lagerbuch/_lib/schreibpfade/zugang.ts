@@ -45,10 +45,12 @@
  * deaktiviert" saehe an dieser Stelle aus wie ein Defekt; der Satz nennt
  * stattdessen den naechsten Griff.
  */
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { artikel, buchungen, chargen, newId } from "../../_db/schema";
 import { BuchungAbgewiesen } from "../buchungAbgewiesen";
-import { HANDLAGER_ID } from "../konstanten";
+import {
+  CHARGE_OHNE_NUMMER, CHARGE_OHNE_VERFALL, HANDLAGER_ID, istOhneVerfall,
+} from "../konstanten";
 import { handlagerOrte, ortStamm } from "../lesepfade/orte";
 import { findeFahrzeug } from "./fahrzeug";
 import type { Quelle, Tx } from "./abbuchung";
@@ -258,12 +260,32 @@ function zugangsCharge(tx: Tx, artikelId: string, charge: ZugangCharge): string 
 
   let chargeId: string;
   if (charge.art === "neu") {
+    /*
+     * IDA-378 — MATERIAL OHNE CHARGENNUMMER. Eine leere Nummer wird zum
+     * Herkunftshinweis „ohne Nummer" (bzw. „ohne Verfall", wenn auch kein
+     * Verfall da ist — dieselbe Form wie die Altdaten). Fuer diese beiden
+     * Hinweise gibt es je Artikel und Verfall nur EINEN Topf: ein zweites
+     * Auffuellen legt keine zweite, in FEFO ununterscheidbare Zeile an.
+     */
+    const nummer = charge.chargenNr.trim()
+      || (istOhneVerfall(charge.verfall) ? CHARGE_OHNE_VERFALL : CHARGE_OHNE_NUMMER);
+    if (nummer === CHARGE_OHNE_NUMMER || nummer === CHARGE_OHNE_VERFALL) {
+      const vorhanden = tx.select({ id: chargen.id }).from(chargen)
+        .where(and(
+          eq(chargen.artikelId, artikelId),
+          eq(chargen.chargenNr, nummer),
+          eq(chargen.verfall, charge.verfall),
+        ))
+        .orderBy(asc(chargen.createdAt), asc(chargen.id))
+        .get();
+      if (vorhanden) return vorhanden.id;
+    }
     chargeId = newId();
     tx.insert(chargen)
       .values({
         id: chargeId,
         artikelId,
-        chargenNr: charge.chargenNr,
+        chargenNr: nummer,
         verfall: charge.verfall,
         createdAt: new Date(),
       })

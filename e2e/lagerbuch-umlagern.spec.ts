@@ -125,13 +125,9 @@ test.describe("Lagerbuch Umlagern — Schrank zu Schrank (DRK-338)", () => {
     await klickeWennRuhig(page.getByRole("button", { name: "Anlegen" }));
     expect((await artikelAntwort).ok(), "Artikel anlegen: Server Action").toBe(true);
 
-    // Ueber die Suche finden, NIE ueber Bildlauf: die Artikeltabelle
-    // virtualisiert (Falle 14), ein frischer Artikel landet alphabetisch
-    // moeglicherweise ausserhalb des zuerst gerenderten Fensters.
-    await page.getByRole("searchbox").fill(artikelName);
-    const artikelKnopf = page.getByRole("button", { name: artikelName, exact: true });
-    await expect(artikelKnopf).toBeVisible();
-    await klickeWennRuhig(artikelKnopf);
+    // IDA-378: nach „Anlegen" steht die Schublade des neuen Artikels schon
+    // offen, auf „Buchen" (Zugang) — kein Suchen und Anklicken mehr.
+    await expect(page.getByRole("dialog", { name: artikelName })).toBeVisible();
 
     // ── 3) Zugang in den QUELL-Schrank ────────────────────────────────────
     await buchungsart(page, "Zugang");
@@ -151,7 +147,8 @@ test.describe("Lagerbuch Umlagern — Schrank zu Schrank (DRK-338)", () => {
     // verborgen im DOM, ein blosser Titelgreifer traefe zwei.
     await page.getByRole("dialog", { name: artikelName })
       .getByText(artikelName, { exact: true }).click();
-    await expect(verfallFeld).toHaveValue(verfallsmonat);
+    // IDA-378: angezeigt wird MM/JJJJ.
+    await expect(verfallFeld).toHaveValue("06/2090");
 
     const zugangAntwort = serverActionAntwort(page);
     await klickeWennRuhig(page.getByRole("button", { name: "Zugang buchen" }));

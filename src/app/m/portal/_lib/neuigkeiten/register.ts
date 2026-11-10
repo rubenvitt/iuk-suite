@@ -159,6 +159,8 @@ import ortsetikettenFuerSchraenke from "@/app/m/portal/_lib/neuigkeiten/notizen/
 import maengelMelden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-31-maengel-melden";
 import verfallInJedemFach from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-01-verfall-in-jedem-fach";
 import geraeteSchnellwahl from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-04-geraete-schnellwahl";
+import auffuellenOhneChargennummer from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-auffuellen-ohne-chargennummer";
+import entnahmeRueckgaengig from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-entnahme-rueckgaengig";
 import checkOhneVorbelegung from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-check-ohne-vorbelegung";
 import lagerbuchUebersichtUndSpringen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-uebersicht-und-springen";
 import kontrolleStornieren from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-kontrolle-stornieren";
@@ -324,6 +326,8 @@ const NOTIZEN: readonly Releasenotiz[] = [
   maengelMelden,
   verfallInJedemFach,
   geraeteSchnellwahl,
+  auffuellenOhneChargennummer,
+  entnahmeRueckgaengig,
   checkOhneVorbelegung,
   lagerbuchUebersichtUndSpringen,
   kontrolleStornieren,

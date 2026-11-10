@@ -170,6 +170,39 @@ export const RUECKLAUF_PRAEFIX = "ruecklauf:";
 export const AUFLADEN_PRAEFIX = "aufladen:";
 
 /**
+ * IDA-378 — DIE GEGENBUCHUNG. Ihre Zeilen heissen `storno:<originalId>` und
+ * tragen dasselbe als `referenz`: der Primaerschluessel verhindert so das
+ * doppelte Gegenbuchen, und die Referenz macht die Zeile im Journal und in der
+ * Statistik als Gegenbuchung erkennbar (`_lib/schreibpfade/gegenbuchung.ts`).
+ *
+ * ⚠️ IN `VORGANG_ARTEN`, anders als die Umlagerungs-Praefixe darueber: eine
+ * Gegenbuchung ist KEIN Zugang und keine Entnahme, auch wenn sie deren Typ
+ * traegt — unter „Entnahme" stuende sonst eine Zeile mit Plus.
+ */
+export const STORNO_PRAEFIX = "storno:";
+
+/**
+ * DARF DIESE ZEILE GEGENGEBUCHT WERDEN? Nur Zugang, Entnahme und die
+ * Umlagerung von Hand bzw. aufs Fahrzeug (`entnahme-ziel:`, `umlagerung:`).
+ *
+ * ⚠️ CHECK, INVENTUR, AUSSONDERUNG, ENTNAHMEBOX UND RUECKLAUF BLEIBEN DRAUSSEN:
+ * an ihnen haengen eigene Datensaetze (Check, Inventurposition, Boxposten), die
+ * eine Gegenbuchung im Journal nicht mitnaehme — der Vorgang stuende danach
+ * halb zurueckgenommen da. Dort korrigiert der naechste Check oder eine
+ * Korrektur.
+ */
+export function zeileGegenbuchbar(b: { typ: string; referenz: string | null }): boolean {
+  if (b.typ !== "zugang" && b.typ !== "entnahme" && b.typ !== "umlagerung") return false;
+  const r = b.referenz;
+  return r === null || r.startsWith("entnahme-ziel:") || r.startsWith("umlagerung:");
+}
+
+/** Ist diese Zeile selbst eine Gegenbuchung? */
+export function istGegenbuchung(b: { referenz: string | null }): boolean {
+  return (b.referenz ?? "").startsWith(STORNO_PRAEFIX);
+}
+
+/**
  * Die Reihenfolge ist die Reihenfolge im Auswahlfeld: erst die vier
  * Buchungstypen in der Ordnung, die sie dort immer hatten, dann die
  * verfeinerten Arten.
@@ -178,6 +211,7 @@ export const VORGANG_ARTEN = [
   ...BUCHUNG_TYPEN,
   "aussondern",
   "inventur",
+  "gegenbuchung",
 ] as const;
 
 export type Vorgangsart = (typeof VORGANG_ARTEN)[number];
@@ -189,6 +223,7 @@ const VORGANG_LABEL: Record<Vorgangsart, string> = {
   umlagerung: "Umlagerung",
   aussondern: "Aussonderung",
   inventur: "Inventur",
+  gegenbuchung: "Gegenbuchung",
 };
 
 /**
@@ -212,6 +247,7 @@ export function vorgangAus(b: { typ: string; referenz: string | null }): string 
   const referenz = b.referenz ?? "";
   if (referenz.startsWith(AUSSONDERN_PRAEFIX)) return "aussondern";
   if (referenz.startsWith(INVENTUR_PRAEFIX)) return "inventur";
+  if (referenz.startsWith(STORNO_PRAEFIX)) return "gegenbuchung";
   return b.typ;
 }
 
@@ -221,11 +257,16 @@ export function vorgangText(b: { typ: string; referenz: string | null }): string
 }
 
 /** Traegt diese Art ihre Bedeutung im PRAEFIX statt im Typ? */
-export function istPraefixArt(art: string): art is "aussondern" | "inventur" {
-  return art === "aussondern" || art === "inventur";
+export function istPraefixArt(art: string): art is PraefixArt {
+  return art === "aussondern" || art === "inventur" || art === "gegenbuchung";
 }
 
+export type PraefixArt = "aussondern" | "inventur" | "gegenbuchung";
+
+/** Die Praefixe ALLER verfeinerten Arten — die Typ-Filter schliessen sie aus. */
+export const PRAEFIXE_DER_ARTEN = [AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX, STORNO_PRAEFIX] as const;
+
 /** Das Praefix einer verfeinerten Art. */
-export function praefixVon(art: "aussondern" | "inventur"): string {
-  return art === "aussondern" ? AUSSONDERN_PRAEFIX : INVENTUR_PRAEFIX;
+export function praefixVon(art: PraefixArt): string {
+  return art === "aussondern" ? AUSSONDERN_PRAEFIX : art === "inventur" ? INVENTUR_PRAEFIX : STORNO_PRAEFIX;
 }
