@@ -47,10 +47,11 @@ describe("StammdatenTabelle — Suche (IDA-390)", () => {
     expect(karten()).toEqual(["f1"]);
   });
 
-  it("die beiden Aktionen stehen in einem Zweierraster, nicht untereinander", async () => {
+  // IDA-393: die beiden Aktionen liegen im Menü der Zeile — auf der Karte EIN Knopf statt zweier.
+  it("legt die beiden Aktionen in ein Menü „Aktionen für …“", async () => {
     await mount(<App><StammdatenTabelle art="personal" liste={PERSONAL.slice(0, 1)} onBearbeiten={() => {}} /></App>);
-    const knopf = queryAll("[data-karte-key] button").find((b) => b.textContent === "Bearbeiten")!;
-    expect(knopf.parentElement!.style.gridTemplateColumns).toContain("repeat(2");
+    const knoepfe = queryAll("[data-karte-key] button");
+    expect(knoepfe.map((b) => b.getAttribute("aria-label"))).toEqual(["Aktionen für Beispiel, Änne"]);
   });
 
   it("ohne Einträge kein Suchfeld", async () => {

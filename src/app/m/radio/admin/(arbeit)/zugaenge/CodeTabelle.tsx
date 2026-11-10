@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Popconfirm, Space, Tag, type TableColumnType } from "antd";
-import { Kartentabelle, nachDatum, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachDatum, nachJaNein, nachText, Zellentext, zustandsFilter } from "@/core/tabelle";
 import type { CodeZeile } from "../../../_lib/lesepfade/codes";
 import { erstelleCode, setzeCodeAktiv } from "../../../_actions/codes";
 import { VIkone } from "../../../_ui/verwaltungIkonen";
@@ -272,7 +272,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
       key: "bezeichnung",
       sorter: nachText<CodeZeile>((z) => z.bezeichnung),
       render: (_: unknown, z: CodeZeile) => (
-        <span data-rolle="radio-code-bezeichnung">{z.bezeichnung}</span>
+        <Zellentext data-rolle="radio-code-bezeichnung" text={z.bezeichnung} style={{ maxWidth: "24ch" }} />
       ),
     },
     {
@@ -286,7 +286,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
        * ⛔ ER IST ZUGLEICH DER GRUND, WARUM DIESE SEITE AUF DER ADMIN-STUFE LIEGT
        * (`Spec:2249-2250`: „die Codeliste IST das Geheimnis"), nicht ihre Kuer.
        */
-      render: (_: unknown, z: CodeZeile) => <code data-rolle="radio-code-wert">{z.code}</code>,
+      render: (_: unknown, z: CodeZeile) => <code className={s.codeWert} data-rolle="radio-code-wert">{z.code}</code>,
     },
     {
       title: CODE_TEXTE.spalteZustand,

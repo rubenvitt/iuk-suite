@@ -69,13 +69,19 @@ test("Stammdaten-Durchlauf: Fahrzeug anlegen, bearbeiten, deaktivieren; Personal
   const zeile = page.getByRole("table", { name: "Fahrzeuge" }).locator("[data-row-key]", { hasText: kennung });
   await expect(zeile).toBeVisible();
 
-  await zeile.getByRole("button", { name: "Bearbeiten" }).click();
+  // IDA-393: Bearbeiten und (De-)Aktivieren stehen im Aktionsmenü der Zeile.
+  const menue = zeile.getByRole("button", { name: `Aktionen für ${kennung}` });
+  await menue.click();
+  await page.getByRole("menuitem", { name: "Bearbeiten" }).click();
   await page.getByLabel("Funkrufname", { exact: true }).fill(`Rotkreuz Probe ${kennung} neu`);
   await page.getByRole("button", { name: "Speichern" }).click();
   await expect(zeile).toContainText("neu");
-  await zeile.getByRole("button", { name: "Deaktivieren" }).click();
+  await menue.click();
+  await page.getByRole("menuitem", { name: "Deaktivieren" }).click();
   await expect(zeile).toContainText("inaktiv");
-  await expect(zeile.getByRole("button", { name: "Aktivieren" })).toBeVisible();
+  await menue.click();
+  await expect(page.getByRole("menuitem", { name: "Aktivieren" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   await page.getByRole("tab", { name: /Personal/ }).click();
   await expect(page).toHaveURL(/reiter=personal/);

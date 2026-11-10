@@ -606,7 +606,7 @@
  * waere ein zweiter Wahrheitsort.
  */
 .codeNeben {
-  display: block;
+  display: block; max-width: 24ch; /* IDA-393: die Sperrangabe bricht um, statt die Spalte zu verbreitern */
   color: var(--iuk-gedaempft);
 }
 
@@ -696,4 +696,16 @@
 
 .zeichenGrau {
   color: var(--iuk-gedaempft);
+}
+
+/*
+ * ── Zugangsverwaltung bei 1280px (IDA-393) ───────────────────────────────────
+ *
+ * Der Klartext-Code bleibt GANZ sichtbar (er ist der Dauerausweis, s. `CodeTabelle.tsx`), bricht
+ * aber an seinen Bindestrichen um, statt die Tabelle über den Rahmen zu schieben. `inline-block`,
+ * weil `max-width` an einem nackten Inline-Element verworfen wird (`core/tabelle/Zellentext.tsx`).
+ */
+.codeWert {
+  display: inline-block;
+  max-width: 20ch;
 }
