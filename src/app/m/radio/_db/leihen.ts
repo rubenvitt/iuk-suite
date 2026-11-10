@@ -5,8 +5,7 @@ import { devices, loans } from "./schema";
 import { datumMitUhrzeit, uhrzeit } from "../_lib/anzeige";
 import { normalisiereSuchtext } from "../_lib/filter";
 import {
-  ausleihText,
-  ENTLEIHER_MAX,
+  ausleihText, ENTLEIHER_MAX,
   rueckgabeText,
   ZUSTANDSNOTIZ_MAX,
   type AusleihErgebnis,
@@ -16,6 +15,7 @@ import {
   type RueckgabeErgebnis,
   type RueckgabeMeldung,
 } from "../_lib/meldungen";
+import { einsatzbereitschaftAus } from "../_lib/einsatzbereitschaft";
 import { geraeteZustandAus, type GeraeteStatus } from "../_lib/status";
 
 /**
@@ -334,7 +334,7 @@ export function geraeteMitLeihstand(db: DB): GeraetMitLeihstand[] {
     // typkorrekt, lint-sauber und WIRKUNGSLOS (der `leftJoin` haelt die Geraetezeile).
     .where(eq(devices.loanable, true))
     .orderBy(desc(devices.createdAt))
-    .all();
+    .all().filter((z) => einsatzbereitschaftAus(z.rohStatus) !== "ausgemustert"); // IDA-397: Ausgemustertes ist nie ausleihbar.
 
   return zeilen.map((z) => {
     const rufname = rufnameVon(z);
@@ -615,8 +615,8 @@ export function bucheAusleihe(db: DB, e: AusleihEingabe): AusleihErgebnis {
         const rufname = rufnameVon(geraet);
 
         // 2. `loanable` — `device_not_loanable` (`loanApi.ts:166`). ⚠️ Eine NULL-Spalte
-        // gilt als nicht freigegeben, wie im Bestand (`loanApi.ts:166`: `if (!device.loanable)`).
-        if (!geraet.loanable) {
+        // gilt als nicht freigegeben, wie im Bestand (`loanApi.ts:166`); ein ausgemustertes Geraet ebenso (IDA-397).
+        if (!geraet.loanable || einsatzbereitschaftAus(geraet.status) === "ausgemustert") {
           throw new AusleihAbbruch(nichtVerfuegbar(rufname, { zustand: "NICHT_FREIGEGEBEN" }));
         }
 

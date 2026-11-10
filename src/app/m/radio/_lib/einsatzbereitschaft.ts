@@ -9,8 +9,11 @@
  * unbekannte Wert als „nicht einsatzbereit": wer etwas anderes als „einsatzbereit" einträgt,
  * meint fast immer, dass etwas fehlt.
  *
- * Leer und „Ausgeliehen" (ein Altwert aus dem Bestand) zählen als einsatzbereit — den Leihstand
- * trägt die Tabelle `loans`, nicht diese Spalte.
+ * Leer und „Ausgeliehen" bzw. `ON_LOAN` (Altwerte aus dem Bestand) zählen als einsatzbereit — den
+ * Leihstand trägt die Tabelle `loans`, nicht diese Spalte.
+ *
+ * Seit IDA-397 entscheidet diese Einteilung auch die Ausleihe: `geraeteZustandAus` sperrt alles,
+ * was hier nicht einsatzbereit ist, und die Ausleihe blendet Ausgemustertes aus.
  */
 export type Einsatzbereitschaft = "einsatzbereit" | "nicht-einsatzbereit" | "ausgemustert";
 
@@ -20,7 +23,7 @@ function normal(roh: string | null | undefined): string {
 
 export function einsatzbereitschaftAus(roh: string | null | undefined): Einsatzbereitschaft {
   const wert = normal(roh);
-  if (wert === "" || wert === "einsatzbereit" || wert === "ausgeliehen") return "einsatzbereit";
+  if (wert === "" || wert === "einsatzbereit" || wert === "ausgeliehen" || wert === "on_loan") return "einsatzbereit";
   if (wert === "ausgemustert") return "ausgemustert";
   return "nicht-einsatzbereit";
 }
