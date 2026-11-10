@@ -41,6 +41,10 @@ const AKTIVER_TEILNEHMER_ID = "seed-uav-teilnehmer-aktiv";
  * den lesbaren Katalog übrig.
  */
 test("zeigt, wer angemeldet ist, und meldet ab (IDA-389)", async ({ page }) => {
+  // Kein Sync in diesem Fall: `/api/sync` erlaubt 10 Anfragen je Teilnehmer und
+  // Minute, und dieselbe Person syncen die Fälle danach (Check 7, DRK-286) —
+  // zwei Anfragen mehr von hier brachten den Kontowechsel-Fall in der CI auf 429.
+  await page.route((url) => url.pathname === "/api/sync", (route) => route.abort());
   await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
   await page.waitForURL((url) => url.pathname !== "/login");
   await page.goto(uavUrl("/aufgabe?id=1-1"));
