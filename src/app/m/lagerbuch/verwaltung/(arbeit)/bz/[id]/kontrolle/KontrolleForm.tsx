@@ -58,7 +58,7 @@ const FORM_FELDER = new Set<keyof KontrolleWerte>([
  * bleibt als Obergrenze, damit sie auf 320 px nicht ueberstehen; der Monat
  * daneben bekommt dieselbe Spalte.
  */
-const SCHMALES_FELD: CSSProperties = { width: "100%", maxWidth: 160 };
+const SCHMALES_FELD: CSSProperties = { width: "100%", maxWidth: 200 };
 
 const ANZAHL_FEHLT = "Bitte eine Anzahl eingeben.";
 

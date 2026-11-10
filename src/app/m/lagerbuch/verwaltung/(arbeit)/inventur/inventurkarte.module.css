@@ -149,7 +149,7 @@
  * Korrekturliste das Popover bei 320px ueber den Rand.
  */
 .folge {
-  max-width: min(22rem, calc(100vw - 64px));
+  max-width: min(22rem, calc(100vw - 104px));
   overflow-wrap: anywhere;
 }
 

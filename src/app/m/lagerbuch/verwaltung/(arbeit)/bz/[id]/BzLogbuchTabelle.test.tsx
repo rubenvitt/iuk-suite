@@ -83,20 +83,20 @@ describe("BzLogbuchTabelle", () => {
     expect(queryAll("thead th").map((th) => th.textContent)).toEqual([
       "Zeitpunkt",
       "Ergebnis",
+      "Aktion",
       "Level 1",
       "Level 2",
       "Verbrauch",
       "Akku",
       "Wer",
       "Kommentar",
-      "Aktion",
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Logbuch der Kontrollen");
     expect(query("tbody tr[data-row-key]").getAttribute("data-row-key")).toBe("kontrolle-1");
     expect(query("tbody tr[data-row-key]").textContent).toBe(
-      "06.08. 14:00nicht bestandenL1 50(damals 30–70)L2 410(damals 200–400)"
+      "06.08. 14:00nicht bestandenStornierenL1 50(damals 30–70)L2 410(damals 200–400)"
       + "12 Sticks / 8 Lanzetten · Kompresse 2027-01gewechseltE2E Helfer"
-      + "Kontrolle wiederholenStornieren",
+      + "Kontrolle wiederholen",
     );
     expect(queryAll("tbody .ant-table-cell")).toHaveLength(9);
     expect(exists(".ant-pagination")).toBe(false);
@@ -107,10 +107,10 @@ describe("BzLogbuchTabelle", () => {
     const daten = zellen();
 
     expect(chipMitText(daten[1]!, "nicht bestanden").dataset.statuschip).toBe("fehler");
-    expect(chipMitText(daten[2]!, "L1 50").dataset.statuschip).toBe("ok");
-    expect(chipMitText(daten[3]!, "L2 410").dataset.statuschip).toBe("fehler");
-    expect(chipMitText(daten[5]!, "gewechselt").dataset.statuschip).toBe("warnung");
-    expect(chipMitText(daten[6]!, "E2E Helfer").dataset.statuschip).toBe("neutral");
+    expect(chipMitText(daten[3]!, "L1 50").dataset.statuschip).toBe("ok");
+    expect(chipMitText(daten[4]!, "L2 410").dataset.statuschip).toBe("fehler");
+    expect(chipMitText(daten[6]!, "gewechselt").dataset.statuschip).toBe("warnung");
+    expect(chipMitText(daten[7]!, "E2E Helfer").dataset.statuschip).toBe("neutral");
   });
 
   it("erhält Zeitklasse, Nebentext-Rollen und das konkrete Akku-Zeichen", async () => {
@@ -121,19 +121,19 @@ describe("BzLogbuchTabelle", () => {
     expect(zeit?.textContent).toBe("06.08. 14:00");
 
     for (const [index, text] of [
-      [2, "(damals 30–70)"],
-      [3, "(damals 200–400)"],
+      [3, "(damals 30–70)"],
+      [4, "(damals 200–400)"],
     ] as const) {
       const snapshot = nebenText(daten[index]!, text);
       expect(snapshot.style.fontSize).toBe("12px");
       expect(snapshot.style.marginInlineStart).toBe("6px");
     }
     expect(nebenText(
-      daten[4]!,
+      daten[5]!,
       "12 Sticks / 8 Lanzetten · Kompresse 2027-01",
     ).style.fontSize).toBe("12px");
 
-    const akku = daten[5]!.querySelector<SVGElement>("svg");
+    const akku = daten[6]!.querySelector<SVGElement>("svg");
     expect(akku).not.toBeNull();
     expect(akku?.getAttribute("aria-hidden")).toBe("true");
     expect(akku?.getAttribute("width")).toBe("12");
@@ -168,15 +168,15 @@ describe("BzLogbuchTabelle", () => {
     expect(daten.map((zelle) => zelle.textContent)).toEqual([
       "06.08. 14:00",
       "nicht bestanden",
+      "Stornieren",
       "—",
       "—",
       "12 Sticks / 8 Lanzetten · Kompresse 2027-01",
       "—",
       "E2E Helfer",
       "—",
-      "Stornieren",
     ]);
-    for (const index of [2, 3, 5, 7]) {
+    for (const index of [3, 4, 6, 8]) {
       expect(nebenText(daten[index]!, "—").style.fontSize).toBe("12px");
     }
   });
@@ -272,10 +272,10 @@ describe("BzLogbuchTabelle — Storno", () => {
 
     expect(chipMitText(daten[1]!, "storniert").dataset.statuschip).toBe("neutral");
     expect(nebenText(daten[1]!, "nicht bestanden").style.textDecoration).toBe("line-through");
-    expect(daten[2]!.querySelector<HTMLElement>("span")?.style.textDecoration).toBe("line-through");
-    expect(daten[6]!.textContent).toBe("E2E Helferstorniert 07.08. 10:00 · A. Verwaltung");
-    expect(daten[8]!.textContent).toBe("—");
-    expect(daten[8]!.querySelector("button")).toBeNull();
+    expect(daten[3]!.querySelector<HTMLElement>("span")?.style.textDecoration).toBe("line-through");
+    expect(daten[7]!.textContent).toBe("E2E Helferstorniert 07.08. 10:00 · A. Verwaltung");
+    expect(daten[2]!.textContent).toBe("—");
+    expect(daten[2]!.querySelector("button")).toBeNull();
   });
 
   it("fragt mit der Folge nach und storniert erst nach der Bestätigung", async () => {

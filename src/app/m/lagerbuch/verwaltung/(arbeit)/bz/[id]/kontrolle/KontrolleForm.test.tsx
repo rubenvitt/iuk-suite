@@ -354,11 +354,11 @@ describe("KontrolleForm: Pflichtwerte (IDA-379)", () => {
 
     for (const rolle of ["level-wert", "sticks", "lanzetten"]) {
       const feld = query(`input[data-rolle='${rolle}']`).closest<HTMLElement>(".ant-input-number")!;
-      expect(feld.style.maxWidth, rolle).toBe("160px");
+      expect(feld.style.maxWidth, rolle).toBe("200px");
       expect(feld.style.width, rolle).toBe("100%");
     }
     const monat = query("input[data-rolle='kompresse']").closest<HTMLElement>(".ant-picker")!;
-    expect(monat.style.maxWidth).toBe("160px");
+    expect(monat.style.maxWidth).toBe("200px");
   });
 });
 

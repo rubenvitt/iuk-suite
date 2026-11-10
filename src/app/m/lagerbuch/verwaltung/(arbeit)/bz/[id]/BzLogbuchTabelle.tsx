@@ -165,6 +165,16 @@ const LOGBUCH_SPALTEN = [
     ),
   },
   {
+    title: "Aktion",
+    dataIndex: "id",
+    key: "aktion",
+    render: (id: string, zeile) => (
+      zeile.storniertText === null
+        ? <StornoKnopf id={id} zeitpunkt={zeile.zeitpunktText} />
+        : <span style={SCHRIFT.neben}>—</span>
+    ),
+  },
+  {
     title: "Level 1",
     dataIndex: "level1Wert",
     key: "level1",
@@ -242,16 +252,6 @@ const LOGBUCH_SPALTEN = [
       text === null
         ? <span style={SCHRIFT.neben}>—</span>
         : durch(zeile, <Zellentext text={text} />)
-    ),
-  },
-  {
-    title: "Aktion",
-    dataIndex: "id",
-    key: "aktion",
-    render: (id: string, zeile) => (
-      zeile.storniertText === null
-        ? <StornoKnopf id={id} zeitpunkt={zeile.zeitpunktText} />
-        : <span style={SCHRIFT.neben}>—</span>
     ),
   },
 ] satisfies TableProps<BzLogbuchAnzeigeZeile>["columns"];

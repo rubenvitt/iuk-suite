@@ -424,7 +424,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       title: "",
       key: "aktionen",
       render: (_wert: unknown, zeile) => (
-        <Flex gap={SPACE.sm} align="center">
+        <Flex gap={SPACE.sm} wrap align="center">
           {/* KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
               docs/design/README.md) ist mit der Arbeitsdichte gefallen --
               44px ist hier bereits die volle wie die halbe Bediendichte,
