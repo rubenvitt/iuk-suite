@@ -65,8 +65,8 @@ export const STATUS_FILTER: readonly StatusFilter[] = [
  */
 export const STATUS_FILTER_ETIKETT: Record<StatusFilter, string> = {
   ALL: "Alle",
-  AVAILABLE: "Frei",
-  ON_LOAN: "Vergeben",
+  AVAILABLE: "Verfügbar",
+  ON_LOAN: "Ausgeliehen",
   UNAVAILABLE: "Defekt·Wartung",
 };
 

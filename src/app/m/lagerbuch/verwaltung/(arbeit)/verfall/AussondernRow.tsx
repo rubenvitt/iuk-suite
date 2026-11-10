@@ -7,6 +7,7 @@ import { aussondern } from "../../../_actions/aussondern";
 import type { VerfallOrt } from "../../../_lib/lesepfade/verfall";
 import { Ikone } from "../../../_ui/ikonen";
 import s from "../../../_ui/verwaltung.module.css";
+import { AussenOrte, type AussenOrtLink } from "./AussenOrte";
 
 /**
  * Der Wert der Wahl, wenn NICHT auf einen Ort eingeschränkt wird.
@@ -59,11 +60,19 @@ export function AussondernRow({
   chargeId,
   bezeichnung,
   orte,
+  draussen = [],
   einheit,
 }: {
   chargeId: string;
   bezeichnung: string;
   orte: VerfallOrt[];
+  /**
+   * IDA-379 — wo die Charge AUSSERHALB des Handlagers liegt. Die Rueckfrage
+   * nennt es, weil genau das stehen bleibt: der Satz davor sagt
+   * „Handlager-Rest", und wer die Packungen im KTW nicht sieht, haelt die
+   * Charge nach dem Bestaetigen fuer erledigt.
+   */
+  draussen?: AussenOrtLink[];
   einheit: string;
 }) {
   const [fehler, setFehler] = useState<string | null>(null);
@@ -190,6 +199,7 @@ export function AussondernRow({
                 : `Bucht den Handlager-Rest von ${bezeichnung} als Aussonderung aus`
                   + ` (${gesamt} ${einheit}).`}
             </span>
+            <AussenOrte orte={draussen} einheit={einheit} auftakt="Liegt außerdem in" />
             {wahl ? (
               /* ⚠️ DIE KLASSE TRAEGT DIE TREFFERFLAECHE (44px, Arbeitsdichte) —
                  eine Radio-Zeile erbt ihre Hoehe nicht von `controlHeight`.

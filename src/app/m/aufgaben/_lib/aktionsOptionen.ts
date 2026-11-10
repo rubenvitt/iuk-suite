@@ -47,6 +47,13 @@ export interface AktionsOptionen {
    */
   umverteilen: boolean;
   /**
+   * VERTEILEN (IDA-386) — der Arbeitsschritt der Koordination aus `eingegangen`. Ueber dieselbe
+   * `uebergang()`-Schleife wie `umverteilen`: `_lib/lebenszyklus.ts` fuehrt `{ von: "eingegangen",
+   * aktion: "verteilen", wer: darfVerteilen }`. Vorher stand auf `/a/<id>` einer solchen Aufgabe
+   * nur „Gerade steht hier kein Arbeitsschritt an.", obwohl genau hier verteilt werden kann.
+   */
+  verteilen: boolean;
+  /**
    * NACHWEIS HOCHLADEN (Aufgabe 19) — KEIN Uebergang der Tabelle, deshalb NICHT ueber `uebergang()`
    * ermittelt wie die sieben Felder oben, sondern direkt unten. Erlaubt bei genau der Bedingung, die
    * `_lib/lebenszyklus.ts`s `in_arbeit`×`fertig`-Zeile fuer "wer" traegt (`darfNachweisHochladen`,
@@ -71,6 +78,7 @@ const GEPRUEFTE_AKTIONEN: readonly (keyof AktionsOptionen)[] = [
   "wiederaufnehmen",
   "zurueckziehen",
   "umverteilen",
+  "verteilen",
 ];
 
 export function aktionsOptionen(a: AufgabeRow, akteur: Akteur, heute: string): AktionsOptionen {

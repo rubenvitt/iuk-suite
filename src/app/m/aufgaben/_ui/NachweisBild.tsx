@@ -21,10 +21,12 @@ import { Ikone } from "./ikonen";
  * Sicherheitsproblem, aber genau deshalb wird hier gar nicht erst versucht, es zu laden.
  */
 
+// IDA-386: Alltagssprache; `fehler` sagt nichts ueber das Bild (Scanner weg) und verlangt kein neues —
+// „Fertig melden" prueft es erneut (`_lib/scan.ts`, `pruefeBildVorFertigmeldung`).
 const GRUND_TEXT: Record<string, string> = {
-  offen: "Der Nachweis wird noch geprüft.",
-  befund: "Bei der Prüfung wurde ein Fund festgestellt — das Bild wird nicht angezeigt.",
-  fehler: "Die Prüfung ist fehlgeschlagen — das Bild wird nicht angezeigt.",
+  offen: "Bild wird geprüft…",
+  befund: "Das Bild hat die Sicherheitsprüfung nicht bestanden und wird nicht angezeigt.",
+  fehler: "Prüfung gerade nicht möglich, später erneut.",
 };
 
 export interface NachweisBildProps {

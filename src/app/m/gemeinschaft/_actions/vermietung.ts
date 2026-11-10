@@ -7,7 +7,7 @@ import { leseVorlage } from "../_lib/dokumentPdf";
 import { fassungMitLeitung, fassungMitMieter } from "../_lib/dokumentErzeugen";
 import {
   Abgelehnt, dokumentGrundlage, entferneVertrag, entferneVorlage, erstelleDokument, gebeDokumentFrei, ladeVorlage, legeSperrzeitAn, legeUnterschriebenAb, lehneAb,
-  loescheSperrzeit, NichtGefunden, nimmFreigabeZurueck, nimmZusageZurueck, pruefeLeitungUnterschreibbar, pruefeUnterschreibbar, sageZu, setzeVertrag, setzeVorlageFelder, setzeVorlageZeichnen,
+  loescheSperrzeit, macheZusageRueckgaengig, NichtGefunden, nimmFreigabeZurueck, nimmZusageZurueck, pruefeLeitungUnterschreibbar, pruefeUnterschreibbar, sageZu, setzeVertrag, setzeVorlageFelder, setzeVorlageZeichnen,
   speichereWerte, unterschreibeAlsLeitung, verwirfDokument, zeichnenErlaubt,
 } from "../_lib/vermietung";
 import { begruendungSchema, idSchema, pruefeSperrzeit, vertragSchema, type Ergebnis } from "../_lib/vermietungEingabe";
@@ -44,6 +44,13 @@ export async function anfrageZusagenAction(id: string): Promise<Ergebnis<{ weite
   const viewer = await requireLeitungAktion();
   if (!idSchema.safeParse(id).success) { return { ok: false, fehler: UNGUELTIG }; }
   return alsLeitung(viewer, (db, jetzt) => sageZu(db, id, jetzt));
+}
+
+/** Eine versehentliche Zusage kurz danach zurück auf „angefragt“ (IDA-387); die Person sieht keine Absage. */
+export async function zusageRueckgaengigAction(id: string): Promise<Ergebnis> {
+  const viewer = await requireLeitungAktion();
+  if (!idSchema.safeParse(id).success) { return { ok: false, fehler: UNGUELTIG }; }
+  return ohneWert(await alsLeitung(viewer, (db, jetzt) => macheZusageRueckgaengig(db, id, jetzt)));
 }
 
 export async function anfrageAblehnenAction(id: string, begruendung: string): Promise<Ergebnis> {

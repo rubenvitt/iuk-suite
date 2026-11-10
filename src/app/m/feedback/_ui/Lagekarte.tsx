@@ -219,16 +219,16 @@ function StartKarte({
        */
       styles={{ ...KARTE, title: { whiteSpace: "normal" } }}
       title={erststart ? "ERSTER SCHRITT" : "NÄCHSTER SCHRITT"}
-      extra={<span style={T.meta}>Gerade läuft kein Feedback.</span>}
+      extra={<span style={T.meta}>Gerade läuft keine Umfrage.</span>}
     >
       <h2 style={{ ...T.h2, margin: "0 0 16px" }}>
         {erststart
-          ? "Ersten Dienstabend anlegen und Feedback starten"
-          : "Feedback für heute starten"}
+          ? "Ersten Dienstabend anlegen und Umfrage starten"
+          : "Umfrage für heute starten"}
       </h2>
       {/*
-       * SEKUNDÄRAKTION „QR-Code groß zeigen" NEBEN „Feedback starten" (§2.3,
-       * Belegungen A und B). `darstellung="sekundaer"`, weil „Feedback starten"
+       * SEKUNDÄRAKTION „QR-Code groß zeigen" NEBEN „Umfrage starten" (§2.3,
+       * Belegungen A und B). `darstellung="sekundaer"`, weil „Umfrage starten"
        * hier der EINE Primärknopf der Seite ist (§2.6) — zwei gefüllte Knöpfe
        * nebeneinander sind keine Rangfolge, sondern eine Frage.
        */}
@@ -457,11 +457,11 @@ function LaufendeKarte({
 
       <hr style={HAARLINIE} />
       {/*
-       * PRIMÄRAKTION „QR-Code groß zeigen" VOR „Feedback jetzt beenden" (§2.3,
+       * PRIMÄRAKTION „QR-Code groß zeigen" VOR „Umfrage beenden" (§2.3,
        * Belegungen C und D). Die Reihenfolge ist die Aussage: solange die Umfrage
        * läuft, ist der laute Handgriff „zeig den Leuten den Code", nicht
        * „beende". Auf 390px stapelt `fb-knopfzeile` beide auf volle Breite —
-       * „Feedback jetzt beenden" steht dann DARUNTER, nie daneben (§2.3).
+       * „Umfrage beenden" steht dann DARUNTER, nie daneben (§2.3).
        */}
       <div className="fb-knopfzeile">
         <QrGross url={teilnahmeUrl} gruppenname={gruppenname} darstellung="primaer" />

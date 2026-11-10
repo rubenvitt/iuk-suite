@@ -228,6 +228,7 @@
   "src/app/m/gemeinschaft/_actions/anfrage.ts#vertragUnterschreibenAction": { "kind": "context", "via": "vertragUnterschreibenAction" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#anfrageZusagenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#anfrageAblehnenAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#zusageRueckgaengigAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#zusageZuruecknehmenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#vertragStandAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#vertragEntfernenAction": { "kind": "context", "via": "alsLeitung" },
@@ -453,6 +454,10 @@
   "src/app/m/files/(verwaltung)/ablage-actions.ts#aufraeumenAction": {
     "kind": "context",
     "via": "aufraeumenAction"
+  },
+  "src/app/m/files/(verwaltung)/ablage-actions.ts#aufraeumVorschauAction": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
   },
   "src/app/m/files/(verwaltung)/actions.ts#anlegenAction": {
     "kind": "context",
@@ -789,6 +794,10 @@
   "src/app/m/lagerbuch/_actions/bz.ts#kontrolleErfassen": {
     "kind": "context",
     "via": "kontrolleErfassen"
+  },
+  "src/app/m/lagerbuch/_actions/bz.ts#kontrolleStornieren": {
+    "kind": "context",
+    "via": "kontrolleStornieren"
   },
   "src/app/m/lagerbuch/_actions/check.ts#checkAbschluss": {
     "kind": "context",
@@ -1509,6 +1518,8 @@
   "src/app/m/verpflegung/_actions/verwaltung.ts#artikelAendernAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#artikelAktivAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#aussondernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#eingangAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/verpflegung/_actions/verwaltung.ts#ausgabeAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#ortAnlegenAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#ortAendernAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/verpflegung/_actions/verwaltung.ts#ortAktivAction": { "kind": "context", "via": "schreibe" },

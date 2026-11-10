@@ -358,6 +358,33 @@ describe("Wochenplan", () => {
       expect(auf.every((b) => !b.hasAttribute("disabled"))).toBe(true);
     });
 
+    it("IDA-386: eine abgeschlossene Aufgabe steht abgehakt und ausgegraut, ohne Auf/Ab und ohne Ziehgriff", async () => {
+      await mount(
+        <Wochenplan
+          aufgaben={[aufgabe({ id: "a1", status: "abgeschlossen" }), aufgabe({ id: "a2", planRang: 1 })]}
+          routinen={[]}
+          person={ALINA}
+          montag={MONTAG}
+          heute={MONTAG}
+          zeigeAktionen
+          rang={{
+            a1: { istErste: true, istLetzte: false, index: 0 },
+            a2: { istErste: false, istLetzte: true, index: 1 },
+          }}
+        />,
+      );
+      // Nur die offene Aufgabe traegt Knoepfe: zwei Ausprägungen × Auf/Ab = vier.
+      expect(queryAll("button")).toHaveLength(4);
+      const erledigt = queryAll("[data-erledigt]");
+      expect(erledigt).toHaveLength(2);
+      for (const zeile of erledigt) {
+        expect(zeile.className.split(" ")).toContain(s.planErledigt);
+        expect(zeile.querySelector("[aria-label='Erledigt'] [data-zeichen='haken']")).not.toBeNull();
+        expect(zeile.querySelector("[draggable='true']")).toBeNull();
+        expect(zeile.querySelector("a")?.getAttribute("href")).toBe("/a/a1");
+      }
+    });
+
     it("eine Routine bekommt trotz zeigeAktionen keine RangKnoepfe", async () => {
       await mount(
         <Wochenplan

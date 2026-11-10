@@ -4,7 +4,7 @@ import { useActionState, useContext, useEffect, useRef, useState } from "react";
 import { AutoComplete, Button, Input } from "antd";
 import { personAendernAction, personAnlegenAction, personenSucheAction } from "../actions";
 import type { PersonRow } from "../_db/schema";
-import { ROLLE_TEXT, initialenAus } from "../_lib/anzeige";
+import { ROLLE_TEXT, fmtStunden, initialenAus } from "../_lib/anzeige";
 import { ROLLEN } from "../_db/schema";
 import { PERSONEN_SUCHE_MIN_ZEICHEN } from "../_lib/eingabe";
 import { DatumFeld, WahlFeld } from "./Felder";
@@ -72,7 +72,7 @@ import type { DirectoryPerson, DirectoryStatus } from "@/core/directory";
  * DAS SICHTBARE FELD TRAEGT DEN `sub` SELBST — UND DAS IST DER UNTERSCHIED ZU
  * `feedback/_ui/Zuordnung.tsx`, WO EIN LESBARER WERT IM FELD STEHT UND DER `sub` VERSTECKT
  * MITFAEHRT. Dort heisst das Feld „Kennung oder E-Mail", eine UUID darin waere nicht pruefbar.
- * HIER heisst es „Pocket-ID-Kennung": der `sub` ist genau das, was hineingehoert, wer die Person
+ * HIER heisst es „Konto-Kennung" (Wortliste der Suite, IDA-386): der `sub` ist genau das, was hineingehoert, wer die Person
  * ist steht eine Zeile tiefer im vorbelegten Namen, und die Zuordnung „Anzeigetext → `sub`" (samt
  * ihrer Kollisionsbehandlung bei gleichnamigen Konten) entfaellt ersatzlos. Ein verstecktes Feld
  * bleibt trotzdem noetig, weil antds `AutoComplete` kein `name` an sein inneres `<input>` reicht.
@@ -91,6 +91,7 @@ export function PersonenFormular({
   person,
   verzeichnisAktiv = false,
   sucheVerzoegerungMs,
+  beiErfolg,
 }: {
   person?: PersonRow;
   /**
@@ -101,6 +102,11 @@ export function PersonenFormular({
   verzeichnisAktiv?: boolean;
   /** Nur fuer Tests herabsetzbar. */
   sucheVerzoegerungMs?: number;
+  /**
+   * Nach einer angenommenen Eingabe — die Schublade (`PersonenSchublade`) schliesst sich darauf.
+   * Feuert genau einmal je neuem Erfolgszustand, nie fuer den Startzustand.
+   */
+  beiErfolg?: () => void;
 }) {
   const action = person ? personAendernAction : personAnlegenAction;
   const [state, formAction, isPending] = useActionState(action, FORM_START);
@@ -130,6 +136,12 @@ export function PersonenFormular({
   const formRef = useRef<HTMLFormElement>(null);
   const entwurf = useFormularEntwurf(formRef, person ? `aufgaben:person:${person.id}:${fingerabdruck(person)}` : "aufgaben:person:neu");
   useVerwerfenBeiErfolg(state, entwurf.verwerfen);
+  const gemeldet = useRef(state);
+  useEffect(() => {
+    if (state === gemeldet.current || !state.ok) return;
+    gemeldet.current = state;
+    beiErfolg?.();
+  }, [state, beiErfolg]);
   const absenden = (daten: FormData) => {
     setTreffer(null);
     setAbsendeZaehler((n) => n + 1);
@@ -164,7 +176,7 @@ export function PersonenFormular({
   const nameFehler = feldFehler(state, "name");
   const initialenFehler = feldFehler(state, "initialen");
   const rolleFehler = feldFehler(state, "rolle");
-  const sollMinutenFehler = feldFehler(state, "sollMinutenTag");
+  const sollMinutenFehler = feldFehler(state, "sollStundenTag");
   const aktivVonFehler = feldFehler(state, "aktivVon");
   const aktivBisFehler = feldFehler(state, "aktivBis");
   const subFehler = feldFehler(state, "sub");
@@ -182,7 +194,7 @@ export function PersonenFormular({
       {!person ? (
         <div>
           <label htmlFor="pf-sub" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-            Pocket-ID-Kennung
+            Konto-Kennung
           </label>
           {sucheAktiv ? (
             <Verzeichnisfeld
@@ -225,7 +237,7 @@ export function PersonenFormular({
         </div>
       ) : (
         <div>
-          <span style={{ display: "block", marginBlockEnd: SPACE.xs }}>Pocket-ID-Kennung</span>
+          <span style={{ display: "block", marginBlockEnd: SPACE.xs }}>Konto-Kennung</span>
           {/*
            * READ-ONLY, NICHT ALS FORMULARFELD (Kopfkommentar): ein `sub` ist nach dem Anlegen
            * unveraenderlich, damit keine Geschichte still umgehaengt wird.
@@ -309,15 +321,18 @@ export function PersonenFormular({
 
       <div>
         <label htmlFor="pf-soll" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Soll-Minuten pro Tag
+          Zeit pro Tag (Stunden)
         </label>
+        {/*
+         * IDA-386: IN STUNDEN MIT DEZIMALKOMMA („7,8"), wie die Tabelle sie zeigt; gespeichert wird
+         * weiter in Minuten (`stundenAlsMinuten`, `_lib/eingabe.ts`). Kein `type="number"`: das
+         * nimmt je nach Browsersprache kein Komma an.
+         */}
         <Input
           id="pf-soll"
-          name="sollMinutenTag"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          defaultValue={feldWert(state, "sollMinutenTag", (person?.sollMinutenTag ?? 468).toString())}
+          name="sollStundenTag"
+          inputMode="decimal"
+          defaultValue={feldWert(state, "sollStundenTag", fmtStunden(person?.sollMinutenTag ?? 468))}
           status={sollMinutenFehler ? "error" : undefined}
           aria-invalid={sollMinutenFehler ? true : undefined}
           aria-describedby={sollMinutenFehler ? "pf-soll-err" : undefined}
@@ -350,7 +365,7 @@ export function PersonenFormular({
 
       <div>
         <label htmlFor="pf-aktiv-bis" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
-          Aktiv bis (leer = unbefristet)
+          Aktiv bis (optional)
         </label>
         <DatumFeld
           id="pf-aktiv-bis"
@@ -374,7 +389,7 @@ export function PersonenFormular({
         disabled={isPending}
         style={{ alignSelf: "flex-start" }}
       >
-        {person ? "Speichern" : "Person anlegen"}
+        Speichern
       </Button>
     </form>
     </WahlEntwurfKontext.Provider>

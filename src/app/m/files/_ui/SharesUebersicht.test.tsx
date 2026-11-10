@@ -40,6 +40,13 @@ const { fehlerSchalter, loeschenMock, bearbeitenMock } = vi.hoisted(() => ({
 
 /* Die Server Actions werden hier nur GERENDERT, nie gerufen — der echte Modul
    zoege `next/cache` und `bcryptjs` in den Renderlauf. */
+/* IDA-388: die Zeilen tragen „Link kopieren" — die Adresse entsteht aus dem
+   Host der Rolle, also braucht der Renderlauf Kopfzeilen und `SUITE_HOST_FILES`. */
+vi.mock("next/headers", () => ({
+  headers: async () =>
+    new Headers({ host: "files.example.test", "x-forwarded-proto": "https" }),
+}));
+
 vi.mock("../(verwaltung)/actions", () => ({
   shareLoeschenAction: loeschenMock,
   bearbeitenAction: bearbeitenMock,
@@ -101,6 +108,7 @@ beforeEach(() => {
   rmSync(DIR, { recursive: true, force: true });
   mkdirSync(DIR, { recursive: true });
   vi.stubEnv("DATA_DIR", DIR);
+  vi.stubEnv("SUITE_HOST_FILES", "files.example.test,drop.example.test");
   const sqlite = new Database(`${DIR}/files.db`);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();

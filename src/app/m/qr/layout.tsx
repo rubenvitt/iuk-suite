@@ -24,7 +24,7 @@ export default async function QrLayout({ children }: { children: React.ReactNode
       moduleKey={mod.key}
       nav={[
         { key: "start", title: "Generator", href: "/" },
-        ...(darfVerwalten ? [{ key: "admin", title: "Verwaltung", href: "/admin" }] : []),
+        ...(darfVerwalten ? [{ key: "admin", title: "Schnellzugriffe", href: "/admin" }] : []),
       ]}
     >
       <RegisterSW />

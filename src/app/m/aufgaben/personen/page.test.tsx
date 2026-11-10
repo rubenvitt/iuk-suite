@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, mount, query, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, type PersonRow, type Rolle } from "../_db/schema";
 
 let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
+const routerReplace = vi.fn();
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+  useRouter: () => ({ replace: routerReplace, push: vi.fn() }),
 }));
 let mockDb: TestDb;
 vi.mock("../_db/client", () => ({ getDb: () => mockDb.db }));
@@ -61,15 +63,38 @@ function anmelden(p: PersonRow, koordiniert = false): void {
   };
 }
 
-describe("personenInhalt — Kopf, Formular, Tabelle", () => {
-  it("zeigt den Titel, die Anzahl und das Anlege-Formular", async () => {
+/** Der Knopf im Seitenkopf, der die Schublade oeffnet. */
+function anlegeKnopf(): HTMLButtonElement {
+  const knopf = queryAll<HTMLButtonElement>("button").find((b) => b.textContent === "Person anlegen");
+  if (!knopf) throw new Error("Knopf „Person anlegen“ fehlt");
+  return knopf;
+}
+
+/** Die Schublade haengt im Portal am `<body>`, nicht im Mount-Wirt. */
+function schubladeOffen(): boolean {
+  return document.body.querySelector(".ant-drawer-open #pf-name") !== null;
+}
+
+/*
+ * IDA-386: DIE LISTE STEHT ZUERST. Das Formular liegt in einer Schublade hinter dem Knopf
+ * „Person anlegen" im Seitenkopf; `?bearbeiten=<id>` oeffnet dieselbe Schublade mit der Person.
+ */
+describe("personenInhalt — Kopf, Tabelle, Schublade", () => {
+  it("zeigt den Titel, die Anzahl, den Knopf und die Tabelle — das Formular erst nach dem Klick", async () => {
     legePerson("dev:rike@test", "auftrag", { name: "Rike" });
     legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     await mount(personenInhalt(t.db, HEUTE));
     expect(query("h1").textContent).toBe("Personenverwaltung");
     expect(document.body.textContent).toContain("2 Personen im Modul, davon 2 aktiv");
-    expect(query("h2").textContent).toBe("Neue Person anlegen");
-    expect(query("button[type='submit']").textContent).toBe("Person anlegen");
+    expect(document.body.textContent).toContain("Alina");
+    expect(schubladeOffen()).toBe(false);
+    expect(document.querySelector("#pf-sub")).toBeNull();
+
+    await clickElement(anlegeKnopf());
+    expect(schubladeOffen()).toBe(true);
+    expect(queryPortal(".ant-drawer-title").textContent).toBe("Person anlegen");
+    expect(queryPortal<HTMLInputElement>("#pf-sub").value).toBe("");
+    expect(queryPortal("button[type='submit']").textContent).toBe("Speichern");
   });
 
   it("zeigt genau eine ausgeschiedene Person in der aktiv-Zahl korrekt", async () => {
@@ -79,21 +104,20 @@ describe("personenInhalt — Kopf, Formular, Tabelle", () => {
     expect(document.body.textContent).toContain("2 Personen im Modul, davon 1 aktiv");
   });
 
-  it("mit bearbeitenId: zeigt das Aendern-Formular vorbelegt, mit Abbrechen-Verweis", async () => {
+  it("mit bearbeitenId: die Schublade ist offen, mit der Person vorbelegt, Zeit pro Tag in Stunden", async () => {
     legePerson("dev:rike@test", "auftrag");
     const alina = legePerson("dev:alina@test", "bufdi", { name: "Alina" });
     await mount(personenInhalt(t.db, HEUTE, alina.id));
-    expect(query("h2").textContent).toBe("Person „Alina“ ändern");
-    expect(query<HTMLInputElement>("#pf-name").value).toBe("Alina");
-    const abbrechen = queryAll<HTMLAnchorElement>("a").find((a) => a.textContent === "Abbrechen")!;
-    expect(abbrechen, "Abbrechen-Verweis fehlt").toBeTruthy();
-    expect(abbrechen.getAttribute("href")).toBe("/personen");
+    expect(schubladeOffen()).toBe(true);
+    expect(queryPortal(".ant-drawer-title").textContent).toBe("Person „Alina“ ändern");
+    expect(queryPortal<HTMLInputElement>("#pf-name").value).toBe("Alina");
+    expect(queryPortal<HTMLInputElement>("#pf-soll").value).toBe("7,8");
   });
 
-  it("eine unbekannte bearbeitenId zeigt das Anlege-Formular, kein Fehler", async () => {
+  it("eine unbekannte bearbeitenId laesst die Schublade zu, kein Fehler", async () => {
     legePerson("dev:rike@test", "auftrag");
     await mount(personenInhalt(t.db, HEUTE, "unbekannte-id"));
-    expect(query("h2").textContent).toBe("Neue Person anlegen");
+    expect(schubladeOffen()).toBe(false);
   });
 });
 
@@ -224,12 +248,14 @@ describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
 describe("personenInhalt — das Verzeichnis entscheidet ueber das Kennungsfeld", () => {
   it("ohne Verzeichnis: das Textfeld traegt name='sub' (der Rueckfallweg)", async () => {
     await mount(personenInhalt(t.db, HEUTE));
-    expect(query<HTMLInputElement>("#pf-sub").getAttribute("name")).toBe("sub");
+    await clickElement(anlegeKnopf());
+    expect(queryPortal<HTMLInputElement>("#pf-sub").getAttribute("name")).toBe("sub");
   });
 
   it("mit Verzeichnis: dieselbe Id, aber als Suchfeld ohne name", async () => {
     await mount(personenInhalt(t.db, HEUTE, undefined, true));
-    expect(query("#pf-sub").getAttribute("name")).toBeNull();
-    expect(queryAll<HTMLInputElement>("input[name='sub']")).toHaveLength(1);
+    await clickElement(anlegeKnopf());
+    expect(queryPortal("#pf-sub").getAttribute("name")).toBeNull();
+    expect(document.body.querySelectorAll("input[name='sub']")).toHaveLength(1);
   });
 });

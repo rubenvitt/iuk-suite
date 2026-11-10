@@ -130,11 +130,41 @@ test("Lager einrichten, mit Helfer-Link am Telefon buchen, Buchungen in der Verw
     expect(inhalt.width, `Inhalt bei ${breite}px`).toBeGreaterThan(breite - 40);
   }
 
+  // Am Schreibtisch (IDA-382): Bestand je Artikel, einbuchen in der Zeile, Chargen aufklappen und ausgeben.
+  const tag40 = tagIn(40).split("-").reverse().join(".");
+  await page.goto(url("/bestand"));
+  await warteAufGestreamteInhalte(page);
+  // Die Artikelzeile, nicht die aufgeklappte Chargenzeile darunter: nur sie trägt „Einbuchen“.
+  const zeile = page.getByRole("row").filter({ hasText: artikel }).filter({ has: page.getByRole("button", { name: "Einbuchen" }) });
+  await expect(zeile).toContainText("1 Stück");
+  await klickeWennRuhig(zeile.getByRole("button", { name: "Einbuchen" }));
+  const einDialog = page.getByRole("dialog", { name: "Einbuchen" });
+  await expect(einDialog.getByRole("button", { name: /wählen$/ })).toBeDisabled();
+  await einDialog.getByLabel("Mindestens haltbar bis").fill(tagIn(60));
+  await einDialog.getByLabel("Menge").fill("2");
+  await klickeWennRuhig(einDialog.getByLabel("Lagerort"));
+  await klickeWennRuhig(page.locator(".ant-select-item-option", { hasText: ort }));
+  await klickeWennRuhig(einDialog.getByRole("button", { name: "Einbuchen" }));
+  await expect(page.getByText(/^Eingebucht \(MHD/)).toBeVisible();
+  await expect(zeile).toContainText("3 Stück");
+  await klickeWennRuhig(page.getByRole("button", { name: `Chargen ${artikel} anzeigen` }));
+  const charge40 = page.getByRole("list", { name: `Chargen ${artikel}` }).getByRole("listitem").filter({ hasText: tag40 });
+  await klickeWennRuhig(charge40.getByRole("button", { name: "Ausgeben" }));
+  await klickeWennRuhig(page.getByRole("dialog", { name: "Ausgeben" }).getByRole("button", { name: "Ausgeben" }));
+  await expect(page.getByText(`1 Stück ${artikel} ausgegeben.`)).toBeVisible();
+  await expect(zeile).toContainText("2 Stück");
+  // Die frühere MHD-Kontrolle ist eine Stufe des Bestands.
+  await page.goto(url("/mhd"));
+  await expect(page).toHaveURL(/\/bestand\?stufe=kritisch$/);
+  await expect(page.getByRole("radio", { name: "Kritisch" })).toHaveAttribute("aria-checked", "true");
+
   // Die Verwaltung sieht die Buchungen unter dem Namen des Links und den vorläufigen Artikel.
   await page.goto(url("/buchungen"));
   await warteAufGestreamteInhalte(page);
   await expect(page.getByRole("row", { name: new RegExp(`Aussonderung.*${artikel}`) })).toContainText(`Helfer-Link ${anlass}`);
-  await expect(page.getByRole("row", { name: new RegExp(`Ausgabe.*${artikel}`) })).toContainText("Dienstabend");
+  // Zwei Ausgaben: die vom Telefon unter dem Link, die vom Schreibtisch unter der Person (IDA-382).
+  await expect(page.getByRole("row", { name: new RegExp(`Ausgabe.*${artikel}.*Helfer-Link ${anlass}`) })).toContainText("Dienstabend");
+  await expect(page.getByRole("row", { name: new RegExp(`Ausgabe.*${artikel}`) })).toHaveCount(2);
   await page.goto(url("/artikel"));
   await warteAufGestreamteInhalte(page);
   await expect(page.getByRole("row", { name: new RegExp(`Linseneintopf E2E ${n}`) })).toContainText("vorläufig");

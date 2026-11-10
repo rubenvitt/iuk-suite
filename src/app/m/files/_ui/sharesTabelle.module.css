@@ -1,0 +1,12 @@
+/*
+ * IDA-388: der Titel ist der Weg auf die Detailseite — und muss als Weg zu
+ * erkennen sein. Links tragen in der Suite Tintenfarbe ohne Unterstreichung;
+ * in einer Tabellenzelle sah der Titel damit aus wie jeder andere Zellentext.
+ * Die Klasse (0,1,0) schlaegt antds `:where(…) a` (0,0,1); gemessen im Browser.
+ */
+.titelLink {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}

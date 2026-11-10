@@ -36,6 +36,7 @@ import neueSchriftUndWeitereZeichen from "@/app/m/portal/_lib/neuigkeiten/notize
 import typischeEinsatzmittel from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-03-typische-einsatzmittel";
 import freieStellen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-05-freie-stellen";
 import verweisAufPlan from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-05-verweis-auf-plan";
+import geteilterPlanAlsListe from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-10-geteilter-plan-als-liste";
 import helferAusHiorg from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-20-helfer-aus-hiorg";
 import helferAusExcel from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-24-helfer-aus-excel";
 import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-10-21-fahrzeuge-als-stammdaten";
@@ -46,8 +47,10 @@ import gemeinschaftBarQrPlakat from "@/app/m/portal/_lib/neuigkeiten/notizen/gem
 import gemeinschaftMietvertragDigital from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-04-mietvertrag-digital";
 import gemeinschaftDokumenteAusfuellen from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-05-dokumente-ausfuellen";
 import gemeinschaftBarTestanfragen from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-09-bar-testanfragen";
+import gemeinschaftZusageRueckgaengig from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-10-zusage-rueckgaengig";
 import feedbackEhrlichGesagt from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-03-ehrlich-gesagt";
 import feedbackEhrlichGesagtAdresse from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-04-ehrlich-gesagt-adresse";
+import feedbackUmfrageStarten from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-10-umfrage-starten";
 import wartungGeraetewartung from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-03-geraetewartung";
 import wartungMaterialkisten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-materialkisten";
 import wartungUnterlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-unterlagen";
@@ -57,6 +60,7 @@ import wartungPruefarten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2
 import wartungEntnehmen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-08-entnehmen";
 import wartungVorUndNachDemEinsatz from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-06-vor-und-nach-dem-einsatz";
 import verpflegungVerpflegungslager from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-04-verpflegungslager";
+import verpflegungBestandJeArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/verpflegung/2026-11-10-bestand-je-artikel";
 import unterkunftUndZelteBerechnen from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-01-unterkunft-und-zelte-berechnen";
 import unterkunftBerechnungDrucken from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-03-berechnung-drucken";
 import lagemonitorEinstellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-27-lagemonitor-einstellen";
@@ -85,6 +89,7 @@ import suchlageEinsatzVerknuepfen from "@/app/m/portal/_lib/neuigkeiten/notizen/
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
+import nachweisInEinemSchritt from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-11-10-nachweis-in-einem-schritt";
 import checklisteAlsPdf from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-08-16-checkliste-als-pdf";
 import mitCodeEinsteigen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-mit-code-einsteigen";
 import bestandNullAusblenden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-bestand-null-ausblenden";
@@ -147,6 +152,7 @@ import ortsetikettenFuerSchraenke from "@/app/m/portal/_lib/neuigkeiten/notizen/
 import maengelMelden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-31-maengel-melden";
 import verfallInJedemFach from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-01-verfall-in-jedem-fach";
 import geraeteSchnellwahl from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-04-geraete-schnellwahl";
+import kontrolleStornieren from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-kontrolle-stornieren";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -167,6 +173,7 @@ import verwaltungImPortal from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/20
 import updateModusFuersTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-09-27-update-modus-fuers-telefon";
 import fahrzeugeImUpdateModus from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-10-09-fahrzeuge-im-update-modus";
 import lagerorteAusDerFahrzeugverwaltung from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-10-21-lagerorte-aus-der-fahrzeugverwaltung";
+import uebersichtAusleihenUndBereitschaft from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-11-10-uebersicht-ausleihen-und-bereitschaft";
 import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-drohnentraining-in-der-suite";
 import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-fortschritt-zaehlt-durchfuehrungen";
 import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
@@ -202,8 +209,10 @@ const NOTIZEN: readonly Releasenotiz[] = [
   gemeinschaftMietvertragDigital,
   gemeinschaftDokumenteAusfuellen,
   gemeinschaftBarTestanfragen,
+  gemeinschaftZusageRueckgaengig,
   feedbackEhrlichGesagt,
   feedbackEhrlichGesagtAdresse,
+  feedbackUmfrageStarten,
   wartungGeraetewartung,
   wartungMaterialkisten,
   wartungUnterlagen,
@@ -213,6 +222,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   wartungEntnehmen,
   wartungVorUndNachDemEinsatz,
   verpflegungVerpflegungslager,
+  verpflegungBestandJeArtikel,
   unterkunftUndZelteBerechnen,
   unterkunftBerechnungDrucken,
   lagemonitorEinstellen,
@@ -241,6 +251,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   anleitungJeAnsicht,
   verteilenZweiAnsichten,
   aufgabenBearbeiten,
+  nachweisInEinemSchritt,
   checklisteAlsPdf,
   mitCodeEinsteigen,
   bestandNullAusblenden,
@@ -301,6 +312,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   maengelMelden,
   verfallInJedemFach,
   geraeteSchnellwahl,
+  kontrolleStornieren,
   ruecklaufVomFahrzeug,
   checksLaufend,
   inventurTelefon,
@@ -343,6 +355,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   updateModusFuersTelefon,
   fahrzeugeImUpdateModus,
   lagerorteAusDerFahrzeugverwaltung,
+  uebersichtAusleihenUndBereitschaft,
   drohnentrainingInDerSuite,
   katalogOhneCodeAnsehen,
   trainingsansichtOhneSuiteLeiste,
@@ -363,6 +376,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   typischeEinsatzmittel,
   freieStellen,
   verweisAufPlan,
+  geteilterPlanAlsListe,
 ];
 
 /**

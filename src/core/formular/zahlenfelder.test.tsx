@@ -72,15 +72,13 @@ describe("antd-InputNumber mit Suite-Vorgaben", () => {
 
 /**
  * Felder, die heute noch ohne `inputMode` stehen, weil ihr Modul gerade in einem eigenen Paket
- * umgebaut wird (IDA-388 Dateien, IDA-390 Feedback). Die Liste wird nur kürzer.
+ * umgebaut wird (IDA-390 Feedback). Die Liste wird nur kürzer.
  */
 const NOCH_OHNE_TASTATUR = new Set([
   "src/app/m/feedback/_ui/AbendBearbeiten.tsx",
   "src/app/m/feedback/_ui/Gruppenkarten.tsx",
   "src/app/m/feedback/_ui/StartFormular.tsx",
   "src/app/m/feedback/_ui/Verlauf.tsx",
-  "src/app/m/files/_ui/ShareDetailAktionen.tsx",
-  "src/app/m/files/_ui/UploadInsel.tsx",
 ]);
 
 const WURZEL = join(__dirname, "..", "..", "..");

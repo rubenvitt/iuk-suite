@@ -44,6 +44,17 @@ vi.mock("./_lib/ablage", async (echt) => ({
   loescheNachweis: loescheNachweisMock,
 }));
 
+/*
+ * IDA-386: `fertigMeldenAction` wartet auf die Pruefung des Bildes (`pruefeBildVorFertigmeldung`).
+ * Hier spricht kein clamd — der Spion liefert, was ein Durchlauf ergeben haette. Vorgabe: der
+ * Status bleibt, wie die Zeile ihn traegt; die Funktion selbst bewacht `_lib/scan.test.ts`.
+ */
+const { pruefeMock } = vi.hoisted(() => ({ pruefeMock: vi.fn() }));
+vi.mock("./_lib/scan", async (echt) => ({
+  ...(await echt<typeof import("./_lib/scan")>()),
+  pruefeBildVorFertigmeldung: pruefeMock,
+}));
+
 let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
 
@@ -105,6 +116,11 @@ beforeEach(() => {
   sitzung = null;
   revalidatePathMock.mockClear();
   loescheNachweisMock.mockClear();
+  pruefeMock.mockReset();
+  pruefeMock.mockImplementation(
+    async (db: TestDb["db"], id: string) =>
+      db.select().from(dateien).where(eq(dateien.id, id)).get()?.scanStatus ?? null,
+  );
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(`${HEUTE}T12:00:00Z`));
 });
@@ -340,7 +356,7 @@ describe("aufgabeEinstellenAction", () => {
 
     await expect(
       aufgabeEinstellenAction({ ok: true }, form({ prioritaet: "dringend" })),
-    ).rejects.toThrow(/Unbekannte Prioritaet/);
+    ).rejects.toThrow(/Unbekannte Priorität/);
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
   });
 
@@ -767,7 +783,7 @@ describe("zurueckziehenAction", () => {
       anmelden(auftrag);
 
       await expect(zurueckziehenAction(form(task.id))).rejects.toThrow(
-        /Zurueckziehen ist nur moeglich, solange niemand an der Aufgabe arbeitet/,
+        /Zurückziehen ist nur möglich, solange niemand an der Aufgabe arbeitet/,
       );
       expect(aufgabe(t.db, task.id)).not.toBeNull();
     },
@@ -1506,9 +1522,89 @@ describe("fertigMeldenAction", () => {
       anmelden(bufdi);
 
       const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
-      expect(ergebnis.fieldErrors.nachweis).toContain("wird noch geprüft");
+      expect(ergebnis.fieldErrors.nachweis).toContain("Bild wird geprüft");
       expect(ergebnis.fieldErrors.nachweis).not.toContain("erforderlich");
       expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
+
+    it("IDA-386: `offen`, und die Prüfung ergibt in der Wartezeit `sauber` — fertig in EINEM Schritt", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      const nachweis = legeNachweisMitDatei(task.id, bufdi.id, "offen");
+      pruefeMock.mockImplementation(async (db: TestDb["db"], id: string) => {
+        db.update(dateien).set({ scanStatus: "sauber" }).where(eq(dateien.id, id)).run();
+        return "sauber";
+      });
+      anmelden(bufdi);
+
+      const ergebnis = await fertigMeldenAction({ ok: true }, form(task.id));
+      expect(ergebnis).toEqual({ ok: true });
+      expect(pruefeMock).toHaveBeenCalledWith(t.db, nachweis.dateiId);
+      expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
+    });
+
+    it("IDA-386: ein schon `sauber`es Bild wird nicht noch einmal geprüft", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "sauber");
+      anmelden(bufdi);
+
+      expect(await fertigMeldenAction({ ok: true }, form(task.id))).toEqual({ ok: true });
+      expect(pruefeMock).not.toHaveBeenCalled();
+    });
+
+    it("IDA-386 Review: kommt WAEHREND der Wartezeit ein neueres Foto dazu, entscheidet dieses — nicht das erste", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "offen");
+      pruefeMock.mockImplementation(async (db: TestDb["db"], id: string) => {
+        db.update(dateien).set({ scanStatus: "sauber" }).where(eq(dateien.id, id)).run();
+        legeNachweisMitDatei(task.id, bufdi.id, "befund", new Date(`${HEUTE}T12:00:05Z`));
+        return "sauber";
+      });
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
+      expect(ergebnis.fieldErrors.nachweis).toContain("anderes Foto");
+      expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
+    });
+
+    it("IDA-386 Review: wird die Aufgabe WAEHREND der Wartezeit zurueckgesetzt, ueberschreibt die Fertigmeldung das nicht", async () => {
+      const auftrag = legePerson("dev:malte@test", "auftrag");
+      const bufdi = legePerson("dev:alina@test", "bufdi");
+      const task = legeAufgabe({
+        erstellerId: auftrag.id, prueferId: auftrag.id, status: "in_arbeit", zugewiesenAn: bufdi.id,
+        nachweisPflicht: true, nachweisArt: "bild",
+      });
+      legeNachweisMitDatei(task.id, bufdi.id, "offen");
+      const verlaufVorher = verlaufFuer(t.db, task.id).length;
+      pruefeMock.mockImplementation(async (db: TestDb["db"], id: string) => {
+        db.update(dateien).set({ scanStatus: "sauber" }).where(eq(dateien.id, id)).run();
+        db.update(aufgaben).set({ status: "verteilt" }).where(eq(aufgaben.id, task.id)).run();
+        return "sauber";
+      });
+      anmelden(bufdi);
+
+      const ergebnis = erwarteFeldfehler(
+        await fertigMeldenAction({ ok: true }, form(task.id, { nachweisText: "dazu ein Satz" })),
+      );
+      expect(ergebnis.fieldErrors.nachweis).toContain("inzwischen geändert");
+      expect(aufgabe(t.db, task.id)!.status).toBe("verteilt");
+      expect(verlaufFuer(t.db, task.id)).toHaveLength(verlaufVorher);
+      expect(t.db.select().from(nachweise).where(eq(nachweise.art, "text")).all()).toHaveLength(0);
+      expect(revalidatePathMock).not.toHaveBeenCalled();
     });
 
     it("`befund`: abgelehnt", async () => {
@@ -1522,7 +1618,8 @@ describe("fertigMeldenAction", () => {
       anmelden(bufdi);
 
       const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
-      expect(ergebnis.fieldErrors.nachweis).toBeTruthy();
+      // Ein Befund ist ein Ergebnis ueber DIESES Bild — hier, und nur hier, braucht es ein anderes.
+      expect(ergebnis.fieldErrors.nachweis).toContain("anderes Foto");
       expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
     });
 
@@ -1537,7 +1634,11 @@ describe("fertigMeldenAction", () => {
       anmelden(bufdi);
 
       const ergebnis = erwarteFeldfehler(await fertigMeldenAction({ ok: true }, form(task.id)));
-      expect(ergebnis.fieldErrors.nachweis).toBeTruthy();
+      // IDA-386: der Scanner war nicht erreichbar — das sagt nichts ueber das Bild. Die Meldung
+      // sagt das und verlangt KEIN neues Bild (das war die Schleife).
+      expect(ergebnis.fieldErrors.nachweis).toContain("Prüfung gerade nicht möglich");
+      expect(ergebnis.fieldErrors.nachweis).not.toMatch(/neues|anderes/);
+      expect(pruefeMock).toHaveBeenCalledTimes(1);
       expect(aufgabe(t.db, task.id)!.status).toBe("in_arbeit");
     });
 
@@ -1807,7 +1908,7 @@ describe("freigebenAction", () => {
     t.sqlite.pragma("foreign_keys = ON");
     anmelden(koordination, true);
 
-    await expect(freigebenAction(form(task.id))).rejects.toThrow(/Pruefer .* nicht gefunden/);
+    await expect(freigebenAction(form(task.id))).rejects.toThrow(/Prüfer .* nicht gefunden/);
     expect(aufgabe(t.db, task.id)!.status).toBe("freigabe_offen");
   });
 });
@@ -1952,7 +2053,7 @@ describe("wiederaufnehmenAction", () => {
  * das den Zeitplan schuetzt, keine zweite Fassung derselben Regel.
  */
 
-const BERECHTIGUNGS_MELDUNG = /Keine Berechtigung, diese Routine zu aendern\./;
+const BERECHTIGUNGS_MELDUNG = /Keine Berechtigung, diese Routine zu ändern\./;
 
 describe("routineAnlegenAction", () => {
   function form(over: Record<string, string | string[]> = {}): FormData {
@@ -2476,7 +2577,7 @@ describe("rangVerschiebenAction", () => {
     anmelden(bufdi2);
 
     await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
-      /Keine Berechtigung, diesen Rang zu aendern\./,
+      /Keine Berechtigung, diesen Rang zu ändern\./,
     );
     expect(aufgabe(t.db, mitte.id)!.planRang).toBe(5);
   });
@@ -2489,7 +2590,7 @@ describe("rangVerschiebenAction", () => {
     anmelden(koordination, true);
 
     await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
-      /Keine Berechtigung, diesen Rang zu aendern\./,
+      /Keine Berechtigung, diesen Rang zu ändern\./,
     );
     expect(aufgabe(t.db, mitte.id)!.planRang).toBe(5);
   });
@@ -2501,7 +2602,7 @@ describe("rangVerschiebenAction", () => {
     anmelden(exBufdi);
 
     await expect(rangVerschiebenAction(form(mitte.id, "hoch"))).rejects.toThrow(
-      /Keine Berechtigung, diesen Rang zu aendern\./,
+      /Keine Berechtigung, diesen Rang zu ändern\./,
     );
   });
 
@@ -2574,7 +2675,7 @@ describe("personAnlegenAction", () => {
     f.set("name", "Neu");
     f.set("initialen", "NE");
     f.set("rolle", "bufdi");
-    f.set("sollMinutenTag", "300");
+    f.set("sollStundenTag", "5");
     f.set("aktivVon", "2026-08-14");
     f.set("aktivBis", "");
     for (const [k, v] of Object.entries(over)) f.set(k, v);
@@ -2634,7 +2735,7 @@ describe("personAnlegenAction", () => {
     expect(ergebnis.fieldErrors.name).toBeTruthy();
     expect(ergebnis.values.sub).toBe("dev:neu@localtest.me");
     expect(ergebnis.values.rolle).toBe("bufdi");
-    expect(ergebnis.values.sollMinutenTag).toBe("300");
+    expect(ergebnis.values.sollStundenTag).toBe("5");
   });
 
   it("ein bereits vergebener sub kommt als Feldfehler zurueck, keine zweite Zeile entsteht", async () => {
@@ -2757,7 +2858,7 @@ describe("personAendernAction", () => {
     f.set("name", "Geaendert");
     f.set("initialen", "GA");
     f.set("rolle", "bufdi");
-    f.set("sollMinutenTag", "400");
+    f.set("sollStundenTag", "6,67");
     f.set("aktivVon", "2026-08-01");
     f.set("aktivBis", "");
     for (const [k, v] of Object.entries(over)) f.set(k, v);
@@ -2772,6 +2873,36 @@ describe("personAendernAction", () => {
     const ergebnis = await personAendernAction({ ok: true }, form(ziel.id));
     expect(ergebnis).toEqual({ ok: true });
     expect(personNachId(t.db, ziel.id)).toMatchObject({ name: "Geaendert", sollMinutenTag: 400 });
+  });
+
+  /*
+   * IDA-386: die Zeit pro Tag kommt in Stunden mit Dezimalkomma herein und wird in Minuten
+   * gespeichert — „7,8" ist der Vorgabewert der Tabelle (468 Min.).
+   */
+  it("nimmt die Zeit pro Tag in Stunden mit Komma an und speichert Minuten", async () => {
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    const ziel = legePerson("dev:alina@test", "bufdi");
+    anmelden(koordination, true);
+
+    expect(await personAendernAction({ ok: true }, form(ziel.id, { sollStundenTag: "7,8" }))).toEqual({ ok: true });
+    expect(personNachId(t.db, ziel.id)?.sollMinutenTag).toBe(468);
+    expect(await personAendernAction({ ok: true }, form(ziel.id, { sollStundenTag: "4.5" }))).toEqual({ ok: true });
+    expect(personNachId(t.db, ziel.id)?.sollMinutenTag).toBe(270);
+  });
+
+  it("eine leere, nicht-numerische oder zu grosse Zeit pro Tag kommt als Feldfehler zurueck", async () => {
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    const ziel = legePerson("dev:alina@test", "bufdi");
+    anmelden(koordination, true);
+
+    for (const roh of ["", "abc", "0", "25", "-1"]) {
+      const ergebnis = erwarteFeldfehler(
+        await personAendernAction({ ok: true }, form(ziel.id, { sollStundenTag: roh })),
+      );
+      expect(ergebnis.fieldErrors.sollStundenTag, roh).toBeTruthy();
+      expect(ergebnis.values.sollStundenTag).toBe(roh);
+    }
+    expect(personNachId(t.db, ziel.id)?.sollMinutenTag).toBe(ziel.sollMinutenTag);
   });
 
   /**

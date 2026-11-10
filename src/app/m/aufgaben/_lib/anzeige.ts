@@ -378,6 +378,30 @@ export function fmtDauer(minuten: number): string {
 }
 
 /**
+ * DIE DAUERWAHL DER FORMULARE (IDA-386): Aufgabe einstellen/bearbeiten, Einplanen, Routine. Die
+ * Dauer wird gewaehlt, nicht in Minuten getippt — ueberall sonst im Modul steht sie als
+ * `fmtDauer`, und eine Minutenzahl im Formular war die einzige Stelle, an der man umrechnen
+ * musste. Gespeichert wird weiter in Minuten (`dauerMinuten`).
+ */
+export const DAUER_STUFEN_MINUTEN = [15, 30, 45, 60, 90, 120, 180, 240, 360, 480] as const;
+
+/**
+ * Die Optionen fuer die Dauerwahl. EIN GESPEICHERTER WERT AUSSERHALB DER STUFEN BLEIBT WAEHLBAR
+ * (z. B. 20 Min. aus der Zeit vor der Auswahl, oder aus dem Seed): er kommt als zusaetzliche
+ * Option an seine Stelle in der Reihe — sonst setzte das blosse Oeffnen und Speichern des
+ * Bearbeiten-Formulars die Dauer still auf eine andere Stufe oder leer.
+ */
+export function dauerOptionen(aktuell: string): { wert: string; text: string }[] {
+  const minuten: number[] = [...DAUER_STUFEN_MINUTEN];
+  const n = Number(aktuell);
+  if (aktuell.trim() !== "" && Number.isInteger(n) && n > 0 && !minuten.includes(n)) {
+    minuten.push(n);
+    minuten.sort((a, b) => a - b);
+  }
+  return minuten.map((m) => ({ wert: String(m), text: fmtDauer(m) }));
+}
+
+/**
  * „7,8" · „2" · „2,75". `toFixed(2)` statt `toLocaleString`, damit die Rundung
  * nicht von der ICU-Fassung des Laufzeitsystems abhaengt.
  */
@@ -973,3 +997,9 @@ export const KONTEXT_TEXT = {
         : `${z.freigabe} wartet${z.freigabe === 1 ? "" : "en"} auf deine Freigabe`,
     ].join(" · "),
 } as const;
+
+/** Dateigroesse fuer Menschen (IDA-386): „8 MB", „12,3 MB" — Basis 1024, wie `NACHWEIS_MAX_BYTES`. */
+export function alsMegabyte(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB`;
+}

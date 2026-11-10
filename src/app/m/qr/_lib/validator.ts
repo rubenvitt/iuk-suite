@@ -1,6 +1,7 @@
 import type { Preset, QrKind, QrPayload } from "./types";
 import { payloadToQrString } from "./payload";
 import { exceedsQrCapacity, QR_MAX_LENGTH } from "./qr";
+import { ergaenzeSchema, istWebAdresse, KEINE_WEB_ADRESSE } from "./url";
 
 export type ValidationResult =
   | { ok: true; value: Omit<Preset, "id"> & { id?: string } }
@@ -29,10 +30,18 @@ export function validatePresetInput(input: unknown): ValidationResult {
 
   const kind = r.kind as QrKind;
   const v = r.value;
-  // Nutzlast, die gespeichert wird. Nur wifi weicht von der Eingabe ab, siehe dort.
+  // Nutzlast, die gespeichert wird. url (Schema ergänzt) und wifi weichen von der Eingabe ab.
   let payloadValue: unknown = v;
   switch (kind) {
-    case "url":
+    case "url": {
+      if (typeof v !== "string" || v.trim() === "") return fail(`${kind}.value darf nicht leer sein`);
+      // „drk.de" ist gemeint als https://drk.de — ergänzt wird hier, nicht nur im Formular, damit
+      // auch ein Aufruf ohne JavaScript keine schemalose Adresse speichert (`_lib/url.ts`).
+      const adresse = ergaenzeSchema(v);
+      if (!istWebAdresse(adresse)) return fail(KEINE_WEB_ADRESSE);
+      payloadValue = adresse;
+      break;
+    }
     case "tel":
     case "text":
       if (typeof v !== "string" || v === "") return fail(`${kind}.value darf nicht leer sein`);

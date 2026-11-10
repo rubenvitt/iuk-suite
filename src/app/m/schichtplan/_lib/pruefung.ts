@@ -4,18 +4,20 @@
  * Datenbank — Planungsseite (live beim Ziehen) und Übersicht (Kennzahlen) rechnen mit derselben Funktion.
  */
 import { erfuellt, strenge } from "./qualis";
-import { type Anforderung, type EinheitDTO, type PlanHelfer, type PlanungDTO, type SchichtDTO, MINUTE, schluessel } from "./typen";
+import { type Anforderung, type EinheitDTO, type PlanHelfer, type PlanungDTO, type SchichtDTO, MAX_ANFORDERUNGEN, MINUTE, postenSchluessel, schluessel } from "./typen";
 import { stunden, zeitspanne } from "./zeit";
 
-export type KonfliktArt = "doppelt" | "quali" | "dienst" | "bestand";
+export type KonfliktArt = "doppelt" | "ueberschneidung" | "quali" | "dienst" | "einheit" | "bestand";
 export interface Konflikt { art: KonfliktArt; schichtIds: string[]; helfer?: string; text: string }
 /** Offene Plätze einer Schicht; `braucht` sind Anforderungen, die diese Plätze noch decken müssen. */
 export interface Luecke { schichtId: string; fehlen: number; braucht: Anforderung[] }
 
 export const KONFLIKT_TITEL: Record<KonfliktArt, string> = {
   doppelt: "Doppelt verplant",
+  ueberschneidung: "Schichten überschneiden sich",
   quali: "Qualifikation fehlt",
   dienst: "Zu lange im Dienst",
+  einheit: "Einheit nicht eindeutig",
   bestand: "Nicht mehr im Bestand",
 };
 
@@ -89,6 +91,28 @@ export function pruefe(p: PlanungDTO, alle: readonly PlanHelfer[]): Auswertung {
     if (offen.reduce((n, a) => n + a.anzahl, 0) > frei) {
       const was = offen.map((a) => `${a.anzahl}× ${a.quali.name}`).join(", ");
       konflikte.push({ art: "quali", schichtIds: [s.id], text: `${e.name}, ${zeitspanne(s.von, s.bis)}: ${was} fehlt, ${frei === 0 ? "die Schicht ist aber voll" : `frei ${frei === 1 ? "ist nur 1 Platz" : `sind nur ${frei} Plätze`}`}` });
+    }
+  }
+
+  // IDA-373: Im Austauschblatt ist der Name der Posten. Lifeline Hub bildet je Posten, Beginn und Ende
+  // einen Block, und zwei Blöcke eines Postens dürfen sich nicht überschneiden — sonst liest es die
+  // ganze Datei nicht ein. Deshalb wird je Name geprüft, nicht je Einheit.
+  const jePosten = new Map<string, EinheitDTO[]>();
+  for (const e of p.einheiten) jePosten.set(postenSchluessel(e.name), [...(jePosten.get(postenSchluessel(e.name)) ?? []), e]);
+  for (const gleich of jePosten.values()) {
+    if (gleich.length > 1) {
+      konflikte.push({ art: "einheit", schichtIds: [], text: `${gleich.length} Einheiten heißen „${gleich[0].name}“. Bitte umbenennen.` });
+    }
+    const liste = p.schichten.filter((s) => gleich.some((e) => e.id === s.einheitId)).sort((a, b) => a.von - b.von || a.bis - b.bis);
+    for (let i = 0; i < liste.length; i++) {
+      for (let j = i + 1; j < liste.length && liste[j].von < liste[i].bis; j++) {
+        konflikte.push({ art: "ueberschneidung", schichtIds: [liste[i].id, liste[j].id], text: `${gleich[0].name}: ${zeitspanne(liste[i].von, liste[i].bis)} und ${zeitspanne(liste[j].von, liste[j].bis)} überschneiden sich` });
+      }
+    }
+  }
+  for (const e of p.einheiten) {
+    if (e.anforderungen.length > MAX_ANFORDERUNGEN) {
+      konflikte.push({ art: "einheit", schichtIds: [], text: `${e.name}: ${e.anforderungen.length} Qualifikationen gefordert, höchstens ${MAX_ANFORDERUNGEN} möglich. Bitte zusammenfassen.` });
     }
   }
 

@@ -75,4 +75,6 @@
 .chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; }
 .chip.grau { color: var(--uk-grau-text); background: var(--uk-grau-flaeche); }
 .chip.gelb { color: var(--uk-gelb-text); background: var(--uk-gelb-flaeche); }
-.marke { margin-inline-start: 6px; }
+/* Marke mit Kurztext (IDA-390): eigene Zeile unter dem Etikett, bricht am Telefon um statt überzulaufen. */
+.chip.marke { display: table; margin-block-start: 2px; white-space: normal; overflow-wrap: anywhere; line-height: 18px; font-weight: 500; }
+.unterzeile .chip.marke { margin-block-start: 4px; }

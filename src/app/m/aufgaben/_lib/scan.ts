@@ -329,3 +329,81 @@ export function starteAufgabenScanArbeiter(db?: AufgabenDb): void {
     });
   });
 }
+
+/**
+ * Wie lange „Fertig melden“ auf das Prüfergebnis eines Bildes wartet (IDA-386). Kürzer als
+ * `AV_TIMEOUT_MS_VORGABE`: ein hängender Scanner soll die Person nicht eine Minute vor einem
+ * drehenden Knopf halten — der Durchlauf läuft im Hintergrund weiter, und der nächste Druck auf
+ * „Fertig melden“ liest sein Ergebnis.
+ */
+export const FERTIG_PRUEF_WARTEZEIT_MS = 20_000;
+
+/** Pause zwischen zwei Durchläufen, solange die eigene Zeile noch `offen` steht — gegen ein Kreiseln. */
+const NACHLESE_PAUSE_MS = 250;
+
+function warte(ms: number): { fertig: Promise<void>; stoppe: () => void } {
+  let uhr: ReturnType<typeof setTimeout> | undefined;
+  const fertig = new Promise<void>((weiter) => {
+    uhr = setTimeout(weiter, Math.max(0, ms));
+  });
+  return { fertig, stoppe: () => clearTimeout(uhr) };
+}
+
+/**
+ * IDA-386 — DAS BILD EINES NACHWEISES VOR DER FERTIGMELDUNG PRÜFEN, IN EINEM SCHRITT.
+ *
+ * Bis dahin war der Ablauf zweistufig: hochladen, warten, dann „Fertig melden“ — und ein Scanner,
+ * der beim Upload nicht erreichbar war, hinterließ `fehler` für immer: die Meldung verlangte ein
+ * NEUES Bild, das an demselben Scanner wieder scheiterte (eine Schleife). Diese Funktion trennt die
+ * beiden Ausgänge, die die Tabelle ohnehin schon getrennt führt:
+ *
+ *  - `fehler` heißt „die Prüfung kam nicht zustande“ (Scanner weg, Zeitüberschreitung) und sagt
+ *    nichts über das Bild. Es wird hier auf `offen` zurückgesetzt und NEU geprüft — dasselbe Bild,
+ *    kein neues nötig. Die Freigaberegel bleibt unberührt: `offen` gibt genauso wenig frei wie
+ *    `fehler` (`istFreigegeben`), ausgeliefert wird weiterhin nur `sauber`.
+ *  - `befund` ist ein Ergebnis über das Bild und bleibt, wie es ist — dafür braucht es ein neues.
+ *
+ * Danach wartet sie höchstens `warteMs` auf den Durchlauf und liest die EIGENE Zeile nach
+ * (Vertragspunkt an `bearbeiteOffeneDateien`: das Ergebnis-Array eines geteilten Laufs enthält sie
+ * möglicherweise nicht). Läuft die Zeit ab, kommt `offen` zurück, und der Durchlauf arbeitet im
+ * Hintergrund weiter. `null`, wenn es die Zeile nicht gibt.
+ */
+export async function pruefeBildVorFertigmeldung(
+  db: AufgabenDb,
+  dateiId: string,
+  warteMs: number = FERTIG_PRUEF_WARTEZEIT_MS,
+  konfig: AvKonfig = avKonfigAusEnv(),
+): Promise<ScanStatus | null> {
+  const tabelle = await holeTabelle();
+  const lies = (): ScanStatus | null =>
+    db.select({ status: tabelle.scanStatus }).from(tabelle).where(eq(tabelle.id, dateiId)).get()?.status ?? null;
+
+  if (lies() === "fehler") {
+    db.update(tabelle)
+      .set({ scanStatus: "offen", scanGeprueftAm: null })
+      .where(and(eq(tabelle.id, dateiId), eq(tabelle.scanStatus, "fehler")))
+      .run();
+  }
+
+  const ende = Date.now() + warteMs;
+  let status = lies();
+  while (status === "offen" && Date.now() < ende) {
+    const frist = warte(ende - Date.now());
+    try {
+      await Promise.race([
+        withAuditContext({ actor: { kind: "system" } }, () => bearbeiteOffeneDateien(db, konfig)).catch((fehler) => {
+          console.error("[aufgaben][scan] Durchlauf vor der Fertigmeldung gescheitert:", fehler);
+        }),
+        frist.fertig,
+      ]);
+    } finally {
+      frist.stoppe();
+    }
+    status = lies();
+    if (status === "offen") {
+      const pause = warte(Math.min(NACHLESE_PAUSE_MS, ende - Date.now()));
+      await pause.fertig;
+    }
+  }
+  return status;
+}

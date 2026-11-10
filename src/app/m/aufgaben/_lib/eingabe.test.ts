@@ -6,6 +6,7 @@ import {
   istGueltigeRolle,
   istGueltigerIsoTag,
   istGueltigeUhrzeit,
+  stundenAlsMinuten,
 } from "./eingabe";
 
 /*
@@ -135,5 +136,22 @@ describe("istGueltigeRolle", () => {
    */
   it("lehnt den abgeschafften Wert `koordination` ab — er kommt aus der Gruppe, nicht aus der Tabelle", () => {
     expect(istGueltigeRolle("koordination")).toBe(false);
+  });
+});
+
+describe("stundenAlsMinuten — Zeit pro Tag in Stunden (IDA-386)", () => {
+  it("nimmt Komma und Punkt, rundet auf die ganze Minute", () => {
+    expect(stundenAlsMinuten("7,8")).toBe(468);
+    expect(stundenAlsMinuten("7.8")).toBe(468);
+    expect(stundenAlsMinuten(" 8 ")).toBe(480);
+    expect(stundenAlsMinuten("0,25")).toBe(15);
+    expect(stundenAlsMinuten("6,67")).toBe(400);
+    expect(stundenAlsMinuten("24")).toBe(1440);
+  });
+
+  it("lehnt Leeres, Nicht-Zahlen, Null, Negatives und mehr als 24 Stunden ab", () => {
+    for (const roh of ["", "  ", "abc", "7,8,1", "0", "0,001", "-1", "24,5", "1e2"]) {
+      expect(stundenAlsMinuten(roh), roh).toBeNull();
+    }
   });
 });

@@ -55,6 +55,7 @@ beforeEach(() => {
   t.db.insert(inventuren).values({
     id: "lauf-1", ts: new Date("2026-07-15T10:00:00Z"), quelleTyp: "system", quelleId: "x",
     kommentar: "Monatsinventur", umfang: JSON.stringify({ kategorien: ["Hygiene"], faecher: ["A1"] }),
+    erfasst: 2, gesamt: 3,
   }).run();
   t.db.insert(inventurPositionen).values([
     { id: "p-pfl", inventurId: "lauf-1", artikelId: "a-pfl", chargeId: null, erwartet: 2, gezaehlt: 2 },
@@ -97,7 +98,8 @@ describe("Inventurlauf-Detail als RSC", () => {
     expect(kopf!.props).toMatchObject({
       titel: "Inventur vom 15.07.2026, 12:00",
       zurueck: { titel: "Verlauf", href: "/verwaltung/inventur/verlauf" },
-      beschreibung: "System · Monatsinventur · Umfang: Hygiene, Fach A1",
+      // IDA-379 — die Auswahl und, in Klammern, wie weit die Zaehlung darin kam.
+      beschreibung: "System · Monatsinventur · Umfang: Hygiene, Fach A1 (2 von 3)",
     });
   });
 

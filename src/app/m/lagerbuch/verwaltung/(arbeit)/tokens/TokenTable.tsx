@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Alert, Button, Flex } from "antd";
+import { Alert, App, Button, Flex, Popconfirm } from "antd";
 import type { TableProps } from "antd";
 import {
   Kartentabelle,
@@ -142,11 +142,40 @@ const ZIEL_TEXT: Record<ZielFilter, string> = {
   liste: "Artikel-Liste",
 };
 
+/*
+ * IDA-379 — „OHNE ORTSETIKETT" STATT „VON HAND ANGELEGT". Die alte Beschriftung
+ * nannte eine Herkunft, die es heute nicht mehr gibt (angelegt wird von Hand
+ * nichts mehr), und blieb deshalb unerklaert. Die neue nennt, was der Code
+ * heute IST — keiner Ortskarte zugeordnet —, und damit auch, warum an ihm kein
+ * „Neu erzeugen" steht. Die Kopfzeile der Seite verweist auf die Ortsetiketten.
+ */
 const ART_TEXT: Record<ArtFilter, string> = {
   ortscode: "Ortscode",
   entfallen: "Ort gelöscht",
-  altbestand: "Von Hand angelegt",
+  altbestand: "Ohne Ortsetikett",
 };
+
+/** IDA-379 — „am RTW 1" bzw. „an diesem Ort", fuer die Rueckfragen. */
+function amOrt(zeile: TokenAnzeigeZeile): string {
+  return zeile.ortName !== null ? `am ${zeile.ortName}` : "an diesem Ort";
+}
+
+/**
+ * IDA-379 — DIE FOLGE DES SPERRENS, KONKRET. Ein gesperrter Ortscode kommt nie
+ * zurueck (`kannReaktivieren`), die laminierte Karte ist danach tot; das sagt
+ * die Rueckfrage mit dem Namen des Orts. Am Code ohne Ortsetikett gibt es den
+ * Weg zurueck, und auch das steht da. Sie haengt an keinem Spaltentext
+ * (IDA-395 benennt Spalten und Knoepfe um; „entsperrt" ist schon das Wort der
+ * Wortliste).
+ */
+export function sperrFolge(zeile: TokenAnzeigeZeile): string {
+  if (zeile.ortName !== null) {
+    return `Die Karte ${amOrt(zeile)} funktioniert danach nicht mehr. Der Code kommt nicht zurück.`;
+  }
+  return kannReaktivieren(zeile)
+    ? `Wer ${zeile.code} scannt, kommt danach nicht mehr hinein, bis der Code entsperrt wird.`
+    : `Wer ${zeile.code} scannt, kommt danach nicht mehr hinein. Der Code kommt nicht zurück.`;
+}
 
 const STATUS_FILTER = zustandsFilter<TokenAnzeigeZeile>([
   { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
@@ -198,6 +227,12 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
    */
   const [neuerCode, setNeuerCode] = useState<{ ort: string; code: string } | null>(null);
   const [laeuft, startTransition] = useTransition();
+  /*
+   * IDA-379 — „Sperren" wirkte ohne jede Rueckmeldung: die Zeile sprang nach
+   * der Revalidierung still um, irgendwo zwischen zwanzig anderen. Die kurze
+   * Meldung sagt, dass und was geschehen ist (`<App>` liefert `AntdProvider`).
+   */
+  const { message } = App.useApp();
 
   const gefiltert = useMemo(
     () => zeilen.filter((zeile) => sucheTrifft(zeile, sucheNachlauf)),
@@ -212,6 +247,10 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
     startTransition(async () => {
       try {
         const ergebnis = await setTokenAktiv({ id: zeile.id, aktiv: !zeile.aktiv });
+        if (ergebnis.ok) {
+          void message.success(`${zeile.code} ${zeile.aktiv ? "gesperrt" : "entsperrt"}.`);
+          return;
+        }
         /*
          * ⚠️ DER SATZ DES SERVERS, NICHT DER FESTE — DRK-406, Codex-Befund P2.
          * Hier stand `setFehler(STATUS_FEHLER)` für JEDEN abgelehnten Ausgang,
@@ -228,30 +267,21 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
          * (§11.2 d). `STATUS_FEHLER` bleibt der Rückfall für den Wurf darunter,
          * wo es keinen Satz gibt.
          */
-        if (!ergebnis.ok) setFehler(ergebnis.fehler || STATUS_FEHLER);
+        setFehler(ergebnis.fehler || STATUS_FEHLER);
       } catch {
         setFehler(STATUS_FEHLER);
       }
     });
   }
 
+  /*
+   * Ruft erst die Rueckfrage an der Zeile (`Popconfirm` unten) — nie direkt.
+   * IDA-379: vorher stand hier `window.confirm()`, ein Browserdialog im Stil
+   * des Betriebssystems neben einem „Sperren" ganz ohne Rueckfrage.
+   */
   function neuErzeugen(zeile: TokenAnzeigeZeile): void {
     if (!zeile.ortId) return;
-    /*
-     * ⚠️ EINE RÜCKFRAGE, UND SIE NENNT DIE FOLGE STATT SIE ZU UMSCHREIBEN.
-     * „Bist du sicher?" wäre hier wertlos: die Handlung ist nicht gefährlich,
-     * weil sie schwer rückgängig zu machen ist, sondern weil ihre Wirkung
-     * ANDERSWO eintritt — an einer laminierten Karte am Fahrzeug, die ab
-     * diesem Klick ins Leere führt.
-     */
     const ort = zeile.ortName ?? "diesen Ort";
-    if (!window.confirm(
-      `Für ${ort} einen neuen Code erzeugen?\n\n`
-      + `Der bisherige Code ${zeile.code} wird dauerhaft gesperrt. Die Karte am `
-      + `Ort muss danach neu gedruckt werden — bis dahin führt ein Scan aufs `
-      + `Anmeldefeld.`,
-    )) return;
-
     setFehler(null);
     setNeuerCode(null);
     startTransition(async () => {
@@ -284,7 +314,9 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
           <span style={{ ...SCHRIFT.mono, fontWeight: 600 }}>{code}</span>
           {zeile.aktiv && !istLangerCode(code) ? (
             <div style={SCHRIFT.neben} data-testid="lb-token-alte-form">
-              {zeile.zuruecksetzbar ? "alte Form — neu erzeugen und Karte neu drucken" : "alte Form"}
+              {/* IDA-379 — „kurzer Code" statt „alte Form": die Zeile nennt, was
+                  man sieht (6 statt 28 Zeichen), nicht eine Versionsgeschichte. */}
+              {zeile.zuruecksetzbar ? "kurzer Code — neu erzeugen und Karte neu drucken" : "kurzer Code"}
             </div>
           ) : null}
         </div>
@@ -392,7 +424,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       title: "",
       key: "aktionen",
       render: (_wert: unknown, zeile) => (
-        <Flex gap={SPACE.sm} align="center">
+        <Flex gap={SPACE.sm} wrap align="center">
           {/* KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
               docs/design/README.md) ist mit der Arbeitsdichte gefallen --
               44px ist hier bereits die volle wie die halbe Bediendichte,
@@ -419,13 +451,29 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
             es keinen Ort, an den ein neuer Code gehen könnte.
           */}
           {zeile.aktiv && zeile.zuruecksetzbar ? (
-            <Button
+            /*
+             * ⚠️ EINE RÜCKFRAGE, UND SIE NENNT DIE FOLGE STATT SIE ZU
+             * UMSCHREIBEN. „Bist du sicher?" wäre hier wertlos: die Handlung
+             * ist nicht gefährlich, weil sie schwer rückgängig zu machen ist,
+             * sondern weil ihre Wirkung ANDERSWO eintritt — an einer
+             * laminierten Karte am Fahrzeug, die ab diesem Klick ins Leere führt.
+             */
+            <Popconfirm
+              title={`Neuen Code für ${zeile.ortName ?? "diesen Ort"} erzeugen?`}
+              description={
+                <span data-rolle="token-folge" style={{ display: "block", maxWidth: "min(22rem, calc(100vw - 64px))" }}>
+                  {`${zeile.code} wird dauerhaft gesperrt. Die Karte ${amOrt(zeile)} muss danach neu gedruckt werden.`}
+                </span>
+              }
+              okText="Neu erzeugen"
+              cancelText="Abbrechen"
               disabled={laeuft}
-              onClick={() => neuErzeugen(zeile)}
-              icon={<Ikone name="erneut" groesse={16} />}
+              onConfirm={() => neuErzeugen(zeile)}
             >
-              Neu erzeugen
-            </Button>
+              <Button disabled={laeuft} icon={<Ikone name="erneut" groesse={16} />}>
+                Neu erzeugen
+              </Button>
+            </Popconfirm>
           ) : null}
           {/*
             ⚠️ „REAKTIVIEREN" GIBT ES NUR AM ALTBESTAND — DRK-406, gefunden in
@@ -443,12 +491,27 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
             ⚠️ „SPERREN" BLEIBT FÜR JEDEN CODE. Es ist der Griff, der wirkt,
             wenn eine Karte verschwindet — auch an einem Ortscode.
           */}
-          {zeile.aktiv || kannReaktivieren(zeile) ? (
-            <Button
+          {zeile.aktiv ? (
+            /* IDA-379 — Sperren fragt nach und nennt die Karte, die danach tot ist;
+               vorher wirkte ein Fehltipp sofort, direkt neben „Neu erzeugen". */
+            <Popconfirm
+              title={`${zeile.code} sperren?`}
+              description={
+                <span data-rolle="token-folge" style={{ display: "block", maxWidth: "min(22rem, calc(100vw - 64px))" }}>
+                  {sperrFolge(zeile)}
+                </span>
+              }
+              okText="Sperren"
+              cancelText="Abbrechen"
               disabled={laeuft}
-              onClick={() => statusAendern(zeile)}
+              onConfirm={() => statusAendern(zeile)}
             >
-              {zeile.aktiv ? "Sperren" : "Reaktivieren"}
+              <Button disabled={laeuft}>Sperren</Button>
+            </Popconfirm>
+          ) : kannReaktivieren(zeile) ? (
+            // Reaktivieren braucht keine Rueckfrage: es macht nichts unbrauchbar.
+            <Button disabled={laeuft} onClick={() => statusAendern(zeile)}>
+              Reaktivieren
             </Button>
           ) : (
             <span style={SCHRIFT.neben}>

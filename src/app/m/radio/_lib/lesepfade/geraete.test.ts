@@ -16,6 +16,7 @@ import {
   geraeteFuerExport,
   geraeteKennzahlen,
   geraeteListe,
+  nichtEinsatzbereit,
   updateFahrzeuge,
   updateKarten,
   vorschlaege,
@@ -1129,5 +1130,23 @@ describe("updateFahrzeuge — die Fahrzeuguebersicht des Update-Modus", () => {
     lege({ id: "a1", location: "RTW 1", softwareVersion: "2.0" });
 
     expect(updateFahrzeuge(db).map((f) => f.fortschritt)).toEqual(["offen"]);
+  });
+});
+
+describe("nichtEinsatzbereit (Übersicht, IDA-383)", () => {
+  it("nimmt jeden Status außer einsatzbereit, leer, Ausgeliehen und ausgemustert, nach Rufname", () => {
+    lege(
+      { id: "ok", rufname: "A", status: "Einsatzbereit" },
+      { id: "leer", rufname: "B", status: null },
+      { id: "leerzeichen", rufname: "C", status: "  " },
+      { id: "alt", rufname: "D", status: "Ausgeliehen" },
+      { id: "weg", rufname: "E", status: "Ausgemustert" },
+      { id: "rep", rufname: "Kater 9", status: "In Reparatur" },
+      { id: "defekt", rufname: null, opta: "OPTA-1", status: " defekt " },
+    );
+    expect(nichtEinsatzbereit(db)).toEqual([
+      { id: "rep", rufname: "Kater 9", opta: null, issi: "issi-rep", status: "In Reparatur" },
+      { id: "defekt", rufname: null, opta: "OPTA-1", issi: "issi-defekt", status: "defekt" },
+    ]);
   });
 });
