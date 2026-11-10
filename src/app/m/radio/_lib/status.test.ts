@@ -166,6 +166,16 @@ describe("radio-status: die Faltung eines Geraets ohne erfassten Zustand (A-L13)
     expect(geraeteZustandAus(" WARTUNG ")).toBe("MAINTENANCE");
   });
 
+  it("sperrt jeden anderen Wert wie die Verwaltung (IDA-397)", () => {
+    /*
+     * Die Einteilung kommt aus `einsatzbereitschaftAus`: alles ausser leer, „einsatzbereit"
+     * und dem Altwert „Ausgeliehen" ist gesperrt. Bis IDA-397 liefen diese Werte als frei durch.
+     */
+    expect(geraeteZustandAus("in Reparatur")).toBe("DEFECT");
+    expect(geraeteZustandAus("Sonstiges")).toBe("DEFECT");
+    expect(geraeteZustandAus("ausgemustert")).toBe("DEFECT");
+  });
+
   it("liest ein stehengebliebenes Ausgeliehen NICHT als vergeben", () => {
     /*
      * ⛔ DER LEIHSTAND KOMMT AUS DER TABELLE `loans`, NIE AUS DIESER SPALTE — dieselbe

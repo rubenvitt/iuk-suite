@@ -8,6 +8,7 @@ describe("einsatzbereitschaftAus", () => {
     ["Einsatzbereit", "einsatzbereit"],
     [" einsatzbereit ", "einsatzbereit"],
     ["Ausgeliehen", "einsatzbereit"],
+    ["ON_LOAN", "einsatzbereit"],
     ["Defekt", "nicht-einsatzbereit"],
     ["Wartung", "nicht-einsatzbereit"],
     ["in Reparatur", "nicht-einsatzbereit"],

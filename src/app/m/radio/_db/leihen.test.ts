@@ -609,6 +609,54 @@ describe("radio-leihen: die vier Riegel des Schreibpfads", () => {
     expect(wartung.betroffen).toEqual([{ rufname: "Ruf g-wartung", status: "MAINTENANCE" }]);
   });
 
+  it("sperrt jeden Zustand ausser einsatzbereit und laesst Ausgemustertes weg (IDA-397)", () => {
+    /*
+     * Bis IDA-397 faltete die Ausleihe nur „Defekt" und „Wartung" auf gesperrt; „in Reparatur"
+     * und „ausgemustert" liefen als verfuegbar durch. Die Ausleihe nimmt jetzt die Einteilung
+     * der Verwaltung: leer und „einsatzbereit" sind frei, „ausgemustert" erscheint nicht und
+     * ist nicht freigegeben, alles andere ist gesperrt.
+     */
+    geraet({ id: "g-leer", issi: "4100001", status: null });
+    geraet({ id: "g-bereit", issi: "4100002", status: "Einsatzbereit" });
+    geraet({ id: "g-reparatur", issi: "4100003", status: "in Reparatur" });
+    geraet({ id: "g-sonstiges", issi: "4100004", status: "Sonstiges" });
+    geraet({ id: "g-ausgemustert", issi: "4100005", status: " Ausgemustert " });
+
+    const liste = new Map(geraeteMitLeihstand(db).map((z) => [z.id, z.status]));
+    expect(liste.get("g-leer")).toBe("AVAILABLE");
+    expect(liste.get("g-bereit")).toBe("AVAILABLE");
+    expect(liste.get("g-reparatur")).toBe("DEFECT");
+    expect(liste.get("g-sonstiges")).toBe("DEFECT");
+    expect(liste.has("g-ausgemustert"), "ausgemustert erscheint in der Ausleihe").toBe(false);
+
+    const reparatur = bucheAusleihe(db, {
+      geraeteIds: ["g-reparatur"],
+      entleiher: "Anna Beispiel",
+      zugangscodeId: null,
+    });
+    expect(reparatur.ok).toBe(false);
+    if (reparatur.ok) return;
+    expect(reparatur.betroffen).toEqual([{ rufname: "Ruf g-reparatur", status: "DEFECT" }]);
+
+    const ausgemustert = bucheAusleihe(db, {
+      geraeteIds: ["g-ausgemustert"],
+      entleiher: "Anna Beispiel",
+      zugangscodeId: null,
+    });
+    expect(ausgemustert.ok).toBe(false);
+    if (ausgemustert.ok) return;
+    expect(ausgemustert.betroffen).toEqual([
+      { rufname: "Ruf g-ausgemustert", status: "NICHT_FREIGEGEBEN" },
+    ]);
+
+    const leer = bucheAusleihe(db, {
+      geraeteIds: ["g-leer", "g-bereit"],
+      entleiher: "Anna Beispiel",
+      zugangscodeId: null,
+    });
+    expect(leer.ok).toBe(true);
+  });
+
   it("lehnt den zweiten gleichzeitigen Verleih ueber den Unique-Index ab", () => {
     /*
      * ⛔ UEBER DEN INDEX, NICHT UEBER EIN `SELECT` VOR DEM `INSERT` (Spec:3457-3464,
