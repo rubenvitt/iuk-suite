@@ -149,6 +149,8 @@
 /* Die leise zweite Zeile einer Zelle (Abgabelink unter der Zeit, Kategorie unter der Groesze). */
 .leise {
   display: block;
+  max-width: 20ch;
+  overflow-wrap: anywhere;
   color: var(--fi-muted);
   font-size: 12px;
 }

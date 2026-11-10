@@ -537,7 +537,8 @@ const SPALTEN = [
        Kreuzchen hiesse sonst nach der ID („aaaaaaaaaa auswählen"). Die
        Testmarke steht deshalb an der Zelle statt an einem Kind. */
     dataIndex: "dateiname",
-    onCell: () => ({ "data-spalte": "dateiname" }) as React.HTMLAttributes<HTMLElement>,
+    // Lesebreite an der ZELLE (IDA-393): Chromium hält `max-width` an einem `td` ein, und der Name bleibt nackter Text.
+    onCell: () => ({ "data-spalte": "dateiname", style: { maxWidth: "24ch", overflowWrap: "anywhere" } }) as React.HTMLAttributes<HTMLElement>,
     sorter: nachText<PosteingangZeile>((zeile) => zeile.dateiname),
   },
   {

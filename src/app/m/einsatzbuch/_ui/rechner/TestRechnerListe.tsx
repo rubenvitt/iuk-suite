@@ -63,7 +63,7 @@ export function TestRechnerListe({ liste }: { liste: TestRechnerZeile[] }) {
                 onConfirm={() => loeschen(r.id)}
               >
                 <Button danger loading={laeuft === r.id} disabled={laeuft !== null && laeuft !== r.id}>
-                  Test-Rechner löschen
+                  Löschen
                 </Button>
               </Popconfirm>
             ),
