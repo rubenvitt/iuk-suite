@@ -269,7 +269,7 @@ const LEISE = { display: "block", fontSize: 12, color: "var(--iuk-gedaempft)" } 
 function TitelZelle({ zeile }: { zeile: ShareZeile }) {
   // Lesebreite: ein langer Titel bricht um, statt die Zeile aus dem Rahmen zu schieben.
   return (
-    <span style={{ display: "inline-block", maxWidth: "28ch" }}>
+    <span style={{ display: "inline-block", maxWidth: "28ch", overflowWrap: "anywhere" }}>
       {/* IDA-388: der Titel ist der Weg auf die Detailseite (Zugriffsprotokoll,
           Prüfung, Aufstocken). Vorher fuehrte nur „Bearbeiten → Abbrechen" dorthin. */}
       <Link
