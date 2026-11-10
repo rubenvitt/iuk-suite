@@ -10,7 +10,7 @@ import { BEREICHE_IN_REIHENFOLGE, launcherAuswahl, launcherEintraege } from "@/c
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { SuiteLeiste } from "@/core/shell/Navigator";
 import { SEITENWECHSEL } from "@/core/shell/seitenwechselKlassen";
-import type { SuiteNavItem } from "@/core/shell/types";
+import type { Sprungziel, SuiteNavItem } from "@/core/shell/types";
 import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
 import { SPACE } from "@/core/theme/tokens";
 import { modulVersion } from "@/core/version";
@@ -44,11 +44,14 @@ import m from "./menue.module.css";
 export async function MenueRahmen({
   moduleKey,
   nav = [],
+  sprungziele,
   druck = false,
   children,
 }: {
   moduleKey: string;
   nav?: SuiteNavItem[];
+  /** Inhalte für „Springen zu" (IDA-380); nur angemeldet weitergereicht, wie das Suchfeld selbst. */
+  sprungziele?: Sprungziel[];
   druck?: boolean;
   children: React.ReactNode;
 }) {
@@ -75,6 +78,7 @@ export async function MenueRahmen({
               modulBereich: bereichFuer(moduleKey),
               modulHref: moduleUrl(moduleKey),
               nav,
+              sprungziele: angemeldet ? sprungziele : undefined,
               eintraege,
               auswahl,
               bereiche: BEREICHE_IN_REIHENFOLGE,

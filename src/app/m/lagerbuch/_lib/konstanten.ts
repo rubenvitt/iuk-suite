@@ -71,6 +71,9 @@ export const istEntnahmebox = (lagerortId: string): boolean => lagerortId === EN
  *  FEFO-Sortierung (fefo.ts sortiert ueber den String) fuer jede so angelegte Charge. */
 export const PSEUDO_VERFALL = "2099-12";
 export const istOhneVerfall = (verfall: string): boolean => verfall === PSEUDO_VERFALL;
+/** So heisst `PSEUDO_VERFALL` auf jeder Anzeige und im Export — nie „12/99"
+ *  (IDA-380): das Platzhalterdatum liest niemand als „laeuft nicht ab". */
+export const OHNE_VERFALL_TEXT = "ohne Verfall";
 
 /** Herkunftshinweise in chargen.chargen_nr — NICHT Bedeutungstraeger. Die Bedeutung
  *  „ohne Verfall" haengt am Verfallswert (§5.3.2). */

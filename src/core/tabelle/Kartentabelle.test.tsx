@@ -120,6 +120,63 @@ describe("Kartentabelle", () => {
     expect(leiste.querySelector("[aria-label=\"Sortierung\"]")).toBeTruthy();
   });
 
+  /*
+   * IDA-380 — eingeklappt liegen die Felder hinter einem Knopf „Filter", und
+   * der Knopf zählt, was wirkt: eingeklappt sieht man den Filter sonst nicht.
+   */
+  it("legt die Felder eingeklappt hinter einen Knopf, der die wirksamen Filter zählt", async () => {
+    await mount(
+      <Kartentabelle<Zeile>
+        aria-label="Artikel"
+        rowKey="id"
+        dataSource={ZEILEN}
+        columns={SPALTEN}
+        leer={{ nichts: "Nichts da." }}
+        steuerungAbZeilen={0}
+        steuerungEingeklappt
+        filter={{ status: ["aktiv"] }}
+        onFilter={() => {}}
+        steuerungZusatz={{ inhalt: <span data-testid="zusatzfeld">Kategorien</span>, aktiv: 1 }}
+      />,
+    );
+    const leiste = query("[data-rolle=\"schmalsteuerung\"]");
+    const knopf = query<HTMLButtonElement>("[data-rolle=\"filterknopf\"]");
+    expect(knopf.textContent).toContain("Filter (2)");
+    expect(knopf.getAttribute("aria-expanded")).toBe("false");
+    expect(leiste.querySelector("[aria-label=\"Status filtern\"]")).toBeNull();
+    expect(leiste.querySelector("[data-testid=\"zusatzfeld\"]")).toBeNull();
+    // Die Trefferzahl und der Rückweg bleiben auch eingeklappt sichtbar.
+    expect(leiste.textContent).toContain("1 von 2");
+
+    await clickElement(knopf);
+    expect(knopf.getAttribute("aria-expanded")).toBe("true");
+    const felder = document.getElementById(knopf.getAttribute("aria-controls") ?? "");
+    expect(felder?.querySelector("[aria-label=\"Status filtern\"]")).toBeTruthy();
+    expect(felder?.querySelector("[aria-label=\"Sortierung\"]")).toBeTruthy();
+    expect(felder?.querySelector("[data-testid=\"zusatzfeld\"]")).toBeTruthy();
+  });
+
+  it("stellt `unterTitel` unter den Titel, ohne Beschriftung und nicht in die Liste", async () => {
+    await mount(
+      <Kartentabelle<Zeile>
+        aria-label="Artikel"
+        rowKey="id"
+        dataSource={ZEILEN}
+        columns={SPALTEN}
+        leer={{ nichts: "Nichts da." }}
+        karte={{ titel: "name", kennzeichen: ["fach"], unterTitel: ["status"] }}
+      />,
+    );
+    const erste = query(`${KARTEN} > li[data-karte-key="a"]`);
+    expect(Array.from(erste.querySelectorAll("dt")).map((dt) => dt.textContent)).toEqual([]);
+    const artikel = erste.querySelector("article")!;
+    // Kopfzeile zuerst, die Statuszeile direkt darunter.
+    expect(artikel.children[1]?.textContent).toBe("aktiv");
+    expect(artikel.children[0]?.textContent).toContain("Mullbinde");
+    expect(artikel.children[0]?.textContent).toContain("3");
+    expect(artikel.children[0]?.textContent).not.toContain("aktiv");
+  });
+
   it("zeigt keine Leiste, wenn nichts zu filtern und nichts zu sortieren ist", async () => {
     await mount(
       <Kartentabelle<Zeile>

@@ -44,7 +44,7 @@ const SENDUNG = expect.stringMatching(/^[0-9a-f-]{36}$/);
 
 const ORTE: ZaehlOrt[] = [
   { id: null, label: "Ganzer Handlager" },
-  { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
+  { id: HANDLAGER_ID, label: "Handlager ohne Schrank" },
   { id: "schrank-1", label: "Schrank 1" },
 ].map((o) => ({ ...o, schluessel: zaehlOrtWert(o.id) }));
 
@@ -258,7 +258,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
       "Bestand",
       "Abweichung",
       "Ist",
-      "MHD",
+      "Verfall",
       "Min.",
       "Kategorie",
     ]);
@@ -950,7 +950,7 @@ describe("Inventurseite als RSC", () => {
         // der Kennung `alle` von ihm nicht zu unterscheiden.
         orte: [
           { id: null, schluessel: "alle", label: "Ganzer Handlager" },
-          { id: "handlager", schluessel: "ort:handlager", label: "Nicht zugeordnet" },
+          { id: "handlager", schluessel: "ort:handlager", label: "Handlager ohne Schrank" },
         ],
       });
       expect(istRekursivJsonSicher(form.props)).toBe(true);

@@ -145,7 +145,23 @@ export function mitGetipptem(
  * Aussage ueber die Daten, sondern ueber die Abfrage; sie gehoert nicht auf den
  * Schirm.
  */
-export function deckelText(gezeigt: number, mehrVorhanden: boolean): string {
-  const treffer = gezeigt === 1 ? "1 Treffer" : `${gezeigt} Treffer`;
-  return mehrVorhanden ? `${treffer} geladen — weitere beim Scrollen` : treffer;
+/*
+ * ⚠️ SEIT IDA-380 GIBT ES KEIN NACHLADEN BEIM SCROLLEN MEHR, sondern einen
+ * Knopf „Weitere laden" (`JOURNAL_SCHRITT` je Druck). Am Telefon ergaben 97
+ * Buchungen eine Seite von gut 17 000 px ohne Ende in Sicht. Der Text sagt
+ * deshalb, wie viele von wie vielen stehen — „mehr als", solange der Server
+ * noch eine Portion hat; die Portionsgröße selbst bleibt ungenannt.
+ */
+export function deckelText(gezeigt: number, geladen: number, mehrVorhanden: boolean): string {
+  if (mehrVorhanden) return `${gezeigt} von mehr als ${geladen} Treffern`;
+  if (gezeigt < geladen) return `${gezeigt} von ${geladen} Treffern`;
+  return gezeigt === 1 ? "1 Treffer" : `${gezeigt} Treffer`;
 }
+
+/**
+ * IDA-380 — so viele Buchungen zeigt das Journal auf einmal, und so viele
+ * kommen je „Weitere laden" dazu. Unabhängig von `JOURNAL_GRENZE`, der
+ * Portion, die der Server je Abruf liest: ein Druck zeigt meist nur Zeilen,
+ * die schon geladen sind.
+ */
+export const JOURNAL_SCHRITT = 25;

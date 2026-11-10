@@ -6,7 +6,7 @@ import { requireLagerbuchHost } from "../_lib/host";
 import { absenderAus } from "../_lib/absender";
 import { gateGesperrt, gateFehlversuchBuchen } from "../_lib/gateSchranke";
 import { GERAET_COOKIE, gateMerkmal, geraetCookieOptionen, geraetCookieWert } from "../_lib/gateSchrankeMerkmal";
-import { gateMeldung } from "../_lib/gateTexte";
+import { GATE_TEXT_LEER, gateMeldung } from "../_lib/gateTexte";
 import { normalisiereCode } from "../_lib/code";
 import { sanitizeReturnTo } from "../_lib/returnTo";
 import { ortcodeZielPfad } from "../_lib/ortZiel";
@@ -70,6 +70,12 @@ export async function einloesenAmGate(
   // ohne diese Zeile NICHT, und die Bereitschaft, die zu Schichtbeginn von Hand
   // eintippt, sperrt sich selbst aus — MIT RICHTIGEN CODES.
   const code = normalisiereCode(String(formData.get("code") ?? ""));
+
+  // Ein LEERES Feld ist kein Rateversuch (IDA-380): es kann nie ein Treffer
+  // sein, also weder Codesuche noch Buchung — sonst kostete ein zu frueh
+  // getipptes „Weiter" den gemeinsamen Eimer einen Versuch. Und es bekommt
+  // seinen eigenen Satz statt „unbekannt oder gesperrt".
+  if (code === "") return { fehler: GATE_TEXT_LEER };
 
   // SCHRITT 4 — `redeemToken` NIMMT das Handle, es holt sich keins:
   // `_db/client.ts#getDb()` ist der einzige Opener des Moduls (§5.13.2).

@@ -286,7 +286,7 @@ export function AussondernDialog({
             <Select
               aria-label="Charge"
               allowClear
-              placeholder="alle Chargen (FEFO)"
+              placeholder="alle Chargen, zuerst ablaufende"
               options={chargen.map((charge) => ({
                 value: charge.id,
                 label: `${charge.chargenNr} · ${charge.verfall} · ${charge.rest} ${einheit}`,

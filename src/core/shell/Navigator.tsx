@@ -19,7 +19,7 @@ import { Nutzermenue } from "@/core/shell/Nutzermenue";
 import { ortSeite } from "@/core/shell/ortTitel";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { SEITENWECHSEL } from "@/core/shell/seitenwechselKlassen";
-import type { LauncherEintrag, SuiteNavItem } from "@/core/shell/types";
+import type { LauncherEintrag, Sprungziel, SuiteNavItem } from "@/core/shell/types";
 import { useVerlassenWache } from "@/core/shell/verlassenWache";
 import { suchbegriff } from "@/core/suche";
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
@@ -42,6 +42,8 @@ export interface MenueDaten {
   /** Startseite des Moduls, oder `null` ohne Host. */
   modulHref: string | null;
   nav: SuiteNavItem[];
+  /** Inhalte des Moduls für „Springen zu" (IDA-380), nach den Rechten des Moduls gebaut. */
+  sprungziele?: Sprungziel[];
   eintraege: LauncherEintrag[];
   auswahl: Auswahl;
   bereiche: readonly string[];
@@ -74,6 +76,9 @@ const VERZOEGERUNG_MS = 250;
 
 /** Stabile Abmeldefunktion für `useSyncExternalStore` — die Antwort ändert sich nie. */
 const NIE_AENDERND = () => () => {};
+
+/** Ein Treffer in DIESEM Modul — Seite oder Inhalt: clientseitig per `next/link`, ohne Neuladen. */
+const imModul = (b: { gruppe: string }) => b.gruppe === "Seiten" || b.gruppe === "In diesem Modul";
 
 /**
  * EIN MENÜ, ZWEI EBENEN (IDA-347, Etappe 2; Entwurf `designrichtungen-poc/navigator.tsx`).
@@ -197,7 +202,7 @@ export function Navigator({
     if (!suche.trim()) return null;
     // Der Eintrag „In allen Modulen nach … suchen“ der Palette entfällt hier: die Treffer stehen
     // gleich darunter, und der lange Satz lief in der schmalen Leiste ins Abgeschnittene.
-    const menue: Zeile[] = befehle({ eingabe: suche, nav, eintraege, suchHref: null });
+    const menue: Zeile[] = befehle({ eingabe: suche, nav, eintraege, suchHref: null, sprungziele: daten.sprungziele });
     const funde: Zeile[] = inhalte.ergebnisse.flatMap((e) =>
       e.zustand === "treffer"
         ? e.treffer.map((t) => ({ key: `inhalt:${e.modul}:${t.id}`, titel: t.titel, hinweis: t.art, gruppe: e.titel, href: t.href, extern: false, fund: true }))
@@ -208,8 +213,38 @@ export function Navigator({
         ? [{ key: "suche", titel: "Alle Treffer zeigen", gruppe: "", href: `${daten.suchHref}?q=${encodeURIComponent(begriff)}`, extern: false }]
         : [];
     return [...menue, ...funde, ...ganzeSuche];
-  }, [suche, begriff, nav, eintraege, inhalte.ergebnisse, daten.suchHref]);
+  }, [suche, begriff, nav, eintraege, inhalte.ergebnisse, daten.suchHref, daten.sprungziele]);
   const teilsGescheitert = inhalte.fehler || inhalte.ergebnisse.some((e) => e.zustand === "fehler");
+
+  /*
+   * DER SCROLLHINWEIS (IDA-380): steht unter der Kante noch etwas, blendet der untere Rand der
+   * Seitenliste aus (`data-mehr-unten`, `menue.module.css`). Bei 1280×720 zeigte die Leiste von 23
+   * Lagerbuch-Einträgen zehn, und nichts sagte, dass es weitergeht.
+   *
+   * ⚠️ DAS ATTRIBUT WIRD AM KNOTEN GESETZT, NICHT ÜBER `useState`: der Wert ändert sich bei jedem
+   * Scrollschritt, und ein Render je Schritt wäre ein Render der ganzen Leiste. React rendert das
+   * Attribut nicht und fasst es deshalb auch nicht an. Gemessen wird beim Scrollen und bei jeder
+   * Größenänderung der Ebene oder ihres Inhalts (Fenster, Schrift, Blatt).
+   */
+  const sucht = treffer !== null;
+  useEffect(() => {
+    const ebeneKnoten = seitenEbene.current;
+    if (!ebeneKnoten) return;
+    const pruefe = () => {
+      const rest = ebeneKnoten.scrollHeight - ebeneKnoten.scrollTop - ebeneKnoten.clientHeight;
+      if (rest > 8) ebeneKnoten.setAttribute("data-mehr-unten", "");
+      else ebeneKnoten.removeAttribute("data-mehr-unten");
+    };
+    pruefe();
+    ebeneKnoten.addEventListener("scroll", pruefe, { passive: true });
+    const beobachter = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pruefe);
+    beobachter?.observe(ebeneKnoten);
+    for (const kind of ebeneKnoten.children) beobachter?.observe(kind);
+    return () => {
+      ebeneKnoten.removeEventListener("scroll", pruefe);
+      beobachter?.disconnect();
+    };
+  }, [sucht, daten.angemeldet, nav]);
 
   function fertig() {
     suchen("");
@@ -225,7 +260,7 @@ export function Navigator({
   function geheZu(b: Zeile) {
     fertig();
     if (b.extern) window.open(b.href, "_blank", "noopener,noreferrer");
-    else if (b.gruppe === "Seiten") router.push(b.href);
+    else if (imModul(b)) router.push(b.href);
     else window.location.assign(b.href);
   }
 
@@ -311,7 +346,7 @@ export function Navigator({
             return (
               <div key={b.key} className={m.gruppe}>
                 {kopf ? <div className={m.abschnitt}>{kopf}</div> : null}
-                {b.gruppe === "Seiten" ? (
+                {imModul(b) ? (
                   <Link href={b.href} data-testid="befehl" className={m.eintrag} onClick={fertig}>
                     {inhalt}
                   </Link>
