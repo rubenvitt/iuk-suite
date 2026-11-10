@@ -138,6 +138,8 @@ function Grundlage({ st, setze }: { st: Zustand; setze: (f: (alt: Zustand) => Zu
         <Segmented<Weg>
           block
           aria-label="Grundlage"
+          // `block` teilt gleich auf und kürzt „Personen" schon bei 390 px; nach Inhalt teilen, schmaler polstern.
+          styles={{ item: { flex: "1 1 auto" }, label: { paddingInline: 4 } }}
           value={st.weg}
           onChange={(weg) => setze((alt) => ({ ...alt, weg }))}
           options={[

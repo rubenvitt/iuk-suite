@@ -40,6 +40,8 @@ import { T } from "./typo";
 
 const KARTE = {
   header: { ...T.kicker, minHeight: 40, paddingInline: 20, borderBottomColor: "var(--fb-split)" },
+  // Bei 320 px ließ „Dienstabend planen" dem Titel nur „KOMMEND…" (antd kürzt per Ellipse): umbrechen statt kürzen.
+  title: { whiteSpace: "normal" },
   body: { padding: "var(--fb-kartenpolster)" },
 } satisfies Record<string, CSSProperties>;
 
