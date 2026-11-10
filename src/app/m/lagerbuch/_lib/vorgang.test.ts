@@ -4,8 +4,12 @@ import { describe, expect, it } from "vitest";
 import {
   AUSSONDERN_PRAEFIX,
   INVENTUR_PRAEFIX,
+  PRAEFIXE_DER_ARTEN,
+  STORNO_PRAEFIX,
   VORGANG_ARTEN,
+  istGegenbuchung,
   istPraefixArt,
+  zeileGegenbuchbar,
   praefixVon,
   vorgangAus,
   vorgangLabel,
@@ -62,7 +66,7 @@ describe("vorgangAus — das Praefix schlaegt den Typ", () => {
 });
 
 describe("vorgangLabel — deutsche Beschriftung", () => {
-  it("beschriftet alle sechs Arten", () => {
+  it("beschriftet alle sieben Arten", () => {
     expect(VORGANG_ARTEN.map(vorgangLabel)).toEqual([
       "Wareneingang",
       "Entnahme",
@@ -70,6 +74,7 @@ describe("vorgangLabel — deutsche Beschriftung", () => {
       "Umlagerung",
       "Aussonderung",
       "Inventur",
+      "Gegenbuchung",
     ]);
   });
 
@@ -88,8 +93,9 @@ describe("vorgangLabel — deutsche Beschriftung", () => {
 describe("die Praefixe haben GENAU EINE Quelle", () => {
   it("`istPraefixArt` und `praefixVon` passen zueinander", () => {
     const verfeinert = VORGANG_ARTEN.filter(istPraefixArt);
-    expect(verfeinert).toEqual(["aussondern", "inventur"]);
-    expect(verfeinert.map(praefixVon)).toEqual([AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX]);
+    expect(verfeinert).toEqual(["aussondern", "inventur", "gegenbuchung"]);
+    expect(verfeinert.map(praefixVon)).toEqual([AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX, STORNO_PRAEFIX]);
+    expect([...PRAEFIXE_DER_ARTEN]).toEqual([AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX, STORNO_PRAEFIX]);
   });
 
   it("endet auf einen Doppelpunkt — sonst traefe `aussondern` auch `aussondernXY`", () => {
@@ -221,5 +227,28 @@ describe("vorgang.ts bleibt in BEIDEN React-Ebenen lesbar", () => {
      */
     const quelle = readFileSync("src/app/m/lagerbuch/_lib/vorgang.ts", "utf8");
     expect(quelle).not.toMatch(/^\s*["']use (client|server)["']/m);
+  });
+});
+
+describe("IDA-378 — die Gegenbuchung", () => {
+  it("ist an ihrer Referenz erkennbar und hat einen eigenen Text", () => {
+    const zeile = { typ: "entnahme", referenz: "storno:abc:0" };
+    expect(istGegenbuchung(zeile)).toBe(true);
+    expect(vorgangAus(zeile)).toBe("gegenbuchung");
+    expect(vorgangText(zeile)).toBe("Gegenbuchung");
+  });
+
+  it("gegenbuchbar sind nur Zugang, Entnahme und die Umlagerung von Hand bzw. aufs Fahrzeug", () => {
+    expect(zeileGegenbuchbar({ typ: "zugang", referenz: null })).toBe(true);
+    expect(zeileGegenbuchbar({ typ: "entnahme", referenz: null })).toBe(true);
+    expect(zeileGegenbuchbar({ typ: "umlagerung", referenz: "entnahme-ziel:fz-1" })).toBe(true);
+    expect(zeileGegenbuchbar({ typ: "umlagerung", referenz: "umlagerung:schrank-1" })).toBe(true);
+    for (const [typ, referenz] of [
+      ["korrektur", null], ["korrektur", "check:c"], ["umlagerung", "check:c"],
+      ["korrektur", "inventur:i"], ["korrektur", "aussondern:h"], ["umlagerung", "entnahmebox:fz"],
+      ["umlagerung", "ruecklauf:fz"], ["entnahme", "storno:x"],
+    ] as const) {
+      expect(zeileGegenbuchbar({ typ, referenz }), `${typ} ${referenz}`).toBe(false);
+    }
   });
 });

@@ -344,6 +344,9 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
         // Kennung: die Insel haette sonst keine Quelle, ihn aufzuloesen.
         ortName: "Handlager",
         ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+        // IDA-378 — die Aktionsspalte; beide Zeilen sind gegenbuchbar, keine ist es schon.
+        gegenbuchbar: true,
+        gegengebucht: false,
       },
       {
         id: "id-negativ",
@@ -357,6 +360,9 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
         referenz: null,
         ortName: "Handlager",
         ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+        // IDA-378 — die Aktionsspalte; beide Zeilen sind gegenbuchbar, keine ist es schon.
+        gegenbuchbar: true,
+        gegengebucht: false,
       },
     ]);
     // Ohne Filter ist das Objekt LEER, nicht voller `undefined` — siehe

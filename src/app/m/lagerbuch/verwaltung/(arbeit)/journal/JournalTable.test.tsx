@@ -5,6 +5,8 @@ import { act } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import ts from "typescript";
 import {
+  click,
+  clickPortal,
   exists,
   mount,
   query,
@@ -16,9 +18,10 @@ import s from "../../../_ui/verwaltung.module.css";
 import { JournalTable } from "./JournalTable";
 import type { JournalZeileDTO } from "../../../_lib/journalDTO";
 
-const mocks = vi.hoisted(() => ({ naechsteJournalSeite: vi.fn() }));
+const mocks = vi.hoisted(() => ({ naechsteJournalSeite: vi.fn(), gegenbucheVorgang: vi.fn() }));
 vi.mock("../../../_actions/journal", () => ({
   naechsteJournalSeite: mocks.naechsteJournalSeite,
+  gegenbucheVorgang: mocks.gegenbucheVorgang,
 }));
 
 /**
@@ -44,6 +47,8 @@ const ZEILEN: JournalZeileDTO[] = [
     referenz: null,
     ortName: "Schrank 1",
     ortStandort: { name: "Schrank 1", typ: "lager" as const, kennung: null, einheitenart: null },
+    gegenbuchbar: false,
+    gegengebucht: false,
   },
   {
     id: "journal-negativ",
@@ -57,6 +62,8 @@ const ZEILEN: JournalZeileDTO[] = [
     referenz: null,
     ortName: "Handlager",
     ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+    gegenbuchbar: false,
+    gegengebucht: false,
   },
 ];
 
@@ -169,6 +176,8 @@ describe("JournalTable", () => {
       "Ort",
       "Δ",
       "Quelle",
+      // IDA-378 — „Gegenbuchen" bzw. der Hinweis „Gegengebucht".
+      "Aktion",
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Buchungsjournal");
     /**
@@ -262,6 +271,8 @@ describe("JournalTable", () => {
         // leeres Feld mehr, sondern ein Absturz.
         ortName: "Handlager",
         ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+        gegenbuchbar: false,
+        gegengebucht: false,
       }],
     });
 
@@ -324,6 +335,8 @@ describe("JournalTable", () => {
         // leeres Feld mehr, sondern ein Absturz.
         ortName: "Handlager",
         ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+        gegenbuchbar: false,
+        gegengebucht: false,
       }],
     });
 
@@ -519,6 +532,8 @@ describe("JournalTable", () => {
           // leeres Feld mehr, sondern ein Absturz.
           ortName: "Handlager",
           ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+          gegenbuchbar: false,
+          gegengebucht: false,
         }],
       });
     });
@@ -561,6 +576,8 @@ describe("JournalTable", () => {
         // leeres Feld mehr, sondern ein Absturz.
         ortName: "Handlager",
         ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+        gegenbuchbar: false,
+        gegengebucht: false,
       }],
     });
 
@@ -650,6 +667,8 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       referenz: "aussondern:handlager",
       ortName: "Handlager",
       ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
     {
       id: "journal-inventur",
@@ -663,6 +682,8 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       referenz: "inventur:iv-1",
       ortName: "Handlager",
       ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
     {
       id: "journal-handkorrektur",
@@ -676,6 +697,8 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       referenz: null,
       ortName: "Handlager",
       ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
   ];
 
@@ -778,6 +801,8 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
       referenz: "umlagerung:schrank-gf",
       ortName: "GF-Schrank",
       ortStandort: { name: "GF-Schrank", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
     {
       id: "journal-um-quelle",
@@ -791,6 +816,8 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
       referenz: "umlagerung:schrank-gf",
       ortName: "Schrank 1",
       ortStandort: { name: "Schrank 1", typ: "lager" as const, kennung: null, einheitenart: null },
+      gegenbuchbar: false,
+      gegengebucht: false,
     },
   ];
 
@@ -839,5 +866,49 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
 
     expect(query("tr[data-row-key='journal-um-quelle']").querySelectorAll("td")[3]?.textContent)
       .toBe("Schrank 1");
+  });
+});
+
+/**
+ * IDA-378 — DIE AKTIONSSPALTE. Gegenbuchbar heisst: Knopf mit Rueckfrage;
+ * gegengebucht heisst: Hinweis statt Knopf; eine Gegenzeile bekommt keins von
+ * beiden. Nach dem Erfolg ist die Zeile SOFORT markiert, ohne neue erste Seite.
+ */
+describe("JournalTable — Gegenbuchen (IDA-378)", () => {
+  const basis = ZEILEN[1]!;
+  const ZEILEN_AKTION: JournalZeileDTO[] = [
+    { ...basis, id: "storno:x:0", menge: 1, referenz: "storno:x:0", gegenbuchbar: false, gegengebucht: false },
+    { ...basis, id: "x:0", gegenbuchbar: true, gegengebucht: false },
+    { ...basis, id: "y:0", gegenbuchbar: true, gegengebucht: true },
+    { ...basis, id: "check-1", typ: "korrektur", referenz: "check:c", gegenbuchbar: false, gegengebucht: false },
+  ];
+  const zelle = (id: string) => query(`tr[data-row-key='${id}']`).querySelectorAll("td")[6]!;
+
+  it("zeigt Knopf, Hinweis oder nichts — und die Gegenzeile heisst „Gegenbuchung“", async () => {
+    await mount(<JournalTable ersteZeilen={ZEILEN_AKTION} ersterCursor={null} abrufFilter={KEIN_FILTER} leertext="–" />);
+    expect(zelle("x:0").querySelector("[data-rolle='journal-gegenbuchen']")).not.toBeNull();
+    expect(zelle("y:0").textContent).toBe("Gegengebucht");
+    expect(zelle("storno:x:0").textContent).toBe("");
+    expect(zelle("check-1").textContent).toBe("");
+    expect(query("tr[data-row-key='storno:x:0']").querySelectorAll("td")[2]!.textContent).toContain("Gegenbuchung");
+  });
+
+  it("schickt nach der Rueckfrage die EINE Zeile und markiert den ganzen Vorgang", async () => {
+    mocks.gegenbucheVorgang.mockResolvedValue({ ok: true, wert: { gegengebucht: 1, ids: ["x:0"] } });
+    await mount(<JournalTable ersteZeilen={ZEILEN_AKTION} ersterCursor={null} abrufFilter={KEIN_FILTER} leertext="–" />);
+    await click("tr[data-row-key='x:0'] [data-rolle='journal-gegenbuchen']");
+    expect(mocks.gegenbucheVorgang).not.toHaveBeenCalled();
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    expect(mocks.gegenbucheVorgang).toHaveBeenCalledWith({ zeilenIds: ["x:0"] });
+    expect(zelle("x:0").textContent).toBe("Gegengebucht");
+  });
+
+  it("zeigt die Absage des Servers an der Zeile", async () => {
+    mocks.gegenbucheVorgang.mockResolvedValue({ ok: false, fehler: "Dieser Vorgang ist schon gegengebucht." });
+    await mount(<JournalTable ersteZeilen={ZEILEN_AKTION} ersterCursor={null} abrufFilter={KEIN_FILTER} leertext="–" />);
+    await click("tr[data-row-key='x:0'] [data-rolle='journal-gegenbuchen']");
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    expect(zelle("x:0").querySelector("[data-rolle='journal-gegenbuchen-fehler']")!.textContent)
+      .toBe("Dieser Vorgang ist schon gegengebucht.");
   });
 });
