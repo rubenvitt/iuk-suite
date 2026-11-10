@@ -955,6 +955,7 @@ function NachtragenFormular({
         <span style={T.kicker}>Teilnehmerzahl</span>
         <Input
           type="number"
+          inputMode="numeric"
           name="participantCount"
           min={0}
           defaultValue={feldWert(state, "participantCount", "")}
