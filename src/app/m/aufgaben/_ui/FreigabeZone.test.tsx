@@ -263,7 +263,7 @@ describe("FreigabeZone — Zurueckweisen: bestaetigungspflichtig, Begruendung Pf
   it("zeigt einen Feldfehler an der Begruendung, wenn useActionState ihn liefert (leerer Text abgelehnt)", async () => {
     stelleZustandEin({
       ok: false,
-      fieldErrors: { begruendung: "Eine Begruendung ist Pflicht." },
+      fieldErrors: { begruendung: "Eine Begründung ist Pflicht." },
       values: { aufgabeId: "a1", begruendung: "" },
     });
     const meine = [zeile({ aufgabe: aufgabe({ id: "a1", titel: "Erste" }) })];
@@ -271,7 +271,7 @@ describe("FreigabeZone — Zurueckweisen: bestaetigungspflichtig, Begruendung Pf
 
     await click("[data-testid='zurueckweisen-a1']");
 
-    expect(queryPortal(".ant-modal").textContent).toContain("Eine Begruendung ist Pflicht.");
+    expect(queryPortal(".ant-modal").textContent).toContain("Eine Begründung ist Pflicht.");
   });
 
   it("jede Zeile oeffnet den Dialog fuer die EIGENE Aufgabe, nicht die einer anderen Zeile", async () => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
+import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { alleQuellDateien, ohneKommentare } from "../_ui/testQuellscan";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { personen, type PersonRow, type Rolle } from "../_db/schema";
@@ -60,8 +60,10 @@ import FreigabenPage from "../freigaben/page";
 import RoutinenPage from "../routinen/page";
 import PersonenPage from "../personen/page";
 import ArchivPage from "../archiv/page";
-import HilfePage from "../hilfe/page";
-import HilfeKapitelPage from "../hilfe/[sicht]/page";
+import AufgabenPage from "../page";
+import PlanPage from "../plan/[personId]/page";
+import HilfePage, { hilfeInhalt } from "../hilfe/page";
+import HilfeKapitelPage, { kapitelInhalt } from "../hilfe/[sicht]/page";
 
 const HEUTE = "2026-08-13";
 
@@ -216,9 +218,9 @@ describe("HILFE_SICHTEN — jedes Kapitel traegt, was ein Kapitel braucht", () =
 
   it("loest `eigenerPlan` auf die lesende Person auf, `kein` auf keine Adresse", () => {
     const alina = legePerson("dev:alina@test", "bufdi");
-    expect(zielHref(HILFE_SICHTEN.zeitplan, akteur(alina))).toBe(`/plan/${alina.id}`);
-    expect(zielHref(HILFE_SICHTEN.aufgabe, akteur(alina))).toBeNull();
-    expect(zielHref(HILFE_SICHTEN.archiv, akteur(alina))).toBe("/archiv");
+    expect(zielHref(HILFE_SICHTEN.zeitplan, akteur(alina), HEUTE)).toBe(`/plan/${alina.id}`);
+    expect(zielHref(HILFE_SICHTEN.aufgabe, akteur(alina), HEUTE)).toBeNull();
+    expect(zielHref(HILFE_SICHTEN.archiv, akteur(alina), HEUTE)).toBe("/archiv");
   });
 });
 
@@ -486,6 +488,90 @@ describe("DIE KERNZUSAGE: wem ein Kapitel angeboten wird, der erreicht die Sicht
       anmelden(person, koordiniert);
       await expect(HilfePage()).resolves.toBeTruthy();
       t2.schliessen();
+    }
+  });
+});
+
+/*
+ * KEIN LINK DER ANLEITUNG FUEHRT DIE LESENDE PERSON AUF 404 (IDA-386, Akzeptanzkriterium).
+ *
+ * Die Kernzusage darueber prueft nur das ZIEL jedes ANGEBOTENEN Kapitels. Erreichbar sind aber
+ * alle elf Kapitel (sie gaten nicht), und jedes rendert eigene Verweise — „Sicht öffnen",
+ * „Weiterlesen", die Brotkrume. Dieser Lauf rendert deshalb die Uebersicht und JEDES Kapitel fuer
+ * JEDE Rolle wirklich, sammelt jedes `href` und ruft die echte Seite dahinter mit derselben Sitzung
+ * auf. Eine Adresse ohne hinterlegte Seite ist ein Fehler, kein Sonderfall: wer einen neuen
+ * Verweis einbaut, traegt seine Route hier nach.
+ */
+describe("Jeder Link der Anleitung oeffnet sich fuer die lesende Rolle — kein notFound()", () => {
+  const PERSONEN: { bezeichnung: string; rolle: Rolle; koordiniert: boolean; sub: string }[] = [
+    { bezeichnung: "koordination", rolle: "auftrag", koordiniert: true, sub: "dev:rike@test" },
+    { bezeichnung: "auftrag", rolle: "auftrag", koordiniert: false, sub: "dev:malte@test" },
+    { bezeichnung: "bufdi", rolle: "bufdi", koordiniert: false, sub: "dev:alina@test" },
+    { bezeichnung: "bufdi+koordination", rolle: "bufdi", koordiniert: true, sub: "dev:ak@test" },
+  ];
+
+  function seiteFuer(href: string): () => Promise<unknown> {
+    const pfad = href.split(/[?#]/)[0];
+    if (pfad === "/") return () => AufgabenPage({ searchParams: Promise.resolve({}) });
+    if (pfad === "/hilfe") return () => HilfePage();
+    const kapitel = /^\/hilfe\/([^/]+)$/.exec(pfad);
+    if (kapitel) return () => HilfeKapitelPage({ params: Promise.resolve({ sicht: kapitel[1] }) });
+    const plan = /^\/plan\/([^/]+)$/.exec(pfad);
+    if (plan) {
+      return () =>
+        PlanPage({ params: Promise.resolve({ personId: plan[1] }), searchParams: Promise.resolve({}) });
+    }
+    const route = ROUTEN[pfad];
+    if (!route) throw new Error(`Keine Test-Route fuer "${href}" hinterlegt.`);
+    return route;
+  }
+
+  async function hrefsVon(element: Parameters<typeof mount>[0]): Promise<string[]> {
+    await mount(element);
+    const hrefs = queryAll("a")
+      .map((a) => a.getAttribute("href"))
+      .filter((h): h is string => h !== null && h.startsWith("/"));
+    await unmount();
+    return hrefs;
+  }
+
+  for (const { bezeichnung, rolle, koordiniert, sub } of PERSONEN) {
+    it(`${bezeichnung}: Uebersicht und alle Kapitel`, async () => {
+      const person = legePerson(sub, rolle);
+      anmelden(person, koordiniert);
+      const wer = akteur(person, koordiniert);
+
+      const quellen: [string, string[]][] = [["/hilfe", await hrefsVon(hilfeInhalt(wer, HEUTE))]];
+      for (const schluessel of SICHT_SCHLUESSEL) {
+        quellen.push([
+          `/hilfe/${schluessel}`,
+          await hrefsVon(kapitelInhalt(HILFE_SICHTEN[schluessel], wer, HEUTE)),
+        ]);
+      }
+
+      const geprueft = new Set<string>();
+      for (const [quelle, hrefs] of quellen) {
+        expect(hrefs.length, `${quelle} hat keine Verweise`).toBeGreaterThan(0);
+        for (const href of hrefs) {
+          if (geprueft.has(href)) continue;
+          geprueft.add(href);
+          await expect(seiteFuer(href)(), `${bezeichnung}: ${quelle} -> ${href}`).resolves.toBeTruthy();
+        }
+      }
+      // Ohne mindestens einen „Sicht öffnen"-Verweis ausserhalb der Anleitung pruefte der Lauf nur
+      // die Anleitung selbst.
+      expect([...geprueft].some((h) => !h.startsWith("/hilfe") && h !== "/")).toBe(true);
+    });
+  }
+
+  it("jede Sicht mit Rollen-Gate traegt den Satz, der den Verweis ersetzt", () => {
+    const personen = PERSONEN.map(({ rolle, koordiniert, sub }) => akteur(legePerson(sub, rolle), koordiniert));
+    for (const schluessel of SICHT_SCHLUESSEL) {
+      const sicht = HILFE_SICHTEN[schluessel];
+      const gegated = personen.some((p) => !sicht.sichtbar(p, HEUTE));
+      if (gegated && sicht.ziel.art !== "kein") {
+        expect(sicht.nurFuer, `${schluessel}: nurFuer fehlt`).toMatch(/^Diese Sicht ha(t|ben) nur /);
+      }
     }
   });
 });
