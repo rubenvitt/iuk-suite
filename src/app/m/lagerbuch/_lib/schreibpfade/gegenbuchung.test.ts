@@ -163,6 +163,30 @@ describe("vorgangsZeilen — der Server bestimmt den Vorgang", () => {
     expect(bestand(HANDLAGER_ID)).toBe(10 + 4);
   });
 
+  it("zwei alte Umlagerungen derselben Sekunde werden nicht zusammen gegengebucht", () => {
+    const leg = (id: string, ort: string, menge: number) => ({ id, ts: JETZT, typ: "umlagerung" as const,
+      artikelId: "a1", chargeId: "c1", lagerortId: ort, menge, quelleTyp: "oidc" as const, quelleId: "u1",
+      referenz: "umlagerung:rtw", kommentar: null });
+    t.db.insert(buchungen).values([
+      leg("um-a1", HANDLAGER_ID, -2), leg("um-a2", "rtw", 2),
+      leg("um-b1", HANDLAGER_ID, -3), leg("um-b2", "rtw", 3),
+    ]).run();
+    expect(() => inTx((tx) => gegenbuchen(tx, { zeilen: vorgangsZeilen(tx, "um-a1"), quelle: ADMIN })))
+      .toThrow(BuchungAbgewiesen);
+    expect(bestand("rtw")).toBe(5);
+  });
+
+  it("eine alte Umlagerung allein bleibt gegenbuchbar", () => {
+    t.db.insert(buchungen).values([
+      { id: "um-1", ts: JETZT, typ: "umlagerung", artikelId: "a1", chargeId: "c1", lagerortId: HANDLAGER_ID,
+        menge: -2, quelleTyp: "oidc", quelleId: "u1", referenz: "umlagerung:rtw", kommentar: null },
+      { id: "um-2", ts: JETZT, typ: "umlagerung", artikelId: "a1", chargeId: "c1", lagerortId: "rtw",
+        menge: 2, quelleTyp: "oidc", quelleId: "u1", referenz: "umlagerung:rtw", kommentar: null },
+    ]).run();
+    inTx((tx) => gegenbuchen(tx, { zeilen: vorgangsZeilen(tx, "um-1"), quelle: ADMIN }));
+    expect(bestand("rtw")).toBe(0);
+  });
+
   it("kennt eine unbekannte Zeile nicht", () => {
     expect(vorgangsZeilen(t.db, "gibt-es-nicht")).toEqual([]);
   });

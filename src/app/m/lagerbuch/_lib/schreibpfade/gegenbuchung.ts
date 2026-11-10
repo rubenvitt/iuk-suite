@@ -68,6 +68,20 @@ export function vorgangsZeilen(db: DB | Tx, zeilenId: string): SendungsZeile[] {
   )).all();
 }
 
+/**
+ * ⚠️ EINE ALTE UMLAGERUNG DER VERWALTUNG HAT GENAU ZWEI ZEILEN (eine Charge,
+ * ein Quellort, ein Ziel). Findet die Klammer in `vorgangsZeilen` mehr, liegen
+ * zwei Umlagerungen derselben Sekunde darin, und welche gemeint war, ist nicht
+ * mehr zu sagen. Neue Umlagerungen tragen eine Vorgangskennung
+ * (`bucheUmlagerung`) und sind nie mehrdeutig.
+ */
+export function vorgangMehrdeutig(zeilen: readonly SendungsZeile[]): boolean {
+  if (zeilen.length <= 2) return false;
+  const erste = zeilen[0]!;
+  if (SENDUNGS_ZEILE.test(erste.id)) return false;
+  return erste.typ === "umlagerung" && (erste.referenz ?? "").startsWith("umlagerung:");
+}
+
 /** Ist zu einer dieser Zeilen schon eine Gegenzeile gebucht? */
 export function schonGegengebucht(db: DB | Tx, zeilen: readonly SendungsZeile[]): boolean {
   if (zeilen.length === 0) return false;
@@ -94,6 +108,9 @@ export function gegenbuchen(
   }
   if (!zeilen.every(zeileGegenbuchbar)) {
     throw new BuchungAbgewiesen("Dieser Vorgang lässt sich nicht gegenbuchen.");
+  }
+  if (vorgangMehrdeutig(zeilen)) {
+    throw new BuchungAbgewiesen("Hier liegen zwei Umlagerungen in derselben Sekunde. Gleiche den Bestand mit einer Korrektur aus.");
   }
   if (schonGegengebucht(tx, zeilen)) {
     throw new BuchungAbgewiesen("Dieser Vorgang ist schon gegengebucht.");

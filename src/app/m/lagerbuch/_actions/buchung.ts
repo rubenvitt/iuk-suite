@@ -456,6 +456,9 @@ export async function bucheUmlagerung(
           quelle,
           kommentar: v.kommentar ?? null,
           referenz: `${UMLAGERUNG_PRAEFIX}${v.nachLagerortId}`,
+          // IDA-378: beide Legs unter EINER Kennung, sonst klammerte die
+          // Gegenbuchung zwei Umlagerungen derselben Sekunde zusammen.
+          neueId: sendungsIds(crypto.randomUUID()),
         }).umgelagert;
 
         /*

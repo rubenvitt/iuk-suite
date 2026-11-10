@@ -1296,6 +1296,20 @@ describe("bucheUmlagerung (DRK-338)", () => {
     expect(bestandAn("schrank-2", "ch-1")).toBe(5);
   });
 
+  it("zwei Umlagerungen in derselben Sekunde sind zwei Vorgaenge (IDA-378)", async () => {
+    for (const menge of [2, 3]) {
+      await bucheUmlagerung(
+        { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+          nachLagerortId: "schrank-2", menge },
+        t.db,
+      );
+    }
+    const legs = t.db.select().from(buchungen).all().filter((b) => b.typ === "umlagerung");
+    const vorgaenge = new Set(legs.map((b) => b.id.split(":")[0]));
+    expect(legs).toHaveLength(4);
+    expect(vorgaenge.size).toBe(2);
+  });
+
   it("schreibt beide Legs als `umlagerung` mit derselben Charge und Referenz", async () => {
     await bucheUmlagerung(
       { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
