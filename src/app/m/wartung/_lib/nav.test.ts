@@ -19,8 +19,8 @@ describe("Menümarkierung der Gerätewartung", () => {
   });
 
   it("die Übersicht gilt nur exakt, ihre Nachbarn auch darunter", () => {
-    expect(VERWALTER.find((e) => e.href === "/")?.auchDarunter).toBeUndefined();
-    expect(VERWALTER.filter((e) => e.href !== "/").every((e) => e.auchDarunter)).toBe(true);
+    expect(VERWALTER.find((e) => e.href === "/")?.unterseiten).toBeUndefined();
+    expect(VERWALTER.filter((e) => e.href !== "/").every((e) => e.unterseiten)).toBe(true);
   });
 
   it("wer nur prüft, hat „Geräte“ auch in der Akte markiert", () => {

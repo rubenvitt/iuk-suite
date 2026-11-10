@@ -5,7 +5,7 @@ import { App, Button, Drawer, Popconfirm, Space } from "antd";
 import { Statuschip } from "@/core/status/Statuschip";
 import { flyinBreite } from "@/core/theme/flyin";
 import { sperrzeitLoeschenAction } from "../../_actions/vermietung";
-import type { Eintrag } from "../../_lib/belegung";
+import { konflikte, type Eintrag } from "../../_lib/belegung";
 import type { AnfrageDTO } from "../../_lib/vermietungTypen";
 import { eingangText, zeitraumText } from "../../_lib/vermietungText";
 import type { Entscheidung } from "./Entscheidung";
@@ -38,7 +38,7 @@ export function Eintragsflyin({ eintrag, anfragen, eintraege, schliessen, entsch
 
   const fuss = a && a.status === "angefragt" ? (
     <Space wrap>
-      <Button type="primary" onClick={() => { void entscheidung.zusagen(a); }}>Zusagen</Button>
+      <Button type="primary" onClick={() => { void entscheidung.zusagen(a, eintrag ? konflikte(eintrag, eintraege) : []); }}>Zusagen</Button>
       <Button onClick={() => entscheidung.begruenden(a, "ablehnen")}>Ablehnen</Button>
     </Space>
   ) : null;

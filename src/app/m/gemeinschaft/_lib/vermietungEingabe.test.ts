@@ -30,6 +30,11 @@ describe("pruefeAnfrage", () => {
     expect(fehler({ personen: "2.5" }).personen).toBeTruthy();
     expect(fehler({ person: "x".repeat(121) }).person).toBeTruthy();
     expect(fehler({ kontakt: "x".repeat(201) }).kontakt).toBeTruthy();
+    // IDA-387: grob erreichbar — Ziffern oder eine E-Mail.
+    expect(fehler({ kontakt: "abc" }).kontakt).toMatch(/Telefonnummer oder E-Mail/);
+    expect(fehler({ kontakt: "erika@" }).kontakt).toBeTruthy();
+    expect(fehler({ kontakt: "12345" }).kontakt).toBeTruthy();
+    for (const gutKontakt of ["erika@example.org", "0151 2345678 (abends)", "+49 5141 12345"]) expect(fehler({ kontakt: gutKontakt }).kontakt).toBeUndefined();
     expect(fehler({ hinweis: "x".repeat(1001) }).hinweis).toBeTruthy();
     expect(fehler({ webseite: "x".repeat(501) }).webseite).toBeTruthy();
     expect(fehler({ vonUhr: "18:07" }).vonUhr).toMatch(/Viertelstunde/);

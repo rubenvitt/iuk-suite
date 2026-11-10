@@ -68,6 +68,24 @@ describe("Planung und Einheiten", () => {
   });
 });
 
+describe("Eindeutige Namen (IDA-373)", () => {
+  it("ein zweiter gleicher Name in derselben Planung wird abgelehnt, in einer anderen nicht", () => {
+    const { db, planId, einheitId } = aufbau();
+    expect(() => speichereEinheit(db, planId, null, abschnitt({ name: "sanitätswache  markt" }))).toThrow(Abgelehnt);
+    const zweite = speichereEinheit(db, planId, null, abschnitt({ name: "Zweite" }));
+    expect(() => speichereEinheit(db, planId, zweite, abschnitt())).toThrow(Abgelehnt);
+    expect(() => speichereEinheit(db, planId, einheitId, abschnitt({ soll: 4 }))).not.toThrow();
+    const fremd = speicherePlanung(db, null, plan());
+    expect(() => speichereEinheit(db, fremd, null, abschnitt())).not.toThrow();
+  });
+
+  it("höchstens 10 Qualifikationsanforderungen", () => {
+    const anf = (n: number) => Array.from({ length: n }, (_, i) => ({ quali: { kurz: `Q${i}`, name: `Q${i}` }, anzahl: 1 }));
+    expect(einheitEingabe.safeParse({ art: "abschnitt", name: "x", schichtMin: 240, soll: 20, anforderungen: anf(10) }).success).toBe(true);
+    expect(einheitEingabe.safeParse({ art: "abschnitt", name: "x", schichtMin: 240, soll: 20, anforderungen: anf(11) }).success).toBe(false);
+  });
+});
+
 describe("Objekte gehören zu genau einer Planung (IDOR)", () => {
   it("Einheit, Schicht und temporärer Helfer einer anderen Planung sind nicht erreichbar", () => {
     const { db, planId, einheitId } = aufbau();

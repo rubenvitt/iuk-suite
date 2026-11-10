@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { useEntwurfMeldung } from "@/core/entwurf/useEntwurfMeldung";
 import { anfrageSendenAction } from "../../_actions/anfrage";
-import { tagesstuecke, type Belegt } from "../../_lib/belegung";
+import { tagesstuecke, ueberlappt, vorschlagAmTag, WUNSCHZEIT, type Belegt } from "../../_lib/belegung";
 import { istTestanlass, plusMonate, TEST_FRIST_MONATE } from "../../_lib/testanfrage";
 import { tagText } from "../../_lib/vermietungText";
+import { plusTage, zeitpunkt } from "../../_lib/zeit";
 import { BarKalender } from "./BarKalender";
 import s from "./bar.module.css";
 
@@ -16,16 +18,18 @@ type Felder = { vonTag: string; vonUhr: string; bisTag: string; bisUhr: string; 
 export type Vorbelegung = { name: string; kontakt: string } | null;
 
 /**
- * „Bar mieten“ ohne Login: Kalender frei/belegt, Tag antippen zeigt belegte Zeiten, Formular, Danke-Seite mit
- * Statuslink. Die Kollisionsprüfung macht der Server (`_actions/anfrage.ts`); hier steht nur, was die Person
- * vorher sehen kann.
+ * „Bar mieten“ ohne Login: Kalender frei/belegt, Tag antippen zeigt belegte Zeiten, Formular. Nach dem Absenden
+ * geht es auf die Statusseite (`/status/<code>?neu=1`, IDA-387) — die Adresse steht dann in der Adresszeile und
+ * übersteht Neuladen und Lesezeichen. Die Kollisionsprüfung macht der Server (`_actions/anfrage.ts`); hier steht
+ * nur, was die Person vorher sehen kann: die belegten Zeiten der gewählten Tage direkt unter der Zeitwahl.
  */
 export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
   belegt: readonly Belegt[]; heute: string; vorbelegung: Vorbelegung; anmeldeHref: string;
 }) {
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
   const [formOffen, setFormOffen] = useState(false);
-  const leer: Felder = { vonTag: "", vonUhr: "18:00", bisTag: "", bisUhr: "23:00", anlass: "", personen: "", person: vorbelegung?.name ?? "", kontakt: vorbelegung?.kontakt ?? "", hinweis: "", webseite: "" };
+  const router = useRouter();
+  const leer: Felder = { vonTag: "", vonUhr: WUNSCHZEIT.ab, bisTag: "", bisUhr: WUNSCHZEIT.bis, anlass: "", personen: "", person: vorbelegung?.name ?? "", kontakt: vorbelegung?.kontakt ?? "", hinweis: "", webseite: "" };
   const [f, setF] = useState<Felder>(leer);
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<Record<string, string>>({});
@@ -51,12 +55,15 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
     },
   });
   const meldung = useEntwurfMeldung(entwurf);
+  useEffect(() => { if (code) router.push(`/status/${code}?neu=1`); }, [code, router]);
   const sendet = entwurf.zustand === "sendet";
 
   const setFeld = (k: keyof Felder) => (ev: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((alt) => ({ ...alt, [k]: ev.target.value }));
 
   function amTagAnfragen(tag: string) {
-    setF((alt) => ({ ...alt, vonTag: tag, bisTag: tag }));
+    // IDA-387: die Zeit an die freie Zeit des Tages anpassen, statt immer 18–23 Uhr vorzuschlagen.
+    const v = vorschlagAmTag(belegt, tag);
+    setF((alt) => (v ? { ...alt, ...v } : { ...alt, vonTag: tag, bisTag: tag }));
     setFormOffen(true);
     setTimeout(() => formRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 30);
   }
@@ -69,9 +76,17 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
     entwurf.sende(f);
   }
 
-  if (code) return <Danke code={code} nochmal={() => { setCode(null); setFormOffen(false); setF(leer); }} />;
+  if (code) {
+    return (
+      <section className={s.karte} aria-labelledby="danke-titel">
+        <p className={s.danke} id="danke-titel">Danke.</p>
+        <a className="go-knopf" href={`/status/${code}?neu=1`}>Zum Stand deiner Anfrage</a>
+      </section>
+    );
+  }
 
   const stuecke = gewaehlt ? tagesstuecke(belegt, gewaehlt) : [];
+  const zeitwahl = belegungDerWahl(belegt, f);
   const ff = (k: keyof Felder) => (feldFehler[k] ? <p className="go-fehler" id={`fehler-${k}`}>{feldFehler[k]}</p> : null);
   const beschr = (k: keyof Felder) => (feldFehler[k] ? { "aria-invalid": true, "aria-describedby": `fehler-${k}` } : {});
 
@@ -131,6 +146,17 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
                 </label>
               </div>
               {ff("bisTag")}{ff("bisUhr")}
+              {zeitwahl.tage.length ? (
+                <div className={zeitwahl.ueberschneidet ? s.wahlBelegt : s.wahlInfo} data-testid="zeitwahl-belegung" role="status">
+                  {zeitwahl.tage.map((t) => (
+                    <div key={t.tag}>
+                      <b>{tagText(t.tag)}:</b>{" "}
+                      {t.stuecke.length ? t.stuecke.map((z) => `belegt ${z.ab ?? "ab Vortag"}–${z.bis ?? "Folgetag"}${z.bis ? " Uhr" : ""}`).join(", ") : "frei"}
+                    </div>
+                  ))}
+                  {zeitwahl.ueberschneidet ? <div>Deine Zeit überschneidet sich mit einer belegten Zeit.</div> : null}
+                </div>
+              ) : null}
             </fieldset>
 
             <fieldset className={s.block}>
@@ -181,24 +207,18 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
   );
 }
 
-function Danke({ code, nochmal }: { code: string; nochmal: () => void }) {
-  const [kopiert, setKopiert] = useState(false);
-  const pfad = `/status/${code}`;
-  const link = typeof window === "undefined" ? pfad : `${window.location.origin}${pfad}`;
-  return (
-    <section className={s.karte} aria-labelledby="danke-titel">
-      <p className={s.danke} id="danke-titel">Danke.</p>
-      <p className="go-text">Speicher dir diesen Link, eine E-Mail kommt nicht.</p>
-      <div className={s.statuslink}>
-        <code data-testid="statuslink">{link}</code>
-        <button type="button" className="go-knopf go-knopf-leise" onClick={() => {
-          navigator.clipboard?.writeText(link).then(() => setKopiert(true), () => setKopiert(false));
-        }}>{kopiert ? "Kopiert" : "Kopieren"}</button>
-      </div>
-      <div className="go-knopfzeile">
-        <a className="go-knopf" href={pfad}>Zum Stand deiner Anfrage</a>
-        <button type="button" className="go-knopf go-knopf-leise" onClick={nochmal}>Noch eine Anfrage stellen</button>
-      </div>
-    </section>
-  );
+/**
+ * Die belegten Zeiten der gewählten Tage (höchstens die drei, die eine Anfrage dauern darf) und ob die gewählte
+ * Zeit sich damit überschneidet — direkt unter der Zeitwahl, nicht erst nach dem Absenden (IDA-387).
+ */
+function belegungDerWahl(belegt: readonly Belegt[], f: Felder): { tage: { tag: string; stuecke: ReturnType<typeof tagesstuecke> }[]; ueberschneidet: boolean } {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f.vonTag)) return { tage: [], ueberschneidet: false };
+  const bisTag = /^\d{4}-\d{2}-\d{2}$/.test(f.bisTag) && f.bisTag >= f.vonTag ? f.bisTag : f.vonTag;
+  const tage: string[] = [];
+  for (let t = f.vonTag; t <= bisTag && tage.length < 3; t = plusTage(t, 1)) tage.push(t);
+  const uhrOk = (u: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(u);
+  const von = uhrOk(f.vonUhr) ? zeitpunkt(f.vonTag, f.vonUhr) : null;
+  const bis = uhrOk(f.bisUhr) ? zeitpunkt(bisTag, f.bisUhr) : null;
+  const ueberschneidet = von !== null && bis !== null && bis > von && belegt.some((b) => ueberlappt(b, { von, bis }));
+  return { tage: tage.map((tag) => ({ tag, stuecke: tagesstuecke(belegt, tag) })), ueberschneidet };
 }

@@ -105,13 +105,11 @@ export function aktiverEintrag(pfad: string, nav: SuiteNavItem[]): AktiverEintra
     .filter((e) => e.href !== "/" && (pfad === e.href || pfad.endsWith(e.href)))
     .sort((a, b) => b.href.length - a.href.length)[0];
   if (treffer) return { schluessel: treffer.key, genau: true };
-  // `auchDarunter` (IDA-381): ein Pfad UNTER dem Eintrag, mit Segmentgrenze — `/geraete/7` ja,
-  // `/geraetearten` nein. `includes` statt `startsWith` aus demselben Grund wie der Suffix oben
-  // (Rewrite, Fall 1); der längste passende Eintrag gewinnt.
-  const darunter = nav
-    .filter((e) => e.auchDarunter && e.href !== "/" && pfad.includes(`${e.href}/`))
+  // Unterseite eines Eintrags mit `unterseiten` (Opt-in): der längste passende gewinnt, nie genau.
+  const eltern = nav
+    .filter((e) => e.unterseiten && e.href !== "/" && pfad.includes(`${e.href}/`))
     .sort((a, b) => b.href.length - a.href.length)[0];
-  if (darunter) return { schluessel: darunter.key, genau: false };
+  if (eltern) return { schluessel: eltern.key, genau: false };
   const wurzel = nav.find((e) => e.href === "/");
   if (!wurzel) return null;
   return { schluessel: wurzel.key, genau: pfad === wurzel.href };

@@ -21,6 +21,7 @@ import {
   leihhistorie,
   offeneLeiheZuGeraet,
   geraeteMitLeihen,
+  laufendeAusleihen,
 } from "./leihen";
 
 /**
@@ -1713,5 +1714,18 @@ describe("radio-leihen: die Geraetewahl der Ausleihenliste (V-L11)", () => {
     leihe({ deviceId: "g-c", snapshotCallSign: "40/01" });
 
     expect(geraeteMitLeihen(db).map((g) => g.rufname)).toEqual(["40/01", "41/12", "41/13"]);
+  });
+});
+
+describe("radio-leihen: laufendeAusleihen (Übersicht, IDA-383)", () => {
+  it("liefert nur nicht zurückgegebene Leihen, neueste zuerst, mit Geräte-ID", () => {
+    leihe({ id: "l-alt", deviceId: "g-1", borrowedAt: new Date("2026-06-10T08:00:00Z") });
+    leihe({ id: "l-neu", deviceId: "g-2", snapshotCallSign: "Kater 2", borrowerName: "Trupp B", borrowedAt: new Date("2026-06-12T08:00:00Z") });
+    leihe({ id: "l-zurueck", deviceId: "g-3", returnedAt: new Date("2026-06-13T08:00:00Z") });
+
+    expect(laufendeAusleihen(db)).toEqual([
+      { id: "l-neu", geraeteId: "g-2", rufname: "Kater 2", entleiher: "Trupp B", seit: new Date("2026-06-12T08:00:00Z") },
+      { id: "l-alt", geraeteId: "g-1", rufname: "Ruf g-1", entleiher: "Anna Beispiel", seit: new Date("2026-06-10T08:00:00Z") },
+    ]);
   });
 });

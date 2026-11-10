@@ -163,10 +163,8 @@ export interface SuiteNavItem {
    */
   abschnitt?: string;
   /**
-   * Der Eintrag gilt auch für die Seiten UNTER seinem `href` (`/geraete/<id>` → „Geräte“), als Abschnitt
-   * markiert (`aria-current="true"`), nicht als die Seite selbst. Opt-in, weil Module wie das Lagerbuch eine
-   * Unterseite bewusst unmarkiert lassen (`lagerbuch/_lib/nav.test.ts`); ohne das Feld bleibt alles wie
-   * zuvor (IDA-381, `aktiverEintrag` in `SuiteNav.tsx`).
+   * Pfade UNTER diesem Eintrag (`<href>/…`, etwa eine Akte unter ihrer Liste) markieren ihn mit
+   * (`aria-current="true"`). Opt-in, weil es sonst die Markierung jedes Moduls verschöbe.
    */
-  auchDarunter?: boolean;
+  unterseiten?: boolean;
 }

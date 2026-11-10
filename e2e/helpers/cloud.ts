@@ -1,4 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import type { PlaywrightTestConfig } from "@playwright/test";
 
@@ -33,6 +34,16 @@ import type { PlaywrightTestConfig } from "@playwright/test";
  *    Headless-Shell hält sich bei `--no-proxy-server` nur für HTTP daran, der
  *    WebSocket geht weiter über den Proxy (gemessen: 502, im vollen Chromium
  *    offen). `direct://` öffnet ihn in beiden.
+ *
+ * 3. `*.localtest.me` LÖST NICHT AUF (IDA-374). Der Resolver des Containers
+ *    beantwortet öffentliche Namen, verwirft aber Antworten auf Loopback-
+ *    Adressen — dauerhaft, gesehen am 31.10., 08.11. und 10.11.2026. Der
+ *    Webserver-Start wartete 180 s auf `feedback.localtest.me/login` und brach
+ *    mit „Timed out waiting from config.webServer" ab. ⚠️ Klingt nach einem
+ *    langsamen Server, ist die Namensauflösung. Abhilfe ohne root und ohne
+ *    `/etc/hosts` (der Eintrag verschwand mitten in der Sitzung):
+ *    `loopback-dns.cjs` im Lauf und per `NODE_OPTIONS` in Workern und Server,
+ *    `--host-resolver-rules` im Browser.
  *
  * Außerhalb der Cloud (lokal, CI) bleibt die Konfiguration UNVERÄNDERT: dort
  * gilt, was Playwright selbst installiert hat.
@@ -84,8 +95,10 @@ export function cloudTauglich(
   config: PlaywrightTestConfig,
   cloud = istCloudSession(),
   findeShell: () => string | undefined = cloudHeadlessShell,
+  aufloesen: () => void = loopbackDnsEinrichten,
 ): PlaywrightTestConfig {
   if (!cloud) return config;
+  aufloesen();
   return { ...config, use: cloudTauglichUse(config.use ?? {}, cloud, findeShell) };
 }
 
@@ -109,9 +122,38 @@ export function cloudTauglichUse<T extends Use>(
     launchOptions: {
       ...start,
       executablePath: browser,
-      args: [...(start.args ?? []), OHNE_PROXY],
+      args: [...(start.args ?? []), OHNE_PROXY, LOOPBACK_IM_BROWSER],
     },
   };
 }
 
 type Use = NonNullable<PlaywrightTestConfig["use"]>;
+
+/** Das Argument, das Abweichung 3 im Browser behebt. */
+export const LOOPBACK_IM_BROWSER = "--host-resolver-rules=MAP *.localtest.me 127.0.0.1, MAP localtest.me 127.0.0.1";
+
+/** Die Datei, die Abweichung 3 in Node behebt (`dns.lookup` umgebogen). */
+export const LOOPBACK_DNS = path.join(__dirname, "loopback-dns.cjs");
+
+/**
+ * Abweichung 3 in Node: im eigenen Prozess (der Lauf prüft die Webserver-URL,
+ * die `request`-Fixture spricht aus ihm) und über `NODE_OPTIONS` in jedem
+ * Kindprozess — Worker und `webServer` erben die Umgebung beim Start, und beide
+ * entstehen erst nach dem Laden der Konfiguration. Wiederholt aufgerufen
+ * ändert sich nichts mehr.
+ */
+export function loopbackDnsEinrichten(
+  env: Record<string, string | undefined> = process.env,
+  laden: (pfad: string) => unknown = createRequire(LOOPBACK_DNS),
+): void {
+  laden(LOOPBACK_DNS);
+  env.NODE_OPTIONS = mitPreload(env.NODE_OPTIONS);
+}
+
+/** `NODE_OPTIONS` mit `--require` auf `LOOPBACK_DNS`, ohne Doppel. */
+export function mitPreload(optionen: string | undefined, datei = LOOPBACK_DNS): string {
+  const bisher = optionen?.trim() ?? "";
+  if (bisher.includes(datei)) return bisher;
+  const eintrag = /\s/.test(datei) ? `--require "${datei}"` : `--require ${datei}`;
+  return bisher ? `${bisher} ${eintrag}` : eintrag;
+}

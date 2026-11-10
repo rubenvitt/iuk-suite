@@ -84,7 +84,12 @@ describe("radio-RueckgabeListe: die Karten", () => {
     await rendere();
     const erste = query(karte("l-1"));
     expect(query(`${karte("l-1")} [data-rolle='radio-leihkarte-rufname']`).textContent).toBe("41/12");
-    expect(erste.textContent).toContain("Ausgeliehen am 14.06.2026, 09:12 Uhr");
+    expect(erste.textContent).toContain("am 14.06.2026, 09:12 Uhr");
+    // IDA-383: die Karte nennt, wer das Gerät hat, und was ein Antippen tut.
+    expect(query(`${karte("l-1")} [data-rolle='radio-leihkarte-wer']`).textContent).toBe(
+      `Ausgeliehen von ${DREI[0]!.entleiher}`,
+    );
+    expect(erste.textContent).toContain("Zurückgeben");
     expect(rufnamen()).toEqual(["41/12", "41/13", "Wache 7"]);
   });
 
@@ -105,7 +110,7 @@ describe("radio-RueckgabeListe: die Karten", () => {
     const erste = query<HTMLButtonElement>(karte("l-1"));
     expect(erste.tagName).toBe("BUTTON");
     expect(erste.getAttribute("type")).toBe("button");
-    expect(erste.getAttribute("aria-label")).toBe("41/12 zurückgeben");
+    expect(erste.getAttribute("aria-label")).toBe(`41/12 zurückgeben, ausgeliehen von ${DREI[0]!.entleiher}`);
   });
 
   it("oeffnet beim Antippen den Dialog fuer GENAU diese Ausleihe", async () => {

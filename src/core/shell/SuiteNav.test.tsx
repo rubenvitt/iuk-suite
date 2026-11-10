@@ -436,11 +436,11 @@ describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", 
     expect(aktiverEintrag("/m/feedback/groups/17", verschachtelt)?.schluessel).toBe("lang");
   });
 
-  it("`auchDarunter` schlaegt eine Unterseite ihrem Eintrag zu, als Abschnitt (IDA-381)", () => {
+  it("bei `unterseiten` gewinnt der laengste Eintrag, mit Segmentgrenze (IDA-381)", () => {
     const mit: SuiteNavItem[] = [
       { key: "start", title: "Uebersicht", href: "/" },
-      { key: "geraete", title: "Geraete", href: "/geraete", auchDarunter: true },
-      { key: "arten", title: "Arten", href: "/geraete/arten", auchDarunter: true },
+      { key: "geraete", title: "Geraete", href: "/geraete", unterseiten: true },
+      { key: "arten", title: "Arten", href: "/geraete/arten", unterseiten: true },
     ];
     expect(aktiverEintrag("/geraete/7", mit)).toEqual({ schluessel: "geraete", genau: false });
     expect(aktiverEintrag("/m/wartung/geraete/7", mit)).toEqual({ schluessel: "geraete", genau: false });
@@ -452,12 +452,22 @@ describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", 
     expect(aktiverEintrag("/geraetearten", mit)).toEqual({ schluessel: "start", genau: false });
   });
 
-  it("ohne `auchDarunter` bleibt eine Unterseite beim Wurzel-Fallback", () => {
-    const ohne: SuiteNavItem[] = [
-      { key: "start", title: "Uebersicht", href: "/" },
-      { key: "geraete", title: "Geraete", href: "/geraete" },
+  it("markiert mit `unterseiten` den Eintrag auch auf seinen Unterseiten, aber nicht genau", () => {
+    const liste = [
+      { key: "uebersicht", title: "Übersicht", href: "/admin" },
+      { key: "geraete", title: "Geräte", href: "/admin/geraete", unterseiten: true },
+      { key: "ausleihen", title: "Ausleihen", href: "/admin/ausleihen" },
     ];
-    expect(aktiverEintrag("/geraete/7", ohne)).toEqual({ schluessel: "start", genau: false });
+    expect(aktiverEintrag("/admin/geraete", liste)).toEqual({ schluessel: "geraete", genau: true });
+    expect(aktiverEintrag("/admin/geraete/g-1", liste)).toEqual({ schluessel: "geraete", genau: false });
+    expect(aktiverEintrag("/m/radio/admin/geraete/g-1/ereignisse", liste)).toEqual({
+      schluessel: "geraete",
+      genau: false,
+    });
+    // ohne Opt-in bleibt es beim Suffix-Vergleich
+    expect(aktiverEintrag("/admin/ausleihen/7", liste)).toBeNull();
+    // ein bloßer Namensanfang ist keine Unterseite
+    expect(aktiverEintrag("/admin/geraetegruppen", liste)).toBeNull();
   });
 
   it("gibt null, wenn nichts passt und es keine Wurzel gibt", () => {

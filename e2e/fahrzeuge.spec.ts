@@ -37,7 +37,7 @@ test("anlegen, doppelten Funkkenner abweisen, außer Dienst stellen", async ({ p
   const tabelle = page.getByRole("table", { name: "Fahrzeuge" });
   const zeile = tabelle.locator("[data-row-key]").filter({ hasText: kenner });
   await expect(zeile).toHaveCount(1);
-  await expect(zeile).toContainText("aktiv");
+  await expect(zeile).toContainText("im Dienst");
 
   const zweite = await anlegen();
   await expect(zweite.getByText("Diesen Funkkenner hat schon ein anderes Fahrzeug.").first()).toBeVisible();
@@ -46,6 +46,14 @@ test("anlegen, doppelten Funkkenner abweisen, außer Dienst stellen", async ({ p
   await klickeWennRuhig(zeile.getByRole("button", { name: "Außer Dienst stellen" }));
   await expect(zeile).toContainText("außer Dienst");
   await expect(zeile.getByRole("button", { name: "In Dienst stellen" })).toBeVisible();
+
+  // IDA-384: eine Meldung nennt die Folge in den anderen Apps und holt es mit „Rückgängig“ zurück.
+  const meldung = page.getByTestId("ausser-dienst-meldung");
+  await expect(meldung).toContainText(`Rotkreuz Test ${kenner} ist außer Dienst.`);
+  await expect(meldung).toContainText("beim nächsten Abgleich");
+  await meldung.getByRole("button", { name: "Rückgängig" }).click();
+  await expect(zeile).toContainText("im Dienst");
+  await expect(zeile.getByRole("button", { name: "Außer Dienst stellen" })).toBeVisible();
 });
 
 test("ohne Admin-Gruppe nur lesend, ohne Gruppe 403", async ({ page, browser }) => {
@@ -71,7 +79,14 @@ test("Erstimport: Vorschau nur mit Verwaltungsrecht", async ({ page, browser }) 
   await expect(page.getByRole("heading", { name: "Erstimport" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Vorschau" })).toBeVisible();
   await expect(page.getByTestId("erstimport-summe")).toContainText("neue Fahrzeuge");
-  await expect(page.getByRole("button", { name: "Übernehmen" })).toBeVisible();
+  // IDA-384: der Knopf steht oben und unten, und die Entscheidung je Zeile liegt bei 1280 px im Bild.
+  await expect(page.getByRole("button", { name: /^Übernehmen/ })).toHaveCount(2);
+  const tabelle = page.getByRole("table", { name: "Vorschläge des Erstimports" });
+  const breite = await tabelle.evaluate((t) => {
+    const huelle = t.closest(".ant-table-content, .ant-table-body, .ant-table-container") ?? t.parentElement!;
+    return { inhalt: huelle.scrollWidth, sichtbar: huelle.clientWidth };
+  });
+  expect(breite.inhalt).toBeLessThanOrEqual(breite.sichtbar);
 
   const nutzer = await browser.newPage();
   await devLogin(nutzer, { host: HOST, groups: "fahrzeuge-nutzer", callbackPath: "/erstimport" });

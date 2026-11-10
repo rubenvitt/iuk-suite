@@ -34,7 +34,8 @@ export function Anfragenliste({ anfragen, sperren, startId }: { anfragen: Anfrag
   const offen = offenId ? alle.find((e) => e.id === offenId) ?? null : null;
   const zahl = (f: Filter) => anfragen.filter((a) => a.status === f).length;
   const liste = anfragen.filter((a) => filter === "alle" || a.status === filter);
-  const ueberschneidet = (a: AnfrageDTO) => konflikte(anfrageAlsEintrag(a), alle).length > 0;
+  const ueberschneidungen = (a: AnfrageDTO) => konflikte(anfrageAlsEintrag(a), alle);
+  const ueberschneidet = (a: AnfrageDTO) => ueberschneidungen(a).length > 0;
 
   return (
     <div className={s.modul}>
@@ -82,7 +83,7 @@ export function Anfragenliste({ anfragen, sperren, startId }: { anfragen: Anfrag
             title: "Aktion", key: "aktion",
             render: (_: unknown, a: AnfrageDTO) => (a.status === "angefragt" ? (
               <Space wrap>
-                <Button type="primary" onClick={() => { void entscheidung.zusagen(a); }}>Zusagen</Button>
+                <Button type="primary" onClick={() => { void entscheidung.zusagen(a, ueberschneidungen(a)); }}>Zusagen</Button>
                 <Button onClick={() => entscheidung.begruenden(a, "ablehnen")}>Ablehnen</Button>
               </Space>
             ) : null),

@@ -46,6 +46,7 @@ import gemeinschaftBarQrPlakat from "@/app/m/portal/_lib/neuigkeiten/notizen/gem
 import gemeinschaftMietvertragDigital from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-04-mietvertrag-digital";
 import gemeinschaftDokumenteAusfuellen from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-05-dokumente-ausfuellen";
 import gemeinschaftBarTestanfragen from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-09-bar-testanfragen";
+import gemeinschaftZusageRueckgaengig from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-10-zusage-rueckgaengig";
 import feedbackEhrlichGesagt from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-03-ehrlich-gesagt";
 import feedbackEhrlichGesagtAdresse from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-04-ehrlich-gesagt-adresse";
 import wartungGeraetewartung from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-03-geraetewartung";
@@ -168,6 +169,7 @@ import verwaltungImPortal from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/20
 import updateModusFuersTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-09-27-update-modus-fuers-telefon";
 import fahrzeugeImUpdateModus from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-10-09-fahrzeuge-im-update-modus";
 import lagerorteAusDerFahrzeugverwaltung from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-10-21-lagerorte-aus-der-fahrzeugverwaltung";
+import uebersichtAusleihenUndBereitschaft from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-11-10-uebersicht-ausleihen-und-bereitschaft";
 import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-drohnentraining-in-der-suite";
 import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-fortschritt-zaehlt-durchfuehrungen";
 import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
@@ -203,6 +205,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   gemeinschaftMietvertragDigital,
   gemeinschaftDokumenteAusfuellen,
   gemeinschaftBarTestanfragen,
+  gemeinschaftZusageRueckgaengig,
   feedbackEhrlichGesagt,
   feedbackEhrlichGesagtAdresse,
   wartungGeraetewartung,
@@ -345,6 +348,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   updateModusFuersTelefon,
   fahrzeugeImUpdateModus,
   lagerorteAusDerFahrzeugverwaltung,
+  uebersichtAusleihenUndBereitschaft,
   drohnentrainingInDerSuite,
   katalogOhneCodeAnsehen,
   trainingsansichtOhneSuiteLeiste,
