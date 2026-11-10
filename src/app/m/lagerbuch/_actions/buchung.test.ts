@@ -431,6 +431,13 @@ describe("bucheZugang — IDA-378", () => {
 });
 
 describe("bucheEntnahme", () => {
+  it("IDA-378: null gebucht (nur Abgelaufenes oder nichts da) ist ein Fehler, keine Erfolgsmeldung", async () => {
+    const erg = await bucheEntnahme({ artikelId: "art-2", menge: 1 }, t.db);
+    expect(erg).toEqual({
+      ok: false, fehler: "Nichts gebucht: im Handlager liegt davon nichts Verwendbares.",
+    });
+  });
+
   it("bucht ohne Ziel per FEFO aus dem Handlager ab", async () => {
     const erg = await bucheEntnahme({ artikelId: "art-1", menge: 3, kommentar: "Einsatz" }, t.db);
 

@@ -326,6 +326,14 @@ export async function bucheEntnahme(
      * Buchungszeile steht im Journal. `zielFahrzeug` traegt den Ortsschirm mit,
      * wenn die Ware auf ein Fahrzeug ging.
      */
+    /*
+     * IDA-378 — NULL GEBUCHT IST KEIN ERFOLG. Seit die Vorwahl Abgelaufenes
+     * ueberspringt, entsteht der Fall auch bei vollem Handlager; die Schublade
+     * schloss sonst still, als waere gebucht worden.
+     */
+    if (gebucht === 0) {
+      return { ok: false, fehler: "Nichts gebucht: im Handlager liegt davon nichts Verwendbares." };
+    }
     revalidiereBestand();
     return { ok: true, wert: { gebucht } };
   });
