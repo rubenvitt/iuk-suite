@@ -207,7 +207,7 @@ describe("VerfallEditor — Bestand und Verfall je Artikel (IDA-232)", () => {
     await mountListe();
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Artikel", "Fach", "Ist / Soll", "Verfall", "Status", "Aktion"]);
+      .toEqual(["Artikel", "Status", "Fach", "Ist / Soll", "Verfall", "Aktion"]);
     // DRK-309: art-bewusst — für ein Fahrzeug „im Fahrzeug".
     expect(query("table").getAttribute("aria-label")).toBe("Bestand und Verfall im Fahrzeug");
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(3);

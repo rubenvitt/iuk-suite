@@ -20,6 +20,7 @@ import diensteBearbeiten from "./notizen/portal/2026-11-10-dienste-bearbeiten";
 import eineSuche from "./notizen/portal/2026-11-10-eine-suche";
 import neuigkeitenMarkiert from "./notizen/portal/2026-11-10-neuigkeiten-markiert";
 import wasStehtAnFiltern from "./notizen/portal/2026-11-10-was-steht-an-filtern";
+import zeilenaktionenImMenue from "./notizen/portal/2026-11-10-zeilenaktionen-im-menue";
 import sucheUeberAlleModule from "./notizen/portal/2026-10-31-suche-ueber-alle-module";
 import springenMitStrgK from "./notizen/portal/2026-10-31-springen-mit-strg-k";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
@@ -81,6 +82,7 @@ import lagemonitorMeldungenPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/
 import lagemonitorFahrzeugeAufDerKarte from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-11-02-fahrzeuge-auf-der-karte";
 import lagemonitorStandortJeMonitor from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-11-03-standort-je-monitor";
 import lagemonitorLagekarte from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-11-04-lagekarte";
+import lagemonitorMeldungenUndEinrichtung from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-11-10-meldungen-und-einrichtung";
 import personalAusDemHelferverzeichnis from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-20-personal-aus-dem-helferverzeichnis";
 import fahrzeugeAusDerFahrzeugverwaltung from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-21-fahrzeuge-aus-der-fahrzeugverwaltung";
 import qualifikationenZuordnen from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-21-qualifikationen-zuordnen";
@@ -189,6 +191,7 @@ import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/u
 import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-fortschritt-zaehlt-durchfuehrungen";
 import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
 import trainingsansichtOhneSuiteLeiste from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-trainingsansicht-ohne-suite-leiste";
+import angemeldetUndAbmelden from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-11-10-angemeldet-und-abmelden";
 
 /**
  * DAS VERZEICHNIS ALLER NOTIZEN — eine Zeile je Datei, und das ist die einzige
@@ -250,6 +253,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   lagemonitorFahrzeugeAufDerKarte,
   lagemonitorStandortJeMonitor,
   lagemonitorLagekarte,
+  lagemonitorMeldungenUndEinrichtung,
   personalAusDemHelferverzeichnis,
   fahrzeugeAusDerFahrzeugverwaltung,
   qualifikationenZuordnen,
@@ -367,6 +371,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   eineSuche,
   neuigkeitenMarkiert,
   wasStehtAnFiltern,
+  zeilenaktionenImMenue,
   sucheUeberAlleModule,
   springenMitStrgK,
   funkInDerSuite,
@@ -381,6 +386,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   drohnentrainingInDerSuite,
   katalogOhneCodeAnsehen,
   trainingsansichtOhneSuiteLeiste,
+  angemeldetUndAbmelden,
   fortschrittZaehltDurchfuehrungen,
   dankeSeiteNurDanke,
   einsatzdateienImReader,

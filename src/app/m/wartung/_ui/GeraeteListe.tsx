@@ -171,24 +171,33 @@ export function GeraeteListe({
               </Link>
             ),
           },
-          { title: "Gruppe", key: "gruppe", render: (_: unknown, g: GeraetZeile) => g.gruppeName },
-          { title: "Standort", key: "ort", render: (_: unknown, g: GeraetZeile) => <OrtText ortArt={g.ortArt} ort={g.ort} /> },
           {
-            title: "Betriebsstunden", key: "stunden", align: "right",
+            title: "Zustand", key: "zustand", sorter: nachRang<GeraetZeile, GeraetZeile["zustand"]>((g) => g.zustand, ["defekt", "mangel", "ok"]),
+            render: (_: unknown, g: GeraetZeile) => <ZustandChip z={g.zustand} />,
+          },
+          {
+            // IDA-393: die Gruppe als leise zweite Zeile unter dem Standort statt als eigene Spalte.
+            title: "Standort", key: "ort",
+            render: (_: unknown, g: GeraetZeile) => (
+              <div>
+                <OrtText ortArt={g.ortArt} ort={g.ort} />
+                <div className={s.neben}>{g.gruppeName}</div>
+              </div>
+            ),
+          },
+          {
+            title: "Stunden", key: "stunden", align: "right",
             render: (_: unknown, g: GeraetZeile) => <span className={s.ziffern}>{stundenText(g.stunden)}</span>,
           },
           {
             title: "Nächste Frist", key: "frist", sorter: nachRang<GeraetZeile, Stufe>((g) => g.naechste?.stufe ?? "ok", STUFEN),
+            // IDA-393: gedeckelt, damit ein langer Vorlagenname unter den Chip bricht, statt die Zeile zu verbreitern.
             render: (_: unknown, g: GeraetZeile) => (g.naechste ? (
-              <div>
+              <div style={{ maxWidth: "13.5rem" }}>
                 <span className={s.reihe}><FristChip f={g.naechste} /> {g.naechste.vorlage.name}</span>
                 <div className={s.neben}>{g.naechste.text}</div>
               </div>
             ) : "—"),
-          },
-          {
-            title: "Zustand", key: "zustand", sorter: nachRang<GeraetZeile, GeraetZeile["zustand"]>((g) => g.zustand, ["defekt", "mangel", "ok"]),
-            render: (_: unknown, g: GeraetZeile) => <ZustandChip z={g.zustand} />,
           },
         ]}
       />

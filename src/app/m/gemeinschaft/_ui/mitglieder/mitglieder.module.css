@@ -19,16 +19,19 @@
   white-space: nowrap;
 }
 
-/*
- * „Verantwortlich für“ bricht um (IDA-387): die Tabelle läuft mit `scroll.x = max-content`, und ohne Deckel
- * zog die längste Zeile aller Titel die Spalte breit. 32ch wie eine Lesebreite (`core/tabelle/zellentext`).
- */
+/* Lesebreite (IDA-393): ohne Deckel macht `max-content` die Spalte so breit wie alle Vorhaben nebeneinander. */
 .links {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
-  max-width: 32ch;
+  max-width: 28ch;
   overflow-wrap: anywhere;
+}
+
+/* Name, darunter leiser die Telefonnummer. */
+.namenszelle {
+  display: grid;
+  gap: 2px;
 }
 
 .mono {

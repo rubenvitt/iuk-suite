@@ -12,6 +12,9 @@
  */
 export { Datentabelle, type DatentabelleProps } from "./Datentabelle";
 export { Zellentext, type ZellentextProps } from "./Zellentext";
+export { Zeilenaktionen, type Zeilenaktion, type ZeilenaktionenProps } from "./Zeilenaktionen";
+export { Kurzkennung, type KurzkennungProps } from "./Kurzkennung";
+export { aktionsSpalte, AKTIONS_SCHLUESSEL } from "./aktionsspalte";
 export { Schmalkarten, NurSchmal, NurBreit, type SchmalkartenProps } from "./Schmalkarten";
 export { Kartentabelle, type KartentabelleProps } from "./Kartentabelle";
 export { Spaltenkarte, kartenName, type SpaltenkarteProps } from "./Spaltenkarte";

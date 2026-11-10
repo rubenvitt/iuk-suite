@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { App, Button, Input } from "antd";
+import { App, Input } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import type { RuheSchluessel } from "@/core/ruhe";
 import { Statuschip } from "@/core/status/Statuschip";
@@ -13,6 +13,7 @@ import {
   trifftWert,
   werteAlsFilter,
   zustandsFilter,
+  Zeilenaktionen,
   type FilterZustand,
   type KartentabelleProps,
   useEntprellt,
@@ -50,6 +51,7 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
           onBearbeiten={props.onBearbeiten}
           beschriftung="Fahrzeuge"
           suche={{ platzhalter: "Kennung oder Funkrufname suchen", felder: (f) => [f.kennung, f.ruf, f.typ] }}
+          nameVon={(f) => f.kennung}
           leer={{ nichts: "Noch keine Fahrzeuge", figur: "einsatzbuch", gefiltert: "Kein Fahrzeug passt zu Suche und Filter." }}
           spalten={[
             { title: "Kennung", key: "kennung", sorter: nachText<FahrzeugDTO>((f) => f.kennung), render: (_: unknown, f: FahrzeugDTO) => f.kennung },
@@ -79,6 +81,7 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
           onBearbeiten={props.onBearbeiten}
           beschriftung="Personal"
           suche={{ platzhalter: "Name suchen", felder: (p) => [p.name] }}
+          nameVon={(p) => p.name}
           leer={{ nichts: "Noch kein Personal", figur: "einsatzbuch", gefiltert: "Keine Person passt zu Suche und Filter." }}
           spalten={[
             { title: "Name", key: "name", sorter: nachText<PersonDTO>((p) => p.name), render: (_: unknown, p: PersonDTO) => p.name },
@@ -100,6 +103,7 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
           onBearbeiten={props.onBearbeiten}
           beschriftung="Stichworte"
           suche={{ platzhalter: "Stichwort suchen", felder: (s) => [s.name, s.gruppe] }}
+          nameVon={(st) => st.name}
           leer={{ nichts: "Noch keine Stichworte", figur: "einsatzbuch", gefiltert: "Kein Stichwort passt zu Suche und Filter." }}
           spalten={[
             {
@@ -135,6 +139,7 @@ function Liste<T extends Stammeintrag>({
   onBearbeiten,
   beschriftung,
   suche: { platzhalter, felder },
+  nameVon,
   leer,
   spalten,
 }: {
@@ -143,6 +148,8 @@ function Liste<T extends Stammeintrag>({
   onBearbeiten: (eintrag: T) => void;
   beschriftung: string;
   suche: { platzhalter: string; felder: (eintrag: T) => string[] };
+  /** Wofür die Zeilenaktionen gelten — der Menüknopf heißt „Aktionen für <name>". */
+  nameVon: (eintrag: T) => string;
   leer: { nichts: string; gefiltert: string; figur?: RuheSchluessel };
   spalten: Spalten<T>;
 }) {
@@ -207,18 +214,16 @@ function Liste<T extends Stammeintrag>({
           {
             title: "Aktionen",
             key: "aktionen",
-            /*
-             * ZWEI SPALTEN STATT `flex-wrap` (IDA-390): auf der Karte streckt `Spaltenkarte` jeden Knopf
-             * auf volle Breite, mit `flex` stand also jede Aktion in einer eigenen Zeile. Im Raster füllt
-             * jeder Knopf nur seine Hälfte — eine Zeile, auch bei 320 px.
-             */
+            // IDA-393: zwei ausgeschriebene Knöpfe → ein Aktionsmenü je Zeile.
             render: (_: unknown, e: T) => (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(max-content, 1fr))", gap: SPACE.sm }}>
-                <Button onClick={() => onBearbeiten(e)}>Bearbeiten</Button>
-                <Button onClick={() => umschalten(e)} loading={laeuft === e.id} disabled={laeuft !== null && laeuft !== e.id}>
-                  {e.aktiv ? "Deaktivieren" : "Aktivieren"}
-                </Button>
-              </div>
+              <Zeilenaktionen
+                name={nameVon(e)}
+                laeuft={laeuft === e.id}
+                aktionen={[
+                  { key: "bearbeiten", label: "Bearbeiten", onClick: () => onBearbeiten(e) },
+                  { key: "aktiv", label: e.aktiv ? "Deaktivieren" : "Aktivieren", disabled: laeuft !== null, onClick: () => umschalten(e) },
+                ]}
+              />
             ),
           },
         ]}

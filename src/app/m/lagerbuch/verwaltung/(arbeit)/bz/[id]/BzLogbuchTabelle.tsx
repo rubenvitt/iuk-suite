@@ -102,16 +102,13 @@ function levelZelle({
   max: number | "?";
 }) {
   if (wert === null) return <span style={SCHRIFT.neben}>—</span>;
+  // IDA-393: der Bereich steht UNTER dem Chip — nebeneinander war jede Levelspalte
+  // rund 170px breit, und das Logbuch ragte bei 1280px aus seinem Rahmen.
   return (
-    <span style={{ whiteSpace: "nowrap" }}>
+    <>
       <Chip ton={ton ?? "gelb"}>{bezeichnung} {wert}</Chip>
-      {/* 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger Abstand
-          zwischen Chip und Klammerzusatz in derselben Zelle, kein
-          Skalenwert ohne sichtbaren Sprung. */}
-      <span style={{ ...SCHRIFT.neben, marginInlineStart: 6 }}>
-        (damals {min}–{max})
-      </span>
-    </span>
+      <div><span style={{ ...SCHRIFT.neben, whiteSpace: "nowrap" }}>(damals {min}–{max})</span></div>
+    </>
   );
 }
 
@@ -135,7 +132,15 @@ const LOGBUCH_SPALTEN = [
     dataIndex: "zeitpunktText",
     key: "zeitpunkt",
     defaultSortOrder: "descend" as const,
-    render: (text: string, zeile) => durch(zeile, <span className={s.jts}>{text}</span>),
+    // IDA-393: wer kontrolliert hat, steht unter dem Zeitpunkt — bis dahin eine eigene Spalte „Wer".
+    // IDA-379: wer storniert hat, steht darunter.
+    render: (text: string, zeile: BzLogbuchAnzeigeZeile) => (
+      <>
+        <div>{durch(zeile, <span className={s.jts}>{text}</span>)}</div>
+        <Chip ton="grau">{zeile.werText}</Chip>
+        {zeile.storniertText === null ? null : <div style={SCHRIFT.neben}>{zeile.storniertText}</div>}
+      </>
+    ),
   },
   {
     title: "Ergebnis",
@@ -165,16 +170,6 @@ const LOGBUCH_SPALTEN = [
     ),
   },
   {
-    title: "Aktion",
-    dataIndex: "id",
-    key: "aktion",
-    render: (id: string, zeile) => (
-      zeile.storniertText === null
-        ? <StornoKnopf id={id} zeitpunkt={zeile.zeitpunktText} />
-        : <span style={SCHRIFT.neben}>—</span>
-    ),
-  },
-  {
     title: "Level 1",
     dataIndex: "level1Wert",
     key: "level1",
@@ -199,36 +194,22 @@ const LOGBUCH_SPALTEN = [
     })),
   },
   {
+    /*
+     * IDA-393: Verbrauch und Akkuwechsel in EINER Spalte, jede Angabe auf ihrer Zeile. „12 Sticks
+     * / 8 Lanzetten · Kompresse 2027-01" stand in einer Zeile, daneben „Akku" und „Wer" als
+     * eigene Spalten — zusammen rund 480px.
+     */
     title: "Verbrauch",
     dataIndex: "verbrauchText",
     key: "verbrauch",
-    render: (text: string, zeile) => durch(zeile, <span style={SCHRIFT.neben}>{text}</span>),
-  },
-  {
-    title: "Akku",
-    dataIndex: "akkuText",
-    key: "akku",
-    render: (text: BzLogbuchAnzeigeZeile["akkuText"], zeile) => durch(zeile, (
-      zeile.akkuTon
-        ? <Chip ton={zeile.akkuTon} zeichen="akku">{text}</Chip>
-        : <span style={SCHRIFT.neben}>{text}</span>
+    render: (text: string, zeile: BzLogbuchAnzeigeZeile) => durch(zeile, (
+      <>
+        {text.split(" · ").map((teil, i) => (
+          <div key={i}><span style={SCHRIFT.neben}>{teil}</span></div>
+        ))}
+        {zeile.akkuTon ? <Chip ton={zeile.akkuTon} zeichen="akku">Akku {zeile.akkuText}</Chip> : null}
+      </>
     )),
-  },
-  {
-    title: "Wer",
-    dataIndex: "werText",
-    key: "wer",
-    render: (text: string, zeile) => (
-      zeile.storniertText === null
-        ? <Chip ton="grau">{text}</Chip>
-        : (
-          // IDA-379: wer storniert hat, steht neben dem, der erfasst hat.
-          <span style={{ display: "inline-grid", gap: 4, justifyItems: "start" }}>
-            <Chip ton="grau">{text}</Chip>
-            <span style={SCHRIFT.neben}>{zeile.storniertText}</span>
-          </span>
-        )
-    ),
   },
   {
     /*
@@ -251,7 +232,19 @@ const LOGBUCH_SPALTEN = [
     render: (text: string | null, zeile) => (
       text === null
         ? <span style={SCHRIFT.neben}>—</span>
-        : durch(zeile, <Zellentext text={text} />)
+        // IDA-393: 24ch statt der 40ch der Vorgabe — das Logbuch steht bei 1280px in 950px.
+        : durch(zeile, <Zellentext text={text} style={{ maxWidth: "24ch" }} />)
+    ),
+  },
+  // IDA-393: die Aktion steht rechts und wird dort angeheftet (`Datentabelle`).
+  {
+    title: "Aktion",
+    dataIndex: "id",
+    key: "aktion",
+    render: (id: string, zeile) => (
+      zeile.storniertText === null
+        ? <StornoKnopf id={id} zeitpunkt={zeile.zeitpunktText} />
+        : <span style={SCHRIFT.neben}>—</span>
     ),
   },
 ] satisfies TableProps<BzLogbuchAnzeigeZeile>["columns"];

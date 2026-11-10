@@ -33,7 +33,18 @@
   --uav-erfolg: #16a34a;
   --uav-warnung: #d97706;
   --uav-akzent: var(--iuk-marke, #c8000f);
-  --uav-akzent-weich: #fff5f5;
+  /*
+   * IDA-389: Rot hiess hier vier Dinge — Primaerknopf, „erledigt", Links und
+   * Fehler. Seither traegt die Marke nur noch den Streifen, Rot (`--uav-fehler`)
+   * nur Fehler und Sicherheitshinweise, Bedienung ist Tinte (`--uav-aktion`)
+   * und „erledigt" ist gruen.
+   */
+  --uav-fehler: var(--iuk-marke, #c8000f);
+  --uav-fehler-weich: #fff5f5;
+  --uav-aktion: var(--uav-tinte);
+  --uav-aktion-text: var(--uav-papier);
+  --uav-erfolg-text: #15803d;
+  --uav-erfolg-weich: #ecfdf3;
   --uav-radius: 14px;
   --uav-radius-s: 10px;
   --uav-schatten: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.05);
@@ -62,7 +73,9 @@
   --uav-flaeche: #25282e;
   --uav-erfolg: #22c55e;
   --uav-warnung: #f59e0b;
-  --uav-akzent-weich: #2a1417;
+  --uav-fehler-weich: #2a1417;
+  --uav-erfolg-text: #4ade80;
+  --uav-erfolg-weich: #12261a;
   --uav-schatten: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 
@@ -124,15 +137,67 @@
   white-space: nowrap;
 }
 
+/*
+ * „Angemeldet als … · Abmelden" (IDA-389): eine eigene Zeile unter der
+ * Wortmarke, nicht daneben — auf 320px trüge die Kopfzeile sonst Marke, Name,
+ * Abmelden und Verwaltung nebeneinander. Ein langer Name wird gekürzt, der
+ * Knopf bleibt ganz.
+ */
+.rahmen-person {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 640px;
+  margin-inline: auto;
+  padding-inline: 16px;
+  font-size: 0.9rem;
+  color: var(--uav-stahl);
+}
+
+.rahmen-person-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rahmen-person-name strong {
+  color: var(--uav-tinte);
+  font-weight: 600;
+}
+
+.rahmen-abmelden {
+  flex-shrink: 0;
+  min-height: 56px;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--uav-tinte);
+  cursor: pointer;
+}
+
+.rahmen-abmelden:hover {
+  text-decoration: underline;
+}
+
+.rahmen-abmelden:focus-visible {
+  outline: 2px solid var(--uav-aktion);
+  outline-offset: 2px;
+  border-radius: var(--uav-radius-s);
+}
+
 .rahmen-marke:focus-visible,
 .rahmen-neben:focus-visible {
-  outline: 2px solid var(--uav-akzent);
+  outline: 2px solid var(--uav-aktion);
   outline-offset: 2px;
   border-radius: var(--uav-radius-s);
 }
 
 .rahmen-neben:hover {
-  color: var(--uav-akzent);
+  color: var(--uav-tinte);
 }
 
 /*
@@ -171,7 +236,7 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--uav-akzent);
+  color: var(--uav-stahl);
 }
 
 .kopf-titel {
@@ -227,7 +292,7 @@
   position: absolute;
   inset-block: 0;
   inset-inline-start: 0;
-  background: var(--uav-akzent);
+  background: var(--uav-aktion);
   border-radius: 999px;
   transition: width 0.3s ease;
 }
@@ -314,13 +379,13 @@
 }
 
 .aufgabe-zeile:focus-visible {
-  outline: 2px solid var(--uav-akzent);
+  outline: 2px solid var(--uav-aktion);
   outline-offset: 2px;
 }
 
 .aufgabe-nummer {
   font-weight: 800;
-  color: var(--uav-akzent);
+  color: var(--uav-stahl);
   font-variant-numeric: tabular-nums;
 }
 
@@ -350,8 +415,8 @@
 }
 
 .badge-erledigt {
-  background: var(--uav-akzent);
-  color: #fff;
+  background: var(--uav-erfolg-weich);
+  color: var(--uav-erfolg-text);
 }
 
 .badge-na {
@@ -360,7 +425,7 @@
 }
 
 .status-erledigt {
-  border-color: var(--uav-akzent);
+  border-color: var(--uav-erfolg);
 }
 
 /* „nicht anwendbar“: nur Nummer + Titel abdunkeln, den Status-Badge NICHT (sonst
@@ -377,7 +442,7 @@
   min-height: 56px;
   background: none;
   border: none;
-  color: var(--uav-akzent);
+  color: var(--uav-tinte);
   font: inherit;
   font-weight: 600;
   text-decoration: none;
@@ -460,15 +525,15 @@
 .warnung {
   margin: 0 0 16px;
   padding: 14px 16px;
-  border: 1px solid var(--uav-akzent);
+  border: 1px solid var(--uav-fehler);
   border-radius: var(--uav-radius-s);
-  background: var(--uav-akzent-weich);
+  background: var(--uav-fehler-weich);
 }
 
 .warnung-titel {
   display: block;
   margin-bottom: 6px;
-  color: var(--uav-akzent);
+  color: var(--uav-fehler);
 }
 
 .warnung ul {
@@ -498,7 +563,7 @@
   width: 24px;
   height: 24px;
   margin-top: 1px;
-  accent-color: var(--uav-akzent);
+  accent-color: var(--uav-aktion);
   flex-shrink: 0;
 }
 
@@ -530,8 +595,8 @@
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 999px;
-  background: var(--uav-akzent);
-  color: #fff;
+  background: var(--uav-erfolg-weich);
+  color: var(--uav-erfolg-text);
 }
 
 .liste {
@@ -545,6 +610,7 @@
 
 .liste li {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
@@ -557,6 +623,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 10rem;
   min-width: 0;
   font-size: 0.95rem;
   line-height: 1.35;
@@ -601,11 +668,53 @@
 }
 
 .loeschen:hover {
-  color: var(--uav-akzent);
+  color: var(--uav-tinte);
 }
 
 .loeschen:focus-visible {
-  outline: 2px solid var(--uav-akzent);
+  outline: 2px solid var(--uav-aktion);
+  outline-offset: 2px;
+}
+
+/*
+ * Die Rückfrage vor dem Löschen steht in der Zeile selbst (IDA-389) — vorher
+ * kam sie aus `window.confirm`, also im Dialog des Browsers, der auf dem
+ * Telefon die Seite verdeckt und auf jedem Gerät anders aussieht.
+ */
+/* `flex-wrap` an der Zeile: auf 320px rutscht die Rückfrage unter den Text,
+   statt ihn bis in die Namen hinein zusammenzudrücken. */
+.loesch-frage {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  gap: 6px;
+}
+
+.loesch-ja,
+.loesch-nein {
+  min-height: 56px;
+  padding: 0 14px;
+  border-radius: var(--uav-radius-s);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loesch-ja {
+  background: var(--uav-aktion);
+  color: var(--uav-aktion-text);
+  border: none;
+}
+
+.loesch-nein {
+  background: var(--uav-papier);
+  color: var(--uav-tinte);
+  border: 1px solid var(--uav-linie);
+}
+
+.loesch-ja:focus-visible,
+.loesch-nein:focus-visible {
+  outline: 2px solid var(--uav-aktion);
   outline-offset: 2px;
 }
 
@@ -643,9 +752,10 @@
   color: var(--uav-tinte);
 }
 
-.ziel {
-  margin: 14px 0;
-  max-width: 160px;
+.feld-fehler {
+  margin: -8px 0 0;
+  font-size: 0.85rem;
+  color: var(--uav-fehler);
 }
 
 .df-form {
@@ -666,7 +776,7 @@
 }
 
 /*
- * FOKUS ALS OUTLINE, NICHT ALS SCHATTEN IN `--uav-akzent-weich`.
+ * FOKUS ALS OUTLINE, NICHT ALS SCHATTEN IN `--uav-fehler-weich`.
  *
  * Der weiche Akzent ist im Dunkelmodus `#2a1417` — ein 3px-Ring in dieser
  * Farbe auf `#1a1c20` ist praktisch unsichtbar, und der Fokus war damit
@@ -674,9 +784,9 @@
  * Knoepfen und Aufgabenzeilen: eine Fokusform fuer die ganze Flaeche.
  */
 .feld input:focus-visible {
-  outline: 2px solid var(--uav-akzent);
+  outline: 2px solid var(--uav-aktion);
   outline-offset: 2px;
-  border-color: var(--uav-akzent);
+  border-color: var(--uav-aktion);
 }
 
 /* Primäraktionen (Erfassen/Anmelden) — Handschuh-Bedienung, ≥ 56px Ziel.
@@ -686,8 +796,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--uav-tinte);
-  color: var(--uav-papier);
+  background: var(--uav-aktion);
+  color: var(--uav-aktion-text);
   border: none;
   border-radius: var(--uav-radius-s);
   font: inherit;
@@ -701,7 +811,7 @@
 }
 
 .btn-primaer:focus-visible {
-  outline: 2px solid var(--uav-akzent);
+  outline: 2px solid var(--uav-aktion);
   outline-offset: 2px;
 }
 
@@ -709,13 +819,13 @@
 .speicher-warnung {
   margin-bottom: 16px;
   padding: 14px 16px;
-  border: 1px solid var(--uav-akzent);
+  border: 1px solid var(--uav-fehler);
   border-radius: var(--uav-radius-s);
-  background: var(--uav-akzent-weich);
+  background: var(--uav-fehler-weich);
 }
 
 .speicher-warnung .warnung-titel {
-  color: var(--uav-akzent);
+  color: var(--uav-fehler);
 }
 
 .speicher-warnung p {
@@ -759,7 +869,7 @@
   align-items: center;
   min-height: 56px;
   font-weight: 600;
-  color: var(--uav-akzent);
+  color: var(--uav-tinte);
   text-decoration: none;
 }
 
@@ -768,7 +878,7 @@
 }
 
 .code-hinweis-link:focus-visible {
-  outline: 2px solid var(--uav-akzent);
+  outline: 2px solid var(--uav-aktion);
   outline-offset: 2px;
   border-radius: var(--uav-radius-s);
 }
@@ -845,9 +955,9 @@
 
 /* Fokusform wie an allen anderen Feldern — Begruendung bei `.feld input`. */
 .login-code:focus-visible {
-  outline: 2px solid var(--uav-akzent);
+  outline: 2px solid var(--uav-aktion);
   outline-offset: 2px;
-  border-color: var(--uav-akzent);
+  border-color: var(--uav-aktion);
 }
 
 .login-button {
@@ -865,9 +975,9 @@
   padding: 10px 14px;
   font-size: 0.9rem;
   line-height: 1.4;
-  color: var(--uav-akzent);
-  background: var(--uav-akzent-weich);
-  border: 1px solid var(--uav-akzent);
+  color: var(--uav-fehler);
+  background: var(--uav-fehler-weich);
+  border: 1px solid var(--uav-fehler);
   border-radius: var(--uav-radius-s);
 }
 
@@ -917,11 +1027,11 @@
 }
 
 .sync-syncing .sync-punkt {
-  background: var(--uav-akzent);
+  background: var(--uav-stahl);
 }
 
 .sync-fehler .sync-punkt {
-  background: var(--uav-akzent);
+  background: var(--uav-fehler);
 }
 
 /*

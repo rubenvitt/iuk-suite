@@ -237,7 +237,7 @@ test.describe("Rechnerseite der Einsatztagebuch-Verwaltung", () => {
     const zeile = tabelle.locator("[data-row-key]", { hasText: name });
     await expect(zeile).toBeVisible();
 
-    await klickeWennRuhig(zeile.getByRole("button", { name: "Test-Rechner löschen" }));
+    await klickeWennRuhig(zeile.getByRole("button", { name: "Löschen" }));
     await expect(page.getByText(`Test-Rechner „${name}“ löschen?`)).toBeVisible();
     await klickeWennRuhig(page.getByRole("button", { name: "Endgültig löschen" }));
     await expect(zeile).toHaveCount(0);

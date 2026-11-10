@@ -147,8 +147,8 @@ describe("Kontowechsel A → B auf demselben Gerät (DRK-286)", () => {
 
     const text = sichtbarerText();
     for (const fremd of ["Anna Pilotin", "Alf Auge", "Arno Offline", "Adele Offline"]) expect(text).not.toContain(fremd);
-    // Auch nicht als Vorbelegung im Formular.
-    expect(feldwert("#df-drohnensteuerer")).toBe("");
+    // Auch nicht als Vorbelegung im Formular — dort steht Bs eigener Name (IDA-389).
+    expect(feldwert("#df-drohnensteuerer")).toBe("Bernd B");
     expect(feldwert("#df-luftraumbeobachter")).toBe("");
 
     const unterB = anfragen.slice(abB).filter((a) => a.cookie === B.id);

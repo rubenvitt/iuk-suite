@@ -89,6 +89,11 @@ function trifftKategorie(zeile: InventurZeile, wert: Filterwert): boolean {
  * gezaehlt wurde mit waagerechtem Scrollen je Zeile. Die ersten sechs Spalten
  * summieren sich jetzt auf 742 und passen dort hinein; was rechts davon
  * steht, liest man, bedient es aber nicht.
+ *
+ * IDA-393 — MHD UND MIN. SIND KEINE EIGENEN SPALTEN MEHR. Bei 1280px (984px
+ * Inhalt) ragte die Tabelle 122px aus ihrem Rahmen; das naechste MHD steht
+ * seither unter dem Artikelnamen, der Mindestbestand unter dem Bestand. Beide
+ * Spalten hatten weder Filter noch Sortierer — es geht nichts verloren.
  */
 const BREITE = {
   aufklappen: 60,
@@ -106,9 +111,6 @@ const BREITE = {
   // Der Chip „je Charge" im Chargenmodus steht dann neben einem gesperrten
   // Stepper und darf umbrechen — dort wird in der aufgeklappten Zeile gezaehlt.
   ist: 210,
-  // „ohne Verfall" (IDA-380, vorher „12/99") ist der breiteste Chip der Spalte.
-  mhd: 116,
-  mindest: 70,
   kategorie: 140,
 } as const;
 
@@ -319,7 +321,23 @@ export function InventurForm({ zeilen, ortId, orte }: {
       dataIndex: "name",
       width: BREITE.artikel,
       sorter: nachText<InventurZeile>((zeile) => zeile.name),
-      render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
+      // Die FEFO-naechste Charge MIT Bestand am Zaehlort (IDA-276: `chargen`
+      // traegt auch Chargen, die nur auf „Nicht zugeordnet" liegen). `2099-12`
+      // („ohne Verfall") zeigt wie die Artikelliste schlicht `fmtVerfall`.
+      // IDA-393: unter dem Namen statt in einer Spalte „MHD".
+      render: (wert: string, zeile) => {
+        const naechste = naechsteCharge(zeile);
+        return (
+          <>
+            <span style={{ fontWeight: 600 }}>{wert}</span>
+            {naechste ? (
+              <div data-rolle="mhd">
+                <Chip ton={ampelTon(naechste.ampel)}>{fmtVerfall(naechste.verfall)}</Chip>
+              </div>
+            ) : null}
+          </>
+        );
+      },
     },
     {
       title: "Fach",
@@ -353,6 +371,8 @@ export function InventurForm({ zeilen, ortId, orte }: {
               {`+${zeile.ungeordnet} n. zug.`}
             </div>
           ) : null}
+          {/* IDA-393: der Mindestbestand unter dem Bestand statt in einer Spalte „Min.". */}
+          <div data-rolle="mindest" className={s.footnote}>{`min. ${zeile.mindestbestand}`}</div>
         </>
       ),
     },
@@ -377,27 +397,6 @@ export function InventurForm({ zeilen, ortId, orte }: {
       render: (_wert: string, zeile) => (
         <IstZelle zeile={zeile} speicher={speicher} gesperrt={laeuft} />
       ),
-    },
-    {
-      title: "Verfall",
-      dataIndex: "chargen",
-      width: BREITE.mhd,
-      // Die FEFO-naechste Charge MIT Bestand am Zaehlort (IDA-276: `chargen`
-      // traegt auch Chargen, die nur auf „Handlager ohne Schrank" liegen). `2099-12`
-      // zeigt `fmtVerfall` als „ohne Verfall", wie die Artikelliste.
-      render: (_wert: unknown, zeile) => {
-        const naechste = naechsteCharge(zeile);
-        return naechste
-          ? <Chip ton={ampelTon(naechste.ampel)}>{fmtVerfall(naechste.verfall)}</Chip>
-          : "—";
-      },
-    },
-    {
-      title: "Min.",
-      dataIndex: "mindestbestand",
-      width: BREITE.mindest,
-      align: "right",
-      render: (wert: number) => <span style={SCHRIFT.mono}>{wert}</span>,
     },
     {
       title: "Kategorie",

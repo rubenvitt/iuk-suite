@@ -237,3 +237,12 @@
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+
+/* Neue Meldung: „Herunterzählen bis" und „Anzeigen ab" nebeneinander, solange beide hineinpassen (IDA-396). */
+.zeitfelder {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr));
+  gap: 12px;
+  align-items: end;
+  max-inline-size: 360px;
+}

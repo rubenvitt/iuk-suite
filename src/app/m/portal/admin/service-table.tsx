@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Alert, Button, Dropdown, Modal } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
-import { Kartentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachJaNein, nachText, Zellentext, zustandsFilter } from "@/core/tabelle";
 import { deleteServiceAction } from "@/app/m/portal/actions";
 import type { GruppenOption } from "@/app/m/portal/_lib/gruppen";
 import { SichtbarkeitAendern } from "@/app/m/portal/admin/sichtbarkeit-aendern";
@@ -135,7 +135,8 @@ export function ServiceTable({
           key: "sichtbarFuer",
           sorter: nachJaNein<ServiceRow>((zeile) => zeile.isPublic),
           ...SICHTBAR_FILTER,
-          render: (_, zeile) => sichtbarFuer(zeile, gruppen),
+          // IDA-393: eine lange Gruppenliste bricht um, statt die Zeile zu verbreitern.
+          render: (_, zeile) => <Zellentext text={sichtbarFuer(zeile, gruppen)} style={{ maxWidth: "24ch" }} />,
         },
         {
           title: "",

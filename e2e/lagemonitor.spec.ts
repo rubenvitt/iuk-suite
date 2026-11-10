@@ -20,10 +20,10 @@ function wahlKnopf(bereich: Locator, beschriftung: string): Locator {
 test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ page }) => {
   const ort = `Teststadt ${Date.now() % 100_000}`;
   await devLogin(page, { host: HOST, groups: "lagemonitor-admin", callbackPath: "/" });
-  await page.goto(url("/"));
+  await page.goto(url("/einrichtung"));
   await page.waitForLoadState("networkidle");
   await warteAufGestreamteInhalte(page);
-  await expect(page.getByRole("heading", { name: "Lagemonitor" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Einrichtung", level: 1 })).toBeVisible();
 
   const vorschau = page.getByTestId("monitor-vorschau");
 
@@ -107,18 +107,22 @@ test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", 
   // Der Entwurf steht schon in der Vorschau, gestrichelt.
   await expect(page.getByTestId("vorschau-meldung").filter({ hasText: text })).toHaveAttribute("data-entwurf", "true");
 
-  // Eine ungespeicherte Änderung an der Anzeige überlebt das Anlegen (neuer Stand vom Server).
-  await page.getByLabel("Warnregion", { exact: true }).fill("Ungespeichert");
   await klickeWennRuhig(neu.getByRole("button", { name: "Meldung anlegen" }));
   const laufend = page.getByRole("list", { name: "Laufende und geplante Meldungen" });
   await expect(laufend).toContainText(text);
-  await expect(page.getByLabel("Warnregion", { exact: true })).toHaveValue("Ungespeichert");
   await expect(page.getByTestId("vorschau-meldung").filter({ hasText: text })).toHaveAttribute("data-entwurf", "false");
   await expect(vorschau).toContainText(/in \d+( h)?/);
 
+  // Der Zugang entsteht in der Einrichtung, einen Schritt von den Meldungen entfernt (IDA-396).
+  await klickeWennRuhig(page.getByTestId("zur-einrichtung"));
+  await expect(page.getByRole("heading", { name: "Einrichtung", level: 1 })).toBeVisible();
+  await warteAufGestreamteInhalte(page);
   await page.getByLabel("Neuer Zugang").fill("Meldungen e2e");
   await klickeWennRuhig(page.getByRole("button", { name: "Zugang anlegen" }));
   const schluessel = /LAGEMONITOR_SUITE_TOKEN=(\S+)/.exec((await page.getByTestId("neuer-schluessel").textContent()) ?? "")?.[1];
+  await page.goto(url("/"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
   const abholen = async () => (await (await page.request.get(url("/api/konfiguration"), { headers: { authorization: `Bearer ${schluessel}` } })).json()).notices as { text: string; countdownTo: string | null; expiresAt: string; showFrom: string | null; category: { name: string; color: string; icon: { paths: string[] } | null; alertLeadMinutes: number | null } | null }[];
   const notices = await abholen();
   const n = notices.find((x) => x.text === text);
@@ -149,13 +153,13 @@ test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", 
 test("TomTom-Schlüssel geht nur an den Monitor, die Vorschau zeigt die Verkehrsebenen", async ({ page }) => {
   const SCHLUESSEL = `E2e${Date.now()}`.padEnd(32, "x");
   await devLogin(page, { host: HOST, groups: "lagemonitor-admin", callbackPath: "/" });
-  await page.goto(url("/"));
+  await page.goto(url("/einrichtung"));
   await page.waitForLoadState("networkidle");
   await warteAufGestreamteInhalte(page);
   // Jede Server Action ist ein POST auf die Seite; die Antwort wird geprüft, nicht nur der Text danach (Falle 10).
   const speichern = async () => {
     const [antwort] = await Promise.all([
-      page.waitForResponse((r) => r.request().method() === "POST" && r.url() === url("/")),
+      page.waitForResponse((r) => r.request().method() === "POST" && r.url() === url("/einrichtung")),
       klickeWennRuhig(page.getByRole("button", { name: "Speichern" })),
     ]);
     expect(antwort.status()).toBe(200);
@@ -183,7 +187,7 @@ test("TomTom-Schlüssel geht nur an den Monitor, die Vorschau zeigt die Verkehrs
 
   await page.getByLabel("Neuer Zugang").fill("Verkehr e2e");
   const [angelegt] = await Promise.all([
-    page.waitForResponse((r) => r.request().method() === "POST" && r.url() === url("/")),
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url() === url("/einrichtung")),
     klickeWennRuhig(page.getByRole("button", { name: "Zugang anlegen" })),
   ]);
   expect(angelegt.status()).toBe(200);
@@ -192,16 +196,39 @@ test("TomTom-Schlüssel geht nur an den Monitor, die Vorschau zeigt die Verkehrs
   expect(vertrag.traffic).toMatchObject({ tomtomKey: SCHLUESSEL, flow: true });
 });
 
-test("ohne Admin-Gruppe gibt es die Seite nicht", async ({ page }) => {
+test("ohne Admin-Gruppe gibt es die Seiten nicht", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "fahrzeuge-admin", callbackPath: "/" });
-  const antwort = await page.goto(url("/"));
-  expect(antwort?.status()).toBe(404);
+  expect((await page.goto(url("/")))?.status()).toBe(404);
+  expect((await page.goto(url("/einrichtung")))?.status()).toBe(404);
+});
+
+test.describe("am Telefon (IDA-396)", () => {
+  // Kein Gerät mit 320 px Breite ist so hoch wie ein heutiges Telefon; dort zählt nur, dass nichts seitlich überläuft.
+  for (const [breite, hoehe, ohneScrollen] of [[320, 568, false], [375, 667, true], [390, 844, true]] as const) {
+    test(`${breite} px: „Meldung anlegen“ ohne Scrollen, Einrichtung einen Schritt entfernt`, async ({ page }) => {
+      await page.setViewportSize({ width: breite, height: hoehe });
+      await devLogin(page, { host: HOST, groups: "lagemonitor-admin", callbackPath: "/" });
+      await page.goto(url("/"));
+      await page.waitForLoadState("networkidle");
+      await warteAufGestreamteInhalte(page);
+      await expect(page.getByRole("heading", { name: "Meldungen", level: 1 })).toBeVisible();
+      const anlegen = page.getByRole("form", { name: "Neue Meldung" }).getByRole("button", { name: "Meldung anlegen" });
+      if (ohneScrollen) await expect(anlegen).toBeInViewport({ ratio: 1 });
+      else await expect(anlegen).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(breite);
+
+      await klickeWennRuhig(page.getByTestId("zur-einrichtung"));
+      await expect(page.getByRole("heading", { name: "Einrichtung", level: 1 })).toBeVisible();
+      await warteAufGestreamteInhalte(page);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(breite);
+    });
+  }
 });
 
 test("Kategorie anlegen, ändern und löschen", async ({ page }) => {
   const name = `Funk ${Date.now() % 10_000}`;
   await devLogin(page, { host: HOST, groups: "lagemonitor-admin", callbackPath: "/" });
-  await page.goto(url("/"));
+  await page.goto(url("/einrichtung"));
   await page.waitForLoadState("networkidle");
   await warteAufGestreamteInhalte(page);
   const liste = page.getByRole("list", { name: "Kategorien" });
@@ -216,7 +243,12 @@ test("Kategorie anlegen, ändern und löschen", async ({ page }) => {
   await klickeWennRuhig(neu.getByRole("button", { name: "Kategorie anlegen" }));
   await expect(liste).toContainText(name);
   // Sofort beim Anlegen einer Meldung wählbar.
+  await page.goto(url("/"));
+  await warteAufGestreamteInhalte(page);
   await expect(wahlKnopf(page.getByRole("form", { name: "Neue Meldung" }), name)).toBeVisible();
+  await page.goto(url("/einrichtung"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
 
   await klickeWennRuhig(page.getByRole("button", { name: `Kategorie ändern: ${name}` }));
   const aendern = page.getByRole("form", { name: `Kategorie „${name}“ ändern` });
@@ -234,7 +266,7 @@ test("Lagekarte: Fläche zeichnen, Punkt setzen, beides geht an die Monitore, au
   const flaeche = `Raum e2e ${nr}`;
   const punkt = `Wache e2e ${nr}`;
   await devLogin(page, { host: HOST, groups: "lagemonitor-admin", callbackPath: "/" });
-  await page.goto(url("/"));
+  await page.goto(url("/einrichtung"));
   await page.waitForLoadState("networkidle");
   await warteAufGestreamteInhalte(page);
 
@@ -292,7 +324,7 @@ test("Lagekarte: Fläche zeichnen, Punkt setzen, beides geht an die Monitore, au
   // Ausgeschaltet geht der Punkt nicht mehr hinaus; danach aufräumen.
   const schalter = page.getByRole("switch", { name: `Auf der Karte: ${punkt}` });
   const [antwort] = await Promise.all([
-    page.waitForResponse((r) => r.request().method() === "POST" && r.url() === url("/")),
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url() === url("/einrichtung")),
     klickeWennRuhig(schalter),
   ]);
   expect(antwort.status()).toBe(200);
