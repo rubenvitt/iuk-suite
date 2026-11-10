@@ -106,7 +106,7 @@ const wert = (v: string | null) => v || LEER;
 function StatusMarke({ aktiv }: { aktiv: boolean }) {
   return aktiv ? (
     <Tag color="processing" data-rolle="radio-leihe-status">
-      Aktiv
+      Ausgeliehen
     </Tag>
   ) : (
     <Tag data-rolle="radio-leihe-status">Zurückgegeben</Tag>
@@ -150,7 +150,7 @@ export const SPALTEN: TableColumnType<AusleihZeile>[] = [
     ),
   },
   {
-    title: "Ausleihende:r",
+    title: "Ausgeliehen von",
     key: "entleiher",
     render: (_: unknown, z: AusleihZeile) => (
       <span data-rolle="radio-leihe-entleiher">{z.entleiher}</span>
@@ -251,7 +251,8 @@ function Filterleiste({
       />
       <DatePicker
         popupAlign={WAEHLER_IM_BILD}
-        aria-label="Ausgeliehen von"
+        aria-label="Ausgeliehen ab"
+        placeholder="Ausgeliehen ab"
         format="DD.MM.YYYY"
         value={tag(filter.von)}
         // ⛔ Die Adresszeile fuehrt IMMER `YYYY-MM-DD` — die deutsche Anzeigeform oben ist
@@ -263,6 +264,7 @@ function Filterleiste({
       <DatePicker
         popupAlign={WAEHLER_IM_BILD}
         aria-label="Ausgeliehen bis"
+        placeholder="Ausgeliehen bis"
         format="DD.MM.YYYY"
         value={tag(filter.bis)}
         onChange={(gewaehlt) =>
@@ -362,7 +364,7 @@ export function AusleihenTabelle({
               <StatusMarke aktiv={z.aktiv} />
             </div>
             <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-entleiher">
-              {z.entleiher}
+              Ausgeliehen von {z.entleiher}
             </span>
             <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-ausgeliehen">
               Ausgeliehen: {z.ausgeliehenText}

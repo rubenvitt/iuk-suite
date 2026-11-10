@@ -34,14 +34,16 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * (Begruendung dort).
  */
 export const UAV_NAV: SuiteNavItem[] = [
-  { key: "teilnehmer", title: "Teilnehmer", href: "/admin", ikon: "teilnehmer", abschnitt: "Verwaltung" },
-  { key: "katalog", title: "Aufgabenkatalog", href: "/admin/katalog", ikon: "katalog", abschnitt: "Verwaltung" },
+  // `unterseiten`: `/admin/teilnehmer/<id>` markiert „Teilnehmer" mit (IDA-389); der
+  // längere `/admin/katalog` gewinnt für seine eigenen Unterseiten.
+  { key: "teilnehmer", title: "Teilnehmer", href: "/admin", ikon: "teilnehmer", abschnitt: "Verwaltung", unterseiten: true },
+  { key: "katalog", title: "Aufgabenkatalog", href: "/admin/katalog", ikon: "katalog", abschnitt: "Verwaltung", unterseiten: true },
 
   // `href: "/"` IST ZUGLEICH DER WURZEL-FALLBACK VON `aktiverEintrag`
   // (`core/shell/SuiteNav.tsx`). Bis IDA-389 hiess das: auf `/admin/teilnehmer/<id>`
   // trug „Trainingsansicht" die Markierung, weil der Pfad auf keinen Eintrag ENDET.
-  // Seither schlaegt `aktiverEintrag` eine Unterseite dem Eintrag zu, unter dem sie
-  // liegt (hier „Teilnehmer", `aria-current="true"`), und die Wurzel bleibt fuer
-  // Seiten, die unter gar keinem Eintrag liegen.
+  // Seither traegt „Teilnehmer" `unterseiten` und nimmt die Markierung
+  // (`aria-current="true"`); die Wurzel bleibt fuer Seiten, die unter gar
+  // keinem Eintrag mit diesem Opt-in liegen.
   { key: "training", title: "Trainingsansicht", href: "/", ikon: "training", abschnitt: "Ansehen" },
 ];

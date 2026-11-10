@@ -711,7 +711,7 @@ function StartenKnopf({ surveyId }: { surveyId: number }) {
   return (
     <Popconfirm
       title="Diesen Entwurf jetzt starten?"
-      description="Läuft bereits ein Feedback, ersetzt dieser Abend es als aktive Umfrage."
+      description="Läuft bereits eine Umfrage, wird sie dabei beendet."
       okText="Starten"
       cancelText="Abbrechen"
       okButtonProps={{ loading: laeuft }}

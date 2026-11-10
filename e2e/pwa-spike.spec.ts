@@ -229,5 +229,5 @@ test("Admin-Seite landet nicht im SW-Cache", async ({ page }) => {
   // bliebe der Test auch bei einem leeren, nichtssagenden Dokument gruen.
   expect(cached.html).toContain("qr-login-hint");
   expect(cached.html).not.toContain("qr-admin");
-  expect(cached.html).not.toContain("Presets verwalten");
+  expect(cached.html).not.toContain("Schnellzugriffe verwalten");
 });

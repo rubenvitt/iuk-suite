@@ -194,3 +194,46 @@
   background: #1f2328;
   border: 2px solid #fff;
 }
+
+/*
+ * Speicherleiste (IDA-390). Im Fluss am Ende des Formulars; ist etwas ungespeichert, klebt sie unten im
+ * Fenster, solange das Formular im Bild ist. Weil `sticky` ihren Platz im Fluss behält, verdeckt sie am
+ * Formularende nichts; `scroll-padding` hält ein per Tab angesprungenes Feld über ihr. Grund und Linie aus
+ * den Suite-Variablen mit Dunkelzweig (`globals.css`), nie `--ant-*` (Falle 2).
+ */
+.speicherleiste {
+  display: flex;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-inline-size: 0;
+}
+.speicherleiste[data-klebt] {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 3;
+  padding-block: 12px calc(12px + env(safe-area-inset-bottom));
+  background: var(--iuk-grund);
+  border-block-start: 1px solid var(--iuk-linie);
+}
+:global(html):has(.speicherleiste[data-klebt]) {
+  scroll-padding-block-end: calc(72px + env(safe-area-inset-bottom));
+}
+@media print {
+  .speicherleiste[data-klebt] { position: static; }
+}
+.ungespeichert { color: var(--iuk-tinte); font-weight: 600; }
+
+/* Die Vorschau zeigt Ungespeichertes: kurze Statusmarke, Text plus 3px Kante statt Farbe (Falle 3). */
+.entwurfStatus:empty { display: none; }
+.entwurfMarke {
+  display: inline-block;
+  max-inline-size: 100%;
+  padding: 2px 8px;
+  border-inline-start: 3px solid var(--iuk-tinte);
+  background: var(--iuk-flaeche-aktiv);
+  color: var(--iuk-tinte);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
