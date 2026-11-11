@@ -1,10 +1,10 @@
 "use client";
 
 import dayjs, { type Dayjs } from "dayjs";
-import type { FocusEvent } from "react";
-import { DatePicker, type DatePickerProps } from "antd";
+import { useMemo, useRef, type FocusEvent } from "react";
+import { DatePicker, type DatePickerProps, type FormInstance, type FormRule } from "antd";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
-import { MONAT_FORMATE, monatAusPicker, monatAusText } from "./monat";
+import { keinMonat, MONAT_FORMATE, monatAusPicker, monatAusText } from "./monat";
 
 type MonatsFeldProps = Omit<
   DatePickerProps,
@@ -67,4 +67,44 @@ export function MonatsFeld({ value, onChange, onUngueltig, ...rest }: MonatsFeld
       onBlur={verlassen}
     />
   );
+}
+
+/**
+ * IDA-403 — DIE FELDREGEL ZUM MONATSFELD in einem antd-Formular. Das Feld
+ * meldet den ungueltigen Text (`onUngueltig`), die Regel macht daraus die
+ * Meldung am Feld und haelt das Absenden auf.
+ *
+ * `pflicht` ersetzt `required: true` — beide Regeln nebeneinander zeigten zu
+ * einem Nicht-Monat zwei Saetze. Das Pflichtzeichen setzt der Aufrufer dann
+ * selbst (`required` am `Form.Item`).
+ *
+ * `vergessen` gehoert neben jedes `resetFields`: der getippte Text haengt nicht
+ * am Formularspeicher.
+ */
+export function useMonatsPruefung(
+  form: FormInstance,
+  name: string,
+  pflicht?: string,
+): { onUngueltig: (text: string | null) => void; regel: FormRule; vergessen: () => void } {
+  const ungueltig = useRef<string | null>(null);
+  // Stabil, damit `vergessen` in Effekt-Abhaengigkeiten stehen darf.
+  return useMemo(() => ({
+    onUngueltig(text: string | null) {
+      const vorher = ungueltig.current;
+      ungueltig.current = text;
+      // Auch beim Verschwinden neu pruefen: sonst bliebe die Meldung stehen,
+      // wenn der korrigierte Monat derselbe ist wie der alte Wert.
+      if (text || vorher) void form.validateFields([name]).catch(() => undefined);
+    },
+    regel: {
+      validator: async (_regel, wert: Dayjs | null | undefined) => {
+        const text = ungueltig.current;
+        if (text) throw new Error(keinMonat(text));
+        if (pflicht && !wert) throw new Error(pflicht);
+      },
+    },
+    vergessen() {
+      ungueltig.current = null;
+    },
+  }), [form, name, pflicht]);
 }

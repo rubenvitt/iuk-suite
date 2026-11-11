@@ -248,3 +248,62 @@ describe("Der Dialog haelt die Antwort nicht selbst in der Hand", () => {
     expect(typeof trichter.mock.calls[0][0]).toBe("function");
   });
 });
+
+/** IDA-403 — tippt in das Monatsfeld und verlässt es, wie jemand, der weitertabbt. */
+async function tippeMonat(text: string): Promise<HTMLInputElement> {
+  const feld = queryPortal<HTMLInputElement>("input[aria-label='Verfall']");
+  await act(async () => { feld.focus(); });
+  await fuellPortal("input[aria-label='Verfall']", text);
+  await act(async () => { feld.blur(); });
+  await warte();
+  await warte();
+  return feld;
+}
+
+async function sende(): Promise<void> {
+  await act(async () => {
+    queryPortal<HTMLFormElement>("[data-rolle='aussondern']")
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
+  await warte();
+  await warte();
+}
+
+describe("Getippter Verfall (IDA-403)", () => {
+  it.each([["03/2031"], ["3/2031"], ["03.2031"], ["2031-03"]])(
+    "nimmt getipptes „%s“ als März 2031 an",
+    async (text) => {
+      await zeige();
+      await oeffne();
+      const feld = await tippeMonat(text);
+      expect(feld.value).toBe("03/2031");
+      await fuellPortal("input[aria-label='Kommentar']", "beschaedigt");
+      await sende();
+      expect(mocks.aussondern.mock.calls[0][0]).toMatchObject({ verfall: "2031-03" });
+    },
+  );
+
+  it("verwirft keinen Nicht-Monat still, sondern meldet ihn am Feld", async () => {
+    await zeige();
+    await oeffne();
+    const feld = await tippeMonat("13/2031");
+    expect(document.body.textContent).toContain("„13/2031“ ist kein Monat.");
+    expect(feld.value).toBe("13/2031");
+    await fuellPortal("input[aria-label='Kommentar']", "beschaedigt");
+    await sende();
+    expect(mocks.aussondern).not.toHaveBeenCalled();
+  });
+
+  it("vergisst den Nicht-Monat beim naechsten Oeffnen", async () => {
+    await zeige();
+    await oeffne();
+    await tippeMonat("13/2031");
+    await clickElement(knopfMitText("Abbrechen"));
+    await warte();
+    await oeffne();
+    expect(queryPortal<HTMLInputElement>("input[aria-label='Verfall']").value).toBe("01/2020");
+    await fuellPortal("input[aria-label='Kommentar']", "beschaedigt");
+    await sende();
+    expect(mocks.aussondern).toHaveBeenCalledTimes(1);
+  });
+});

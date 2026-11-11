@@ -254,7 +254,7 @@ describe("VerfallEditor — Bestand und Verfall je Artikel (IDA-232)", () => {
     // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) — volle 44px-Bedienhoehe.
     expect(queryAll(`${BREIT} .ant-picker-small`)).toHaveLength(0);
     expect(query<HTMLInputElement>(`${BREIT} [aria-label='Verfall Mullbinde']`).value)
-      .toBe("2027-03");
+      .toBe("03/2027");
     expect(queryAll(`${BREIT} .ant-form-item`)).toHaveLength(0);
 
     const quelle = readFileSync(
@@ -265,6 +265,74 @@ describe("VerfallEditor — Bestand und Verfall je Artikel (IDA-232)", () => {
     expect(quelle).not.toContain("AMPEL_TON");
     expect(quelle).not.toContain("ArtikelDrawer");
     expect(quelle).not.toMatch(/\bForm(?:\.Item)?\b/);
+  });
+});
+
+/** IDA-403 — tippt in die geöffnete Zelle und verlässt sie, wie jemand, der weiterklickt. */
+async function tippeInZelle(artikelName: string, text: string): Promise<HTMLInputElement> {
+  await clickElement(verfallKnopf(artikelName));
+  await warte();
+  const feld = query<HTMLInputElement>(`${BREIT} [aria-label='Verfall ${artikelName}']`);
+  await act(async () => {
+    feld.focus();
+  });
+  await fill(`${BREIT} [aria-label='Verfall ${artikelName}']`, text);
+  await act(async () => {
+    feld.blur();
+  });
+  await warte();
+  await warte();
+  return feld;
+}
+
+describe("VerfallEditor — getippter Monat (IDA-403)", () => {
+  it.each([["05/2027"], ["5/2027"], ["05.2027"], ["2027-05"]])(
+    "speichert getipptes „%s“ als Mai 2027",
+    async (text) => {
+      await mountListe();
+      await tippeInZelle("Mullbinde", text);
+      expect(mocks.setzen).toHaveBeenCalledTimes(1);
+      expect(mocks.setzen).toHaveBeenCalledWith({
+        lagerortId: "fz-1",
+        artikelId: "a1",
+        verfall: "2027-05",
+      });
+      expect(verfallAnzeige("Mullbinde")).toBe("05/27");
+    },
+  );
+
+  it("verwirft keinen Nicht-Monat still, sondern meldet ihn", async () => {
+    await mountListe();
+    const feld = await tippeInZelle("Mullbinde", "13/2027");
+    expect(mocks.setzen).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("„13/2027“ ist kein Monat.");
+    expect(feld.isConnected).toBe(true);
+    expect(feld.value).toBe("13/2027");
+    // Die Meldung haengt am Feld, nicht am Fehlersatz der Tabelle.
+    const meldung = document.getElementById(feld.getAttribute("aria-describedby") ?? "");
+    expect(meldung?.textContent).toBe("„13/2027“ ist kein Monat. Bitte als MM/JJJJ eingeben.");
+    expect(feld.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("loescht mit einem gueltigen Monat keinen fremden Schreibfehler", async () => {
+    mocks.setzen.mockResolvedValueOnce({ ok: false, fehler: "Artikel steht an diesem Lagerort nicht im Soll." });
+    await mountListe();
+    await monatWaehlen("Mullbinde", "2027-05");
+    expect(document.body.textContent).toContain("Artikel steht an diesem Lagerort nicht im Soll.");
+    await tippeInZelle("Mullbinde", "13/2027");
+    expect(document.body.textContent).toContain("Artikel steht an diesem Lagerort nicht im Soll.");
+  });
+
+  it("bricht mit Escape ab, ohne zu speichern", async () => {
+    await mountListe();
+    const feld = await tippeInZelle("Mullbinde", "13/2027");
+    await act(async () => {
+      feld.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    await warte();
+    expect(mocks.setzen).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain("ist kein Monat");
+    expect(verfallAnzeige("Mullbinde")).toBe("03/27");
   });
 });
 
@@ -526,7 +594,7 @@ describe("Der Dialog liest denselben Monat wie die Zelle", () => {
 
     const dialog = await dialogOeffnen("a1", "Mullbinde", "Aussondern");
     expect(dialog.querySelector<HTMLInputElement>("input[aria-label='Verfall']")!.value)
-      .toBe("2027-09");
+      .toBe("09/2027");
   });
 });
 
@@ -604,7 +672,7 @@ describe("Der Dialog beim ZWEITEN Öffnen", () => {
 
     dialog = await dialogOeffnen("a1", "Mullbinde", "Aussondern");
     expect(dialog.querySelector<HTMLInputElement>("input[aria-label='Verfall']")!.value)
-      .toBe("2027-09");
+      .toBe("09/2027");
   });
 });
 

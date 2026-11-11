@@ -37,9 +37,11 @@ test("planen: Projekt, Aufgabe, Event mit Bar, Konflikt, Kalender, Übersicht, l
   const flyin = page.getByRole("dialog");
   await flyin.getByLabel("Titel").fill(projekt);
   await flyin.getByRole("button", { name: "Anlegen" }).click();
-  await page.waitForURL(/\/v\/[^/?]+$/);
+  await page.waitForURL(/\/projekte\/[^/?]+$/);
   await warteAufGestreamteInhalte(page);
   await expect(page.getByRole("heading", { name: projekt })).toBeVisible();
+  // IDA-398: die Seite liegt unter ihrer Liste, die Seitenleiste markiert „Projekte“.
+  await expect(page.locator("a[aria-current]", { hasText: /^Projekte$/ }).first()).toBeVisible();
   const projektUrl = page.url();
 
   // Aufgabe ohne Zuständige anlegen, dann abhaken.
@@ -57,12 +59,17 @@ test("planen: Projekt, Aufgabe, Event mit Bar, Konflikt, Kalender, Übersicht, l
   await zeit(evFlyin.getByLabel("Ende"), `${datum} 22:00`);
   await evFlyin.getByRole("switch", { name: /Bar belegen/ }).click();
   await evFlyin.getByRole("button", { name: "Anlegen" }).click();
-  await page.waitForURL((u) => /\/v\/[^/?]+$/.test(u.pathname) && u.href !== projektUrl);
+  await page.waitForURL(/\/events\/[^/?]+$/);
   await warteAufGestreamteInhalte(page);
   await expect(page.getByRole("heading", { name: event })).toBeVisible();
   await expect(page.getByRole("link", { name: projekt })).toBeVisible();
   await expect(page.getByText("Bar belegt")).toBeVisible();
+  await expect(page.locator("a[aria-current]", { hasText: /^Events$/ }).first()).toBeVisible();
   const eventUrl = page.url();
+
+  // Die alte Adresse `/v/<id>` führt auf die neue.
+  await oeffne(page, `/v/${new URL(eventUrl).pathname.split("/").pop()}`);
+  await expect(page).toHaveURL((u) => u.pathname === new URL(eventUrl).pathname);
 
   // Ein zweites Bar-Event zur selben Zeit lässt sich nicht speichern.
   await oeffne(page, "/events");

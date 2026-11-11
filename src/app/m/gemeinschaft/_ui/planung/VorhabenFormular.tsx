@@ -9,7 +9,7 @@ import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 import { vorhabenSpeichernAction } from "../../_actions/vorhaben";
 import { barKonflikte, barKonfliktName } from "../../_lib/vorhabenBar";
 import type { FeldFehler } from "../../_lib/vorhabenErgebnis";
-import { zeitraumText, type FormularDaten, type VorhabenVorlage } from "../../_lib/vorhabenTypen";
+import { vorhabenPfad, zeitraumText, type FormularDaten, type VorhabenVorlage } from "../../_lib/vorhabenTypen";
 import { alsDayjs, ausDayjs, tagAlsDayjs, tagAusDayjs } from "./datum";
 import { fokussiereWennFrei } from "./fokus";
 import s from "./planung.module.css";
@@ -113,7 +113,7 @@ export function VorhabenFormular({ vorlage, daten, titelRef, onFertig }: {
         void message.success("Gespeichert.");
       } else {
         void message.success(art === "event" ? "Event angelegt. Jetzt Aufgaben verteilen." : "Projekt angelegt. Jetzt Aufgaben verteilen.");
-        router.push(`/v/${r.wert}`);
+        router.push(vorhabenPfad(art, r.wert));
       }
       onFertig();
     } catch {

@@ -8,6 +8,7 @@ import { sperrzeitLoeschenAction } from "../../_actions/vermietung";
 import { konflikte, type Eintrag } from "../../_lib/belegung";
 import type { AnfrageDTO } from "../../_lib/vermietungTypen";
 import { eingangText, zeitraumText } from "../../_lib/vermietungText";
+import { vorhabenPfad } from "../../_lib/vorhabenTypen";
 import type { Entscheidung } from "./Entscheidung";
 import { Konfliktliste, Zustandschip } from "./teile";
 import { Vertragskasten } from "./Vertragskasten";
@@ -56,7 +57,7 @@ export function Eintragsflyin({ eintrag, anfragen, eintraege, schliessen, entsch
               {eintrag.eventId ? (
                 <>
                   <div className={s.neben}>Kommt aus einem Event der Gemeinschaft. Ändern oder freigeben geht nur dort.</div>
-                  <div><Button href={`/v/${eintrag.eventId}`}>Zum Event</Button></div>
+                  <div><Button href={vorhabenPfad("event", eintrag.eventId)}>Zum Event</Button></div>
                 </>
               ) : (
                 <div>

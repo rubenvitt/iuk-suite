@@ -72,7 +72,7 @@ Entscheidungen stehen an IDA-309 (POC) und IDA-314 in Zunder.
   `ehrlich-gesagt.localtest.me`) ist ein Einstiegshost (`EINSTIEGSHOSTS` in `core/registry.ts`): jeder Pfad
   geht nach `k/…`, die Wurzel ist der Einwurf ohne Secret (`k/page.tsx`, nur auf diesem Host). Aushang und
   QR-Code zeigen dann diese Adresse; Secret-Links gelten weiter. Nicht in `SUITE_HOST_FEEDBACK` eintragen.
-  Gegen Bots: Honigtopf-Feld und Cloudflare Turnstile (`_lib/ehrlich/turnstile.ts`, aktiv mit
+  Gegen Bots: Honigtopf-Feld und Cloudflare Turnstile (`core/turnstile`, aktiv mit
   `TURNSTILE_SITE_KEY` und `TURNSTILE_SECRET`, optional `TURNSTILE_HOSTNAMES`), für beide Einwurfwege.
 - **Verwaltung:** `(admin)/ehrlich-gesagt` und der Druck `(print)/ehrlich-gesagt-aushang`. Riegel ist allein
   die Lesegruppe (`_lib/ehrlich/zugang.ts`, Vorgabe `kummerkasten-leser`, `SUITE_LESER_GROUP_FEEDBACK`) —

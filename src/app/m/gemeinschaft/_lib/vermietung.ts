@@ -129,6 +129,11 @@ function kollisionsSatz(k: Eintrag): string {
 }
 
 /** Legt eine Anfrage an, wenn der Zeitraum frei ist (Prüfung und Schreiben in einer Transaktion). Gibt den Code zurück. */
+/** Der Statuscode einer schon angelegten Sendung (IDA-358) — oder null, wenn sie neu ist. */
+export function codeDerSendung(db: GemeinschaftDb, sendung: string): string | null {
+  return db.select({ code: anfrage.code }).from(anfrage).where(eq(anfrage.id, sendung)).get()?.code ?? null;
+}
+
 export function legeAnfrageAn(db: GemeinschaftDb, w: AnfrageWert, mitglied: boolean, jetzt: number, sendung?: string): string {
   return db.transaction((tx) => {
     // IDA-358: dieselbe Sendung schon angelegt (nur die Antwort ging verloren) — derselbe Statuslink wie damals.

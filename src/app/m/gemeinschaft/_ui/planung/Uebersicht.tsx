@@ -7,7 +7,7 @@ import { Card } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import type { UebersichtDTO } from "../../_lib/uebersicht";
-import { faelligText, kalendertagMitWochentag, zeitraumText } from "../../_lib/vorhabenTypen";
+import { faelligText, kalendertagMitWochentag, vorhabenPfad, zeitraumText } from "../../_lib/vorhabenTypen";
 import { tagInZone } from "../../_lib/zeit";
 import s from "./planung.module.css";
 import { BesetztChip, Datumsblock, VertragChip } from "./teile";
@@ -37,7 +37,7 @@ export function Uebersicht({ u, heute }: { u: UebersichtDTO; heute: string }) {
           {u.termine.length === 0 ? <p className={s.neben} style={{ margin: 0 }}>Nichts geplant.</p> : (
             <div className={s.liste}>
               {u.termine.map((t) => (
-                <Link key={`${t.art}-${t.id}`} href={t.art === "event" ? `/v/${t.id}` : `/vermietung/anfragen?id=${encodeURIComponent(t.id)}`}
+                <Link key={`${t.art}-${t.id}`} href={t.art === "event" ? vorhabenPfad("event", t.id) : `/vermietung/anfragen?id=${encodeURIComponent(t.id)}`}
                   className={s.terminZeile} data-termin={t.art}>
                   <Datumsblock ms={t.von} />
                   <span className={s.terminText}>
@@ -58,7 +58,7 @@ export function Uebersicht({ u, heute }: { u: UebersichtDTO; heute: string }) {
                 {u.luecken.map((l) => {
                   const wann = l.faellig ? faelligText(l.faellig, heute)!.text : l.von !== null ? kalendertagMitWochentag(tagInZone(l.von)) : "";
                   return (
-                    <Link key={l.aufgabeId} href={`/v/${l.vorhabenId}`} className={s.lueckeZeile} data-luecke={l.aufgabeId}>
+                    <Link key={l.aufgabeId} href={vorhabenPfad(l.vorhabenArt, l.vorhabenId)} className={s.lueckeZeile} data-luecke={l.aufgabeId}>
                       <span className={s.terminText}>
                         <span className={s.terminTitel}>{l.titel}</span>
                         <span className={s.neben}>{l.vorhabenTitel}{wann ? ` · ${wann}` : ""}</span>

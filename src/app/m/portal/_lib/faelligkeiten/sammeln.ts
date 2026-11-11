@@ -6,8 +6,8 @@
  *
  * Kein `"use client"` (Falle 6).
  */
-import { eintragSichtbar, type Faelligkeit } from "@/core/faelligkeiten";
-import { sortiereFaelligkeiten } from "./anzeige";
+import { eintragSichtbar, type Dringlichkeit, type Faelligkeit } from "@/core/faelligkeiten";
+import { sortiereFaelligkeiten, zaehleEintraege } from "./anzeige";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { QUELLEN, type FaelligkeitsQuelle } from "./quellen";
 
@@ -16,16 +16,13 @@ export interface FaelligkeitsGruppe {
   titel: string;
   /** `https://<host des Moduls>` oder `null`, wenn das Modul keinen Host hat — dann ohne Link. */
   basisUrl: string | null;
-  /** Sortiert: überfällig zuerst, dann nach Frist. */
+  /** Sortiert: überfällig zuerst, dann fällig, dann bald fällig, je nach Frist. */
   eintraege: Faelligkeit[];
   /** `true`: die Quelle war nicht lesbar, `eintraege` ist leer und sagt nichts. */
   fehler: boolean;
 }
 
-export interface Zaehlung {
-  ueberfaellig: number;
-  bald: number;
-}
+export type Zaehlung = Record<Dringlichkeit, number>;
 
 /** Die Quellen, die diese Person sehen darf — leer heißt: weder Seite noch Kachel noch Menüeintrag. */
 export function sichtbareQuellen(
@@ -63,13 +60,5 @@ export function nurSichtbare(
 }
 
 export function zaehle(gruppen: readonly FaelligkeitsGruppe[]): Zaehlung {
-  let ueberfaellig = 0;
-  let bald = 0;
-  for (const g of gruppen) {
-    for (const e of g.eintraege) {
-      if (e.dringlichkeit === "ueberfaellig") ueberfaellig += 1;
-      else bald += 1;
-    }
-  }
-  return { ueberfaellig, bald };
+  return zaehleEintraege(gruppen.flatMap((g) => g.eintraege));
 }

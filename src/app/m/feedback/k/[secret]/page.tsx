@@ -8,7 +8,7 @@ import { einwerfenAktion } from "../../_lib/ehrlich/aktionen";
 import { istKastenSecret } from "../../_lib/ehrlich/daten";
 import { ladeLeserNamen, namensreihe } from "../../_lib/ehrlich/leser";
 import { EHRLICH_THEMEN } from "../../_lib/ehrlich/themen";
-import { turnstileSiteKey } from "../../_lib/ehrlich/turnstile";
+import { turnstileSiteKey } from "@/core/turnstile/server";
 import { Blatt } from "../Blatt";
 import { Einwurf } from "./Einwurf";
 

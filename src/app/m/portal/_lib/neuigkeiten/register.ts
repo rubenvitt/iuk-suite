@@ -20,6 +20,7 @@ import diensteBearbeiten from "./notizen/portal/2026-11-10-dienste-bearbeiten";
 import eineSuche from "./notizen/portal/2026-11-10-eine-suche";
 import neuigkeitenMarkiert from "./notizen/portal/2026-11-10-neuigkeiten-markiert";
 import wasStehtAnFiltern from "./notizen/portal/2026-11-10-was-steht-an-filtern";
+import heuteFaellig from "./notizen/portal/2026-11-10-heute-faellig";
 import zeilenaktionenImMenue from "./notizen/portal/2026-11-10-zeilenaktionen-im-menue";
 import sucheUeberAlleModule from "./notizen/portal/2026-10-31-suche-ueber-alle-module";
 import springenMitStrgK from "./notizen/portal/2026-10-31-springen-mit-strg-k";
@@ -371,6 +372,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   eineSuche,
   neuigkeitenMarkiert,
   wasStehtAnFiltern,
+  heuteFaellig,
   zeilenaktionenImMenue,
   sucheUeberAlleModule,
   springenMitStrgK,

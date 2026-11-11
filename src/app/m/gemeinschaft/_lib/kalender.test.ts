@@ -24,7 +24,7 @@ describe("Kalender der Leitung", () => {
     const { von, bis } = kalenderFenster("2026-11-10");
     const e = kalenderEintraege(db, von, bis);
     expect(e.map((x) => [x.art, x.titel, x.href])).toEqual([
-      ["event", "Glühweinabend", `/v/${ev}`],
+      ["event", "Glühweinabend", `/events/${ev}`],
       ["angefragt", "Bar: offen", "/vermietung/anfragen?id=offen"],
       ["zugesagt", "Bar: zusage", "/vermietung/anfragen?id=zusage"],
       ["gesperrt", "Dienstabend Bereitschaft", "/vermietung/sperrzeiten"],

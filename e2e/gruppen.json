@@ -5,7 +5,7 @@
   },
   {
     "name": "eimer-2",
-    "specs": "e2e/anfrageabbruch.spec.ts e2e/aufgaben-breiten.spec.ts e2e/files-mobil.spec.ts e2e/gemeinschaft-mietvertrag.spec.ts e2e/lagerbuch-auffuellen.spec.ts e2e/lagerbuch-fahrzeugblatt-kennzahlen.spec.ts e2e/lagerbuch-sammelaktionen.spec.ts e2e/lagerbuch-vorlagenfeld.spec.ts e2e/launcher.spec.ts e2e/modulnavigation.spec.ts e2e/select-feldschrift.spec.ts e2e/suite-audit.spec.ts"
+    "specs": "e2e/anfrageabbruch.spec.ts e2e/aufgaben-breiten.spec.ts e2e/files-mobil.spec.ts e2e/gemeinschaft-mietvertrag.spec.ts e2e/lagerbuch-auffuellen.spec.ts e2e/lagerbuch-fahrzeugblatt-kennzahlen.spec.ts e2e/lagerbuch-sammelaktionen.spec.ts e2e/lagerbuch-vorlagenfeld.spec.ts e2e/launcher.spec.ts e2e/modulnavigation.spec.ts e2e/renderschleife.spec.ts e2e/select-feldschrift.spec.ts e2e/suite-audit.spec.ts"
   },
   {
     "name": "eimer-3",

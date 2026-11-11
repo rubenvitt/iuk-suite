@@ -534,3 +534,23 @@ trifft oder eine Abhilfe umbauen will.
     Fokus nur zurückholen, wenn er verloren ist — auf `body` oder noch in der schließenden Schublade
     (`fokusVerloren`). Ein Merker „seit dem Schließen geklickt" reicht nicht: eine Taste während der
     Schließanimation (Esc, dann ↓) landete damit doch auf `body`.
+25. **Ein umgeleiteter RSC-Abruf bleibt über http offen** (uav, IDA-401, gemessen 10.11.2026 im
+    gebauten Stand). Ein Link auf `/api/auth/signin?callbackUrl=…` wurde von `next/link` vorgeladen; Auth.js
+    leitet per 302 auf `/login?callbackUrl=…` um und lässt dabei den Cache-Schlüssel `_rsc` fallen. Der
+    Server ergänzt ihn per 307 selbst, aus den mitgeschickten Router-Köpfen und mit SHA-256. Der Browser
+    rechnet ihn auf einem **unsicheren Ursprung** (`http://*.localtest.me`, kein `crypto.subtle`) mit dem
+    Ersatzverfahren — die beiden Schlüssel unterscheiden sich, und der Router hält die Antwort für falsch.
+    Er fragt noch einmal an und lässt die erste Antwort **ungelesen** liegen (Next 16.3,
+    `client/components/router-reducer/fetch-server-response.js`, Funktion `createFetch`: „TODO: We should
+    abort the previous request."). Eine ungelesene `fetch`-Antwort meldet Chromium nie als fertig: zwei
+    RSC-Abrufe an `/login` standen nach 10 s noch offen, `networkidle` kam nie.
+    **Gegenprobe:** derselbe Lauf mit nachgerüstetem `crypto.subtle` (wie auf https) — der Browser rechnet
+    denselben Schlüssel wie der Server, kein Abruf bleibt offen. In Produktion tritt es also nicht auf,
+    wohl aber in `next dev` auf `*.localtest.me` und in jedem e2e-Lauf. Dasselbe gilt für jede
+    Umleitung, die `_rsc` verliert, auch die Anmelde-Umleitung in `src/proxy.ts` für Abgemeldete
+    (die Weiche sieht `_rsc` und die Router-Köpfe gar nicht, Next entfernt sie vorher).
+    **Abhilfe:** Links nicht auf Ziele, die umleiten. Zur Anmeldung führt ein Link direkt auf
+    `/login?callbackUrl=…` (das Formular macht ihn gegen den Modul-Host absolut, `core/auth/callbackUrl.ts`);
+    über `/api/auth/signin` löste Auth.js ein relatives Ziel außerdem gegen `AUTH_URL` auf und führte auf
+    das Portal statt zurück ins Modul. Wo ein Link auf eine umleitende Adresse unvermeidlich ist:
+    `prefetch={false}`.

@@ -121,7 +121,7 @@ describe("Sperrzeitenliste", () => {
   it("abgeleitete Event-Sperre verlinkt aufs Event und ist nicht löschbar", async () => {
     await mount(<App><Sperrzeitenliste anfragen={ANFRAGEN} sperren={SPERREN} heute="2026-11-01" /></App>);
     const zeile = queryAll("tr").find((r) => r.textContent?.includes("Event: Glühweinabend"))!;
-    expect(knopfIn(zeile, "Zum Event")?.getAttribute("href")).toBe("/v/v1");
+    expect(knopfIn(zeile, "Zum Event")?.getAttribute("href")).toBe("/events/v1");
     expect(knopfIn(zeile, "Löschen")).toBeUndefined();
   });
 
@@ -150,7 +150,7 @@ describe("Belegungsansicht", () => {
     await clickElement(knopfIn(zelle("2026-11-13"), "18:00 Event: Glühweinabend")!);
     const details = queryPortal('[data-testid="eintrag-details"]');
     expect(details.textContent).toContain("Kommt aus einem Event der Gemeinschaft.");
-    expect(knopfIn(details, "Zum Event")?.getAttribute("href")).toBe("/v/v1");
+    expect(knopfIn(details, "Zum Event")?.getAttribute("href")).toBe("/events/v1");
     expect(knopfIn(details, "Sperrzeit löschen")).toBeUndefined();
   });
 });

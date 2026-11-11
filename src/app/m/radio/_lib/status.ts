@@ -1,6 +1,6 @@
+import { einsatzbereitschaftAus } from "./einsatzbereitschaft";
 /**
- * Der eigene Status-Chip des Ausleihwegs: Union, Etiketten, Toene und die vier Hexpaare
- * (Entscheidung E3, Spec 1 §4.6.2,
+ * Der eigene Status-Chip des Ausleihwegs: Union, Etiketten, Toene und die vier Hexpaare (Entscheidung E3, Spec 1 §4.6.2,
  * `docs/superpowers/specs/2026-08-17-radio-modul-design.md:3671-3697`).
  *
  * ⛔ KEIN `"use client"` — Falle 6 (`CLAUDE.md`, Punkt 6). Diese Datei wird von einer
@@ -132,57 +132,57 @@ export const STATUS_HEX: Record<StatusTon, { hell: string; dunkel: string }> = {
 /**
  * Der FREITEXT der Spalte `devices.status` -> einer der vier Zustaende.
  *
- * ⛔ ⬜ A-L13, ZWEITER TEIL — DIE ZUSAMMENFALTUNG `NULL -> frei`, UND SIE IST EINE
- * BETREIBERENTSCHEIDUNG, KEIN VERGESSENER ZWEIG. Beleg:
- * `.superpowers/sdd/planteil3/progress.md:22-32`, woertlich: „`status = NULL` faellt auf
- * ‚frei' zurueck … Kein fuenfter Chip-Zustand, kein eigener Ton ‚unbekannt', keine Sperre
- * der Ausleihe."
+ * ⛔ DIE EINTEILUNG IST DIE DER VERWALTUNG (IDA-397): `einsatzbereitschaftAus`
+ * (`_lib/einsatzbereitschaft.ts`) entscheidet, ob ein Geraet raus darf; diese Funktion
+ * waehlt danach nur noch das Etikett. Bis IDA-397 faltete sie nur „Defekt" und „Wartung"
+ * auf gesperrt, und jeder andere Wert („in Reparatur", „ausgemustert", „Sonstiges") lief
+ * als frei durch — ein Geraet in Reparatur liess sich ausleihen.
+ *
+ * ⛔ ⬜ A-L13, ZWEITER TEIL — LEER BLEIBT FREI, UND DAS IST EINE BETREIBERENTSCHEIDUNG,
+ * KEIN VERGESSENER ZWEIG. Beleg: `.superpowers/sdd/planteil3/progress.md:22-32`,
+ * woertlich: „`status = NULL` faellt auf ‚frei' zurueck … Kein fuenfter Chip-Zustand,
+ * kein eigener Ton ‚unbekannt', keine Sperre der Ausleihe." `einsatzbereitschaftAus`
+ * liest leer ebenso als einsatzbereit; IDA-397 aendert daran nichts.
  *
  * ⚠️ DER PREIS IST BEKANNT UND ANGENOMMEN (`progress.md:27-29`): „ein Geraet ohne
- * erfassten Zustand sieht auf der Flaeche aus wie ein geprueft freies. Wo Pflege fehlt,
- * ist das der Flaeche nicht anzusehen."
+ * erfassten Zustand sieht auf der Flaeche aus wie ein geprueft freies."
  *
- * ⚠️ DER PLAN SCHREIBT AN DIESER STELLE DAS GEGENTEIL (`briefs/A12.md:77-78`: „kein
- * stiller Rueckfall auf ‚frei'") — er ist von der Entscheidung ueberholt, und der Vorabscan
- * fuehrt das als Fund F2 (`.superpowers/sdd/planteil3/VORABSCAN-A.md:189-190`).
+ * ⚠️ EIN ALTES „Ausgeliehen" (oder `ON_LOAN`) IM FREITEXT IST EIN DATENREST, KEIN
+ * LEIHSTAND, und zaehlt in beiden Einteilungen als einsatzbereit. Wer es mitliest, sperrt
+ * ein freies Geraet auf Dauer.
  *
- * Die Entscheidung ist zugleich das gemessene Verhalten des Alt-Bestands, an zwei Stellen:
- * `radio-admin/shared/src/loan.ts:19-28` und
- * `radio-inventar/packages/shared/src/schemas/radio-admin-device.schema.ts:48-58`, dort
- * woertlich „anything else — including null, 'Einsatzbereit' and a stale 'Ausgeliehen' —
- * is AVAILABLE".
+ * ⛔ JEDER ANDERE GESPERRTE WERT TRAEGT DAS ETIKETT VON `DEFECT`. Die Ausleihflaeche kennt
+ * vier Zustaende (A-L13, kein fuenfter), und wer etwas anderes als „einsatzbereit"
+ * eintraegt, meint fast immer, dass etwas fehlt — dieselbe Lesart wie in der Verwaltung.
+ * Nur „Wartung" behaelt sein eigenes Etikett, weil der Chip es fuehrt.
  *
- * ⛔ DIESE FUNKTION IST DER EINZIGE FALTUNGSORT DES MODULS. Sie steht hier und nicht in
- * `_db/leihen.ts`, weil A15, A16 UND A18 diese Datei lesen und die Entscheidung damit
- * genau EINMAL im Quelltext steht (`VORABSCAN-A.md:190`, Vorschlag 2). Weil `GeraeteStatus`
- * kein `null` kennt, kann eine rohe Spalte konstruktiv nicht an ihr vorbeilaufen — der
- * Typfehler faellt bei A15 an, nicht erst auf der Flaeche. Das schliesst zugleich den
- * haerteren Folgefall aus `VORABSCAN-A.md:189` (A13): ein Geraet mit `status = NULL` faellt
- * NICHT durch alle vier Statusfilter.
+ * ⚠️ „ausgemustert" faellt rechnerisch ebenfalls auf `DEFECT`, erscheint aber nirgends:
+ * `geraeteMitLeihstand` nimmt es aus der Liste, und `bucheAusleihe` lehnt es als nicht
+ * freigegeben ab (`_db/leihen.ts`). Eine offene Leihe darauf bleibt rueckgebbar.
  *
  * ⛔ SIE LIEFERT NIE `ON_LOAN`, UND DAS STEHT IM TYP STATT NUR IN DIESEM SATZ. Der
  * Leihstand kommt aus der Tabelle `loans`; die Ueberlagerung baut A15 (`_db/leihen.ts`).
- * Der Rueckgabetyp ist deshalb `Exclude<GeraeteStatus, "ON_LOAN">` — ein spaeteres
- * `case "verliehen": return "ON_LOAN"` waere sonst typkorrekt, lint-sauber und liefe durch
- * alle Faelle dieser Datei hindurch, weil die zwei Testfaelle dazu nur ZWEI Eingaben
- * abtasten. Ein Satz, der mehr behauptet als er durchsetzt, ist in diesem Repo ein Fehler
- * und kein Kommentar.
+ * Der Rueckgabetyp ist deshalb `Exclude<GeraeteStatus, "ON_LOAN">`.
  * ⚠️ FUER A15 AENDERT DAS NICHTS: `hatLeihe ? "ON_LOAN" : geraeteZustandAus(...)` weitet
  * sich von selbst auf `GeraeteStatus`.
  *
- * 1:1 aus `radio-admin/shared/src/loan.ts:19-28` (`mapDeviceCondition`), inklusive
- * `trim()`/`toLowerCase()`: die Spalte ist Freitext ohne `enum` (`_db/schema.ts:30`), und
- * ohne Trimmen liefe ein „ Defekt" als frei durch.
+ * ⛔ DIESE FUNKTION IST DER EINZIGE FALTUNGSORT DER AUSLEIHE. Sie steht hier und nicht in
+ * `_db/leihen.ts`, weil A15, A16 UND A18 diese Datei lesen. Weil `GeraeteStatus` kein
+ * `null` kennt, kann eine rohe Spalte konstruktiv nicht an ihr vorbeilaufen.
+ *
+ * `trim()`/`toLowerCase()` wie in `radio-admin/shared/src/loan.ts:19-28`: die Spalte ist
+ * Freitext ohne `enum` (`_db/schema.ts:30`), und ohne Trimmen liefe ein „ Defekt" als
+ * frei durch. `einsatzbereitschaftAus` trimmt genauso.
  */
 export function geraeteZustandAus(
   rohStatus: string | null | undefined,
 ): Exclude<GeraeteStatus, "ON_LOAN"> {
+  if (einsatzbereitschaftAus(rohStatus) === "einsatzbereit") return "AVAILABLE";
+  // Gesperrt: nur noch die Wahl des Etiketts; ob es raus darf, entschied die Zeile davor.
   switch (rohStatus?.trim().toLowerCase()) {
-    case "defekt":
-      return "DEFECT";
     case "wartung":
       return "MAINTENANCE";
     default:
-      return "AVAILABLE";
+      return "DEFECT";
   }
 }

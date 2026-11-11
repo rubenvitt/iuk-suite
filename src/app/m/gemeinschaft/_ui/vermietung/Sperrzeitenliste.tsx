@@ -10,6 +10,7 @@ import { sperrzeitAnlegenAction, sperrzeitLoeschenAction } from "../../_actions/
 import { ueberlappt } from "../../_lib/belegung";
 import { anfrageAlsEintrag, sperreAlsEintrag, type AnfrageDTO, type SperrzeitDTO } from "../../_lib/vermietungTypen";
 import { zeitraumText } from "../../_lib/vermietungText";
+import { vorhabenPfad } from "../../_lib/vorhabenTypen";
 import { zeitpunkt } from "../../_lib/zeit";
 import { useEntscheidung } from "./Entscheidung";
 import { Eintragsflyin } from "./Eintragsflyin";
@@ -89,7 +90,7 @@ export function Sperrzeitenliste({ anfragen, sperren, heute }: { anfragen: Anfra
           {
             title: "Aktion", key: "aktion",
             render: (_: unknown, x: SperrzeitDTO) => (x.eventId
-              ? <Button href={`/v/${x.eventId}`}>Zum Event</Button>
+              ? <Button href={vorhabenPfad("event", x.eventId)}>Zum Event</Button>
               : (
                 <Popconfirm title="Sperrzeit löschen?" okText="Löschen" cancelText="Abbrechen" onConfirm={() => loeschen(x.id)}>
                   <Button>Löschen</Button>

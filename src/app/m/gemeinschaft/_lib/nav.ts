@@ -1,8 +1,8 @@
 import type { SuiteNavItem } from "@/core/shell/types";
 
 /**
- * Die Navigation der Leitung. Ein Event oder Projekt ist eine eigene Seite unter `/v/<id>` und gehört
- * zu „Events“ bzw. „Projekte“. Die Vermietung ist ein eigener Abschnitt: heute nur die Bar (IDA-315).
+ * Die Navigation der Leitung. Ein Event liegt unter `/events/<id>`, ein Projekt unter `/projekte/<id>`: so
+ * markiert die Seitenleiste „Events“ bzw. „Projekte“ (IDA-398). Die Vermietung ist ein eigener Abschnitt: heute nur die Bar (IDA-315).
  */
 export const GEMEINSCHAFT_NAV: SuiteNavItem[] = [
   { key: "uebersicht", title: "Übersicht", href: "/", ikon: "uebersicht" },

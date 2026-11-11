@@ -56,7 +56,7 @@ import { Chip } from "./Chip";
 import { Ikone } from "./ikonen";
 import { KategorieEingabe } from "./KategorieEingabe";
 import { LoeschButton } from "./LoeschButton";
-import { monatAusPicker } from "./monat";
+import { keinMonat, monatAusPicker } from "./monat";
 import { MonatsFeld } from "./MonatsFeld";
 import { OrtVerteilung } from "./OrtVerteilung";
 import { Plakette } from "./Plakette";
@@ -643,7 +643,7 @@ export function ArtikelDrawer({
    */
   async function verfallPruefen(_regel: unknown, wert: Dayjs | null | undefined): Promise<void> {
     const text = verfallUngueltig.current;
-    if (text) throw new Error(`„${text}“ ist kein Monat. Bitte als MM/JJJJ eingeben.`);
+    if (text) throw new Error(keinMonat(text));
     if (!wert && !zugangForm.getFieldValue("ohneVerfall")) {
       throw new Error("Bitte einen Verfallsmonat auswählen.");
     }

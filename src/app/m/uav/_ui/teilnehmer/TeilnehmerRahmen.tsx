@@ -85,15 +85,15 @@ export function TeilnehmerRahmen({
            * wieder auf der Trainingsansicht, also dort, wo man schon war.
            */}
           {/*
-           * `prefetch={false}` (IDA-389): `next/link` lud das Ziel beim
-           * Erscheinen vor. Für Abgemeldete ist das `/api/auth/signin`, das auf
-           * den Suite-Login umleitet — gemessen blieben danach zwei
-           * RSC-Anfragen an `/login` offen, und die Seite kam nie zur Ruhe
-           * (`networkidle` nach 10 s nicht erreicht, ohne den Link nach ~0,4 s).
+           * DIREKT `/login`, NICHT `/api/auth/signin` (IDA-401): Auth.js löst
+           * `/admin` gegen `AUTH_URL` auf, man landete auf der Portal-Verwaltung.
+           * Und das Vorladen lief über zwei Umleitungen; über http zerfiel es
+           * am Cache-Schlüssel, zwei RSC-Abrufe blieben offen (Falle 25).
+           * Den Modul-Host setzt das Anmeldeformular selbst (`core/auth/callbackUrl.ts`).
+           * `/login` antwortet ohne Umleitung, also darf `next/link` wieder vorladen.
            */}
           <Link
-            href={darfVerwalten ? "/admin" : "/api/auth/signin?callbackUrl=%2Fadmin"}
-            prefetch={false}
+            href={darfVerwalten ? "/admin" : "/login?callbackUrl=%2Fadmin"}
             className={styles["rahmen-neben"]}
             data-rolle="uav-verwaltungslink"
           >

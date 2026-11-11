@@ -25,11 +25,11 @@ function lager() {
 }
 
 describe("Was steht an", () => {
-  it("gibt jede Charge mit roter Ampel heraus, abgelaufene als überfällig", () => {
+  it("gibt jede Charge mit roter Ampel heraus, abgelaufene als überfällig, heute ablaufende als fällig", () => {
     const f = verpflegungFaelligkeiten(ELF, lager());
     expect(f.map((x) => [x.titel, x.dringlichkeit, x.art])).toEqual([
       ["Käse · 1 Packung", "ueberfaellig", "MHD"],
-      ["Joghurt · 6 Packungen", "bald", "MHD"],
+      ["Joghurt · 6 Packungen", "faellig", "MHD"],
       ["Würstchen · 2 Packungen", "bald", "Verbrauchsdatum"],
     ]);
     expect(f.every((x) => x.pfad.startsWith("/bestand?stufe=") && x.wo === "Kühlschrank")).toBe(true);

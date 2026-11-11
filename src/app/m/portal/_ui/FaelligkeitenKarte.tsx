@@ -1,6 +1,7 @@
 import { Card } from "antd";
 
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { zaehlungTeile } from "@/app/m/portal/_lib/faelligkeiten/anzeige";
 import type { Zaehlung } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -18,8 +19,7 @@ import { SPACE } from "@/core/theme/tokens";
  * „nichts" sagt, ist auch eine Auskunft.
  */
 export function FaelligkeitenKarte({ zaehlung, ausgefallen }: { zaehlung: Zaehlung; ausgefallen: boolean }) {
-  const { ueberfaellig, bald } = zaehlung;
-  const teile = [ueberfaellig > 0 && `${ueberfaellig} überfällig`, bald > 0 && `${bald} bald fällig`].filter(Boolean);
+  const teile = zaehlungTeile(zaehlung);
   const text = teile.length > 0
     ? teile.join(" · ")
     : ausgefallen ? "Nicht alles war lesbar — sieh in der Liste nach." : "Gerade steht nichts an.";

@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import { Card } from "antd";
 
-import type { Dringlichkeit, Faelligkeit } from "@/core/faelligkeiten";
+import { DRINGLICHKEITEN, type Dringlichkeit, type Faelligkeit } from "@/core/faelligkeiten";
 import { Filterchips } from "@/core/filterchips/Filterchips";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Statuschip } from "@/core/status/Statuschip";
 import {
-  ALLE_FAELLIGKEITEN, DRINGLICHKEIT_TEXT, filtereGruppen, woAnzeige, type FaelligkeitsFilter,
+  ALLE_FAELLIGKEITEN, DRINGLICHKEIT_TEXT, filtereGruppen, woAnzeige, zaehleEintraege, zaehlungTeile, type FaelligkeitsFilter,
 } from "@/app/m/portal/_lib/faelligkeiten/anzeige";
 import type { FaelligkeitsGruppe } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -24,7 +24,8 @@ import s from "./FaelligkeitenListe.module.css";
  *
  * DRINGLICHKEIT ALS STATUSCHIP mit den Wörtern der Wortliste: „überfällig" im Ton `fehler` (eine
  * abgelaufene Frist ist ein echter Missstand — der Fall, für den Rot im Statuschip steht, Falle 3),
- * „bald fällig" im Ton `warnung`. Die Bedeutung trägt der Text, nie die Farbe allein.
+ * „fällig" (heute, IDA-402) und „bald fällig" im Ton `warnung`. Die Bedeutung trägt der Text, nie
+ * die Farbe allein; die Reihenfolge stellt „fällig" vor „bald fällig".
  */
 export function FaelligkeitenListe({ gruppen }: { gruppen: readonly FaelligkeitsGruppe[] }) {
   const [filter, setFilter] = useState<FaelligkeitsFilter>({ modul: ALLE_FAELLIGKEITEN, dringlichkeit: ALLE_FAELLIGKEITEN });
@@ -35,7 +36,7 @@ export function FaelligkeitenListe({ gruppen }: { gruppen: readonly Faelligkeits
     () => filtereGruppen(gruppen, { modul: filter.modul, dringlichkeit: ALLE_FAELLIGKEITEN }).flatMap((g) => g.eintraege),
     [gruppen, filter.modul],
   );
-  const anzahl = (d: Dringlichkeit) => imModul.filter((e) => e.dringlichkeit === d).length;
+  const anzahl = zaehleEintraege(imModul);
   const gesamt = gruppen.reduce((n, g) => n + g.eintraege.length, 0);
 
   return (
@@ -49,8 +50,7 @@ export function FaelligkeitenListe({ gruppen }: { gruppen: readonly Faelligkeits
               onChange={(dringlichkeit) => setFilter((f) => ({ ...f, dringlichkeit }))}
               optionen={[
                 { wert: ALLE_FAELLIGKEITEN, label: "Alle", anzahl: imModul.length },
-                { wert: "ueberfaellig", label: "Überfällig", anzahl: anzahl("ueberfaellig") },
-                { wert: "bald", label: "Bald fällig", anzahl: anzahl("bald") },
+                ...DRINGLICHKEITEN.map((d) => ({ wert: d, label: PILLE[d], anzahl: anzahl[d] })),
               ]}
             />
           ) : null}
@@ -70,7 +70,7 @@ export function FaelligkeitenListe({ gruppen }: { gruppen: readonly Faelligkeits
 
       {sichtbar.length === 0 ? (
         <p style={{ ...SCHRIFT.text, margin: 0, color: "var(--iuk-gedaempft)" }} data-testid="faellig-leer">
-          {filter.dringlichkeit === "ueberfaellig" ? "Nichts ist überfällig." : "Nichts ist bald fällig."}
+          {filter.dringlichkeit === ALLE_FAELLIGKEITEN ? "Gerade steht nichts an." : `Nichts ist ${DRINGLICHKEIT_TEXT[filter.dringlichkeit]}.`}
         </p>
       ) : null}
 
@@ -101,15 +101,12 @@ export function FaelligkeitenListe({ gruppen }: { gruppen: readonly Faelligkeits
   );
 }
 
+/** Die Wörter an den Dringlichkeits-Pillen — wie ein Zustand, nur groß begonnen. */
+const PILLE: Record<Dringlichkeit, string> = { ueberfaellig: "Überfällig", faellig: "Fällig", bald: "Bald fällig" };
+
 function Zaehler({ gruppe }: { gruppe: FaelligkeitsGruppe }) {
   if (gruppe.fehler || gruppe.eintraege.length === 0) return null;
-  const ueber = gruppe.eintraege.filter((e) => e.dringlichkeit === "ueberfaellig").length;
-  const bald = gruppe.eintraege.length - ueber;
-  const teile = [
-    ueber > 0 && `${ueber} ${DRINGLICHKEIT_TEXT.ueberfaellig}`,
-    bald > 0 && `${bald} ${DRINGLICHKEIT_TEXT.bald}`,
-  ].filter(Boolean);
-  return <span style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)" }}>{teile.join(" · ")}</span>;
+  return <span style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)" }}>{zaehlungTeile(zaehleEintraege(gruppe.eintraege)).join(" · ")}</span>;
 }
 
 function Zeile({ eintrag: e, href }: { eintrag: Faelligkeit; href: string | null }) {

@@ -10,7 +10,7 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 const EINTRAEGE: KalenderEintrag[] = [
-  { id: "e1", art: "event", von: zeitpunkt("2026-11-13", "18:00"), bis: zeitpunkt("2026-11-13", "23:00"), titel: "Glühweinabend", href: "/v/e1" },
+  { id: "e1", art: "event", von: zeitpunkt("2026-11-13", "18:00"), bis: zeitpunkt("2026-11-13", "23:00"), titel: "Glühweinabend", href: "/events/e1" },
   { id: "a1", art: "zugesagt", von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-08", "01:00"), titel: "Bar: 40. Geburtstag", href: "/vermietung/anfragen?id=a1" },
   { id: "s1", art: "gesperrt", von: zeitpunkt("2026-11-10", "19:00"), bis: zeitpunkt("2026-11-10", "22:00"), titel: "Dienstabend Bereitschaft", href: "/vermietung/sperrzeiten" },
 ];
@@ -25,7 +25,7 @@ describe("Kalender", () => {
       ["zugesagt", "/vermietung/anfragen?id=a1", "18:00 Bar: 40. Geburtstag"],
       ["zugesagt", "/vermietung/anfragen?id=a1", "… Bar: 40. Geburtstag"],
       ["gesperrt", "/vermietung/sperrzeiten", "19:00 Dienstabend Bereitschaft"],
-      ["event", "/v/e1", "18:00 Glühweinabend"],
+      ["event", "/events/e1", "18:00 Glühweinabend"],
     ]);
     expect(document.body.textContent).toContain("November 2026");
     // Die Tagesliste des gewählten Tages.
