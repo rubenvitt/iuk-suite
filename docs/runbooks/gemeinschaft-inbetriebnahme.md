@@ -26,6 +26,10 @@ SUITE_HOST_GEMEINSCHAFT=gemeinschaft.iuk-ue.de
 # SUITE_ADMIN_GROUP_GEMEINSCHAFT=gemeinschaft-admin
 ```
 
+Turnstile (IDA-341): sind `TURNSTILE_SITE_KEY` und `TURNSTILE_SECRET` gesetzt, verlangt die Bar-Anfrage ein
+Turnstile-Token. Der Host muss dann im Cloudflare-Widget als Domain stehen und, falls `TURNSTILE_HOSTNAMES`
+gesetzt ist, auch dort (`gemeinschaft.iuk-ue.de`) — sonst scheitert jede Sendung an der Prüfung (`.env.example`).
+
 Reihenfolge wie bei jedem neuen Modul: erst das Image mit dem Modul ausrollen, dann den Host setzen
 (ein altes Image bricht an einem unbekannten `SUITE_HOST_*` beim Boot ab). Der Host braucht einen
 DNS-Eintrag und die Traefik-Regel auf den Suite-Container. Die Datenbank `gemeinschaft.db` legt der

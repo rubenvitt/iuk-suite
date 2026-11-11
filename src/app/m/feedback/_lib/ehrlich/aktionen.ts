@@ -13,9 +13,10 @@ import {
   erneuereKastenSecret, gibAntwortFrei, holeAbholung, istKastenSecret, legeMitteilungAn, legeNotizAn,
   loescheMitteilung, schreibeZurueck, setzeRueckfrage, setzeStatus, tagVon, type Abholung,
 } from "./daten";
-import { EHRLICH_THEMEN, HONIGTOPF_FELD, KONTAKT_MAX, NAME_MAX, TEXT_MAX, TURNSTILE_FELD } from "./themen";
+import { EHRLICH_THEMEN, HONIGTOPF_FELD, KONTAKT_MAX, NAME_MAX, TEXT_MAX } from "./themen";
 import { istEhrlichEinstieg } from "./adresse";
-import { pruefeTurnstile } from "./turnstile";
+import { TURNSTILE_AKTIONEN, TURNSTILE_FELD } from "@/core/turnstile/aktionen";
+import { pruefeTurnstile } from "@/core/turnstile/server";
 import { istEhrlichLeser } from "./zugang";
 
 /*
@@ -81,7 +82,7 @@ async function einwerfen(fd: FormData, ip: string): Promise<EinwurfErgebnis> {
   if (!einwuerfe.check(ip)) return { ok: false, fehler: "ratelimit" };
   // Ein gefüllter Honigtopf bekommt ein „Danke" und landet nirgends — ein Bot soll nicht lernen, woran es lag.
   if (feld(fd, HONIGTOPF_FELD, 200) !== "") return { ok: true, antwortweg: "keine", code: null };
-  if (!(await pruefeTurnstile(feld(fd, TURNSTILE_FELD, 4096)))) return { ok: false, fehler: "pruefung" };
+  if (!(await pruefeTurnstile(feld(fd, TURNSTILE_FELD, 4096), TURNSTILE_AKTIONEN.ehrlich))) return { ok: false, fehler: "pruefung" };
 
   const db = getDb();
   const { code } = legeMitteilungAn(db, { thema, text, antwortweg, name: name || null, kontakt: kontakt || null }, tagVon(Date.now()));

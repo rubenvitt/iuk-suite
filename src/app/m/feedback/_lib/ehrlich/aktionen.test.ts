@@ -21,7 +21,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "cf-connecting-ip": h.ip, "x-forwarded-for": h.ip, host: h.host }) }));
-vi.mock("./turnstile", () => ({ pruefeTurnstile: h.turnstile }));
+vi.mock("@/core/turnstile/server", () => ({ pruefeTurnstile: h.turnstile }));
 vi.mock("@/core/auth", () => ({ auth: h.auth }));
 vi.mock("../../_db/client", () => ({ getDb: () => h.db }));
 
@@ -121,7 +121,7 @@ describe("öffentlicher Einwurf (IDA-340)", () => {
     h.host = "ehrlich-gesagt.localtest.me:3000";
     const r = await einwerfenOeffentlichAktion(null, fd({ text: "Offen gesagt.", "cf-turnstile-response": "tok" }));
     expect(r).toEqual({ ok: true, antwortweg: "keine", code: null });
-    expect(h.turnstile).toHaveBeenCalledWith("tok");
+    expect(h.turnstile).toHaveBeenCalledWith("tok", "ehrlich_einwurf");
     expect(anzahl()).toBe(1);
   });
 

@@ -12,7 +12,7 @@ import * as qrSchema from "@/app/m/qr/_db/schema";
 import { seedQr } from "@/app/m/qr/_lib/seed";
 import * as feedbackSchema from "@/app/m/feedback/_db/schema";
 import { seedFeedback } from "@/app/m/feedback/_lib/seed";
-import { turnstileKonfigFehler } from "@/app/m/feedback/_lib/ehrlich/turnstile";
+import { turnstileKonfigFehler } from "@/core/turnstile/server";
 import { filesBootFehler, starteFilesHintergrund } from "@/app/m/files/_lib/boot";
 import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
 import { radioBootFehler, starteRadioHintergrund } from "@/app/m/radio/_lib/boot";

@@ -6,6 +6,8 @@ import { Button, Input, Result } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { TURNSTILE_AKTIONEN, TURNSTILE_FELD } from "@/core/turnstile/aktionen";
+import { Turnstile } from "@/core/turnstile/Turnstile";
 import { NAME_MAX, NOTIZ_MAX } from "../../_lib/eingabe";
 import type { SendeAntwort } from "../../_lib/koerper";
 import { Kicker } from "../teile";
@@ -26,9 +28,12 @@ function folgeText(bereit: boolean): string {
 
 /**
  * `mitName`: ohne Anmeldung gemeldet — dann steht der Name, den man angibt, im Verlauf. Die Einsatzfrage hat keine
- * Vorauswahl (IDA-381): vorher stand „Ja, einsatzbereit“ schon da und ging ungelesen mit.
+ * Vorauswahl (IDA-381): vorher stand „Ja, einsatzbereit“ schon da und ging ungelesen mit. `turnstile`: Site-Key,
+ * wenn ohne Modulzugang gemeldet wird und Turnstile aktiv ist (IDA-341).
  */
-export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { geraetId: string; geraetName: string; mitName?: boolean }) {
+export function MangelAmGeraet({ geraetId, geraetName, mitName = false, turnstile = null }: {
+  geraetId: string; geraetName: string; mitName?: boolean; turnstile?: string | null;
+}) {
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
@@ -38,6 +43,9 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
   /** Nach dem Melden: was gemeldet wurde (auch bei einer nach dem Neuladen nachgeschickten Meldung). */
   const [fertig, setFertig] = useState<boolean | null>(null);
   const gesendet = useRef<boolean | null>(null);
+  // IDA-341: das Token liegt nicht im Entwurf (es gilt nur einmal und fünf Minuten), es wird beim Senden gelesen.
+  const token = useRef<string | null>(null);
+  const [runde, setRunde] = useState(0);
   const fotoRef = useRef(foto);
   useLayoutEffect(() => {
     fotoRef.current = foto;
@@ -63,6 +71,7 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
       daten.set("text", d.text);
       daten.set("einsatzbereit", d.bereit ? "ja" : "nein");
       if (mitName) daten.set("name", d.name);
+      if (token.current) daten.set(TURNSTILE_FELD, token.current);
       const f = fotoRef.current;
       if (f) daten.set("foto", await verkleinere(f), "foto.jpg");
       return sendeAnRoute(`/g/${geraetId}/mangel/senden`, daten);
@@ -70,6 +79,7 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
     antwort: (a) => {
       if (!a.ok) {
         setFehler(a.fehler);
+        setRunde((n) => n + 1);
         return false;
       }
       setFertig(gesendet.current ?? true);
@@ -133,6 +143,7 @@ export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { gera
       <div className={s.fuss}>
         <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
         {fehler && <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} role="alert">{fehler}</div>}
+        {turnstile && <Turnstile siteKey={turnstile} aktion={TURNSTILE_AKTIONEN.mangel} runde={runde} beiToken={(t) => { token.current = t; }} />}
         <Button type="primary" block disabled={!text.trim()} loading={laeuft} onClick={senden}>Mangel melden</Button>
       </div>
     </div>

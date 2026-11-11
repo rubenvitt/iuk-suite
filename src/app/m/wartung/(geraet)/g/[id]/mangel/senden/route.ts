@@ -2,10 +2,14 @@
  * EINEN MANGEL AM GERÄT MELDEN (IDA-312) — POST, multipart: `text`, `einsatzbereit` (`ja`/`nein`, Pflicht) und
  * höchstens ein `foto`, dazu `sendung` (die ID vom Telefon: ein zweites Senden legt nichts doppelt an).
  * Melden darf jeder mit dem QR-Code, auch ohne Anmeldung (IDA-337); dann mit freiwilligem `name` und hinter der
- * Notbremse (`_lib/bremse.ts`). Der Handler riegelt selbst (kein Layout).
+ * Notbremse (`_lib/bremse.ts`) und, wenn konfiguriert, Cloudflare Turnstile (IDA-341, Feld `cf-turnstile-response`):
+ * VOR der Notbremse, damit Meldungen ohne gültiges Token sie nicht für echte leeren. Eine schon angelegte Sendung
+ * kommt ohne neue Prüfung durch — ihr Token ist bei Cloudflare verbraucht. Der Handler riegelt selbst (kein Layout).
  */
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { auth } from "@/core/auth";
+import { TURNSTILE_ABGELEHNT, TURNSTILE_AKTIONEN, TURNSTILE_FELD } from "@/core/turnstile/aktionen";
+import { pruefeTurnstile } from "@/core/turnstile/server";
 import { getDb } from "../../../../../_db/client";
 import { idSchema, mangelEingabe } from "../../../../../_lib/eingabe";
 import { entferneFotos, FOTO_MAX_BYTES, legeFotoAb, rechneFotoNeu } from "../../../../../_lib/fotos";
@@ -48,6 +52,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const schon = schonGesendet(getDb(), "mangel", mangelId, id);
     if (schon === "fremd") return antwort(400, { ok: false, fehler: "Die Meldung kam nicht vollständig an. Bitte noch einmal senden." });
     if (schon) return antwort(200, { ok: true });
+    const token = formular.get(TURNSTILE_FELD);
+    if (!mitZugang && !(await pruefeTurnstile(typeof token === "string" ? token : "", TURNSTILE_AKTIONEN.mangel))) {
+      return antwort(400, { ok: false, fehler: TURNSTILE_ABGELEHNT });
+    }
     if (!mitZugang && !meldungOhneAnmeldungErlaubt(id)) {
       return antwort(429, { ok: false, fehler: "Gerade kommen zu viele Meldungen an. Bitte in ein paar Minuten noch einmal senden." });
     }

@@ -7,7 +7,8 @@ import type { EinwurfErgebnis } from "../../_lib/ehrlich/aktionen";
 import { HONIGTOPF_FELD } from "../../_lib/ehrlich/themen";
 import { Blatt, Haken } from "../Blatt";
 import e from "../ehrlich.module.css";
-import { Turnstile } from "../Turnstile";
+import { TURNSTILE_ABGELEHNT, TURNSTILE_AKTIONEN } from "@/core/turnstile/aktionen";
+import { Turnstile } from "@/core/turnstile/Turnstile";
 
 type Antwortweg = "keine" | "code" | "name";
 
@@ -18,7 +19,7 @@ const FEHLER: Record<Exclude<EinwurfErgebnis, { ok: true }>["fehler"], string> =
   name: "Für eine Rückmeldung mit Namen fehlt noch dein Name.",
   ratelimit: "Von diesem Netz kamen gerade sehr viele Mitteilungen. Versuch es in ein paar Minuten noch einmal.",
   ungueltig: "Dieser Link gilt nicht mehr.",
-  pruefung: "Die Prüfung gegen automatische Einsendungen hat nicht geklappt. Versuch es noch einmal.",
+  pruefung: TURNSTILE_ABGELEHNT,
 };
 
 /** Die Zusage über dem Knopf. Jeder Halbsatz hat eine Deckung im Code: `_db/schema.ts`, Abschnitt „Ehrlich gesagt". */
@@ -190,7 +191,7 @@ function EinwurfRunde({ aktion, themen, leser, leserOder, schrift, abholen, turn
 
         <div className={s.aufbau}>
           <p className={s.kurzzusage}>{kurzzusage(weg)}</p>
-          {turnstile ? <Turnstile siteKey={turnstile} runde={abgelehnt} /> : null}
+          {turnstile ? <div style={{ marginTop: 12 }}><Turnstile siteKey={turnstile} aktion={TURNSTILE_AKTIONEN.ehrlich} runde={abgelehnt} /></div> : null}
           <button className={s.knopf} type="submit" disabled={laeuft} aria-busy={laeuft}>
             {laeuft ? "Wird gesendet…" : "Mitteilung absenden"}
           </button>

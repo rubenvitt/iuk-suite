@@ -6,7 +6,7 @@ import { abholenPfad, istEhrlichEinstieg } from "../_lib/ehrlich/adresse";
 import { einwerfenOeffentlichAktion } from "../_lib/ehrlich/aktionen";
 import { ladeLeserNamen, namensreihe } from "../_lib/ehrlich/leser";
 import { EHRLICH_THEMEN } from "../_lib/ehrlich/themen";
-import { turnstileSiteKey } from "../_lib/ehrlich/turnstile";
+import { turnstileSiteKey } from "@/core/turnstile/server";
 import { Einwurf } from "./[secret]/Einwurf";
 
 export const metadata: Metadata = { title: { absolute: "Ehrlich gesagt" }, robots: { index: false, follow: false } };

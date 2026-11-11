@@ -5,11 +5,13 @@ import { revalidatePath } from "next/cache";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { clientIpAus, RateLimiter } from "@/core/ratelimit";
+import { TURNSTILE_ABGELEHNT, TURNSTILE_AKTIONEN } from "@/core/turnstile/aktionen";
+import { pruefeTurnstile } from "@/core/turnstile/server";
 import { getDb } from "../_db/client";
 import { istLinkCode, neuerLinkCode } from "../_lib/kennung";
 import { fassungMitMieter } from "../_lib/dokumentErzeugen";
 import {
-  Abgelehnt, anfragenSeit, dokumentGrundlage, legeAnfrageAn, legeUnterschriebenAb, NichtGefunden, pruefeUnterschreibbar, zeichnenErlaubt, zieheZurueck,
+  Abgelehnt, anfragenSeit, codeDerSendung, dokumentGrundlage, legeAnfrageAn, legeUnterschriebenAb, NichtGefunden, pruefeUnterschreibbar, zeichnenErlaubt, zieheZurueck,
 } from "../_lib/vermietung";
 import { istDokumentart } from "../_lib/vermietungTypen";
 import { unterschriftAusDataUrl } from "../_lib/vertragUnterschrift";
@@ -27,7 +29,10 @@ import { requireGemeinschaftHostAktion } from "../_lib/zugang";
  * 3. Ein Mengenbudget in der Datenbank (überlebt Neustarts, gilt über alle Absender): höchstens
  *    `ANFRAGEN_JE_STUNDE` neue Anfragen je Stunde. Danach bittet die Seite, es später zu versuchen.
  * Dazu ein Honigtopf-Feld (`webseite`), das ein Mensch nie sieht: ist es gefüllt, antwortet die Action wie
- * bei Erfolg, speichert aber nichts.
+ * bei Erfolg, speichert aber nichts. Und Cloudflare Turnstile (IDA-341, `core/turnstile`), wenn konfiguriert: VOR
+ * dem Zähler je Absender, denn der ist auf dem Modulhost faktisch ein Sammel-Eimer (`clientIpAus`) — ein Bot ohne
+ * Token soll ihn nicht für alle anderen leeren. Eine Wiederholung einer schon angelegten Sendung kommt ohne neue
+ * Prüfung durch (ihr Token ist bei Cloudflare verbraucht) und bekommt den Statuslink von damals.
  */
 
 const jeAbsender = new RateLimiter({ windowMs: 60 * 60_000, max: 15 });
@@ -49,6 +54,12 @@ function sendungAus(eingabe: unknown): string | undefined {
   return typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ? s : undefined;
 }
 
+/** Das Turnstile-Token des Formulars (IDA-341); fehlt es, prüft `pruefeTurnstile` ein leeres. */
+function tokenAus(eingabe: unknown): string {
+  const t = (eingabe as { turnstile?: unknown } | null)?.turnstile;
+  return typeof t === "string" ? t : "";
+}
+
 export async function anfrageSendenAction(eingabe: unknown): Promise<Ergebnis<{ code: string }>> {
   await requireGemeinschaftHostAktion();
   // Ein unlesbares Sitzungs-Cookie ist „nicht angemeldet“, kein Fehler (wie `app/login/page.tsx`).
@@ -57,12 +68,16 @@ export async function anfrageSendenAction(eingabe: unknown): Promise<Ergebnis<{ 
   const p = pruefeAnfrage(eingabe, jetzt);
   if (!p.ok) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: p.feldFehler };
   if (p.wert.webseite.trim() !== "") return { ok: true, wert: { code: neuerLinkCode() } };
+  const sendung = sendungAus(eingabe);
+  const frueher = sendung ? codeDerSendung(getDb(), sendung) : null;
+  if (frueher) return { ok: true, wert: { code: frueher } };
+  if (!(await pruefeTurnstile(tokenAus(eingabe), TURNSTILE_AKTIONEN.bar))) return { ok: false, fehler: TURNSTILE_ABGELEHNT };
   if (!jeAbsender.check(clientIpAus(await headers()))) return { ok: false, fehler: ZU_VIELE };
   return withAuditContext({ actor: viewer ? auditActor(viewer) : { kind: "anonymous" } }, async () => {
     const db = getDb();
     if (anfragenSeit(db, jetzt - 3_600_000) >= ANFRAGEN_JE_STUNDE) return { ok: false, fehler: ZU_VIELE };
     try {
-      const code = legeAnfrageAn(db, p.wert, viewer !== null, jetzt, sendungAus(eingabe));
+      const code = legeAnfrageAn(db, p.wert, viewer !== null, jetzt, sendung);
       neuLaden();
       return { ok: true, wert: { code } };
     } catch (e) {

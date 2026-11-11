@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { auth } from "@/core/auth";
+import { turnstileSiteKey } from "@/core/turnstile/server";
 import { tagesGrenzenInZone } from "@/core/zeit";
 import { getDb } from "../../_db/client";
 import { oeffentlicheBelegung } from "../../_lib/belegung";
@@ -31,7 +32,7 @@ export default async function BarSeite() {
   return (
     <OffenerRahmen kicker="Gemeinschaft · Bar">
       <h1 className="go-titel">Bar mieten</h1>
-      <BarAnfrage belegt={belegt} heute={heute} vorbelegung={vorbelegung} anmeldeHref={anmeldeHref(kopf, "/bar")} />
+      <BarAnfrage belegt={belegt} heute={heute} vorbelegung={vorbelegung} anmeldeHref={anmeldeHref(kopf, "/bar")} turnstile={turnstileSiteKey()} />
     </OffenerRahmen>
   );
 }
