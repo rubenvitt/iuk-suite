@@ -115,6 +115,8 @@ export type TabellenVollhoeheProps = {
 
 type Mass = { rahmenHoehe: number; koerperHoehe: number; deckeln: boolean };
 
+const START_MASS: Mass = { rahmenHoehe: 0, koerperHoehe: STARTWERT, deckeln: false };
+
 export function TabellenVollhoehe({
   kopf,
   children,
@@ -123,11 +125,9 @@ export function TabellenVollhoehe({
 }: TabellenVollhoeheProps) {
   const rahmenRef = useRef<HTMLDivElement>(null);
   const tabellenRef = useRef<HTMLDivElement>(null);
-  const [mass, setMass] = useState<Mass>({
-    rahmenHoehe: 0,
-    koerperHoehe: STARTWERT,
-    deckeln: false,
-  });
+  const [mass, setMass] = useState<Mass>(START_MASS);
+  // Der zuletzt gesetzte Stand, für den Vergleich in `messen` (Begründung dort).
+  const massRef = useRef<Mass>(START_MASS);
 
   const messen = useCallback(() => {
     const rahmen = rahmenRef.current;
@@ -152,22 +152,29 @@ export function TabellenVollhoehe({
       mindestens,
     });
 
-    // `setState` mit gleichen Werten rendert nicht neu — wichtig, weil der
-    // ResizeObserver unten auch auf Änderungen feuert, die wir selbst auslösen.
-    setMass((vorher) => {
-      const neu: Mass = {
-        rahmenHoehe: ergebnis.rahmenHoehe,
-        koerperHoehe: ergebnis.koerperHoehe,
-        // `karten !== null` heißt: unter 768px steht hier gar keine Tabelle,
-        // also auch kein zweiter Scroller — Begründung bei `KARTEN`.
-        deckeln: koerper !== null && karten === null && !ergebnis.gedeckelt,
-      };
-      return vorher.rahmenHoehe === neu.rahmenHoehe
-        && vorher.koerperHoehe === neu.koerperHoehe
-        && vorher.deckeln === neu.deckeln
-        ? vorher
-        : neu;
-    });
+    const neu: Mass = {
+      rahmenHoehe: ergebnis.rahmenHoehe,
+      koerperHoehe: ergebnis.koerperHoehe,
+      // `karten !== null` heißt: unter 768px steht hier gar keine Tabelle,
+      // also auch kein zweiter Scroller — Begründung bei `KARTEN`.
+      deckeln: koerper !== null && karten === null && !ergebnis.gedeckelt,
+    };
+    const vorher = massRef.current;
+    /*
+     * ⚠️ GLEICHE WERTE: GAR KEIN `setMass`, AUCH KEIN UPDATER, DER `vorher`
+     * ZURÜCKGIBT (IDA-406). Der Updater sieht harmlos aus, ist aber ein
+     * eingereihtes Update: React kann es nur dann sofort verwerfen, wenn an der
+     * Komponente nichts anderes ansteht. Steht dort eins in einer Lane, die
+     * gerade nicht dran ist, rendert React sie für das Update neu, der Effekt
+     * ohne Abhängigkeiten unten misst wieder, reiht das nächste ein — im
+     * gebauten Stand wurden daraus über 2000 leere Commits pro Sekunde, und
+     * jede Transition der Seite (Server Actions, `router.refresh()`) verhungerte.
+     */
+    if (vorher.rahmenHoehe === neu.rahmenHoehe
+      && vorher.koerperHoehe === neu.koerperHoehe
+      && vorher.deckeln === neu.deckeln) return;
+    massRef.current = neu;
+    setMass(neu);
   }, [mindestens, rand]);
 
   /**
@@ -191,7 +198,7 @@ export function TabellenVollhoehe({
    *
    * Ein Render ist dagegen genau das Signal, das dabei immer kommt — die Liste
    * aendert sich nur, weil der Aufrufer neu rendert. Der Preis ist ein
-   * Layout-Lesen je Render; `setMass` bricht bei gleichen Werten ab, es gibt
+   * Layout-Lesen je Render; `messen` setzt bei gleichen Werten nichts, es gibt
    * also keine zweite Runde.
    *
    * ⚠️ `useEffect`, NICHT `useLayoutEffect`: die Komponente wird
