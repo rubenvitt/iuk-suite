@@ -56,5 +56,7 @@ test("das Fahrzeugblatt kommt nach dem Laden zur Ruhe", async ({ page }) => {
     await page.waitForTimeout(1_000);
     commits.push(await page.evaluate(() => (window as unknown as { __commits: number }).__commits));
   }
+  // Null hieße: der Haken zählt nicht mehr, und die Obergrenze prüfte nichts.
+  expect(Math.min(...commits), `Commits je Aufruf: ${commits.join(", ")}`).toBeGreaterThan(0);
   expect(Math.max(...commits), `Commits je Aufruf: ${commits.join(", ")}`).toBeLessThan(HOECHSTENS);
 });
