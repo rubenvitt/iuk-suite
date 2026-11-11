@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { BodySign } from "@einsatzzeichen/schema";
 import {
-  ABSCHNITTE, SOFORT_GEPRUEFT, befunde, feldname, gewaehlt, mittelgroesse, ohneFeldnamen, setze, setzeAbschnitt, setzeMittelgroesse,
-  setzeText, sichtbar, type WahlFeld, type Wertbefund,
+  ABSCHNITTE, SOFORT_GEPRUEFT, befunde, feldname, gewaehlt, mittelgroesse, ohneFeldnamen, setze, setzeAbschnitt, setzeFachaufgaben, setzeMittelgroesse,
+  setzeText, fachaufgaben, sichtbar, type WahlFeld, type Wertbefund,
 } from "./vokabular";
 
 const zeichen = (s: object) => s as BodySign;
@@ -61,6 +61,14 @@ describe("Vokabular des Baukastens (Beschreibung, Einsatzzeichen 7)", () => {
     expect(nackt.filter((b) => b.abgeleitet).length).toBeGreaterThan(0);
     const schonAbgeleitet = zeichen({ kind: "vehicle-land", organization: "thw", tasks: ["fire-fighting", "pumping"] });
     expect(befunde(schonAbgeleitet, "variant").some((b) => b.abgeleitet)).toBe(false);
+  });
+  it("Fachaufgaben aus einem alten Bauplan (unter `exact`) stehen in der Auswahl und lassen sich abwählen; technische Marken bleiben", () => {
+    const alt = zeichen({ kind: "formation", organization: "hilfsorganisation", head: "verband-i", exact: { bodyMarks: ["care", "physician", "ring-7mm-offset-down-1mm"] } });
+    expect(fachaufgaben(alt)).toEqual(["care", "physician"]);
+    expect(befunde(alt, "tasks").filter((b) => b.wert === "care" || b.wert === "physician").every((b) => b.frei)).toBe(true);
+    expect(setzeFachaufgaben(alt, ["care", "physician", "pumping"])).toMatchObject({ tasks: ["pumping"], exact: { bodyMarks: ["care", "physician", "ring-7mm-offset-down-1mm"] } });
+    expect(setzeFachaufgaben(alt, ["physician"])).toEqual({ ...alt, exact: { bodyMarks: ["physician", "ring-7mm-offset-down-1mm"] } });
+    expect(setzeFachaufgaben(zeichen({ kind: "formation", exact: { capabilities: ["care"] } }), [])).toEqual({ kind: "formation" });
   });
   it("Abschnitte erscheinen nur, wo etwas passt oder gesetzt ist: an der Einheit kein Fahrwerk, am Fahrzeug keine Funktion", () => {
     const sichtbare = (z: BodySign) => ABSCHNITTE.filter((a) => sichtbar(z, a, sofort(z))).map((a) => a.key);

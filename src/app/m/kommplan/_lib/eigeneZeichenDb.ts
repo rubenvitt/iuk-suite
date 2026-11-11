@@ -9,7 +9,7 @@ import type { EigenesZeichenErgebnis, EinfachErgebnis } from "./ergebnis";
 import type { Bearbeiter } from "./speichern";
 import { eigenerSchluessel } from "./zeichen/eigen/schluessel";
 import { EIGENE_ZEICHEN_MAX, EIGENER_TITEL_MAX, type EigenesZeichen } from "./zeichen/eigen/typen";
-import { liesEingabe, liesGespeichert, pruefeEigenes, speicherform, zeichneEigenes } from "./zeichen/eigen/zeichne";
+import { SPEC_MAX_ZEICHEN, liesEingabe, liesGespeichert, pruefeEigenes, speicherform, zeichneEigenes } from "./zeichen/eigen/zeichne";
 
 /**
  * EIGENE ZEICHEN IN DER DATENBANK — nur Server. Jede ID wird hier aufgelöst (IDOR); die Beschreibung wird in der
@@ -50,9 +50,11 @@ export function speichereEigenesZeichen(db: KommplanDb, eingabe: unknown, wer: B
   if (!r.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: feldFehlerAus(r.error) };
   const s = liesEingabe(r.data.zeichen);
   if (!s.ok) return { ok: false, fehler: s.fehler };
+  const form = speicherform(s.zeichen);
+  if (form.length > SPEC_MAX_ZEICHEN) return { ok: false, fehler: "Die Zusammenstellung ist zu groß." };
   if (!pruefeEigenes(s.zeichen).ok) return { ok: false, fehler: "Diese Zusammenstellung lässt sich nicht ganz zeichnen — die Vorschau sagt, was fehlt." };
   const { id, titel } = r.data;
-  const werte = { titel, spec: speicherform(s.zeichen), aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name };
+  const werte = { titel, spec: form, aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name };
   return db.transaction((tx): EigenesZeichenErgebnis => {
     const doppelt = tx.select({ id: eigenesZeichen.id, titel: eigenesZeichen.titel }).from(eigenesZeichen).all()
       .find((x) => x.id !== id && vergleichsform(x.titel) === vergleichsform(titel));

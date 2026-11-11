@@ -5,7 +5,7 @@ import { Alert, Input, Segmented, Select } from "antd";
 import type { BodySign } from "@einsatzzeichen/schema";
 import {
   ABSCHNITTE, FELDTITEL, MITTELGROESSEN, SOFORT_GEPRUEFT, ZONEN_AUSSEN, ZONEN_IM_KOERPER, ZONENNAMEN, befunde, feldname, gesetzt,
-  gewaehlt, mittelgroesse, ohneFeldnamen, ohneTexte, setze, setzeAbschnitt, setzeMittelgroesse, setzeText, sichtbar, textIn,
+  gewaehlt, mittelgroesse, ohneFeldnamen, ohneTexte, setzeAbschnitt, setzeFachaufgaben, setzeMittelgroesse, setzeText, sichtbar, textIn,
   type Abschnitt, type Mittelgroesse, type WahlFeld, type Wertbefund, type Zone,
 } from "../../_lib/zeichen/eigen/vokabular";
 import { zeichneEigenes } from "../../_lib/zeichen/eigen/zeichne";
@@ -149,7 +149,7 @@ function Fachaufgaben({ id, kopf, abschnitt, zeichen, onZeichen }: {
       <Select id={id} mode="multiple" allowClear showSearch={SUCHE} placeholder="— ohne —"
         value={werte} options={optionen(feld, geprueft ?? werte.map((wert) => ({ wert, name: wert, frei: true })), false, "paket")}
         onOpenChange={pruefe} loading={prueft} notFoundContent={prueft ? PRUEFT : undefined}
-        onChange={(neu: string[]) => onZeichen(setze(zeichen, [[feld, neu]]))} />
+        onChange={(neu: string[]) => onZeichen(setzeFachaufgaben(zeichen, neu))} />
     </div>
   );
 }

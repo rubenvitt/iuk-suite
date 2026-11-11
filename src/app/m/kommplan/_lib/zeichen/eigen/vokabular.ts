@@ -1,5 +1,5 @@
 import { check, choices } from "@einsatzzeichen/core";
-import type { BodySign, SignChoiceField, SignText } from "@einsatzzeichen/schema";
+import { CAPABILITY_IDS, type BodySign, type SignChoiceField, type SignText } from "@einsatzzeichen/schema";
 
 /**
  * DIE ABSCHNITTE DES BAUKASTENS — auf der Beschreibung (`Sign`, Einsatzzeichen 7; IDA-408), nach dem Vorbild des
@@ -127,10 +127,11 @@ function abgeleitet(zeichen: BodySign): boolean {
 export function befunde(zeichen: BodySign, feld: WahlFeld): Wertbefund[] {
   const probe = ohneTexte(zeichen);
   const vorher = abgeleitet(probe);
+  const schon = new Set(gesetzt(zeichen, feld));
   try {
     return choices(probe, feld).map((c) => {
       const basis = { wert: c.value, name: c.label, ...(c.group ? { gruppe: c.group } : {}) };
-      if (c.selected) return { ...basis, frei: true };
+      if (c.selected || schon.has(c.value)) return { ...basis, frei: true };
       if (c.status === "blocked") return { ...basis, frei: false, grund: c.why ?? "Passt hier nicht" };
       return c.status === "derived" && !vorher ? { ...basis, frei: true, abgeleitet: true } : { ...basis, frei: true };
     });
@@ -145,11 +146,44 @@ export function sichtbar(zeichen: BodySign, abschnitt: Abschnitt, befund: Readon
   return abschnitt.felder.some((f) => gesetzt(zeichen, f).length > 0 || !befund.has(f) || befund.get(f)!.some((b) => b.frei));
 }
 
-/** Die gesetzten Werte eines Feldes (bei Fachaufgaben alle, sonst höchstens einer). */
+/** Die gesetzten Werte eines Feldes (bei Fachaufgaben alle, auch die aus `exact`; sonst höchstens einer). */
 export function gesetzt(zeichen: BodySign, feld: WahlFeld): string[] {
+  if (feld === "tasks") return fachaufgaben(zeichen);
   const wert = (zeichen as unknown as Record<string, unknown>)[feld];
   if (Array.isArray(wert)) return wert.map(String);
   return typeof wert === "string" && wert !== "" ? [wert] : [];
+}
+
+const FACHAUFGABE = new Set<string>(CAPABILITY_IDS);
+const EXAKT_LISTEN = ["capabilities", "bodyMarks"] as const;
+
+/**
+ * DIE FACHAUFGABEN EINES ZEICHENS: `tasks` und die fachlichen Einträge, die `fromExact` beim Lesen eines alten Bauplans
+ * unter `exact.capabilities` oder `exact.bodyMarks` stehen lässt, weil die Fassungswahl sonst das Bild änderte (86 der
+ * Katalogzeichen). Technische Körpermarken in `exact.bodyMarks` sind keine Fachaufgabe und bleiben unberührt.
+ */
+export function fachaufgaben(zeichen: BodySign): string[] {
+  const exakt = (zeichen.exact ?? {}) as Record<string, unknown>;
+  const aus = (liste: unknown) => (Array.isArray(liste) ? liste.map(String) : []);
+  return [...new Set([...aus(zeichen.tasks), ...EXAKT_LISTEN.flatMap((f) => aus(exakt[f]).filter((w) => FACHAUFGABE.has(w)))])];
+}
+
+/**
+ * Die Fachaufgaben auf `neu` setzen. Was bleibt, bleibt, wo es steht (eine Fassung aus `exact` behält ihr Bild); was
+ * dazukommt, kommt nach `tasks`; was abgewählt ist, verschwindet auch aus `exact`.
+ */
+export function setzeFachaufgaben(zeichen: BodySign, neu: readonly string[]): BodySign {
+  const behalten = new Set(neu);
+  const exakt: Record<string, unknown> = { ...(zeichen.exact ?? {}) };
+  const inExakt = new Set<string>();
+  for (const f of EXAKT_LISTEN) {
+    if (!Array.isArray(exakt[f])) continue;
+    const liste = (exakt[f] as string[]).filter((w) => !FACHAUFGABE.has(w) || behalten.has(w));
+    liste.filter((w) => FACHAUFGABE.has(w)).forEach((w) => inExakt.add(w));
+    if (liste.length > 0) exakt[f] = liste;
+    else delete exakt[f];
+  }
+  return setze(zeichen, [["tasks", neu.filter((w) => !inExakt.has(w))], ["exact", Object.keys(exakt).length > 0 ? exakt : undefined]]);
 }
 
 /**

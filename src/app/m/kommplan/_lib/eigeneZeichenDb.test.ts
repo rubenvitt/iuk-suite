@@ -38,6 +38,10 @@ describe("eigene Zeichen in der Datenbank", () => {
     expect(speichereEigenesZeichen(db, neu("L", { kind: "formation", text: { center: "Integrierte Leitstelle Schweinfurt" } }), WER, 1)).toMatchObject({ ok: false, fehler: expect.stringContaining("nicht ganz zeichnen") });
     expect(speichereEigenesZeichen(db, neu("F", { kind: "weather", values: ["weather-cloudy"] }), WER, 1)).toMatchObject({ ok: false, fehler: expect.stringContaining("ohne Grundzeichen") });
     expect(speichereEigenesZeichen(db, { ...neu("C"), bild: "<svg/>" }, WER, 1).ok).toBe(false);
+    // Die Eingabe passt knapp, die Hülle v2 nicht mehr: abgelehnt, bevor die Datenbank (CHECK ≤ 4000) wirft.
+    const knapp = { kind: "post", text: { below: "x".repeat(3955) } };
+    expect(JSON.stringify(knapp).length).toBeLessThanOrEqual(4000);
+    expect(speichereEigenesZeichen(db, neu("G", knapp), WER, 1)).toEqual({ ok: false, fehler: "Die Zusammenstellung ist zu groß." });
     expect(db.select().from(eigenesZeichen).all()).toEqual([]);
   });
   it("Nutzung zählt Pläne mit dem Schlüssel; Löschen lässt den Schlüssel im Plan stehen, das Symbol fällt weg", () => {
