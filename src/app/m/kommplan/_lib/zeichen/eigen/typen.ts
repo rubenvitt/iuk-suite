@@ -1,14 +1,16 @@
-import type { SymbolSpec } from "@einsatzzeichen/schema";
+import type { BodySign } from "@einsatzzeichen/schema";
 
 /**
  * Ein eigenes Zeichen, wie Bibliothek und Baukasten es sehen — rein, nur Typen (Server, Client-Inseln, Tests).
+ * `zeichen` ist die Beschreibung (`Sign` aus Einsatzzeichen 7): was gemeint ist, nicht der Bauplan. Die Fassungen wählt
+ * das Paket beim Zeichnen, also zeigt ein gespeichertes Zeichen eine später vermessene Fassung von selbst.
  * `nutzung`: in wie vielen Plänen (auch archivierten und Vorlagen) der Schlüssel steht; Löschen fragt damit nach.
  */
 export interface EigenesZeichen {
   id: string;
   schluessel: string;
   titel: string;
-  spec: SymbolSpec;
+  zeichen: BodySign;
   beschreibung: string;
   nutzung: number;
 }

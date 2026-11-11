@@ -43,6 +43,7 @@ import typischeEinsatzmittel from "@/app/m/portal/_lib/neuigkeiten/notizen/kommp
 import freieStellen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-05-freie-stellen";
 import verweisAufPlan from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-05-verweis-auf-plan";
 import geteilterPlanAlsListe from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-10-geteilter-plan-als-liste";
+import baukastenFachaufgaben from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-11-baukasten-fachaufgaben";
 import helferAusHiorg from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-20-helfer-aus-hiorg";
 import helferAusExcel from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-24-helfer-aus-excel";
 import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-10-21-fahrzeuge-als-stammdaten";
@@ -407,6 +408,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   freieStellen,
   verweisAufPlan,
   geteilterPlanAlsListe,
+  baukastenFachaufgaben,
 ];
 
 /**

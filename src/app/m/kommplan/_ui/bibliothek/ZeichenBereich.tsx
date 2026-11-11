@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Button, Input, type InputRef } from "antd";
-import type { SymbolSpec } from "@einsatzzeichen/schema";
+import type { BodySign } from "@einsatzzeichen/schema";
 import { nachText, Zellentext } from "@/core/tabelle";
 import { loescheEigenesZeichenAction, speichereEigenesZeichenAction } from "../../_actions/eigeneZeichen";
 import { EIGENER_TITEL_MAX, type EigenesZeichen } from "../../_lib/zeichen/eigen/typen";
@@ -18,7 +18,7 @@ import { BibFlyin } from "./BibFlyin";
 const Baukasten = dynamic(() => import("./Baukasten"), { ssr: false, loading: () => <p className="kp-hilfe">Baukasten wird geladen …</p> });
 
 /** Neues Zeichen: eine Funktionsstelle der Führung mit Kürzel — der häufigste Anlass (Leitstellen), sofort lesbar. */
-const START = { kind: "post", organization: "fuehrung-leitung", labels: { center: "ILS" } } as SymbolSpec;
+const START: BodySign = { kind: "post", organization: "fuehrung-leitung", text: { center: "ILS" } };
 
 /**
  * EIGENE ZEICHEN (Bibliothek, Reiter „Zeichen"): zusammengestellt im Baukasten, modulweit in der Zeichensuche von
@@ -51,9 +51,9 @@ function ZeichenFlyin({ eintrag, schrift, onSchliessen, onFertig, onWeiter }: Bi
   const { basis, f } = fm;
   const alt = eintrag !== null && eintrag !== "neu" ? eintrag : null;
   const [titel, setTitel] = useState(alt?.titel ?? "");
-  const [spec, setSpec] = useState<SymbolSpec>(alt?.spec ?? START);
+  const [zeichen, setZeichen] = useState<BodySign>(alt?.zeichen ?? START);
   async function speichern(weiter: boolean) {
-    const r = await fm.sende(() => speichereEigenesZeichenAction({ id: alt?.id ?? null, titel, spec }));
+    const r = await fm.sende(() => speichereEigenesZeichenAction({ id: alt?.id ?? null, titel, zeichen }));
     if (r) (weiter ? onWeiter : onFertig)(`„${r.titel}“ gespeichert. Du findest es in der Zeichensuche.`);
   }
   async function loeschen() {
@@ -72,7 +72,7 @@ function ZeichenFlyin({ eintrag, schrift, onSchliessen, onFertig, onWeiter }: Bi
         onChange={(e) => setTitel(e.target.value)} {...f("titel").attr} />
       {f("titel").text}
       {alt && alt.nutzung > 0 ? <p className="kp-hilfe">Änderungen gelten sofort in {alt.nutzung === 1 ? "dem Plan" : `allen ${alt.nutzung} Plänen`}, die dieses Zeichen nutzen.</p> : null}
-      <Baukasten spec={spec} onSpec={setSpec} schrift={schrift} />
+      <Baukasten zeichen={zeichen} onZeichen={setZeichen} schrift={schrift} />
     </BibFlyin>
   );
 }
