@@ -33,6 +33,9 @@ test.beforeAll(async ({ request }) => {
  */
 const AKTIVER_TEILNEHMER_ID = "seed-uav-teilnehmer-aktiv";
 
+/** Matcher für `page.route`, wo ein Fall keinen Sync braucht (siehe IDA-389 unten). */
+const nurSync = (url: URL) => url.pathname === "/api/sync";
+
 /*
  * IDA-389: nach der Code-Anmeldung stand nirgends, wer eingetragen wird, und
  * es gab kein Abmelden — auf einem herumgereichten Übungsgerät trug die
@@ -44,7 +47,7 @@ test("zeigt, wer angemeldet ist, und meldet ab (IDA-389)", async ({ page }) => {
   // Kein Sync in diesem Fall: `/api/sync` erlaubt 10 Anfragen je Teilnehmer und
   // Minute, und dieselbe Person syncen die Fälle danach (Check 7, DRK-286) —
   // zwei Anfragen mehr von hier brachten den Kontowechsel-Fall in der CI auf 429.
-  await page.route((url) => url.pathname === "/api/sync", (route) => route.abort());
+  await page.route(nurSync, (route) => route.abort());
   await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
   await page.waitForURL((url) => url.pathname !== "/login");
   await page.goto(uavUrl("/aufgabe?id=1-1"));
@@ -68,6 +71,8 @@ test("zeigt, wer angemeldet ist, und meldet ab (IDA-389)", async ({ page }) => {
 });
 
 test("Magic-Link löst den Code ein und landet auf dem Dashboard (Check 3)", async ({ page }) => {
+  // Kein Sync nötig, und jeder zählt gegen das Limit je Person (IDA-407).
+  await page.route(nurSync, (route) => route.abort());
   await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV.toLowerCase()}`));
   // `level: 1` UND exakter Name — ohne Level träfe die Regex `/Training/`
   // (naheliegend, weil „Drohnen-Trainingsbegleiter" das Wort als Teilzeichenkette
@@ -168,6 +173,8 @@ test("Die Verwaltung trägt genau eine Kopfzeile, die Teilnehmer-Ansicht gar kei
    */
   await page.goto("about:blank");
   await page.context().clearCookies();
+  // Kein Sync nötig, und jeder zählt gegen das Limit je Person (IDA-407).
+  await page.route(nurSync, (route) => route.abort());
   await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
   await page.waitForURL((url) => url.pathname !== "/login");
   await expect(
@@ -526,15 +533,18 @@ test.describe("Kontowechsel auf einem geteilten Gerät (DRK-286)", () => {
     }
 
     // ── A kommt zurück: die offene Arbeit ist noch da und geht unter A raus ─
-    await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
-    await page.waitForURL((url) => url.pathname !== "/login");
+    // IDA-407: schon das Dashboard nach der Anmeldung startet den Sync, und der
+    // kann vor `load` fertig sein. Erst danach zu lauschen verpasste den Sync mit
+    // der offenen Arbeit; der von der Aufgabenseite trug sie nicht mehr, der Fall
+    // wartete 45 s, und die Wiederholung lief im selben Fenster ins Limit (429).
     const syncVonA = page.waitForResponse(
       (r) => istSync(r.url()) && r.request().method() === "POST" && (r.request().postData() ?? "").includes(offen),
     );
-    await page.goto(uavUrl("/aufgabe?id=1-1"));
+    await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
     const antwortA = await syncVonA;
     expect(antwortA.status()).toBe(200);
     expect(antwortA.request().postDataJSON().teilnehmerId).toBe(AKTIVER_TEILNEHMER_ID);
+    await page.goto(uavUrl("/aufgabe?id=1-1"));
     await expect(page.getByText(`${offen} / Adele Offen`)).toBeVisible();
   });
 });
