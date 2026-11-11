@@ -1,4 +1,5 @@
-import { PRINT_MONOCHROME_THEME, SpecParseError, checkSpec, describeSymbolSpec, parseSpec, renderSvg } from "@einsatzzeichen/core";
+import { PRINT_MONOCHROME_THEME, renderSvg } from "@einsatzzeichen/core";
+import { SpecParseError, checkSpec, describeSymbolSpec, parseSpec } from "@einsatzzeichen/core/exact";
 import type { Drawing, Primitive, SymbolSpec } from "@einsatzzeichen/schema";
 import { PALETTE } from "@einsatzzeichen/schema";
 import type { Symbolquelle } from "../grundlagen";

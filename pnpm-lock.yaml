@@ -20,11 +20,11 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0(@ant-design/cssinjs@2.1.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(antd@6.6.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(next@16.3.3(patch_hash=494d042809a8d7d9cbfa264ab7555cb822301e9c7d290a02d4b93991ae56fd03)(@playwright/test@1.63.0)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@einsatzzeichen/core':
-        specifier: 6.11.0
-        version: 6.11.0
+        specifier: 7.0.0
+        version: 7.0.0
       '@einsatzzeichen/schema':
-        specifier: 6.11.0
-        version: 6.11.0
+        specifier: 7.0.0
+        version: 7.0.0
       '@lucasmarkes/hairline':
         specifier: ^0.5.1
         version: 0.5.1(react@19.3.0)
@@ -99,8 +99,8 @@ importers:
         version: 4.6.7
     devDependencies:
       '@einsatzzeichen/conformance':
-        specifier: 6.11.0
-        version: 6.11.0
+        specifier: 7.0.0
+        version: 7.0.0
       '@eslint/eslintrc':
         specifier: ^3.3.7
         version: 3.3.7
@@ -403,14 +403,14 @@ packages:
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
 
-  '@einsatzzeichen/conformance@6.11.0':
-    resolution: {integrity: sha512-G/MWNjAcCyVV7CKiM/jtRMgXZvOejtlRs6e9S4jWBRypH8B7FUmhVvIQJ0pqbQn72QIKABL+ypgPiJifsv0v7A==}
+  '@einsatzzeichen/conformance@7.0.0':
+    resolution: {integrity: sha512-xieeA5GHaz0RJzyn7hMFg3NaFyd7718766mzoiw9IS07AfpFoKKl/Qeo6rIwd1RhCZRcfbHjBng43oX/qYYwdQ==}
 
-  '@einsatzzeichen/core@6.11.0':
-    resolution: {integrity: sha512-XcnK1Ryi1kWupFSUV2uR3gSpbhqiu/j/9/CdaITJAY3HTe3aJBvF7eUmJ1sB+zI/55lGvGXvYPSEzZmLpGBgZA==}
+  '@einsatzzeichen/core@7.0.0':
+    resolution: {integrity: sha512-MHdkjwYGzlwuCOuVBGGLAoJeIgmt0XXNnGox7BejR+1cU1EA3dWF6t/vphDQRg6k5InnpG/vAN/bKRcJhNckwg==}
 
-  '@einsatzzeichen/schema@6.11.0':
-    resolution: {integrity: sha512-ar0qhqmrcTHS/aAnWa5zzOpjk7yYcdJaqiRnMT+dTcjJI30qpzPyjAQwV1w/57fjSfzDm1Jx2GKTBpp3owMPyQ==}
+  '@einsatzzeichen/schema@7.0.0':
+    resolution: {integrity: sha512-wmFMGYEXgavbIG+oMOqvix3BfP7ojmCRUuYnesXGttMKTrA6j3YAKevmYeHaDNonJ1ggs/3YMmD47w4ipq6omA==}
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -4802,16 +4802,16 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@einsatzzeichen/conformance@6.11.0':
+  '@einsatzzeichen/conformance@7.0.0':
     dependencies:
-      '@einsatzzeichen/core': 6.11.0
-      '@einsatzzeichen/schema': 6.11.0
+      '@einsatzzeichen/core': 7.0.0
+      '@einsatzzeichen/schema': 7.0.0
 
-  '@einsatzzeichen/core@6.11.0':
+  '@einsatzzeichen/core@7.0.0':
     dependencies:
-      '@einsatzzeichen/schema': 6.11.0
+      '@einsatzzeichen/schema': 7.0.0
 
-  '@einsatzzeichen/schema@6.11.0': {}
+  '@einsatzzeichen/schema@7.0.0': {}
 
   '@emnapi/core@1.10.0':
     dependencies:

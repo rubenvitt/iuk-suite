@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TEXT_FONT_METRICS } from "@einsatzzeichen/core";
+import { TEXT_FONT_METRICS } from "@einsatzzeichen/core/blocks";
 import { PT_IN_MM } from "./masse";
 import { grundlinie, kuerze, textBreite, umbrechen } from "./text";
 

@@ -1,20 +1,18 @@
+import { SPEC_FIELD_VALUES, checkSpec, vocabulary } from "@einsatzzeichen/core/exact";
 import {
   ADMIN_LEVEL_LABELS,
   ALL_PICTOGRAMS,
   BODY_VARIANT_LABELS,
   LARGE_CENTER_CAP_HEIGHT_MM,
   ORGANIZATION_LABELS,
-  SPEC_FIELD_VALUES,
   STRENGTH_LABELS,
   TECHNICAL_BODY_MARK_LABELS,
   TECHNICAL_HEAD_MARK_LABELS,
   UNIT_GROUPING_LABELS,
   VEHICLE_CATEGORY_LABELS,
-  checkSpec,
   functionRole,
   symbolKindLabel,
-  vocabulary,
-} from "@einsatzzeichen/core";
+} from "@einsatzzeichen/core/blocks";
 import type { SymbolSpec } from "@einsatzzeichen/schema";
 
 /**

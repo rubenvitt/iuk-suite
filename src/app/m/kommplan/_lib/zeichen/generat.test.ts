@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { RECIPES, TYPICAL_SYMBOLS } from "@einsatzzeichen/conformance";
-import { CATALOG_TEXT_FONT_WEIGHT, TEXT_FONT_METRICS } from "@einsatzzeichen/core";
+import { CATALOG_TEXT_FONT_WEIGHT, TEXT_FONT_METRICS } from "@einsatzzeichen/core/blocks";
 import { SECHSECK } from "../layout/masse";
 import { textBreite } from "../layout/text";
 import { VERBINDUNG_PIKTOGRAMM } from "./grundlagen";
