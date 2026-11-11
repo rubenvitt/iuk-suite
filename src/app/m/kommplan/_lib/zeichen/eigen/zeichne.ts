@@ -1,6 +1,6 @@
-import { PRINT_MONOCHROME_THEME, renderSvg } from "@einsatzzeichen/core";
-import { SpecParseError, checkSpec, describeSymbolSpec, parseSpec } from "@einsatzzeichen/core/exact";
-import type { Drawing, Primitive, SymbolSpec } from "@einsatzzeichen/schema";
+import { PRINT_MONOCHROME_THEME, check, describe, draw, kindFamilyOf, parse, renderSvg, serialize, type Fidelity } from "@einsatzzeichen/core";
+import { SpecParseError } from "@einsatzzeichen/core/exact";
+import type { BodySign, Drawing, Primitive, Sign } from "@einsatzzeichen/schema";
 import { PALETTE } from "@einsatzzeichen/schema";
 import type { Symbolquelle } from "../grundlagen";
 
@@ -8,30 +8,33 @@ import type { Symbolquelle } from "../grundlagen";
  * DER ZEICHNER EIGENER ZEICHEN — Server UND Baukasten im Browser, damit die Vorschau genau das Bild ist, das später
  * in Plan, Druck und Freigabe-Link steht.
  *
- * WARUM `@einsatzzeichen/core` (6.4.0) UND NICHT DAS PRÜFPAKET: der Kern bringt seit 3.0.0 die vermessene Geometrie
- * selbst mit (`drawSymbol`, `checkSpec`, `vocabulary`) und lädt seine Metriken als JSON-Import — kein
- * `fileURLToPath` auf Modulebene, also nicht Befund M1, der `@einsatzzeichen/conformance` aus jedem Server-Graph
- * verbannt (`grenze.test.ts`). Damit zeichnet der SERVER aus der gespeicherten Zusammenstellung; ein SVG aus dem
- * Browser wird nie angenommen. Gespeichert wird nur die Spec, geprüft von `parseSpec` (Form) und `checkSpec`
- * (Regeln), gezeichnet bei jedem Abruf (`symbole.ts`).
+ * WARUM `@einsatzzeichen/core` UND NICHT DAS PRÜFPAKET: der Kern bringt die vermessene Geometrie selbst mit und lädt
+ * seine Metriken als JSON-Import — kein `fileURLToPath` auf Modulebene, also nicht Befund M1, der
+ * `@einsatzzeichen/conformance` aus jedem Server-Graph verbannt (`grenze.test.ts`). Damit zeichnet der SERVER aus der
+ * gespeicherten Beschreibung; ein SVG aus dem Browser wird nie angenommen.
  *
- * Die eingecheckten Katalogzeichen (`zeichen.generiert.json`) zeichnet seit core 6.x derselbe Kern aus den Rezepten des
- * Prüfpakets; Unterschiede bleiben nur, wo ein Rezept eine eigene Angabe trägt. Einen Rezeptnachbau gibt es hier nicht.
+ * BESCHREIBUNG STATT BAUPLAN (Einsatzzeichen 7, ESZ-148 bis ESZ-151; IDA-408): gespeichert wird, was gemeint ist
+ * (`Sign`), in der Hülle `{"v":2,"sign":…}`. Die Fassungen wählt das Paket bei jedem Zeichnen. `draw` wirft nie wegen
+ * einer Regel: trägt eine gespeicherte Beschreibung nach einem Paketwechsel nicht mehr ganz, lässt es weg, was nicht
+ * passt, und das Zeichen bleibt im Plan. Streng geprüft (`check`) wird nur beim Speichern. Zeilen aus der Zeit vor
+ * IDA-408 tragen den nackten Bauplan; `parse` liest ihn über `fromExact` weiter.
+ *
+ * Die eingecheckten Katalogzeichen (`zeichen.generiert.json`) zeichnet derselbe Kern aus den Rezepten des Prüfpakets.
  */
 
-/** Obergrenze der gespeicherten Spec: eine echte Zusammenstellung braucht wenige hundert Zeichen. */
+/** Obergrenze der gespeicherten Beschreibung: eine echte Zusammenstellung braucht wenige hundert Zeichen. */
 export const SPEC_MAX_ZEICHEN = 4000;
 
-/**
- * `abgeleitet`: die Spec-Dimensionen (`capabilities`, `bodyMarks`, `labels.center` …), deren Zeichnung kein Original
- * belegt — seit core 4.0.0 überträgt oder konstruiert das Paket sie aus vermessenen Nachbarn (`Drawing.derivations`, DRK-507).
- */
-export type Zeichnung =
-  | { ok: true; quelle: Symbolquelle; beschreibung: string; abgeleitet: readonly string[] }
-  | { ok: false; art: "regel"; hinweise: readonly Regelhinweis[] }
-  | { ok: false; art: "unvermessen"; meldung: string };
+/** Was `draw` weglassen musste, mit dem Feld der Beschreibung (`tasks`, `head`, `text.center` …) und dem Grund. */
+export interface Weglassung { feld: string; wert: string; grund: string }
 
-/** Ein Regelverstoß in Worten des Pakets: Titel und Erklärung (deutsch), dazu das Spec-Feld, an dem er hängt. */
+/**
+ * Ein gezeichnetes eigenes Zeichen. `treue`: `measured` (an der Referenz vermessen), `derived` (vollständig, Teile
+ * abgeleitet) oder `simplified` (etwas fehlt, siehe `weggelassen`).
+ */
+export interface Zeichnung { quelle: Symbolquelle; beschreibung: string; treue: Fidelity; weggelassen: readonly Weglassung[] }
+
+/** Ein Befund in Worten des Pakets: Titel und Erklärung (deutsch), dazu das Feld der Beschreibung, an dem er hängt. */
 export interface Regelhinweis { titel: string; erklaerung: string; feld: string | null }
 
 /**
@@ -120,29 +123,50 @@ export function istSicheresSymbol(inhalt: string, idPraefix: string): boolean {
  */
 const ALTE_FUELLUNGEN = new Set(["funktionslauf-kontrast", "koerperlauf-kontrast"]);
 
-/** Form prüfen (unbekannte Felder, falsche Werte): `parseSpec` liefert die kanonische Spec oder einen Satz. */
-export function liesSpec(roh: unknown): { ok: true; spec: SymbolSpec } | { ok: false; fehler: string } {
+type Gelesen = { ok: true; zeichen: BodySign } | { ok: false; fehler: string };
+
+function lies(roh: () => Sign): Gelesen {
   try {
-    if (JSON.stringify(roh ?? null).length > SPEC_MAX_ZEICHEN) return { ok: false, fehler: "Die Zusammenstellung ist zu groß." };
-    const spec = parseSpec(roh);
-    return { ok: true, spec: spec.technicalFill && ALTE_FUELLUNGEN.has(spec.technicalFill) ? { ...spec, technicalFill: "schwarz" } : spec };
+    const zeichen = roh();
+    if (kindFamilyOf(zeichen.kind).id === "freestanding") return { ok: false, fehler: "Ein Zeichen ohne Grundzeichen lässt sich hier nicht speichern." };
+    const sign = zeichen as BodySign;
+    return { ok: true, zeichen: sign.color && ALTE_FUELLUNGEN.has(sign.color) ? { ...sign, color: "schwarz" } : sign };
   } catch (e) {
     if (e instanceof SpecParseError) return { ok: false, fehler: `Die Zusammenstellung lässt sich nicht lesen (${e.message}).` };
     throw e;
   }
 }
 
-/** Zeichnen. `idPraefix` hält IDs eindeutig, wenn mehrere Zeichen im selben Dokument stehen (Befund M11). */
-export function zeichneEigenes(spec: SymbolSpec, idPraefix: string, optionen: { schwarzweiss?: boolean } = {}): Zeichnung {
-  const r = checkSpec(spec);
-  if (!r.ok) {
-    return r.reason === "rule"
-      ? { ok: false, art: "regel", hinweise: r.issues.map((i) => ({ titel: i.title, erklaerung: i.explanation, feld: i.field ?? null })) }
-      : { ok: false, art: "unvermessen", meldung: r.scope === "value" ? "Für einen der gewählten Werte gibt es keine vermessene Zeichnung." : "Diese Kombination ist nicht vermessen. Nimm einen der Werte heraus." };
-  }
+/** Form prüfen (unbekannte Felder, falsche Werte), wie der Browser sie schickt: eine nackte Beschreibung. */
+export function liesEingabe(roh: unknown): Gelesen {
+  if (JSON.stringify(roh ?? null).length > SPEC_MAX_ZEICHEN) return { ok: false, fehler: "Die Zusammenstellung ist zu groß." };
+  return lies(() => parse({ v: 2, sign: roh }));
+}
+
+/** Eine Zeile der Datenbank: die Hülle v2 oder (vor IDA-408) der nackte Bauplan. */
+export function liesGespeichert(json: string): Gelesen {
+  return lies(() => parse(json));
+}
+
+/** Die Form für die Datenbank: kanonisch in der Hülle v2. */
+export function speicherform(zeichen: BodySign): string {
+  return serialize(zeichen);
+}
+
+/** Streng: trägt die Beschreibung als Ganzes, ohne dass `draw` etwas weglassen müsste? Nur der Server beim Speichern. */
+export function pruefeEigenes(zeichen: BodySign): { ok: true } | { ok: false; hinweise: Regelhinweis[] } {
+  const r = check(zeichen);
+  return r.ok ? { ok: true } : { ok: false, hinweise: r.issues.map((i) => ({ titel: i.title, erklaerung: i.message, feld: i.field ?? null })) };
+}
+
+/** Zeichnen, nie scheiternd. `idPraefix` hält IDs eindeutig, wenn mehrere Zeichen im selben Dokument stehen (Befund M11). */
+export function zeichneEigenes(zeichen: BodySign, idPraefix: string, optionen: { schwarzweiss?: boolean } = {}): Zeichnung {
+  const r = draw(zeichen);
   const svg = renderSvg(lesbar(r.drawing), { idPrefix: idPraefix, ...(optionen.schwarzweiss ? { theme: PRINT_MONOCHROME_THEME } : {}) });
   const quelle = zerlege(svg);
   if (!istSicheresSymbol(quelle.inhalt, idPraefix)) throw new Error("renderSvg lieferte unerwartetes Markup");
-  const abgeleitet = [...new Set((r.drawing.derivations ?? []).map((d) => d.dimension))];
-  return { ok: true, quelle, beschreibung: describeSymbolSpec(spec), abgeleitet };
+  return {
+    quelle, beschreibung: describe(zeichen).description, treue: r.fidelity,
+    weggelassen: r.omitted.map((o) => ({ feld: o.field, wert: o.value, grund: o.why })),
+  };
 }

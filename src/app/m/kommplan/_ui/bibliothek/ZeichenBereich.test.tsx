@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { clickElement, mount, query, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
-import type { SymbolSpec } from "@einsatzzeichen/schema";
+import type { BodySign } from "@einsatzzeichen/schema";
 import type { EigenesZeichen } from "../../_lib/zeichen/eigen/typen";
 
 const aktion = vi.hoisted(() => ({ speichere: vi.fn(), loesche: vi.fn() }));
@@ -16,7 +16,7 @@ import { Bibliothek } from "./Bibliothek";
 const ID = "8f1c2c1e-0000-4000-8000-000000000001";
 const ILS: EigenesZeichen = {
   id: ID, schluessel: `eigen:${ID}`, titel: "ILS Schweinfurt", nutzung: 2, beschreibung: "Grundzeichen: Funktionsstelle. Kürzel: ILS.",
-  spec: { kind: "post", organization: "fuehrung-leitung", labels: { center: "ILS", bottomRight: "SW" } } as SymbolSpec,
+  zeichen: { kind: "post", organization: "fuehrung-leitung", text: { center: "ILS", bottomRight: "SW" } },
 };
 const LEER = { stellen: [], einheiten: [], verbindungen: [] };
 /** Der Baukasten kommt per `import()` — warten, bis seine Vorschau steht. */
@@ -65,28 +65,30 @@ describe("Bibliothek — eigene Zeichen", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     expect(aktion.speichere).toHaveBeenCalledWith({
       id: null, titel: "ILS Würzburg",
-      spec: { kind: "post", organization: "fuehrung-leitung", labels: { center: "ILS", bottomRight: "WÜ" } },
+      zeichen: { kind: "post", organization: "fuehrung-leitung", text: { center: "ILS", bottomRight: "WÜ" } },
     });
     expect(query('section[aria-label="Eigene Zeichen"] [role="status"]').textContent).toContain("„ILS Würzburg“ gespeichert.");
     expect(router.refresh).toHaveBeenCalledTimes(1);
   });
-  it("ein zu langer Text sperrt keine Auswahl, sondern steht als Hinweis an der Vorschau", async () => {
+  it("ein zu langer Text sperrt keine Auswahl: die Vorschau zeichnet ohne ihn, sagt „Vereinfacht“ und nennt ihn", async () => {
     await zeige([]);
     await clickElement(knopf("Neues Zeichen"));
     await baukastenDa();
     const mitte = [...document.querySelectorAll<HTMLLabelElement>(".kp-flyin label")].find((l) => l.textContent === "Mitte")!;
     await fillPortal(`#${CSS.escape(mitte.htmlFor)}`, "Integrierte Leitstelle");
-    expect(queryPortal(".kp-flyin .kp-baukasten-vorschau .ant-alert-warning").textContent).toMatch(/\S/);
-    expect(document.querySelector(".kp-flyin .kp-baukasten-vorschau > svg")).toBeNull();
+    expect(queryPortal(".kp-flyin .kp-baukasten-vorschau .ant-alert-warning").textContent).toContain("Text „Mitte“");
+    expect(queryPortal(".kp-flyin .kp-baukasten-treue").textContent).toBe("Vereinfacht");
+    expect(queryPortal(".kp-flyin .kp-baukasten-vorschau > svg").innerHTML).not.toContain("Integrierte");
     expect(document.querySelectorAll(".kp-flyin .ant-select-disabled")).toHaveLength(0);
   });
-  it("ein abgeleitetes Zeichen sagt es an der Vorschau; die Auswahl prüft erst beim Öffnen", async () => {
-    const thw: EigenesZeichen = { ...ILS, titel: "Pumpe", spec: { kind: "vehicle-land", organization: "thw", capabilities: ["fire-fighting", "pumping"] } as SymbolSpec };
+  it("ein abgeleitetes Zeichen sagt es an der Vorschau; die Fachaufgaben prüft er erst beim Öffnen", async () => {
+    const thw: EigenesZeichen = { ...ILS, titel: "Pumpe", zeichen: { kind: "vehicle-land", organization: "thw", tasks: ["fire-fighting", "pumping"] } as BodySign };
     await zeige([thw]);
     await clickElement(knopf("Pumpe"));
     const vorschau = await baukastenDa();
-    expect(vorschau.querySelector(".kp-baukasten-abgeleitet")!.textContent).toContain("Abgeleitet: Fähigkeit");
-    const auswahl = queryPortal('.kp-flyin [data-achse="koerperform"] .ant-select');
+    expect(vorschau.querySelector(".kp-baukasten-treue")!.textContent).toBe("Abgeleitet");
+    expect(document.querySelector('.kp-flyin [data-achse="funktion"]')).toBeNull(); // am Fahrzeug keine Funktion
+    const auswahl = queryPortal('.kp-flyin [data-achse="fachaufgaben"] .ant-select');
     expect(document.querySelector(".ant-select-dropdown")).toBeNull(); // nichts geprüft, solange keine Liste offen ist
     await act(async () => { auswahl.querySelector(".ant-select-content, .ant-select-selector")!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
     for (let i = 0; i < 100 && !document.querySelector(".ant-select-dropdown .ant-select-item-option"); i++) {

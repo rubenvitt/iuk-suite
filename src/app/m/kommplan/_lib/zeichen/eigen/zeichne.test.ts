@@ -1,42 +1,38 @@
 import { describe, expect, it } from "vitest";
-import type { SymbolSpec } from "@einsatzzeichen/schema";
-import { ACHSEN, befunde } from "./vokabular";
-import { SPEC_MAX_ZEICHEN, istSicheresSymbol, liesSpec, weissZuSchwach, zeichneEigenes } from "./zeichne";
+import type { BodySign } from "@einsatzzeichen/schema";
+import { SOFORT_GEPRUEFT, befunde } from "./vokabular";
+import { SPEC_MAX_ZEICHEN, istSicheresSymbol, liesEingabe, liesGespeichert, pruefeEigenes, speicherform, weissZuSchwach, zeichneEigenes } from "./zeichne";
 
-const spec = (s: object) => s as SymbolSpec;
-const ILS = spec({ kind: "post", organization: "fuehrung-leitung", labels: { center: "ILS", bottomRight: "SW" } });
+const zeichen = (s: object) => s as BodySign;
+const ILS = zeichen({ kind: "post", organization: "fuehrung-leitung", text: { center: "ILS", bottomRight: "SW" } });
 
 describe("eigene Zeichen zeichnen", () => {
   it("eine Leitstelle: gelber Körper, Kürzel SCHWARZ (der Kern setzte Weiß auf Gelb, 1,07:1)", () => {
     const r = zeichneEigenes(ILS, "kpe-t");
-    if (!r.ok) throw new Error(JSON.stringify(r));
     expect(r.quelle.viewBox).toBe("0 0 90.709 90.709");
     expect(r.quelle.inhalt).toContain('fill="#fafa00"');
     expect(r.quelle.inhalt).toMatch(/fill="#000000">ILS<\/text>/);
     expect(r.quelle.inhalt).toMatch(/fill="#000000">SW<\/text>/);
     expect(r.beschreibung).toContain("Kürzel: ILS");
   });
-  it("Leitstelle wie im Einsatzzeichen-Baukasten: großer Mitteltext und Kürzel unter dem Zeichen rechts (core 4.2.0)", () => {
-    const lst = spec({ kind: "circle-12", organization: "fuehrung-leitung", administrativeLevel: "kreis", bodyMarks: ["circle-solid-cap-4mm"],
-      labels: { center: "LST", belowRight: "Uel", centerCapHeightMm: 7.3 } });
+  it("Leitstelle wie im Einsatzzeichen-Baukasten: großer Mitteltext und Kürzel unter dem Zeichen rechts", () => {
+    const lst = zeichen({ kind: "circle-12", organization: "fuehrung-leitung", head: "kreis", text: { center: "LST", belowRight: "Uel", centerSize: "large" } });
     const gross = zeichneEigenes(lst, "kpe-t");
-    const normal = zeichneEigenes(spec({ ...lst, labels: { center: "LST", belowRight: "Uel" } }), "kpe-t");
-    if (!gross.ok || !normal.ok) throw new Error(JSON.stringify({ gross, normal }));
+    const normal = zeichneEigenes(zeichen({ ...lst, text: { center: "LST", belowRight: "Uel" } }), "kpe-t");
     expect(gross.quelle.inhalt).toMatch(/>Uel<\/text>/);
     const groesse = (inhalt: string) => Number(/font-size="([\d.]+)"[^>]*>LST</.exec(inhalt)![1]);
     expect(groesse(gross.quelle.inhalt)).toBeGreaterThan(groesse(normal.quelle.inhalt) * 1.4);
   });
   it("alte Füllungen aus core 4.1.0 (Schrifttoken) lesen sich als Schwarz und zeichnen weiter", () => {
     for (const technicalFill of ["funktionslauf-kontrast", "koerperlauf-kontrast"]) {
-      const r = liesSpec({ kind: "formation", technicalFill });
-      expect(r).toEqual({ ok: true, spec: { kind: "formation", technicalFill: "schwarz" } });
-      expect(r.ok && zeichneEigenes(r.spec, "kpe-t").ok).toBe(true);
+      const r = liesGespeichert(JSON.stringify({ kind: "formation", technicalFill }));
+      expect(r).toEqual({ ok: true, zeichen: { kind: "formation", color: "schwarz" } });
+      expect(r.ok && zeichneEigenes(r.zeichen, "kpe-t").treue).not.toBe("simplified");
     }
   });
   it("auf Rot, Blau und Grün bleibt die Beschriftung weiß wie in der Vorschrift; getauscht wird nur unter 3:1", () => {
     for (const organization of ["feuerwehr", "thw", "polizei"]) {
-      const r = zeichneEigenes(spec({ kind: "formation", organization, labels: { center: "X" } }), "kpe-t");
-      expect(r.ok && r.quelle.inhalt).toMatch(/fill="#ffffff">X<\/text>/);
+      expect(zeichneEigenes(zeichen({ kind: "formation", organization, text: { center: "X" } }), "kpe-t").quelle.inhalt).toMatch(/fill="#ffffff">X<\/text>/);
     }
     expect(["gelb", "hellgruen", "orange", "hellgrau"].every(weissZuSchwach)).toBe(true);
     expect(["rot", "gruen", "blau", "hellblau", "braun", "schwarz", "grau"].some(weissZuSchwach)).toBe(false);
@@ -44,7 +40,6 @@ describe("eigene Zeichen zeichnen", () => {
   it("ohne Hülle, Beschreibung und Schriftfamilie, Kürzel in 500 — wie das Generat; Schwarzweiß ohne Buntton", () => {
     const farbe = zeichneEigenes(ILS, "kpe-t");
     const sw = zeichneEigenes(ILS, "kpe-t", { schwarzweiss: true });
-    if (!farbe.ok || !sw.ok) throw new Error("zeichnet nicht");
     expect(farbe.quelle.inhalt).not.toMatch(/<svg|<desc|<title|font-family|aria-/);
     expect([...new Set([...farbe.quelle.inhalt.matchAll(/\bfont-weight="([^"]*)"/g)].map((m) => m[1]))]).toEqual(["500"]);
     const bunt = [...sw.quelle.inhalt.matchAll(/#([0-9a-f]{6})\b/gi)].map((m) => m[1].toLowerCase())
@@ -52,39 +47,36 @@ describe("eigene Zeichen zeichnen", () => {
     expect(bunt).toEqual([]);
   });
   it("Text wird maskiert, nie als Markup übernommen", () => {
-    const r = zeichneEigenes(spec({ kind: "formation", organization: "feuerwehr", labels: { center: "<b>&" } }), "kpe-t");
-    expect(r.ok && r.quelle.inhalt).toContain("&lt;b&gt;&amp;");
+    expect(zeichneEigenes(zeichen({ kind: "formation", organization: "feuerwehr", text: { center: "<b>&" } }), "kpe-t").quelle.inhalt).toContain("&lt;b&gt;&amp;");
   });
-  it("Regelverstoß und Vermessungslücke kommen als Ergebnis, nicht als Wurf", () => {
-    const r = zeichneEigenes(spec({ kind: "person", organization: "feuerwehr", technicalFill: "rot" }), "kpe-t");
-    expect(r).toMatchObject({ ok: false, art: "regel", hinweise: [{ titel: expect.stringContaining("schließen sich aus"), feld: "technicalFill" }] });
-    const lang = zeichneEigenes(spec({ kind: "formation", labels: { center: "Integrierte Leitstelle Schweinfurt" } }), "kpe-t");
-    expect(lang.ok).toBe(false);
+  it("zeichnen scheitert nie: was nicht passt, fällt mit Grund weg; streng prüft nur `pruefeEigenes`", () => {
+    const lang = zeichen({ kind: "formation", organization: "feuerwehr", text: { center: "Integrierte Leitstelle Schweinfurt" } });
+    const r = zeichneEigenes(lang, "kpe-t");
+    expect(r.treue).toBe("simplified");
+    expect(r.weggelassen).toEqual([{ feld: "text.center", wert: "Integrierte Leitstelle Schweinfurt", grund: expect.any(String) }]);
+    expect(r.quelle.inhalt).not.toContain("Integrierte");
+    expect(pruefeEigenes(lang)).toMatchObject({ ok: false, hinweise: [{ feld: "text", titel: expect.any(String) }] });
+    expect(pruefeEigenes(ILS)).toEqual({ ok: true });
   });
-  it("jeder Wert, den der Baukasten an einer nackten Grundform anbietet, zeichnet sicher (Farbe und Schwarzweiß)", () => {
+  it("jeder Wert, den der Baukasten an einer nackten Grundform anbietet, zeichnet sicher und vollständig (Farbe und Schwarzweiß)", () => {
     let geprueft = 0;
     for (const kind of ["formation", "person", "post", "vehicle-land", "building"]) {
-      for (const achse of ACHSEN.filter((a) => a.key !== "grundzeichen")) {
-        for (const feld of achse.felder) {
-          for (const b of befunde(spec({ kind }), achse, feld).filter((x) => x.frei)) {
-            const s = spec({ kind, [feld]: feld === "capabilities" || feld === "bodyMarks" ? [b.wert] : b.wert });
-            for (const schwarzweiss of [false, true]) {
-              const r = zeichneEigenes(s, "kpe-t", { schwarzweiss }); // wirft, wenn `istSicheresSymbol` anschlägt
-              expect(r.ok, JSON.stringify(s)).toBe(true);
-            }
-            geprueft++;
+      for (const feld of [...SOFORT_GEPRUEFT.filter((f) => f !== "kind"), "tasks" as const]) {
+        for (const b of befunde(zeichen({ kind }), feld).filter((x) => x.frei)) {
+          const z = zeichen({ kind, [feld]: feld === "tasks" ? [b.wert] : b.wert });
+          for (const schwarzweiss of [false, true]) {
+            const r = zeichneEigenes(z, "kpe-t", { schwarzweiss }); // wirft, wenn `istSicheresSymbol` anschlägt
+            expect(r.treue, JSON.stringify(z)).not.toBe("simplified");
           }
+          geprueft++;
         }
       }
     }
     expect(geprueft).toBeGreaterThan(100);
-  }, 120_000); // seit core 4.0.0 gut 1 500 statt ~250 freie Werte, je zweimal gezeichnet (DRK-507)
-  it("ein abgeleitetes Zeichen nennt, welcher Teil abgeleitet ist; ein vermessenes nennt nichts", () => {
-    const zwei = zeichneEigenes(spec({ kind: "vehicle-land", organization: "thw", capabilities: ["fire-fighting", "pumping"] }), "kpe-t");
-    expect(zwei).toMatchObject({ ok: true, abgeleitet: ["capabilities"] });
-    expect(zeichneEigenes(spec({ kind: "formation", organization: "feuerwehr" }), "kpe-t")).toMatchObject({ ok: true, abgeleitet: [] });
-    // Text im Kreis setzt core 4.0.0 nach einer Regel (Versalmitte auf Kreismitte) — konstruiert, nicht vermessen.
-    expect(zeichneEigenes(ILS, "kpe-t")).toMatchObject({ ok: true, abgeleitet: ["labels.center", "labels.corner"] });
+  }, 120_000);
+  it("die Treue: abgeleitet, wenn Teile an keinem Original vermessen sind; vermessen sonst", () => {
+    expect(zeichneEigenes(zeichen({ kind: "vehicle-land", organization: "thw", tasks: ["fire-fighting", "pumping"] }), "kpe-t").treue).toBe("derived");
+    expect(zeichneEigenes(zeichen({ kind: "formation", organization: "feuerwehr" }), "kpe-t").treue).toBe("measured");
   });
 });
 
@@ -109,12 +101,20 @@ describe("die zweite Linie: istSicheresSymbol", () => {
   });
 });
 
-describe("liesSpec", () => {
-  it("nimmt eine Spec in kanonischer Form, lehnt fremde Felder und Übergröße ab", () => {
-    expect(liesSpec({ labels: { center: "A" }, kind: "post" })).toEqual({ ok: true, spec: { kind: "post", labels: { center: "A" } } });
-    expect(liesSpec({ kind: "post", onload: "x" })).toMatchObject({ ok: false, fehler: expect.stringContaining("onload") });
-    expect(liesSpec({ kind: "gibt-es-nicht" }).ok).toBe(false);
-    expect(liesSpec("kein Objekt").ok).toBe(false);
-    expect(liesSpec({ kind: "post", designation: "x".repeat(SPEC_MAX_ZEICHEN) })).toEqual({ ok: false, fehler: "Die Zusammenstellung ist zu groß." });
+describe("lesen und speichern", () => {
+  it("die Eingabe ist eine nackte Beschreibung; fremde Felder, Übergröße und freistehende Zeichen lehnt sie ab", () => {
+    expect(liesEingabe({ text: { center: "A" }, kind: "post" })).toEqual({ ok: true, zeichen: { kind: "post", text: { center: "A" } } });
+    expect(liesEingabe({ kind: "post", onload: "x" })).toMatchObject({ ok: false, fehler: expect.stringContaining("onload") });
+    expect(liesEingabe({ kind: "post", labels: { center: "A" } }).ok).toBe(false); // ein Bauplan ist keine Eingabe mehr
+    expect(liesEingabe({ kind: "gibt-es-nicht" }).ok).toBe(false);
+    expect(liesEingabe("kein Objekt").ok).toBe(false);
+    expect(liesEingabe({ kind: "weather", values: ["weather-cloudy"] })).toMatchObject({ ok: false, fehler: expect.stringContaining("ohne Grundzeichen") });
+    expect(liesEingabe({ kind: "post", text: { below: "x".repeat(SPEC_MAX_ZEICHEN) } })).toEqual({ ok: false, fehler: "Die Zusammenstellung ist zu groß." });
+  });
+  it("gespeichert wird die Hülle v2; gelesen werden sie und der nackte Bauplan aus der Zeit vor IDA-408", () => {
+    expect(speicherform(ILS)).toBe('{"v":2,"sign":{"kind":"post","organization":"fuehrung-leitung","text":{"center":"ILS","bottomRight":"SW"}}}');
+    expect(liesGespeichert(speicherform(ILS))).toEqual({ ok: true, zeichen: ILS });
+    expect(liesGespeichert(JSON.stringify({ kind: "post", organization: "fuehrung-leitung", labels: { center: "ILS", bottomRight: "SW" } }))).toEqual({ ok: true, zeichen: ILS });
+    expect(liesGespeichert("{").ok).toBe(false);
   });
 });

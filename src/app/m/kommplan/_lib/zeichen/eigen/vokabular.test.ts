@@ -1,69 +1,87 @@
 import { describe, expect, it } from "vitest";
-import type { SymbolSpec } from "@einsatzzeichen/schema";
-import { ACHSEN, FARBWORTE, KOERPERFORMEN, abgeleiteteTeile, befunde, bezeichnung, gewaehlt, kandidaten, mittelgroesse, ohneFeldnamen, setze, setzeAchse, setzeMittelgroesse, setzeZone } from "./vokabular";
+import type { BodySign } from "@einsatzzeichen/schema";
+import {
+  ABSCHNITTE, SOFORT_GEPRUEFT, befunde, feldname, gewaehlt, mittelgroesse, ohneFeldnamen, setze, setzeAbschnitt, setzeFachaufgaben, setzeMittelgroesse,
+  setzeText, fachaufgaben, sichtbar, type WahlFeld, type Wertbefund,
+} from "./vokabular";
 
-const spec = (s: object) => s as SymbolSpec;
-const achse = (key: string) => ACHSEN.find((a) => a.key === key)!;
+const zeichen = (s: object) => s as BodySign;
+const abschnitt = (key: string) => ABSCHNITTE.find((a) => a.key === key)!;
+const sofort = (z: BodySign) => new Map<WahlFeld, Wertbefund[]>(SOFORT_GEPRUEFT.map((f) => [f, befunde(z, f)]));
 
-describe("Vokabular des Baukastens", () => {
-  it("jeder Wert jeder Achse hat einen deutschen Namen, keine rohe Kennung", () => {
-    const ohne = ACHSEN.flatMap((a) => a.felder.flatMap((f) => kandidaten(f).filter((w) => bezeichnung(f, w) === w).map((w) => `${f}:${w}`)));
-    expect(ohne).toEqual([]);
+describe("Vokabular des Baukastens (Beschreibung, Einsatzzeichen 7)", () => {
+  it("jeder angebotene Wert trägt einen deutschen Namen aus dem Paket, keine rohe Kennung", () => {
+    const z = zeichen({ kind: "vehicle-land" });
+    const roh = [...SOFORT_GEPRUEFT, "tasks" as const].flatMap((f) => befunde(z, f).filter((b) => b.name === b.wert).map((b) => `${f}:${b.wert}`));
+    expect(roh).toEqual([]);
   });
-  it("die eigenen Wortlisten decken den Wertevorrat des Pakets genau", () => {
-    expect(Object.keys(FARBWORTE).sort()).toEqual([...kandidaten("technicalFill")].sort());
-    expect(Object.keys(KOERPERFORMEN).sort()).toEqual([...kandidaten("bodyVariant")].sort());
+  it("ein Abschnitt setzen leert seine anderen Felder im selben Schritt; „ohne“ leert den Abschnitt", () => {
+    const z = zeichen({ kind: "formation", organization: "feuerwehr", head: "zug" });
+    expect(setzeAbschnitt(z, abschnitt("zugehoerigkeit"), "color", "rot")).toEqual({ kind: "formation", color: "rot", head: "zug" });
+    expect(setzeAbschnitt(z, abschnitt("kopf"), "head", "kreis")).toEqual({ kind: "formation", organization: "feuerwehr", head: "kreis" });
+    expect(setzeAbschnitt(z, abschnitt("kopf"), "head", null)).toEqual({ kind: "formation", organization: "feuerwehr" });
+    expect(setzeAbschnitt(z, abschnitt("zugehoerigkeit"), "organization", null)).toEqual({ kind: "formation", head: "zug" });
+    expect(setzeAbschnitt(z, abschnitt("fachaufgaben"), "tasks", "fire-fighting")).toMatchObject({ tasks: ["fire-fighting"] });
+    expect(gewaehlt(z, abschnitt("kopf"))).toBe("head:zug");
+    expect(gewaehlt(z, abschnitt("funktion"))).toBeNull();
   });
-  it("eine Achse setzen leert ihre anderen Quellen im selben Schritt; „ohne“ leert die Achse", () => {
-    const s = spec({ kind: "formation", organization: "feuerwehr", strength: "zug" });
-    expect(setzeAchse(s, achse("zugehoerigkeit"), "technicalFill", "rot")).toEqual({ kind: "formation", technicalFill: "rot", strength: "zug" });
-    expect(setzeAchse(s, achse("kopfzone"), "administrativeLevel", "kreis")).toEqual({ kind: "formation", organization: "feuerwehr", administrativeLevel: "kreis" });
-    expect(setzeAchse(s, achse("kopfzone"), null, null)).toEqual({ kind: "formation", organization: "feuerwehr" });
-    expect(setzeAchse(spec({ kind: "vehicle-land", designation: "x" }), achse("unten"), "vehicleCategory", "kfz-kategorie-1")).toEqual({ kind: "vehicle-land", vehicleCategory: "kfz-kategorie-1" });
-    expect(setzeAchse(s, achse("faehigkeit"), "capabilities", "fire-fighting")).toMatchObject({ capabilities: ["fire-fighting"] });
-    expect(gewaehlt(s, achse("kopfzone"))).toBe("strength:zug");
-    expect(gewaehlt(s, achse("funktion"))).toBeNull();
+  it("Fahrwerk und Text unter dem Körper verdrängen einander (derselbe Platz)", () => {
+    const mitText = zeichen({ kind: "vehicle-land", text: { below: "x", center: "A" } });
+    expect(setzeAbschnitt(mitText, abschnitt("fahrwerk"), "chassis", "kfz-kategorie-1")).toEqual({ kind: "vehicle-land", chassis: "kfz-kategorie-1", text: { center: "A" } });
+    expect(setzeText(zeichen({ kind: "vehicle-land", chassis: "kfz-kategorie-1" }), "below", "x")).toEqual({ kind: "vehicle-land", text: { below: "x" } });
   });
   it("leere Texte und Listen heißen „nicht gesetzt“; Zonen kommen und gehen einzeln", () => {
-    const s = setzeZone(setzeZone(spec({ kind: "post" }), "center", "ILS"), "bottomRight", "SW");
-    expect(s).toEqual({ kind: "post", labels: { center: "ILS", bottomRight: "SW" } });
-    expect(setzeZone(setzeZone(s, "center", " "), "bottomRight", "")).toEqual({ kind: "post" });
-    expect(setze(spec({ kind: "post", bodyMarks: ["a"] }), [["bodyMarks", []], ["designation", ""]])).toEqual({ kind: "post" });
+    const z = setzeText(setzeText(zeichen({ kind: "post" }), "center", "ILS"), "bottomRight", "SW");
+    expect(z).toEqual({ kind: "post", text: { center: "ILS", bottomRight: "SW" } });
+    expect(setzeText(setzeText(z, "center", " "), "bottomRight", "")).toEqual({ kind: "post" });
+    expect(setze(zeichen({ kind: "post", tasks: ["pumping"] }), [["tasks", []]])).toEqual({ kind: "post" });
   });
-  it("Größe des mittigen Textes: „Groß“ setzt 7,3 mm, „Normal“ nichts; ohne mittigen Text fällt sie mit weg", () => {
-    const s = setzeMittelgroesse(setzeZone(spec({ kind: "circle-12" }), "center", "LST"), "gross");
-    expect(s).toEqual({ kind: "circle-12", labels: { center: "LST", centerCapHeightMm: 7.3 } });
-    expect(mittelgroesse(s)).toBe("gross");
-    expect(setzeMittelgroesse(s, "normal")).toEqual({ kind: "circle-12", labels: { center: "LST" } });
-    expect(setzeZone(setzeZone(s, "belowRight", "Uel"), "center", "")).toEqual({ kind: "circle-12", labels: { belowRight: "Uel" } });
+  it("Größe des mittigen Textes: „Groß“ setzt `large`, „Normal“ nichts; ohne mittigen Text fällt sie mit weg", () => {
+    const z = setzeMittelgroesse(setzeText(zeichen({ kind: "circle-12" }), "center", "LST"), "large");
+    expect(z).toEqual({ kind: "circle-12", text: { center: "LST", centerSize: "large" } });
+    expect(mittelgroesse(z)).toBe("large");
+    expect(setzeMittelgroesse(z, "normal")).toEqual({ kind: "circle-12", text: { center: "LST" } });
+    expect(setzeText(setzeText(z, "belowRight", "Uel"), "center", "")).toEqual({ kind: "circle-12", text: { belowRight: "Uel" } });
   });
-  it("Körperformen tragen die Namen des Pakets, großgeschrieben", () => {
-    expect(KOERPERFORMEN["raised-gable"]).toBe("Ortsgebunden (Giebel)");
-  });
-  it("Sperren: der gesetzte Wert ist nie gesperrt, ein langer Text sperrt keine Achse, gesperrte tragen einen Grund", () => {
-    const s = spec({ kind: "formation", organization: "fuehrung-leitung", strength: "gruppe", labels: { center: "Viel zu langer Text für die Mitte" } });
-    const kopf = befunde(s, achse("kopfzone"), "strength");
+  it("Sperren: der gesetzte Wert ist nie gesperrt, ein langer Text sperrt nichts, gesperrte tragen einen Grund", () => {
+    const z = zeichen({ kind: "formation", organization: "fuehrung-leitung", head: "gruppe", text: { center: "Viel zu langer Text für die Mitte" } });
+    const kopf = befunde(z, "head");
     expect(kopf.find((b) => b.wert === "gruppe")?.frei).toBe(true);
-    expect(kopf.every((b) => b.frei)).toBe(true); // geprobt ohne die Kopfzone selbst und ohne Texte
-    const funktion = befunde(s, achse("funktion"), "functionRole");
+    expect(kopf.every((b) => b.frei)).toBe(true);
+    const funktion = befunde(z, "role");
     expect(funktion.some((b) => !b.frei)).toBe(true);
     expect(funktion.filter((b) => !b.frei).every((b) => typeof b.grund === "string" && b.grund.length > 0)).toBe(true);
   });
-  it("Fähigkeiten sind eine Liste: neben einer gesetzten ist eine zweite frei (core 4.0.0)", () => {
-    expect(achse("faehigkeit").art).toBe("mehrfach");
-    const zweite = befunde(spec({ kind: "formation", capabilities: ["water-rescue"] }), achse("faehigkeit"), "capabilities");
+  it("Fachaufgaben sind eine Liste: neben einer gesetzten ist eine zweite frei", () => {
+    const zweite = befunde(zeichen({ kind: "formation", tasks: ["water-rescue"] }), "tasks");
     expect(zweite.filter((b) => b.frei && b.wert !== "water-rescue").length).toBeGreaterThan(50);
   });
-  it("„abgeleitet“ markiert nur Werte, die die Ableitung selbst auslösen — nicht jeden, weil die Probe schon abgeleitet ist", () => {
-    const nackt = befunde(spec({ kind: "formation", organization: "thw" }), achse("koerperform"), "bodyVariant");
+  it("„abgeleitet“ markiert nur Werte, die die Ableitung selbst auslösen", () => {
+    const nackt = befunde(zeichen({ kind: "formation", organization: "thw" }), "role");
     expect(nackt.filter((b) => b.abgeleitet).length).toBeGreaterThan(0);
-    expect(nackt.some((b) => b.frei && !b.abgeleitet)).toBe(true);
-    const schonAbgeleitet = spec({ kind: "formation", organization: "thw", capabilities: ["fire-fighting", "pumping"] });
-    expect(befunde(schonAbgeleitet, achse("koerperform"), "bodyVariant").some((b) => b.abgeleitet)).toBe(false);
+    const schonAbgeleitet = zeichen({ kind: "vehicle-land", organization: "thw", tasks: ["fire-fighting", "pumping"] });
+    expect(befunde(schonAbgeleitet, "variant").some((b) => b.abgeleitet)).toBe(false);
   });
-  it("abgeleitete Teile in Wörtern vom Bildschirm, gleich ob Feld- oder Kebab-Schreibweise", () => {
-    expect(abgeleiteteTeile(["capabilities", "bodyMarks", "body-marks", "labels.center", "head", "gibt-es-nicht"]))
-      .toEqual(["Fähigkeit", "Körpermarke", "Beschriftung", "Über dem Körper", "Weitere Teile"]);
+  it("Fachaufgaben aus einem alten Bauplan (unter `exact`) stehen in der Auswahl und lassen sich abwählen; technische Marken bleiben", () => {
+    const alt = zeichen({ kind: "formation", organization: "hilfsorganisation", head: "verband-i", exact: { bodyMarks: ["care", "physician", "ring-7mm-offset-down-1mm"] } });
+    expect(fachaufgaben(alt)).toEqual(["care", "physician"]);
+    expect(befunde(alt, "tasks").filter((b) => b.wert === "care" || b.wert === "physician").every((b) => b.frei)).toBe(true);
+    expect(setzeFachaufgaben(alt, ["care", "physician", "pumping"])).toMatchObject({ tasks: ["pumping"], exact: { bodyMarks: ["care", "physician", "ring-7mm-offset-down-1mm"] } });
+    expect(setzeFachaufgaben(alt, ["physician"])).toEqual({ ...alt, exact: { bodyMarks: ["physician", "ring-7mm-offset-down-1mm"] } });
+    expect(setzeFachaufgaben(zeichen({ kind: "formation", exact: { capabilities: ["care"] } }), [])).toEqual({ kind: "formation" });
+  });
+  it("Abschnitte erscheinen nur, wo etwas passt oder gesetzt ist: an der Einheit kein Fahrwerk, am Fahrzeug keine Funktion", () => {
+    const sichtbare = (z: BodySign) => ABSCHNITTE.filter((a) => sichtbar(z, a, sofort(z))).map((a) => a.key);
+    expect(sichtbare(zeichen({ kind: "formation" }))).not.toContain("fahrwerk");
+    expect(sichtbare(zeichen({ kind: "vehicle-land" }))).toContain("fahrwerk");
+    expect(sichtbare(zeichen({ kind: "vehicle-land" }))).not.toContain("funktion");
+    expect(sichtbare(zeichen({ kind: "formation" }))).toEqual(expect.arrayContaining(["grundzeichen", "zugehoerigkeit", "kopf", "fachaufgaben"]));
+    // Ungeprüft (noch keine Befunde) steht jeder Abschnitt da, statt zu flackern.
+    expect(ABSCHNITTE.every((a) => sichtbar(zeichen({ kind: "formation" }), a, new Map()))).toBe(true);
+  });
+  it("weggelassene Felder in Wörtern vom Bildschirm", () => {
+    expect(["tasks", "head", "text.center", "text", "exact.labels", "kind"].map(feldname))
+      .toEqual(["Fachaufgaben", "Über dem Körper", "Text „Mitte“", "Text", "Weitere Angaben", "Grundzeichen"]);
   });
   it("Erklärtexte ohne Sätze mit Feldnamen", () => {
     expect(ohneFeldnamen("Die Fläche ist gelb. Setze `technicalFill` oder `organization`, nicht beides.")).toBe("Die Fläche ist gelb.");
