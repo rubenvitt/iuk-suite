@@ -3,12 +3,12 @@ import { fahrzeugTitel, fahrzeugUnterzeile, pruefungenDerArt, reifenTeil, schlim
 import { datum } from "../../_lib/akte/regeln";
 import type { AkteMitStand, PruefArt } from "../../_lib/akte/typen";
 import { HallenUhr } from "./HallenUhr";
-import { Entfaellt, StandZelle, STUFE_KLASSE, StufenChip } from "./teile";
+import { Entfaellt, ohneEintrag, StandZelle, STUFE_KLASSE, StufenChip } from "./teile";
 import s from "./akte.module.css";
 
 function Zelle({ x, art }: { x: AkteMitStand; art: PruefArt }) {
   const p = schlimmstePruefung(pruefungenDerArt(x.stand, art));
-  if (!p) return <Entfaellt className={s.halleUnter} />;
+  if (!p) return <Entfaellt className={s.halleUnter} text={ohneEintrag(art, x.akte.fahrzeug.art === "anhaenger")} />;
   return <StandZelle stufe={p.stufe} text={p.text} unter={p.faelligAm ? datum(p.faelligAm) : undefined} chipKlasse={s.halleChip} unterKlasse={s.halleUnter} />;
 }
 

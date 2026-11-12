@@ -24,7 +24,7 @@ describe("Fahrzeugtafel", () => {
     expect(rtw.textContent).toContain("noch 800 km");
     expect(rtw.textContent).toContain("152.340 km");
     // Das MTF hat weder HU noch Service erfasst: die Zelle sagt es, statt leer zu bleiben.
-    expect(query('[data-row-key="fz-mtf"]').textContent).toContain("entfällt");
+    expect(query('[data-row-key="fz-mtf"]').textContent).toContain("nicht erfasst");
   });
 
   it("die Kacheln zählen und filtern nach dem Gesamtstand; ein zweiter Klick hebt den Filter auf", async () => {
