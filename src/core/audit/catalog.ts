@@ -603,6 +603,24 @@ export const AUDIT_TABLES = {
         "quelle",
         "quell_id"
       ]
+    },
+    "fahrzeugakte": {
+      "mode": "audited",
+      "primaryKey": [
+        "stamm_id"
+      ]
+    },
+    "pruefung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "reifensatz": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "schichtplan": {

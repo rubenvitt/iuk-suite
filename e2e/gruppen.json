@@ -29,6 +29,6 @@
   },
   {
     "name": "eimer-8",
-    "specs": "e2e/einsatzbuch-stammdaten.spec.ts e2e/fahrzeuge.spec.ts e2e/feedback-ehrlich.spec.ts e2e/files-fileshare.spec.ts e2e/kommplan-gliederung.spec.ts e2e/kommplan-verwaltung.spec.ts e2e/lagerbuch-bestand-export.spec.ts e2e/lagerbuch-etiketten.spec.ts e2e/lagerbuch-inventur-mobil.spec.ts e2e/lagerbuch-inventur.spec.ts e2e/lagerbuch-organisation.spec.ts e2e/radio-zugang.spec.ts e2e/tabellen-desktop.spec.ts e2e/unterkunft.spec.ts"
+    "specs": "e2e/einsatzbuch-stammdaten.spec.ts e2e/fahrzeugakte.spec.ts e2e/fahrzeuge.spec.ts e2e/feedback-ehrlich.spec.ts e2e/files-fileshare.spec.ts e2e/kommplan-gliederung.spec.ts e2e/kommplan-verwaltung.spec.ts e2e/lagerbuch-bestand-export.spec.ts e2e/lagerbuch-etiketten.spec.ts e2e/lagerbuch-inventur-mobil.spec.ts e2e/lagerbuch-inventur.spec.ts e2e/lagerbuch-organisation.spec.ts e2e/radio-zugang.spec.ts e2e/tabellen-desktop.spec.ts e2e/unterkunft.spec.ts"
   }
 ]

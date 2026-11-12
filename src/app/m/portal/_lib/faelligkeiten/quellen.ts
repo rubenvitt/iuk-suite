@@ -2,7 +2,7 @@
  * DIE QUELLEN VON „WAS STEHT AN" (IDA-297) — je Modul genau eine Datei, die es dafür veröffentlicht
  * (`<modul>/_lib/faelligkeiten.ts`). Das Portal liest nie eine fremde Datenbank oder ein fremdes Schema.
  *
- * Eine neue Quelle (etwa die Fahrzeugtermine der Fahrzeugakte) ist ein Eintrag hier plus ihre Datei im
+ * Eine neue Quelle (zuletzt die Fahrzeugtermine der Fahrzeugakte, IDA-299) ist ein Eintrag hier plus ihre Datei im
  * Modul. `darfSehen` ist das Prädikat, mit dem das Modul selbst seine Verwaltung riegelt — Seite,
  * Kachel und Riegel des Moduls müssen dieselbe Antwort geben.
  */
@@ -24,6 +24,9 @@ import {
   darfVerpflegungFaelligkeitenSehen, vermerkeVerpflegungSofortmeldungen, VERPFLEGUNG_FAELLIGKEITS_ARTEN, verpflegungFaelligkeiten,
   verpflegungSofortmeldungen,
 } from "@/app/m/verpflegung/_lib/faelligkeiten";
+import {
+  darfFahrzeugeFaelligkeitenSehen, FAHRZEUGE_FAELLIGKEITS_ARTEN, fahrzeugeFaelligkeiten,
+} from "@/app/m/fahrzeuge/_lib/faelligkeiten";
 
 export interface FaelligkeitsQuelle {
   /** Modul-Schlüssel aus `core/registry.ts` — daraus entsteht die Adresse der Links. */
@@ -49,6 +52,8 @@ export const QUELLEN: readonly FaelligkeitsQuelle[] = [
   { modul: "lagerbuch", titel: "Lagerbuch", arten: LAGERBUCH_FAELLIGKEITS_ARTEN, darfSehen: darfLagerbuchFaelligkeitenSehen, lesen: (j) => lagerbuchFaelligkeiten(j),
     sofort: { lesen: (seit) => lagerbuchSofortmeldungen(seit), vermerken: (ids, j) => vermerkeLagerbuchSofortmeldungen(ids, j) } },
   { modul: "radio", titel: "Funkgeräte", arten: RADIO_FAELLIGKEITS_ARTEN, darfSehen: darfRadioFaelligkeitenSehen, lesen: (j) => radioFaelligkeiten(j) },
+  // IDA-299: HU, UVV, Service, weitere Prüfungen und Reifen aus der Fahrzeugakte; nur für die Admin-Gruppe des Moduls.
+  { modul: "fahrzeuge", titel: "Fahrzeuge", arten: FAHRZEUGE_FAELLIGKEITS_ARTEN, darfSehen: darfFahrzeugeFaelligkeitenSehen, lesen: (j) => fahrzeugeFaelligkeiten(j) },
   // IDA-312: die Einträge tragen `sichtbarFuer` — jede Gruppe sieht nur ihre Geräte.
   { modul: "wartung", titel: "Gerätewartung", arten: WARTUNG_FAELLIGKEITS_ARTEN, darfSehen: (g) => darfWartungFaelligkeitenSehen(g), lesen: (j) => wartungFaelligkeiten(j),
     sofort: { lesen: (seit) => wartungSofortmeldungen(seit), vermerken: (ids, j) => vermerkeWartungSofortmeldungen(ids, j) } },
