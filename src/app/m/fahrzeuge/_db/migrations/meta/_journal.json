@@ -15,6 +15,13 @@
       "when": 1792572758861,
       "tag": "0001_quellzuordnung",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794476198669,
+      "tag": "0002_akte",
+      "breakpoints": true
     }
   ]
 }

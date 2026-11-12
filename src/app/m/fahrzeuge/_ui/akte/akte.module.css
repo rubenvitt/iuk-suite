@@ -1,0 +1,105 @@
+/*
+ * Fahrzeugakte, Fahrzeugtafel und Hallentafel (IDA-299, POC vom 01.11.2026).
+ *
+ * Eigene Variablen und die der Suite (`--iuk-*` aus `app/globals.css`), nie `--ant-*` (Falle 2), und kein
+ * Selektor gegen eine `.ant-*`-Klasse (Falle 20). Die Stufenfarbe hängt als `--fz-ton` an der Klasse, die sie
+ * braucht (`.tonRot` …), mit denselben Werten wie der Statuschip (`core/status/statuschip.module.css`) —
+ * so stimmt sie auch auf der Hallentafel, die ohne Suite-Rahmen und ohne antd steht. Rot heißt hier
+ * „überfällig“, ein echter Missstand (Falle 3); die Zahl einer Kachel bleibt Tinte.
+ */
+.tonRot { --fz-ton: #a3111d; }
+.tonGelb { --fz-ton: #8a5200; }
+.tonOk { --fz-ton: #1e7a3c; }
+.tonGrau { --fz-ton: #a1a1aa; }
+:global(:root[data-theme="dark"]) .tonRot { --fz-ton: #f08a8f; }
+:global(:root[data-theme="dark"]) .tonGelb { --fz-ton: #d9a032; }
+:global(:root[data-theme="dark"]) .tonOk { --fz-ton: #7ee0a0; }
+:global(:root[data-theme="dark"]) .tonGrau { --fz-ton: #71717a; }
+
+.seite { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.neben { color: var(--iuk-gedaempft); }
+.klein { font-size: 12px; }
+.ziffern { font-variant-numeric: tabular-nums lining-nums; }
+.mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; font-variant-numeric: tabular-nums; }
+.reihe { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hinweis { margin: 0; max-width: 110ch; color: var(--iuk-gedaempft); }
+.kicker { font-size: 12px; font-weight: 600; letter-spacing: .01em; color: var(--iuk-gedaempft); }
+
+/* Zelle der Tafel: Chip, darunter leise das Datum. */
+.zelle { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.unter { font-size: 12px; color: var(--iuk-gedaempft); font-variant-numeric: tabular-nums; }
+.fahrzeugLink { font-weight: 600; color: inherit; }
+
+/* Kennzahl-Kacheln der Tafel: Knöpfe, die filtern. Haarlinie statt Kiste, der Befund als Punkt vor dem Wort. */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.kpi {
+  display: flex; flex-direction: column; gap: 4px; min-height: 44px; padding: 12px 16px; text-align: start;
+  font: inherit; color: var(--iuk-tinte); background: var(--iuk-karte); border: 1px solid var(--iuk-linie);
+  border-radius: 8px; cursor: pointer;
+}
+.kpi:hover { background: var(--iuk-flaeche-aktiv); }
+.kpi[aria-pressed="true"] { border-color: var(--iuk-tinte); box-shadow: inset 0 0 0 1px var(--iuk-tinte); }
+.kpiWort { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--iuk-gedaempft); }
+.kpiZahl { font-family: var(--font-display); font-size: 30px; font-weight: 600; line-height: 1.1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; }
+.punkt { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--fz-ton); }
+
+/* Kopf über der Tabelle: Titel links, Standortwahl rechts. */
+.listenkopf { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.listentitel { margin: 0; font-family: var(--font-display); font-size: 16px; font-weight: 600; }
+
+/* Akte: zwei Spalten ab dem Suite-Breakpoint, darunter eine. */
+.akte { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.spalte { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+@media (min-width: 768px) {
+  .akte { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
+.kartenfuss { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--iuk-linie); }
+.leer { display: grid; gap: 12px; justify-items: start; }
+.leer p { margin: 0; }
+
+.datenliste { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; }
+.datenliste dt { color: var(--iuk-gedaempft); }
+.datenliste dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.staerke { display: inline-flex; flex-direction: column; }
+.staerke b { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.merkmale { display: flex; flex-wrap: wrap; gap: 4px; }
+.kmZahl { font-family: var(--font-display); font-size: 30px; font-weight: 600; line-height: 1.1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; }
+
+.reifen { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.reifensatz { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 12px; border: 1px solid var(--iuk-linie); border-radius: 8px; }
+.reifensatz.drauf { border-color: var(--iuk-tinte); }
+.satzkopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+
+.verweis { display: flex; flex-direction: column; gap: 8px; }
+.verweis p { margin: 0; }
+.verweisZeile { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--iuk-linie); }
+.verweisLink { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
+
+/* Formulare in Dialog und Schublade: Raster per auto-fit, nicht per @media (Falle 13). */
+.raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0 12px; }
+.raster3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
+.gruppe { margin: 0 0 8px; }
+.schubladenfuss { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+/*
+ * Hallentafel: eine eigene Fläche ohne Suite-Rahmen, für einen Bildschirm in der Fahrzeughalle. Große
+ * Schrift, kein antd. Die Tabelle scrollt auf schmalen Schirmen waagerecht, sie bricht nicht um.
+ */
+.halle { min-height: 100dvh; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; padding: 24px; background: var(--iuk-grund); color: var(--iuk-tinte); }
+.halleKopf { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.halleTitel { margin: 0; font-family: var(--font-display); font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.uhr { font-family: var(--font-display); font-size: 32px; font-variant-numeric: tabular-nums; min-height: 1.2em; }
+.halleRahmen { overflow-x: auto; }
+.halleTabelle { width: 100%; min-width: 900px; border-collapse: separate; border-spacing: 0 8px; }
+.halleTabelle th { padding: 0 12px; text-align: start; font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--iuk-gedaempft); }
+.halleTabelle td { padding: 14px 12px; font-size: 20px; vertical-align: middle; background: var(--iuk-karte); }
+.halleTabelle td:first-child { border-radius: 8px 0 0 8px; border-inline-start: 6px solid var(--fz-ton, var(--iuk-linie)); }
+.halleTabelle td:last-child { border-radius: 0 8px 8px 0; }
+.halleFahrzeug { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.halleUnter { font-size: 16px; color: var(--iuk-gedaempft); font-variant-numeric: tabular-nums; }
+/* Zwei Klassen statt einer: der Chip aus `core/status` setzt seine Größe mit einer Klasse (0,1,0), und bei
+   Gleichstand entschiede die Reihenfolge der Stylesheets (Falle 5). */
+.halle .halleChip { min-block-size: 32px; padding: 0 12px; gap: 8px; font-size: 18px; line-height: 30px; }
+.halleLeer { margin: 0; font-size: 20px; color: var(--iuk-gedaempft); }
+.halleFuss { margin: 0; font-size: 16px; color: var(--iuk-gedaempft); }
+.halleFuss a { display: inline-flex; align-items: center; min-height: 44px; color: inherit; }

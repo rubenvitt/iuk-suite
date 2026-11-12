@@ -62,3 +62,72 @@ export const quellzuordnung = sqliteTable("quellzuordnung", {
   index("quellzuordnung_stamm_idx").on(t.stammId),
   check("quellzuordnung_quelle", sql`quelle IN ('einsatzbuch','lagerbuch','funkgeraete')`),
 ]);
+
+/**
+ * Die Fahrzeugakte (IDA-299): Technik, Kilometerstand und der aufgezogene Reifensatz, 1:1 zum
+ * Stammfahrzeug. Eine fehlende Zeile heißt „leere Akte“ (alles nicht erfasst) — deshalb gab es beim
+ * Einführen keinen Backfill, und `_lib/akte/daten.ts` (`ladeAkten`) liest mit LEFT JOIN. `null` heißt
+ * überall „nicht erfasst“. Längen in Zentimetern, Gewichte in Kilogramm, Tage als `JJJJ-MM-TT` in der
+ * Suite-Zone (`_lib/akte/typen.ts`).
+ */
+export const fahrzeugakte = sqliteTable("fahrzeugakte", {
+  stammId: text("stamm_id").primaryKey().references(() => stammfahrzeug.id),
+  modell: text("modell"),
+  baujahr: integer("baujahr"),
+  laengeCm: integer("laenge_cm"),
+  breiteCm: integer("breite_cm"),
+  hoeheCm: integer("hoehe_cm"),
+  zggKg: integer("zgg_kg"),
+  leerKg: integer("leer_kg"),
+  /** Führer / Unterführer / Mannschaft — alle drei gesetzt oder alle drei `null`. */
+  staerkeF: integer("staerke_f"),
+  staerkeU: integer("staerke_u"),
+  staerkeM: integer("staerke_m"),
+  sitze: integer("sitze"),
+  tragen: integer("tragen"),
+  fuehrerschein: text("fuehrerschein"),
+  /** JSON-Array aus Zeichenketten; „Tempo 100“ ändert die Reifenregel (`_lib/akte/typen.ts`, `TEMPO_100`). */
+  besonderheiten: text("besonderheiten", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+  km: integer("km"),
+  kmAm: text("km_am"),
+  /** Art des Satzes, der drauf ist; `null`, solange kein Satz erfasst ist. */
+  reifenAufgezogen: text("reifen_aufgezogen", { enum: ["Winter", "Sommer", "Ganzjahres"] }),
+}, () => [
+  check("fahrzeugakte_reifen_aufgezogen", sql`reifen_aufgezogen IS NULL OR reifen_aufgezogen IN ('Winter','Sommer','Ganzjahres')`),
+]);
+
+/** Eine wiederkehrende Prüfung eines Fahrzeugs: HU, UVV, Service oder etwas Eigenes („Feuerlöscher“). */
+export const pruefung = sqliteTable("pruefung", {
+  id: text("id").primaryKey(),
+  stammId: text("stamm_id").notNull().references(() => stammfahrzeug.id),
+  art: text("art", { enum: ["HU", "UVV", "Service", "Weitere"] }).notNull(),
+  name: text("name").notNull(),
+  /** Abstand in Monaten. */
+  monate: integer("monate").notNull(),
+  /** Zusätzlich nach Kilometern: fällig, was zuerst erreicht ist. */
+  kmAbstand: integer("km_abstand"),
+  zuletzt: text("zuletzt"),
+  /** Kilometerstand bei der letzten Erledigung; nur mit `kmAbstand` gesetzt. */
+  zuletztKm: integer("zuletzt_km"),
+  /** Von Hand gesetzter nächster Termin; schlägt „zuletzt + Abstand“. */
+  vonHand: text("von_hand"),
+  bemerkung: text("bemerkung").notNull().default(""),
+  angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
+}, (t) => [
+  index("pruefung_stamm_idx").on(t.stammId),
+  check("pruefung_art", sql`art IN ('HU','UVV','Service','Weitere')`),
+]);
+
+/** Ein Reifensatz eines Fahrzeugs — je Art höchstens einer. `dot` ist `WWJJ` (Herstellwoche und -jahr). */
+export const reifensatz = sqliteTable("reifensatz", {
+  id: text("id").primaryKey(),
+  stammId: text("stamm_id").notNull().references(() => stammfahrzeug.id),
+  art: text("art", { enum: ["Winter", "Sommer", "Ganzjahres"] }).notNull(),
+  dot: text("dot").notNull(),
+  /** Wo der Satz liegt, solange er nicht aufgezogen ist. Leer = nicht erfasst. */
+  lager: text("lager").notNull().default(""),
+}, (t) => [
+  uniqueIndex("reifensatz_stamm_art_idx").on(t.stammId, t.art),
+  check("reifensatz_art", sql`art IN ('Winter','Sommer','Ganzjahres')`),
+  check("reifensatz_dot", sql`dot GLOB '[0-9][0-9][0-9][0-9]'`),
+]);

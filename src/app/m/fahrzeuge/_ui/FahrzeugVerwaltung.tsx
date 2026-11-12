@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { App, Button, Drawer } from "antd";
 import { Statuschip } from "@/core/status/Statuschip";
 import { Kartentabelle, Zeilenaktionen, filterAktiv, nachText, trifftWert, werteAlsFilter, zustandsFilter, type FilterZustand } from "@/core/tabelle";
@@ -100,11 +101,12 @@ export function FahrzeugVerwaltung({ liste, darfVerwalten }: { liste: FahrzeugDT
         }}
         columns={[
           // IDA-393: das Kennzeichen steht leise unter dem Funkrufnamen, der Status direkt dahinter.
+          // IDA-299: der Funkrufname führt in die Akte des Fahrzeugs — lesen darf sie jede Person mit Zugang.
           {
             title: "Funkrufname", key: "funkrufname", sorter: nachText<FahrzeugDTO>((f) => f.funkrufname),
             render: (_: unknown, f: FahrzeugDTO) => (
               <div>
-                <div>{f.funkrufname}</div>
+                <div><Link href={`/fahrzeug/${f.id}`} style={{ color: "inherit", fontWeight: 600 }}>{f.funkrufname}</Link></div>
                 {f.kennzeichen ? <div style={{ fontSize: 12, color: "var(--iuk-gedaempft)" }}>{f.kennzeichen}</div> : null}
               </div>
             ),

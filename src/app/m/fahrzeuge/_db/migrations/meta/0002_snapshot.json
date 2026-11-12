@@ -1,0 +1,650 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "4cd43959-87cf-4b2e-b15b-4a28c93efaad",
+  "prevId": "641c9506-c06c-4c0a-939b-0d6624ead3b6",
+  "tables": {
+    "audit_outbox": {
+      "name": "audit_outbox",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "module": {
+          "name": "module",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "object_type": {
+          "name": "object_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "object_ref": {
+          "name": "object_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "audit_outbox_occurred_idx": {
+          "name": "audit_outbox_occurred_idx",
+          "columns": [
+            "occurred_at",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "audit_outbox_actor_json": {
+          "name": "audit_outbox_actor_json",
+          "value": "json_valid(\"audit_outbox\".\"actor\")"
+        }
+      }
+    },
+    "fahrzeugakte": {
+      "name": "fahrzeugakte",
+      "columns": {
+        "stamm_id": {
+          "name": "stamm_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "modell": {
+          "name": "modell",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "baujahr": {
+          "name": "baujahr",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "laenge_cm": {
+          "name": "laenge_cm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "breite_cm": {
+          "name": "breite_cm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "hoehe_cm": {
+          "name": "hoehe_cm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "zgg_kg": {
+          "name": "zgg_kg",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "leer_kg": {
+          "name": "leer_kg",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "staerke_f": {
+          "name": "staerke_f",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "staerke_u": {
+          "name": "staerke_u",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "staerke_m": {
+          "name": "staerke_m",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sitze": {
+          "name": "sitze",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tragen": {
+          "name": "tragen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fuehrerschein": {
+          "name": "fuehrerschein",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "besonderheiten": {
+          "name": "besonderheiten",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "km": {
+          "name": "km",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "km_am": {
+          "name": "km_am",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reifen_aufgezogen": {
+          "name": "reifen_aufgezogen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fahrzeugakte_stamm_id_stammfahrzeug_id_fk": {
+          "name": "fahrzeugakte_stamm_id_stammfahrzeug_id_fk",
+          "tableFrom": "fahrzeugakte",
+          "tableTo": "stammfahrzeug",
+          "columnsFrom": [
+            "stamm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "fahrzeugakte_reifen_aufgezogen": {
+          "name": "fahrzeugakte_reifen_aufgezogen",
+          "value": "reifen_aufgezogen IS NULL OR reifen_aufgezogen IN ('Winter','Sommer','Ganzjahres')"
+        }
+      }
+    },
+    "pruefung": {
+      "name": "pruefung",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stamm_id": {
+          "name": "stamm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "art": {
+          "name": "art",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "monate": {
+          "name": "monate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "km_abstand": {
+          "name": "km_abstand",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "zuletzt": {
+          "name": "zuletzt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "zuletzt_km": {
+          "name": "zuletzt_km",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "von_hand": {
+          "name": "von_hand",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bemerkung": {
+          "name": "bemerkung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "pruefung_stamm_idx": {
+          "name": "pruefung_stamm_idx",
+          "columns": [
+            "stamm_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "pruefung_stamm_id_stammfahrzeug_id_fk": {
+          "name": "pruefung_stamm_id_stammfahrzeug_id_fk",
+          "tableFrom": "pruefung",
+          "tableTo": "stammfahrzeug",
+          "columnsFrom": [
+            "stamm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "pruefung_art": {
+          "name": "pruefung_art",
+          "value": "art IN ('HU','UVV','Service','Weitere')"
+        }
+      }
+    },
+    "quellzuordnung": {
+      "name": "quellzuordnung",
+      "columns": {
+        "quelle": {
+          "name": "quelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quell_id": {
+          "name": "quell_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stamm_id": {
+          "name": "stamm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "entschieden_am": {
+          "name": "entschieden_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "entschieden_von": {
+          "name": "entschieden_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "quellzuordnung_stamm_idx": {
+          "name": "quellzuordnung_stamm_idx",
+          "columns": [
+            "stamm_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "quellzuordnung_stamm_id_stammfahrzeug_id_fk": {
+          "name": "quellzuordnung_stamm_id_stammfahrzeug_id_fk",
+          "tableFrom": "quellzuordnung",
+          "tableTo": "stammfahrzeug",
+          "columnsFrom": [
+            "stamm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "quellzuordnung_quelle_quell_id_pk": {
+          "columns": [
+            "quelle",
+            "quell_id"
+          ],
+          "name": "quellzuordnung_quelle_quell_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "quellzuordnung_quelle": {
+          "name": "quellzuordnung_quelle",
+          "value": "quelle IN ('einsatzbuch','lagerbuch','funkgeraete')"
+        }
+      }
+    },
+    "reifensatz": {
+      "name": "reifensatz",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stamm_id": {
+          "name": "stamm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "art": {
+          "name": "art",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "dot": {
+          "name": "dot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lager": {
+          "name": "lager",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        }
+      },
+      "indexes": {
+        "reifensatz_stamm_art_idx": {
+          "name": "reifensatz_stamm_art_idx",
+          "columns": [
+            "stamm_id",
+            "art"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "reifensatz_stamm_id_stammfahrzeug_id_fk": {
+          "name": "reifensatz_stamm_id_stammfahrzeug_id_fk",
+          "tableFrom": "reifensatz",
+          "tableTo": "stammfahrzeug",
+          "columnsFrom": [
+            "stamm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "reifensatz_art": {
+          "name": "reifensatz_art",
+          "value": "art IN ('Winter','Sommer','Ganzjahres')"
+        },
+        "reifensatz_dot": {
+          "name": "reifensatz_dot",
+          "value": "dot GLOB '[0-9][0-9][0-9][0-9]'"
+        }
+      }
+    },
+    "stammfahrzeug": {
+      "name": "stammfahrzeug",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "art": {
+          "name": "art",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'fahrzeug'"
+        },
+        "typ": {
+          "name": "typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "funkrufname": {
+          "name": "funkrufname",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "funkkenner": {
+          "name": "funkkenner",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kennzeichen": {
+          "name": "kennzeichen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "standort": {
+          "name": "standort",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bemerkung": {
+          "name": "bemerkung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "stammfahrzeug_funkkenner_idx": {
+          "name": "stammfahrzeug_funkkenner_idx",
+          "columns": [
+            "funkkenner"
+          ],
+          "isUnique": true
+        },
+        "stammfahrzeug_kennzeichen_idx": {
+          "name": "stammfahrzeug_kennzeichen_idx",
+          "columns": [
+            "kennzeichen"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "stammfahrzeug_art": {
+          "name": "stammfahrzeug_art",
+          "value": "art IN ('fahrzeug','anhaenger')"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

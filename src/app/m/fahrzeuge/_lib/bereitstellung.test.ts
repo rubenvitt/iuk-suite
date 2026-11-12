@@ -50,9 +50,9 @@ describe("Modulgrenze", () => {
     return readdirSync(ordner, { withFileTypes: true }).flatMap((e) =>
       e.isDirectory() ? dateien(join(ordner, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [join(ordner, e.name)] : []);
   }
-  // `_lib/suiteSuche` ist die zweite veröffentlichte Datei: die suiteweite Suche des Portals (IDA-301).
-  const ERLAUBT = ["@/app/m/fahrzeuge/_lib/bereitstellung", "@/app/m/fahrzeuge/_lib/suiteSuche"];
-  it("andere Module importieren aus fahrzeuge nur `_lib/bereitstellung` und `_lib/suiteSuche`", () => {
+  // Zwei weitere veröffentlichte Dateien fürs Portal: `_lib/suiteSuche` (suiteweite Suche, IDA-301) und `_lib/faelligkeiten` („Was steht an“, IDA-299).
+  const ERLAUBT = ["@/app/m/fahrzeuge/_lib/bereitstellung", "@/app/m/fahrzeuge/_lib/suiteSuche", "@/app/m/fahrzeuge/_lib/faelligkeiten"];
+  it("andere Module importieren aus fahrzeuge nur `_lib/bereitstellung`, `_lib/suiteSuche` und `_lib/faelligkeiten`", () => {
     const fremd: string[] = [];
     for (const datei of [...dateien("src/app"), ...dateien("src/core")]) {
       if (datei.startsWith(join("src/app/m/fahrzeuge"))) continue;
