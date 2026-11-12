@@ -291,8 +291,8 @@ describe("reifenStand", () => {
 });
 
 describe("auswerten", () => {
-  it("leere Akte: in Ordnung, nichts als Nächstes", () => {
-    expect(auswerten(akte(), HEUTE)).toEqual({ pruefungen: [], reifen: null, stufe: "ok", naechster: null });
+  it("leere Akte: nicht erfasst statt in Ordnung, nichts als Nächstes", () => {
+    expect(auswerten(akte(), HEUTE)).toEqual({ pruefungen: [], reifen: null, stufe: "offen", naechster: null });
   });
 
   it("Gesamtstufe ist die schlimmste; der Nächste ist der früheste Termin, auch wenn er vorbei ist", () => {

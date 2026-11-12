@@ -25,7 +25,7 @@ describe("Hallentafel", () => {
     expect(zeilen[0]!.textContent).toContain("seit 7 Tagen fällig");
     expect(zeilen[0]!.textContent).toContain("Winter drauf");
     expect(zeilen[0]!.textContent).toContain("HU (TÜV)05.11.2026");
-    expect(zeilen[1]!.textContent).toContain("entfällt");
+    expect(zeilen[1]!.textContent).toContain("nicht erfasst");
     expect(queryAll("th").map((th) => th.textContent)).toEqual(["Fahrzeug", "HU", "UVV", "Service", "Reifen", "Als Nächstes"]);
     expect(query("a").getAttribute("href")).toBe("/tafel");
   });

@@ -29,6 +29,16 @@
 .zelle { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
 .unter { font-size: 12px; color: var(--iuk-gedaempft); font-variant-numeric: tabular-nums; }
 .fahrzeugLink { font-weight: 600; color: inherit; }
+.fest { white-space: nowrap; }
+.gesamt { margin-top: 4px; }
+.zeile { display: block; white-space: nowrap; }
+/* Ab dem Suite-Breakpoint steht die Tabelle da, und sie misst ihre Spalten am breitesten Inhalt (`max-content`).
+   Namen und Aufzählungen brechen deshalb in der Zelle um, statt die Spalte aufzuschieben. Auf der Karte
+   am Telefon gilt das nicht: dort hat der Text die ganze Breite. */
+@media (min-width: 768px) {
+  .namenszelle { max-width: 160px; }
+  .schmal { max-width: 140px; }
+}
 
 /* Kennzahl-Kacheln der Tafel: Knöpfe, die filtern. Haarlinie statt Kiste, der Befund als Punkt vor dem Wort. */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
@@ -51,9 +61,16 @@
 .akte { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .spalte { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 @media (min-width: 768px) {
-  .akte { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  .akte { grid-template-columns: minmax(0, 5fr) minmax(0, 3fr); }
 }
 .kartenfuss { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--iuk-linie); }
+/* Tabelle ohne Innenabstand in der Karte (deren Körper trägt dann `padding: 0`); die Kartenliste am Telefon
+   und der Fuß darunter bringen ihren Abstand selbst mit. */
+.tabellenRahmen { min-width: 0; }
+.fussImRahmen { margin-top: 0; padding: 12px 16px 16px; }
+@media (max-width: 767.98px) {
+  .tabellenRahmen { padding: 12px 12px 0; }
+}
 .leer { display: grid; gap: 12px; justify-items: start; }
 .leer p { margin: 0; }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, Tag } from "antd";
+import { Button, Card, ConfigProvider, Tag, type TableProps } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Statuschip } from "@/core/status/Statuschip";
@@ -12,8 +12,9 @@ import { datum, kmText, REIFEN_GELB_JAHRE, REIFEN_ROT_JAHRE, REIFEN_ROT_JAHRE_TE
 import { TEMPO_100, type AkteMitStand, type PruefStand, type PruefungDTO, type ReifensatzDTO, type TechnikDTO } from "../../_lib/akte/typen";
 import type { AkteVerweis, AkteVerweise } from "../../_lib/akte/verweise";
 import { ErledigtDialog, KilometerDialog, PruefungDialog, ReifensatzDialog, ReifenwechselDialog } from "./Dialoge";
+import { karteAus } from "./karten";
 import { TechnikFlyin } from "./TechnikFlyin";
-import { StufenChip } from "./teile";
+import { ENGE_ZELLEN, StufenChip } from "./teile";
 import { useAktion } from "./useAktion";
 import s from "./akte.module.css";
 
@@ -37,6 +38,64 @@ function masseText(t: TechnikDTO): string | null {
   return `${teile.map((v) => (v === null ? "—" : cmAlsMeter(v))).join(" × ")} m`;
 }
 
+type Spalten = NonNullable<TableProps<PruefStand>["columns"]>;
+type Spalte = Spalten[number];
+
+const PRUEFUNG: Spalte = {
+  title: "Prüfung", key: "name",
+  render: (_: unknown, x: PruefStand) => (
+    <div className={`${s.zelle} ${s.namenszelle}`}>
+      <span style={{ fontWeight: 600 }}>{x.pruefung.name}</span>
+      <span className={s.unter}>{abstandText(x.pruefung.monate, x.pruefung.kmAbstand !== null ? kmText(x.pruefung.kmAbstand) : null)}</span>
+    </div>
+  ),
+};
+
+/**
+ * Tabelle: Stand und nächster Termin in einer Zelle, wie auf der Fahrzeugtafel — so passt die Tabelle bei
+ * 1280px in ihre Spalte, und der nächste Termin steht direkt am Befund (IDA-393: Status nach vorn).
+ */
+const STAND_MIT_TERMIN: Spalte = {
+  title: "Stand", key: "stand",
+  render: (_: unknown, x: PruefStand) => (
+    <div className={s.zelle}>
+      <StufenChip stufe={x.stufe}>{x.text}</StufenChip>
+      {x.faelligAm ? (
+        <span className={`${s.unter} ${s.fest}`} title={x.pruefung.vonHand ? "Von Hand gesetzt statt berechnet" : undefined}>
+          {datum(x.faelligAm)}{x.pruefung.vonHand ? " · von Hand" : ""}
+        </span>
+      ) : null}
+      {x.kmGrenze !== null ? <span className={`${s.unter} ${s.fest}`}>oder bei {kmText(x.kmGrenze)}</span> : null}
+    </div>
+  ),
+};
+
+const ZULETZT: Spalte = {
+  title: "Zuletzt", key: "zuletzt",
+  render: (_: unknown, x: PruefStand) => (
+    <div className={s.zelle}>
+      <span className={`${s.ziffern} ${s.fest}`}>{x.pruefung.zuletzt ? datum(x.pruefung.zuletzt) : "—"}</span>
+      {x.pruefung.zuletztKm !== null ? <span className={`${s.unter} ${s.fest}`}>bei {kmText(x.pruefung.zuletztKm)}</span> : null}
+      {x.pruefung.bemerkung ? <span className={s.unter}>{x.pruefung.bemerkung}</span> : null}
+    </div>
+  ),
+};
+
+/* Nur auf der Karte am Telefon: der Stand als Chip neben dem Titel, der nächste Termin als eigenes Merkmal. */
+const STAND_KURZ: Spalte = { title: "Stand", key: "stand", render: (_: unknown, x: PruefStand) => <StufenChip stufe={x.stufe}>{x.text}</StufenChip> };
+const NAECHSTE: Spalte = {
+  title: "Nächste fällig", key: "naechste",
+  render: (_: unknown, x: PruefStand) => (
+    <div className={s.zelle}>
+      <span className={s.reihe}>
+        <span className={s.ziffern}>{x.faelligAm ? datum(x.faelligAm) : "—"}</span>
+        {x.pruefung.vonHand ? <Statuschip ton="neutral" title="Von Hand gesetzt statt berechnet">von Hand</Statuschip> : null}
+      </span>
+      {x.kmGrenze !== null ? <span className={s.unter}>oder bei {kmText(x.kmGrenze)}</span> : null}
+    </div>
+  ),
+};
+
 /**
  * Die Akte eines Fahrzeugs (IDA-299): Prüf- und Servicetermine, Reifen, technische Daten, Kilometerstand
  * und zwei Verweise in die Nachbar-Apps. Client-Insel mit serialisierbaren Props; die Server Actions sind
@@ -56,6 +115,27 @@ export function Fahrzeugakte({ eintrag, darfVerwalten, heute, verweise }: { eint
 
   const tempo100 = t.besonderheiten.includes(TEMPO_100);
   const zuladung = t.zggKg !== null && t.leerKg !== null ? t.zggKg - t.leerKg : null;
+  /** Nicht angeheftet (`fixed: false`): eine haftende Spalte läge über „Zuletzt“, sobald es eng wird. */
+  const aktionen: Spalten = darfVerwalten
+    ? [{
+        title: "Aktionen", key: "aktionen", fixed: false,
+        render: (_: unknown, x: PruefStand) => (
+          <Zeilenaktionen
+            name={x.pruefung.name}
+            laeuft={laeuft}
+            haupt={{ key: "erledigt", label: "Erledigt", onClick: () => setOffen({ was: "erledigt", pruefung: x.pruefung }) }}
+            aktionen={[
+              { key: "bearbeiten", label: "Bearbeiten", ikone: "pencil", onClick: () => setOffen({ was: "pruefung", pruefung: x.pruefung }) },
+              {
+                key: "entfernen", label: "Entfernen", ikone: "trash", danger: true,
+                bestaetigen: { titel: `${x.pruefung.name} entfernen?`, text: "Die Prüfung fällt aus Akte und Fahrzeugtafel, ihr letzter Termin geht verloren.", ok: "Entfernen" },
+                onClick: () => fuehreAus(() => pruefungEntfernenAction(x.pruefung.id), `${x.pruefung.name} entfernt.`),
+              },
+            ]}
+          />
+        ),
+      }]
+    : [];
   const kopfzeile = [
     f.typ,
     [t.modell, t.baujahr !== null ? `Baujahr ${t.baujahr}` : null].filter(Boolean).join(", ") || null,
@@ -84,7 +164,13 @@ export function Fahrzeugakte({ eintrag, darfVerwalten, heute, verweise }: { eint
 
       <div className={s.akte}>
         <div className={s.spalte}>
-          <Card title="Prüf- und Servicetermine" extra={stand.pruefungen.length > 0 ? <StufenChip stufe={stand.stufe} /> : undefined} data-karte="pruefungen">
+          <Card
+            title="Prüf- und Servicetermine"
+            extra={stand.pruefungen.length > 0 ? <StufenChip stufe={stand.stufe} /> : undefined}
+            data-karte="pruefungen"
+            // Die Tabelle steht ohne Innenabstand in der Karte: so hat sie bei 1280px die ganze Spalte.
+            styles={stand.pruefungen.length > 0 ? { body: { padding: 0 } } : undefined}
+          >
             {stand.pruefungen.length === 0 ? (
               <div className={s.leer}>
                 <p>Noch keine Prüfungen erfasst.{darfVerwalten ? " Fang mit der HU an, dann UVV und Service." : ""}</p>
@@ -92,70 +178,20 @@ export function Fahrzeugakte({ eintrag, darfVerwalten, heute, verweise }: { eint
               </div>
             ) : (
               <>
-                <Kartentabelle<PruefStand>
-                  rowKey={(x) => x.pruefung.id}
-                  aria-label="Prüf- und Servicetermine"
-                  dataSource={stand.pruefungen}
-                  leer={{ nichts: "Noch keine Prüfungen erfasst." }}
-                  karte={{ titel: "name", kennzeichen: ["stand"] }}
-                  columns={[
-                    {
-                      title: "Prüfung", key: "name",
-                      render: (_: unknown, x: PruefStand) => (
-                        <div className={s.zelle}>
-                          <span style={{ fontWeight: 600 }}>{x.pruefung.name}</span>
-                          <span className={s.unter}>{abstandText(x.pruefung.monate, x.pruefung.kmAbstand !== null ? kmText(x.pruefung.kmAbstand) : null)}</span>
-                        </div>
-                      ),
-                    },
-                    // Der Stand steht direkt hinter der Spalte, die die Zeile benennt (`docs/design/README.md`, IDA-393).
-                    { title: "Stand", key: "stand", render: (_: unknown, x: PruefStand) => <StufenChip stufe={x.stufe}>{x.text}</StufenChip> },
-                    {
-                      title: "Zuletzt", key: "zuletzt",
-                      render: (_: unknown, x: PruefStand) => (
-                        <div className={s.zelle}>
-                          <span className={s.ziffern}>{x.pruefung.zuletzt ? datum(x.pruefung.zuletzt) : "—"}</span>
-                          {x.pruefung.zuletztKm !== null ? <span className={s.unter}>bei {kmText(x.pruefung.zuletztKm)}</span> : null}
-                          {x.pruefung.bemerkung ? <span className={s.unter}>{x.pruefung.bemerkung}</span> : null}
-                        </div>
-                      ),
-                    },
-                    {
-                      title: "Nächste fällig", key: "naechste",
-                      render: (_: unknown, x: PruefStand) => (
-                        <div className={s.zelle}>
-                          <span className={s.reihe}>
-                            <span className={s.ziffern}>{x.faelligAm ? datum(x.faelligAm) : "—"}</span>
-                            {x.pruefung.vonHand ? <Statuschip ton="neutral" title="Von Hand gesetzt statt berechnet">von Hand</Statuschip> : null}
-                          </span>
-                          {x.kmGrenze !== null ? <span className={s.unter}>oder bei {kmText(x.kmGrenze)}</span> : null}
-                        </div>
-                      ),
-                    },
-                    ...(darfVerwalten
-                      ? [{
-                          title: "Aktionen", key: "aktionen",
-                          render: (_: unknown, x: PruefStand) => (
-                            <Zeilenaktionen
-                              name={x.pruefung.name}
-                              laeuft={laeuft}
-                              haupt={{ key: "erledigt", label: "Erledigt", onClick: () => setOffen({ was: "erledigt", pruefung: x.pruefung }) }}
-                              aktionen={[
-                                { key: "bearbeiten", label: "Bearbeiten", ikone: "pencil", onClick: () => setOffen({ was: "pruefung", pruefung: x.pruefung }) },
-                                {
-                                  key: "entfernen", label: "Entfernen", ikone: "trash", danger: true,
-                                  bestaetigen: { titel: `${x.pruefung.name} entfernen?`, text: "Die Prüfung fällt aus Akte und Fahrzeugtafel, ihr letzter Termin geht verloren.", ok: "Entfernen" },
-                                  onClick: () => fuehreAus(() => pruefungEntfernenAction(x.pruefung.id), `${x.pruefung.name} entfernt.`),
-                                },
-                              ]}
-                            />
-                          ),
-                        }]
-                      : []),
-                  ]}
-                />
+                <div className={s.tabellenRahmen}>
+                  <ConfigProvider theme={ENGE_ZELLEN}>
+                    <Kartentabelle<PruefStand>
+                      rowKey={(x) => x.pruefung.id}
+                      aria-label="Prüf- und Servicetermine"
+                      dataSource={stand.pruefungen}
+                      leer={{ nichts: "Noch keine Prüfungen erfasst." }}
+                      karte={karteAus<PruefStand>([PRUEFUNG, STAND_KURZ, ZULETZT, NAECHSTE, ...aktionen], { titel: "name", kennzeichen: ["stand"] }, (x) => x.pruefung.name)}
+                      columns={[PRUEFUNG, STAND_MIT_TERMIN, ZULETZT, ...aktionen]}
+                    />
+                  </ConfigProvider>
+                </div>
                 {darfVerwalten && (
-                  <div className={s.kartenfuss}>
+                  <div className={`${s.kartenfuss} ${s.fussImRahmen}`}>
                     <Button onClick={() => setOffen({ was: "pruefung", pruefung: null })}>Prüfung hinzufügen</Button>
                     <span className={s.neben}>zum Beispiel Feuerlöscher, Stromerzeuger oder Ladebordwand</span>
                   </div>

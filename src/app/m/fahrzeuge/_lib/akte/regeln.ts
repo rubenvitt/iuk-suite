@@ -187,6 +187,8 @@ export function auswerten(akte: AkteDTO, heute: string): Auswertung {
   const reifen = reifenStand(akte, heute);
   let stufe = pruefungen.reduce<Stufe>((s, p) => schlimmste(s, p.stufe), "ok");
   if (reifen) stufe = schlimmste(stufe, reifen.stufe);
+  // Eine Akte ohne jede Prüfung ist nicht „in Ordnung“, sondern nicht erfasst — die Tafel soll sie nicht grün zeigen.
+  if (pruefungen.length === 0) stufe = schlimmste(stufe, "offen");
   let naechster: PruefStand | null = null;
   for (const p of pruefungen) {
     if (p.faelligAm && (!naechster || p.faelligAm < naechster.faelligAm!)) naechster = p;
