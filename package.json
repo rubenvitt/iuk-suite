@@ -67,7 +67,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.4",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.6",
     "jsdom": "^30.1.2",
     "jsqr": "^1.4.0",
     "tsx": "^4.23.15",
