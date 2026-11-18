@@ -1,8 +1,8 @@
 diff --git a/es/InputNumber.js b/es/InputNumber.js
-index da284cdeebb249628436cfd4003815a7940c3b3e..b9b0c42551daeedc647c21a0840f081b5a6cefd8 100644
+index 386278bc46a9f2dcbe054f6d96a6385a0c8efeaa..10861398afde94ec2620bd65a0a04973ff1f5413 100644
 --- a/es/InputNumber.js
 +++ b/es/InputNumber.js
-@@ -57,7 +57,8 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+@@ -69,7 +69,8 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
      parser,
      formatter,
      precision,
@@ -10,9 +10,9 @@ index da284cdeebb249628436cfd4003815a7940c3b3e..b9b0c42551daeedc647c21a0840f081b
 +    // iuk-suite (IDA-394): Komma als Vorgabe-Trenner, sonst wird „231,5“ zu 2315.
 +    decimalSeparator = ',',
      onChange,
+     onClear,
      onInput,
-     onPressEnter,
-@@ -73,6 +74,11 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+@@ -86,6 +87,11 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
      changeOnBlur = true,
      ...restProps
    } = props;
@@ -24,7 +24,7 @@ index da284cdeebb249628436cfd4003815a7940c3b3e..b9b0c42551daeedc647c21a0840f081b
    const [focus, setFocus] = React.useState(false);
    const userTypingRef = React.useRef(false);
    const compositionRef = React.useRef(false);
-@@ -529,6 +535,7 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+@@ -621,6 +627,7 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
      style: styles?.prefix
    }, prefix), /*#__PURE__*/React.createElement("input", _extends({
      autoComplete: "off",
@@ -33,7 +33,7 @@ index da284cdeebb249628436cfd4003815a7940c3b3e..b9b0c42551daeedc647c21a0840f081b
      "aria-valuemin": min,
      "aria-valuemax": max,
 diff --git a/es/StepHandler.js b/es/StepHandler.js
-index 4d8ecd87a48456f76ee2528a37e59496c90cee87..1dd95ad32f3b9ffb3c98bc524d8fc0a70aa4c107 100644
+index 5d0a1be1f4e4bae7286e76ef7d853cf548a6d178..2569edfa6015007abdf04530fababb010cd63479 100644
 --- a/es/StepHandler.js
 +++ b/es/StepHandler.js
 @@ -73,7 +73,7 @@ export default function StepHandler({
@@ -46,10 +46,10 @@ index 4d8ecd87a48456f76ee2528a37e59496c90cee87..1dd95ad32f3b9ffb3c98bc524d8fc0a7
      className: mergedClassName,
      style: style
 diff --git a/lib/InputNumber.js b/lib/InputNumber.js
-index 7806d85ad119acffdf1d28410a14b8b3ab3e5e31..67c954675117496d6e931234d41a995a07028877 100644
+index cce0924d3f5e3b846839917fc442c47b05fc7502..1add793e119047c075ac5fbb4dddff532f6d0710 100644
 --- a/lib/InputNumber.js
 +++ b/lib/InputNumber.js
-@@ -66,7 +66,8 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+@@ -78,7 +78,8 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
      parser,
      formatter,
      precision,
@@ -57,9 +57,9 @@ index 7806d85ad119acffdf1d28410a14b8b3ab3e5e31..67c954675117496d6e931234d41a995a
 +    // iuk-suite (IDA-394): Komma als Vorgabe-Trenner, sonst wird „231,5“ zu 2315.
 +    decimalSeparator = ',',
      onChange,
+     onClear,
      onInput,
-     onPressEnter,
-@@ -82,6 +83,11 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+@@ -95,6 +96,11 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
      changeOnBlur = true,
      ...restProps
    } = props;
@@ -71,7 +71,7 @@ index 7806d85ad119acffdf1d28410a14b8b3ab3e5e31..67c954675117496d6e931234d41a995a
    const [focus, setFocus] = React.useState(false);
    const userTypingRef = React.useRef(false);
    const compositionRef = React.useRef(false);
-@@ -538,6 +544,7 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
+@@ -630,6 +636,7 @@ const InputNumber = /*#__PURE__*/React.forwardRef((props, ref) => {
      style: styles?.prefix
    }, prefix), /*#__PURE__*/React.createElement("input", _extends({
      autoComplete: "off",
@@ -80,10 +80,10 @@ index 7806d85ad119acffdf1d28410a14b8b3ab3e5e31..67c954675117496d6e931234d41a995a
      "aria-valuemin": min,
      "aria-valuemax": max,
 diff --git a/lib/StepHandler.js b/lib/StepHandler.js
-index ab6251210322ce133931265c97dd75875f2016df..d11ece902ca0817371939ac4b214d9e94e22a430 100644
+index eff63edd130c77d0e97fa89bfe49a1da03d4f661..22d72a595a053d33c692681cdbf469206d5299f3 100644
 --- a/lib/StepHandler.js
 +++ b/lib/StepHandler.js
-@@ -82,7 +82,7 @@ function StepHandler({
+@@ -81,7 +81,7 @@ function StepHandler({
      onMouseDown: e => {
        onStepMouseDown(e);
      },

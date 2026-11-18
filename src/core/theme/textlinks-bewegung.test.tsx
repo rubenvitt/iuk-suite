@@ -121,9 +121,8 @@ describe("Höhen-Motion unter reduzierter Bewegung (globals.css)", () => {
     // Diese (0,2,0)-Selektoren mit `!important` schlagen `*` — gäbe es sie nicht mehr, wäre die Regel tot.
     for (const komponente of ["collapse", "menu", "tree"]) {
       expect(antd).toMatch(new RegExp(`\\.ant-${komponente} \\.ant-motion-collapse\\{[^}]*transition:[^}]*!important`));
-      expect(antd).toMatch(new RegExp(`\\.ant-${komponente} \\.ant-motion-collapse-legacy-active\\{[^}]*!important`));
     }
     const block = /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/.exec(CSS)?.[1] ?? "";
-    expect(block).toMatch(/html:root \.ant-motion-collapse,\s*html:root \.ant-motion-collapse-legacy-active\s*\{\s*transition-duration: 0s !important;/);
+    expect(block).toMatch(/html:root \.ant-motion-collapse\s*\{\s*transition-duration: 0s !important;/);
   });
 });

@@ -197,7 +197,7 @@ describe("JournalTable", () => {
     const positiv = query("tr[data-row-key='journal-positiv']");
     expect(positiv.querySelector(`.${s.jdelta}.${s.jplus}`)).not.toBeNull();
     expect(exists(".ant-pagination")).toBe(false);
-    expect(query(".ant-table-content").getAttribute("style")).toContain("overflow-x: auto");
+    expect(query(".ant-table-content").style.overflowX).toBe("auto");
   });
 
   it("zeigt den vom Server gewaehlten Leertext", async () => {

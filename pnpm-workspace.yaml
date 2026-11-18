@@ -12,13 +12,9 @@ allowBuilds:
 # `patches/` UND die Zeile `COPY patches ./patches` in der deps-Stage des Dockerfiles.
 # `src/docker-kontext.test.ts` haelt sie zusammen; ein Upgrade des Pakets faellt pnpm selbst
 # auf (ERR_PNPM_UNUSED_PATCH).
-# Der Patch haengt an antd: `useDelayState` laesst beim Unmount einen geplanten
-# `setTimeout` stehen und setzt danach den Zustand einer abgeraeumten Komponente. Seine
-# VERSION wandert mit antds Abhaengigkeit mit (6.6.2 brachte 1.12.0, 6.6.4 bringt 1.13.0) —
-# der Patch gehoert also bei jedem antd-Upgrade nachgezogen. Stehen bliebe er sonst an einer
-# Fassung, die niemand mehr laedt: pnpm meldet das NICHT, solange irgendein anderes Paket die
-# alte Version noch zieht (`@ant-design/cssinjs` tut das, ohne den Hook zu benutzen).
-# `src/rc-component-util.test.tsx` misst deshalb die WIRKUNG ueber antds eigene Aufloesung.
+# Der fruehere Patch an `@rc-component/util` (`useDelayState` raeumte beim Unmount seinen
+# `setTimeout` nicht ab) ist seit 1.14.1 upstream (antd 6.7.1) und entfallen.
+# `src/rc-component-util.test.tsx` misst die WIRKUNG weiter ueber antds eigene Aufloesung.
 #
 # Der Patch an next (DRK-481): nach dem Proxy tauscht Next den Koerper jeder POST-Anfrage gegen
 # einen Puffer und kopiert dabei dessen `_destroy`/`_events` auf die IncomingMessage. Bricht der
@@ -26,7 +22,7 @@ allowBuilds:
 # so zur uncaughtException, und der Netzhaken (`core/av/scanner`) beendet die ganze Suite —
 # gemessen gegen den gebauten Stand: zwei POSTs mit RST auf `/` genuegten, ohne Anmeldung. Der
 # Patch haengt einen leeren `error`-Zuhoerer an und stellt damit Nodes eigene Regel wieder her
-# (ohne Zuhoerer kein `error`); wer den Koerper liest, bekommt den Fehler weiter. Bis 16.4 canary
+# (ohne Zuhoerer kein `error`); wer den Koerper liest, bekommt den Fehler weiter. Bis 16.4.6
 # unveraendert upstream. `src/next-anfrageabbruch.test.ts` misst die WIRKUNG in einem Kindprozess.
 #
 # Der Patch an @rc-component/input-number (IDA-394) setzt zwei Vorgaben fuer jedes antd-`InputNumber`
@@ -39,10 +35,9 @@ allowBuilds:
 # ab Werk „Increase Value"/„Decrease Value", hart kodiert in `StepHandler.js` (es/ und lib/).
 # Weder antds `InputNumber` noch dessen `locale` reicht einen Namen durch, und ein eigenes
 # `upHandler`-Zeichen landet nur IM benannten Element. Der Patch ersetzt die beiden Literale
-# durch „Wert erhöhen"/„Wert verringern". Die Version wandert mit antd (`~1.6.2`, antd 6.6.4):
+# durch „Wert erhöhen"/„Wert verringern". Die Version wandert mit antd (`~1.8.0`, antd 6.7.1):
 # beim antd-Upgrade nachziehen. `src/rc-component-input-number.test.tsx` misst die WIRKUNG am
 # gerenderten antd-`InputNumber`.
 patchedDependencies:
-  '@rc-component/input-number@1.6.2': patches/@rc-component__input-number@1.6.2.patch
-  '@rc-component/util@1.13.0': patches/@rc-component__util@1.13.0.patch
-  next@16.3.3: patches/next@16.3.3.patch
+  '@rc-component/input-number@1.8.0': patches/@rc-component__input-number@1.8.0.patch
+  next@16.4.6: patches/next@16.4.6.patch
