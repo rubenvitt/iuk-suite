@@ -127,7 +127,7 @@ describe("LetzteBuchungenTable", () => {
     expect(negativ.textContent).toContain("-2");
     expect(negativ.querySelector(`.${s.jdelta}.${s.jminus}`)).not.toBeNull();
     expect(exists(".ant-pagination")).toBe(false);
-    expect(query(".ant-table-content").getAttribute("style")).toContain("overflow-x: auto");
+    expect(query(".ant-table-content").style.overflowX).toBe("auto");
   });
 
   it("behaelt den bisherigen Leerzustand ohne leere Tabelle", async () => {

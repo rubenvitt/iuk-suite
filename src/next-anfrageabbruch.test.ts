@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 
 /**
- * Der Wächter für den Patch an next (`patches/next@16.3.3.patch`, DRK-481; Begründung in
+ * Der Wächter für den Patch an next (`patches/next@16.4.6.patch`, DRK-481; Begründung in
  * `pnpm-workspace.yaml`).
  *
  * Next reicht jede POST-Anfrage durch den Proxy und tauscht danach ihren Körper gegen einen

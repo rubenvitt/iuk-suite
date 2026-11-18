@@ -62,7 +62,30 @@ if (typeof window !== "undefined") {
   }
 
   bewegungAbschalten();
+  fokusKorrekturOhneFalscheUhr();
   vi.setConfig({ testTimeout: DOM_ZEITBUDGET_MS });
+}
+
+/**
+ * KEINE FOKUSKORREKTUR UNTER FALSCHER UHR — sonst steht `requestAnimationFrame` für den
+ * Rest der Datei still, STILL: kein Fehler, nur ein Rückruf, der nie kommt (gemessen beim
+ * Sprung jsdom 30 → 31 in `kommplan/_ui/editor/Editor.test.tsx`, „holt die gewählte Zeile
+ * ins Bild" — allein grün, in der Datei rot).
+ *
+ * Die Kette: jsdom 31 korrigiert den Fokus, wenn ein fokussiertes Element aus dem DOM fällt,
+ * und plant dafür seine Bildschleife (`setInterval`, 60 Hz) — dieselbe, an der
+ * `requestAnimationFrame` hängt. Läuft das unter `vi.useFakeTimers()`, ist die Schleife eine
+ * falsche Uhr; `vi.useRealTimers()` verwirft sie, jsdom hält sie aber für gestartet und
+ * startet sie nie wieder. Unter falscher Uhr lassen wir die Korrektur deshalb aus — das ist
+ * jsdoms Verhalten bis 30, das keine Fokuskorrektur kannte.
+ */
+function fokusKorrekturOhneFalscheUhr(): void {
+  const w = window as unknown as { _requestFocusFixup?: () => void };
+  const original = w._requestFocusFixup;
+  if (typeof original !== "function") return;
+  w._requestFocusFixup = () => {
+    if (!vi.isFakeTimers()) original();
+  };
 }
 
 /**

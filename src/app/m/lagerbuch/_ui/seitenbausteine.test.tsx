@@ -144,7 +144,7 @@ describe("Kachel", () => {
   it("die Zahl traegt tabular-nums und KEINE Farbe", async () => {
     await mount(<Kachel zahl={12} beschriftung="offene Bestellpositionen" ton="rot" />);
     const zahl = query("[data-kennzahl-wert]");
-    expect(zahl.getAttribute("style")).toMatch(/font-variant-numeric:\s*tabular-nums/);
+    expect(zahl.style.fontVariantNumeric.split(" ")).toContain("tabular-nums");
     // Eine rote 7 IST Rot auf einer Datenflaeche — der Punkt traegt die Farbe,
     // die Zahl traegt Tinte (§6.6.4).
     expect(zahl.getAttribute("style")).not.toMatch(/color:/);
