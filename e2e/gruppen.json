@@ -21,7 +21,7 @@
   },
   {
     "name": "eimer-6",
-    "specs": "e2e/einsatzbuch-reader.spec.ts e2e/kommplan-bibliothek.spec.ts e2e/lagerbuch-artikel-mobil.spec.ts e2e/lagerbuch-einheitenart.spec.ts e2e/lagerbuch-einraeumen.spec.ts e2e/lagerbuch-mobil.spec.ts e2e/lagerbuch-ortsetiketten.spec.ts e2e/lagerbuch-verfall-ortswahl.spec.ts e2e/lagerbuch-verwaltung.spec.ts e2e/lagerbuch-zugang-enter.spec.ts e2e/portal-neuigkeiten.spec.ts e2e/radio-hosts.spec.ts e2e/zeitzone.spec.ts"
+    "specs": "e2e/einsatzbuch-reader.spec.ts e2e/kommplan-bibliothek.spec.ts e2e/lagerbuch-artikel-mobil.spec.ts e2e/lagerbuch-einheitenart.spec.ts e2e/lagerbuch-einraeumen.spec.ts e2e/lagerbuch-mobil.spec.ts e2e/lagerbuch-ortsetiketten.spec.ts e2e/lagerbuch-verfall-ortswahl.spec.ts e2e/lagerbuch-verwaltung.spec.ts e2e/lagerbuch-verwaltungscheck.spec.ts e2e/lagerbuch-zugang-enter.spec.ts e2e/portal-neuigkeiten.spec.ts e2e/radio-hosts.spec.ts e2e/zeitzone.spec.ts"
   },
   {
     "name": "eimer-7",
