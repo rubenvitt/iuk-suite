@@ -15,7 +15,7 @@
  * steht in mehreren Fächern, und „Ist Mullbinde" träfe zwei Felder.
  */
 
-import dayjs from "dayjs";
+import dayjs, { type Dayjs } from "dayjs";
 import { memo, useState } from "react";
 import { Button, Flex, InputNumber } from "antd";
 import { SPACE } from "@/core/theme/tokens";
@@ -139,6 +139,17 @@ export const StimmtZelle = memo(function StimmtZelle({ zeile, ist, aendere, gesp
 });
 
 /**
+ * Der Wert des Monatsfelds für den Zählstand: `YYYY-MM`, `null` (geleert) oder
+ * `undefined` — ein ungültiges Datum, das NICHT in den Zählstand gehört (es
+ * fiele erst in `baueNutzlast` still heraus, und bis dahin rechnete die Ampel damit).
+ */
+export function verfallAusPicker(wert: Dayjs | null | undefined): string | null | undefined {
+  if (!wert) return null;
+  const monat = monatAusPicker(wert);
+  return monat !== undefined && MONAT_REGEX.test(monat) ? monat : undefined;
+}
+
+/**
  * Der Verfall NACH dem Ausgleich (Spec 6.3) — `MonatsFeld`, gesperrt, solange
  * die Position nicht gezählt ist (Spec 6.12.2: nur Fächer gezählter Positionen
  * gehen auf die Leitung).
@@ -167,7 +178,10 @@ export const VerfallZelle = memo(function VerfallZelle({ zeile, wert, gezaehlt, 
           disabled={gesperrt || !gezaehlt}
           placeholder={gezaehlt ? "MM/JJJJ" : "erst zählen"}
           value={gueltig ? dayjs(`${gueltig}-01`) : null}
-          onChange={(neu) => aendere((z) => ({ ...z, verfall: { ...z.verfall, [zeile.id]: monatAusPicker(neu) ?? null } }))}
+          onChange={(neu) => {
+            const monat = verfallAusPicker(neu);
+            if (monat !== undefined) aendere((z) => ({ ...z, verfall: { ...z.verfall, [zeile.id]: monat } }));
+          }}
           onUngueltig={setUngueltig}
         />
         {status && gueltig && status.ampel !== "gruen" ? (

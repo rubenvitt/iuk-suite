@@ -819,6 +819,10 @@
     "kind": "context",
     "via": "checkAbschluss"
   },
+  "src/app/m/lagerbuch/_actions/verwaltungscheck.ts#verwaltungscheckAbschluss": {
+    "kind": "context",
+    "via": "verwaltungscheckAbschluss"
+  },
   "src/app/m/lagerbuch/_actions/csv.ts#importArtikelCsv": {
     "kind": "context",
     "via": "importArtikelCsv"
@@ -873,6 +877,10 @@
     "kind": "context",
     "via": "geraetSpeichern"
   },
+  "src/app/m/lagerbuch/_actions/geraete.ts#geraetUmsetzen": {
+    "kind": "context",
+    "via": "geraetUmsetzen"
+  },
   "src/app/m/lagerbuch/_actions/geraete.ts#setGeraetAktiv": {
     "kind": "context",
     "via": "setGeraetAktiv"
@@ -916,6 +924,10 @@
   "src/app/m/lagerbuch/_actions/sauerstoff.ts#flascheSpeichern": {
     "kind": "context",
     "via": "flascheSpeichern"
+  },
+  "src/app/m/lagerbuch/_actions/sauerstoff.ts#flascheUmsetzen": {
+    "kind": "context",
+    "via": "flascheUmsetzen"
   },
   "src/app/m/lagerbuch/_actions/sauerstoff.ts#setFlascheAktiv": {
     "kind": "context",

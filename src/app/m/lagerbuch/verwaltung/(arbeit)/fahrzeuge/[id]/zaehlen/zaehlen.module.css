@@ -15,10 +15,13 @@
   border: 1px solid var(--lb-linie);
   border-radius: 6px;
   padding: 12px;
+  /* Auch als `fieldset` (Reiter „Geräte"): ohne Rand außen und ohne Mindestbreite des Inhalts. */
+  margin: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: var(--lb-flaeche, transparent);
+  background: var(--lb-karte);
 }
 
 .name {
@@ -69,6 +72,51 @@
   font-size: 14px;
 }
 
+/* Die Reiter Ausgleichen, Plomben, Geräte, Sauerstoff: Karten untereinander, oben die Einrichtung. */
+.liste {
+  display: grid;
+  gap: 12px;
+}
+
+.kopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.absichten {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.absicht {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.selbsttest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hinweis {
+  margin: 0;
+  color: var(--lb-stahl);
+  font-size: 14px;
+}
+
 /*
  * DIE ABSCHLUSSLEISTE STEHT FEST AM UNTEREN RAND — `sticky`, nicht `fixed`
  * (Begründung in `inventur/inventurkarte.module.css`, `.abschluss`). Am
@@ -104,10 +152,6 @@
   font-size: 14px;
   color: var(--lb-stahl);
   font-variant-numeric: tabular-nums;
-}
-
-.fortschritt strong {
-  color: var(--lb-tinte);
 }
 
 .kommentar {

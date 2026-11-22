@@ -10,11 +10,12 @@
  * Playwright (`docs/design/README.md`, „Tests für Responsives").
  */
 
+import dayjs from "dayjs";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { vergissFluechtig } from "@/core/entwurf/ablage";
 import {
-  clickElement, fillElement, mount, query, queryAll, unmount,
+  clickElement, clickPortal, existsPortal, fillElement, mount, query, queryAll, queryPortal, unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import type { VerwaltungscheckDaten } from "../../../../../_lib/lesepfade/verwaltungscheck";
 import { baueNutzlast, leererZustand } from "../../../../../_lib/verwaltungscheck";
@@ -24,6 +25,7 @@ vi.mock("../../../../../_actions/verwaltungscheck", () => ({ verwaltungscheckAbs
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 const { VerwaltungsZaehlung } = await import("./VerwaltungsZaehlung");
+const { verfallAusPicker } = await import("./BestandZellen");
 
 const DATEN: VerwaltungscheckDaten = {
   fahrzeug: { id: "fz-1", name: "RTW 1", kennung: "MS-1", einheitenart: "fahrzeug", aktiv: true },
@@ -67,6 +69,15 @@ function reiter(): string[] {
 
 function abschliessenKnopf(): HTMLButtonElement {
   return query<HTMLButtonElement>('[data-rolle="abschluss"]');
+}
+
+const OFFENE_RUECKFRAGE = ".ant-popover:not(.ant-popover-hidden)";
+
+/** R6: „Abschließen" fragt erst nach; gebucht wird mit „Buchen" in der Rückfrage. */
+async function abschliessen(): Promise<void> {
+  await clickElement(abschliessenKnopf());
+  await act(async () => { await new Promise((fertig) => setTimeout(fertig, 0)); });
+  await clickPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons .ant-btn-primary`);
 }
 
 /** Die ausstehende Antwort der gemockten Action abwarten. */
@@ -135,7 +146,7 @@ describe("VerwaltungsZaehlung", () => {
     await clickElement(inKarten('button[aria-label="Verbandpäckchen, Fach 3 erhöhen"]'));
     await fillElement(query<HTMLInputElement>('input[aria-label="Kommentar"]'), "Erstbestückung");
 
-    await clickElement(abschliessenKnopf());
+    await abschliessen();
     await warteAufAntwort();
 
     expect(abschluss).toHaveBeenCalledTimes(1);
@@ -148,13 +159,28 @@ describe("VerwaltungsZaehlung", () => {
     }, gesendet.sendungId));
   });
 
+  it("fragt vor dem Buchen nach und nennt, dass es nicht rückgängig geht", async () => {
+    abschluss.mockResolvedValue({ ok: true, wert: WERT });
+    await mount(<VerwaltungsZaehlung daten={DATEN} />);
+    await clickElement(inKarten('button[aria-label="Mullbinde, Fach 1 stimmt"]'));
+
+    await clickElement(abschliessenKnopf());
+    await act(async () => { await new Promise((fertig) => setTimeout(fertig, 0)); });
+    expect(abschluss).not.toHaveBeenCalled();
+    expect(queryPortal(OFFENE_RUECKFRAGE).textContent).toContain("nicht rückgängig");
+
+    await clickPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons .ant-btn:not(.ant-btn-primary)`);
+    expect(abschluss).not.toHaveBeenCalled();
+    expect(existsPortal(`${OFFENE_RUECKFRAGE} .ant-popconfirm-buttons`)).toBe(false);
+  });
+
   it("zeigt nach dem Erfolg das Ergebnis mit Link auf den Check und leert den Entwurf", async () => {
     abschluss.mockResolvedValue({ ok: true, wert: { ...WERT, korrigiert: 1, aufgefuellt: 3 } });
     await mount(<VerwaltungsZaehlung daten={DATEN} />);
     await clickElement(inKarten('button[aria-label="Mullbinde, Fach 1 stimmt"]'));
     expect(localStorage.length).toBeGreaterThan(0);
 
-    await clickElement(abschliessenKnopf());
+    await abschliessen();
     await warteAufAntwort();
 
     const ergebnis = query('[data-rolle="ergebnis"]');
@@ -171,11 +197,20 @@ describe("VerwaltungsZaehlung", () => {
     await mount(<VerwaltungsZaehlung daten={DATEN} />);
     await clickElement(inKarten('button[aria-label="Mullbinde, Fach 1 stimmt"]'));
 
-    await clickElement(abschliessenKnopf());
+    await abschliessen();
     await warteAufAntwort();
 
     expect(query('[data-rolle="abschluss-fehler"]').textContent).toBe("Mullbinde: höchstens 4 aussondern.");
     expect(inKarten<HTMLInputElement>('input[aria-label="Ist Mullbinde, Fach 1"]').value).toBe("4");
     expect(queryAll('[data-rolle="ergebnis"]')).toHaveLength(0);
+  });
+});
+
+describe("verfallAusPicker", () => {
+  it("lässt nur YYYY-MM oder null in den Zählstand", () => {
+    expect(verfallAusPicker(dayjs("2030-03-01"))).toBe("2030-03");
+    expect(verfallAusPicker(null)).toBeNull();
+    // Ein ungültiges Datum ändert nichts — es ist kein „geleert".
+    expect(verfallAusPicker(dayjs("kein Datum"))).toBeUndefined();
   });
 });

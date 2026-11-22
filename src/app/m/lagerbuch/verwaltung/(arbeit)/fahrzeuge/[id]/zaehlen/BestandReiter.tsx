@@ -202,7 +202,7 @@ export function BestandReiter({ daten, zustand, aendere, gesperrt, rand }: Reite
   const leertext = zeilen.length === 0
     ? "Noch keine Soll-Position. Lege sie auf dem Blatt der Einheit an."
     : offenStand !== null && suche.trim() === "" && sichtbar.length === 0
-      ? "Alles gezählt. Schließe unten ab."
+      ? "Alles gezählt."
       : "Keine Position passt zu Suche und Filter.";
 
   return (

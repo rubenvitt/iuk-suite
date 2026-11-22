@@ -18,8 +18,8 @@
  * der Server abweist.
  */
 
-import { useCallback, useState, type ReactNode } from "react";
-import { Alert, Button, Flex, Input, Result, Tabs } from "antd";
+import { useCallback, useState } from "react";
+import { Alert, Button, Flex, Input, Popconfirm, Result, Tabs } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurf, type Entwurf } from "@/core/entwurf/useEntwurf";
 import { SPACE } from "@/core/theme/tokens";
@@ -41,18 +41,13 @@ import {
 } from "../../../../../_lib/verwaltungscheck";
 import { verwaltungDetailPfad } from "../../../../../_lib/verwaltungPfad";
 import { LinkKnopf } from "../../../../../_ui/LinkKnopf";
+import { AusgleichReiter } from "./AusgleichReiter";
 import { BestandReiter } from "./BestandReiter";
+import { GeraeteReiter } from "./GeraeteReiter";
+import { PlombenReiter } from "./PlombenReiter";
 import type { ReiterProps } from "./reiter";
+import { SauerstoffReiter } from "./SauerstoffReiter";
 import k from "./zaehlen.module.css";
-
-/** Bis die Reiter aus dem nächsten Schritt da sind (Ausgleichen, Plomben, Geräte, Sauerstoff). */
-const ReiterFolgt: (props: ReiterProps) => ReactNode = () => (
-  <p data-rolle="reiter-folgt">Dieser Reiter folgt.</p>
-);
-const AusgleichReiter = ReiterFolgt;
-const PlombenReiter = ReiterFolgt;
-const GeraeteReiter = ReiterFolgt;
-const SauerstoffReiter = ReiterFolgt;
 
 /**
  * Eine Absage gilt für den Stand, aus dem sie entstand, und verschwindet beim
@@ -165,6 +160,10 @@ function fortschrittText(f: Fortschritt): string {
  * DIE KLEBENDE LEISTE — Vorbild `inventur/Abschlussleiste.tsx`. „Abschließen"
  * ist die einzige Primäraktion der Insel; gesperrt steht der Grund SICHTBAR
  * darüber (docs/design/README.md, Formulare Regel 1), nie nur im Tooltip.
+ *
+ * ⚠️ ERST FRAGEN, DANN BUCHEN (Formulare Regel 4, wie IDA-379 in der Inventur):
+ * das Journal nimmt nichts zurück, und ein Tipp auf den Knopf buchte sonst
+ * Korrektur und Bewegungen sofort.
  */
 function Abschlussleiste({
   stand, gruende, kommentar, onKommentar, absage, entwurf, laeuft, onAbschliessen, onHoehe,
@@ -180,6 +179,8 @@ function Abschlussleiste({
   onAbschliessen: () => void;
   onHoehe: (hoehe: number) => void;
 }) {
+  const [frage, setFrage] = useState(false);
+  const knopfGesperrt = laeuft || gruende.length > 0;
   // Die Höhe geht hinauf (Falle 16). jsdom kennt keinen `ResizeObserver`.
   const leiste = useCallback((element: HTMLDivElement | null) => {
     if (!element || typeof ResizeObserver === "undefined") return;
@@ -215,15 +216,26 @@ function Abschlussleiste({
           />
         </div>
         <div className={k.knopf}>
-          <Button
-            type="primary"
-            data-rolle="abschluss"
-            loading={entwurf.zustand === "sendet"}
-            disabled={laeuft || gruende.length > 0}
-            onClick={onAbschliessen}
+          <Popconfirm
+            title="Abschließen und buchen?"
+            description="Zählung, Ausgleich und Ergebnisse werden gebucht. Das lässt sich nicht rückgängig machen."
+            okText="Buchen"
+            cancelText="Abbrechen"
+            placement="topRight"
+            disabled={knopfGesperrt}
+            open={frage && !knopfGesperrt}
+            onOpenChange={setFrage}
+            onConfirm={() => { setFrage(false); onAbschliessen(); }}
           >
-            Abschließen
-          </Button>
+            <Button
+              type="primary"
+              data-rolle="abschluss"
+              loading={entwurf.zustand === "sendet"}
+              disabled={knopfGesperrt}
+            >
+              Abschließen
+            </Button>
+          </Popconfirm>
         </div>
       </div>
     </div>
