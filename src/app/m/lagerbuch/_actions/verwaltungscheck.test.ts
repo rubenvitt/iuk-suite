@@ -2,13 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import {
-  artikel, buchungen, chargen, checks, fachVerfall, lagerorte, o2Flaschen, plomben, sollPositionen,
+  artikel, buchungen, chargen, checks, fachVerfall, geraete, lagerorte, o2Flaschen, plomben, sollPositionen,
 } from "../_db/schema";
 import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../_lib/konstanten";
 import { AUFLADEN_PRAEFIX, AUSSONDERN_PRAEFIX, RUECKLAUF_PRAEFIX } from "../_lib/vorgang";
 import { summiereCheckErgebnis } from "../_lib/domain/check";
 import { statistikDaten } from "../_lib/lesepfade/statistik";
 import { kurzcheckVorlage } from "../_lib/lesepfade/kurzcheck";
+import { verwaltungscheckDaten } from "../_lib/lesepfade/verwaltungscheck";
+import { baueNutzlast, leererZustand } from "../_lib/verwaltungscheck";
 
 /**
  * DER VERWALTUNGSCHECK-ABSCHLUSS — Spec 6.8 und 6.12.
@@ -503,5 +505,49 @@ describe("verwaltungscheckAbschluss — Plomben", () => {
     const pl = t.db.select().from(plomben).where(eq(plomben.id, "pl-2")).get()!;
     expect(pl.nummer).toBe("A-123");
     expect(pl.gesetztAt).not.toBeNull();
+  });
+});
+
+describe("verwaltungscheckAbschluss — Nutzlast der Zählseite", () => {
+  it("nimmt an, was `baueNutzlast` aus einem vollen Zählstand baut — jede Liste, alle drei Absichten", async () => {
+    buchen("fz-1", 5);
+    buchen("sch-1", 4);
+    t.db.insert(geraete).values([
+      { id: "g-1", typ: "medizin", name: "AED", lagerortId: "fz-1", selbsttest: true, createdAt: JETZT },
+    ]).run();
+    const daten = verwaltungscheckDaten(t.db, "fz-1")!;
+
+    const z = {
+      ...leererZustand(),
+      // Kompresse 7 (davon 2 schon eingeräumt), Wärmedecke 4.
+      ist: { "sp-1": 4, "sp-2": 3, "sp-3": 4 },
+      verfall: { "sp-1": "2031-02", "sp-3": null },
+      ausgleich: {
+        "art-1": {
+          aussondern: { menge: 1, grund: "Verpackung offen" },
+          zuruecklegen: { menge: 1, zielLagerortId: "sch-1", chargeId: "ch-1" },
+          auffuellen: { menge: 2, herkunft: { art: "ort" as const, vonLagerortId: "sch-1", chargeId: "ch-1" }, mitgezaehlt: true },
+        },
+        "art-2": {
+          auffuellen: { menge: 1, herkunft: { art: "neu" as const, charge: { art: "neu" as const, chargenNr: "W9", verfall: "2031-06" } } },
+        },
+      },
+      plomben: { "pl-2": "A-7" },
+      geraete: { "g-1": { vorhanden: true, zustand: "In Ordnung" as const, bemerkung: "Pads neu", selbsttest: true } },
+      druck: { "o-1": 180 },
+      kommentar: "Erstbestückung",
+    };
+
+    const erg = await verwaltungscheckAbschluss(baueNutzlast(daten, z, SENDUNG), t.db);
+
+    expect(erg).toEqual({ ok: true, wert: expect.objectContaining({
+      ausgesondert: 1, zurueckgelegt: 1, aufgefuellt: 3, plombenGesetzt: 1,
+    }) });
+    // 7 gezählt − 2 mitgezählt = 5 = Buchstand; −1 aussondern, −1 zurück, +2 vom Schrank.
+    expect(bestand("fz-1")).toBe(5);
+    expect(bestand("fz-1", "art-2")).toBe(5);
+    expect(t.db.select().from(fachVerfall).all()).toEqual([
+      expect.objectContaining({ sollPositionId: "sp-1", verfall: "2031-02" }),
+    ]);
   });
 });

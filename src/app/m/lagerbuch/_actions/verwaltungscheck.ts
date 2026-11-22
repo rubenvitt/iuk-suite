@@ -119,6 +119,9 @@ const VerwaltungscheckSchema = z.object({
   }).strict()).default([]),
 }).strict();
 
+/** Was der Abschluss annimmt — gegen `VerwaltungscheckNutzlast` geprüft (`_lib/verwaltungscheck.test.ts`). */
+export type VerwaltungscheckEingabe = z.input<typeof VerwaltungscheckSchema>;
+
 export type VerwaltungscheckWert = {
   checkId: string;
   /** Betrag der Korrekturen über alle gezählten Artikel. */
