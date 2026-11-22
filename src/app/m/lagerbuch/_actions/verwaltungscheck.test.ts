@@ -301,14 +301,55 @@ describe("verwaltungscheckAbschluss — Ausgleich", () => {
     expect(neueZeilen()).toEqual([]);
   });
 
-  it("verlangt für das Zurücklegen in einen Schrank eine Charge", async () => {
-    buchen("fz-1", 7);
+  it("verlangt für das Zurücklegen in einen Schrank eine Charge — und nimmt dann auch die Korrektur zurück", async () => {
+    // Buchstand 9, gezählt 7: die Korrektur (−2) ist schon gebucht, wenn die Absage kommt.
+    buchen("fz-1", 9);
     const erg = await verwaltungscheckAbschluss(nutzlast({
       ausgleich: [{ artikelId: "art-1", zuruecklegen: { menge: 2, zielLagerortId: "sch-1" } }],
     }, [4, 3]), t.db);
-    expect(erg).toEqual({ ok: false, fehler: "Für den Schrank eine Charge wählen." });
+    expect(erg).toEqual({ ok: false, fehler: "Kompresse: Für den Schrank eine Charge wählen." });
     expect(neueZeilen()).toEqual([]);
+    expect(bestand("fz-1")).toBe(9);
     expect(checkZeile()).toBeUndefined();
+  });
+
+  it("nennt den Artikel, wenn eine Bewegung nicht gedeckt ist", async () => {
+    buchen("fz-1", 5);
+    buchen("sch-1", 1);
+
+    const aus = await verwaltungscheckAbschluss(nutzlast({
+      ausgleich: [{ artikelId: "art-1", aussondern: { menge: 5 }, zuruecklegen: { menge: 1, zielLagerortId: "sch-1", chargeId: "ch-2" } }],
+    }), t.db);
+    // Fremde Charge: der Text des Schreibpfads, davor der Artikel.
+    expect(aus).toEqual({
+      ok: false,
+      fehler: "Kompresse: Diese Charge gehört nicht zu diesem Artikel. Bitte die Seite neu laden.",
+    });
+
+    const ort = await verwaltungscheckAbschluss(nutzlast({
+      ausgleich: [{
+        artikelId: "art-1",
+        auffuellen: { menge: 3, herkunft: { art: "ort", vonLagerortId: "sch-1", chargeId: "ch-1" } },
+      }],
+    }), t.db);
+    expect(ort.ok).toBe(false);
+    if (ort.ok) return;
+    expect(ort.fehler).toMatch(/^Kompresse: In „Schrank 1/);
+
+    // Der Text, der den Namen schon trägt, bekommt ihn nicht doppelt.
+    const handlager = await verwaltungscheckAbschluss(nutzlast({
+      ausgleich: [{ artikelId: "art-1", auffuellen: { menge: 3, herkunft: { art: "handlager" } } }],
+    }), t.db);
+    expect(handlager).toEqual({ ok: false, fehler: "Im Handlager liegen von Kompresse nur 1" });
+    expect(neueZeilen()).toEqual([]);
+  });
+
+  it("nennt den Artikel beim Aussondern über den Bestand", async () => {
+    buchen("fz-1", 5);
+    const erg = await verwaltungscheckAbschluss(nutzlast({
+      ausgleich: [{ artikelId: "art-1", aussondern: { menge: 6 } }],
+    }), t.db);
+    expect(erg).toEqual({ ok: false, fehler: "Kompresse: Hier liegen nur 5 Stück." });
   });
 
   it("legt mit Charge in den Schrank zurück", async () => {
@@ -335,7 +376,8 @@ describe("verwaltungscheckAbschluss — Ausgleich", () => {
   });
 
   it("weist Auffüllen über den Handlager-Bestand ab und bucht dann gar nichts, auch die Korrektur nicht", async () => {
-    buchen("fz-1", 1);
+    // Buchstand 3, gezählt 1: die Korrektur (−2) ist schon gebucht, wenn die Absage kommt.
+    buchen("fz-1", 3);
     buchen("sch-1", 3);
     const erg = await verwaltungscheckAbschluss(nutzlast({
       ausgleich: [{ artikelId: "art-1", auffuellen: { menge: 4, herkunft: { art: "handlager" } } }],
@@ -344,6 +386,7 @@ describe("verwaltungscheckAbschluss — Ausgleich", () => {
     if (erg.ok) return;
     expect(erg.fehler).toContain("Im Handlager liegen");
     expect(neueZeilen()).toEqual([]);
+    expect(bestand("fz-1")).toBe(3);
     expect(checkZeile()).toBeUndefined();
   });
 

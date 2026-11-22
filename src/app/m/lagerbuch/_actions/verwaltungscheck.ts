@@ -258,53 +258,64 @@ export async function verwaltungscheckAbschluss(
           }>();
           for (const a of ausgleich.values()) {
             const b = { ausgesondert: 0, zurueckgelegt: 0, aufgefuellt: 0, nachfuellGebucht: 0 };
-            if (a.aussondern) {
-              aussondernAnEinheitTx(tx, {
-                lagerortId: v.fahrzeugId, artikelId: a.artikelId, menge: a.aussondern.menge,
-                quelle, kommentar: a.aussondern.grund || AUSSONDERN_VORGABE,
-              });
-              b.ausgesondert = a.aussondern.menge;
-            }
-            if (a.zuruecklegen) {
-              const z = a.zuruecklegen;
-              if (z.zielLagerortId === ENTNAHMEBOX_ID) {
-                b.zurueckgelegt = inEntnahmeboxTx(tx, {
-                  fahrzeugId: v.fahrzeugId, artikelId: a.artikelId, menge: z.menge,
-                  ...(z.chargeId ? { chargeId: z.chargeId } : {}), quelle,
+            /*
+             * Spec 6.4: scheitert eine Bewegung, nennt die Absage den ARTIKEL. Die
+             * Texte der Schreibpfade gehören auch Aufladen und Rücklauf und bleiben;
+             * wer den Namen schon trägt (Box, Handlager), bekommt ihn nicht doppelt.
+             */
+            try {
+              if (a.aussondern) {
+                aussondernAnEinheitTx(tx, {
+                  lagerortId: v.fahrzeugId, artikelId: a.artikelId, menge: a.aussondern.menge,
+                  quelle, kommentar: a.aussondern.grund || AUSSONDERN_VORGABE,
                 });
-              } else {
-                // DRK-366: im Handlager trägt die Charge den Verfall — ohne sie kein Schrank.
-                if (!z.chargeId) throw new BuchungAbgewiesen("Für den Schrank eine Charge wählen.");
-                b.zurueckgelegt = ruecklaufTx(tx, {
-                  fahrzeugId: v.fahrzeugId, artikelId: a.artikelId, chargeId: z.chargeId,
-                  menge: z.menge, zielLagerortId: z.zielLagerortId, quelle,
-                });
+                b.ausgesondert = a.aussondern.menge;
               }
-            }
-            if (a.auffuellen) {
-              const { menge, herkunft } = a.auffuellen;
-              if (herkunft.art === "handlager") {
-                // Spec 6.12.4: aus dem Handlager zählt in `nachfuellGebucht` (Chip „aus Handlager nachgefüllt").
-                b.nachfuellGebucht = auffuellenAusHandlagerTx(tx, {
-                  artikelId: a.artikelId, menge, fahrzeugId: v.fahrzeugId, quelle, referenz,
-                });
-              } else if (herkunft.art === "ort") {
-                if (herkunft.vonLagerortId === v.fahrzeugId) {
-                  throw new BuchungAbgewiesen("Herkunft und Ziel müssen verschieden sein.");
+              if (a.zuruecklegen) {
+                const z = a.zuruecklegen;
+                if (z.zielLagerortId === ENTNAHMEBOX_ID) {
+                  b.zurueckgelegt = inEntnahmeboxTx(tx, {
+                    fahrzeugId: v.fahrzeugId, artikelId: a.artikelId, menge: z.menge,
+                    ...(z.chargeId ? { chargeId: z.chargeId } : {}), quelle,
+                  });
+                } else {
+                  // DRK-366: im Handlager trägt die Charge den Verfall — ohne sie kein Schrank.
+                  if (!z.chargeId) throw new BuchungAbgewiesen("Für den Schrank eine Charge wählen.");
+                  b.zurueckgelegt = ruecklaufTx(tx, {
+                    fahrzeugId: v.fahrzeugId, artikelId: a.artikelId, chargeId: z.chargeId,
+                    menge: z.menge, zielLagerortId: z.zielLagerortId, quelle,
+                  });
                 }
-                b.aufgefuellt = aufladenVonOrtTx(tx, {
-                  artikelId: a.artikelId, menge, fahrzeugId: v.fahrzeugId,
-                  vonLagerortId: herkunft.vonLagerortId, chargeId: herkunft.chargeId, quelle,
-                });
-              } else {
-                zugangAnEinheitBuchen(tx, {
-                  artikelId: a.artikelId, menge, einheitId: v.fahrzeugId, quelle,
-                  charge: herkunft.charge.art === "neu"
-                    ? { art: "neu", chargenNr: herkunft.charge.chargenNr ?? "", verfall: herkunft.charge.verfall }
-                    : herkunft.charge,
-                });
-                b.aufgefuellt = menge;
               }
+              if (a.auffuellen) {
+                const { menge, herkunft } = a.auffuellen;
+                if (herkunft.art === "handlager") {
+                  // Spec 6.12.4: aus dem Handlager zählt in `nachfuellGebucht` (Chip „aus Handlager nachgefüllt").
+                  b.nachfuellGebucht = auffuellenAusHandlagerTx(tx, {
+                    artikelId: a.artikelId, menge, fahrzeugId: v.fahrzeugId, quelle, referenz,
+                  });
+                } else if (herkunft.art === "ort") {
+                  if (herkunft.vonLagerortId === v.fahrzeugId) {
+                    throw new BuchungAbgewiesen("Herkunft und Ziel müssen verschieden sein.");
+                  }
+                  b.aufgefuellt = aufladenVonOrtTx(tx, {
+                    artikelId: a.artikelId, menge, fahrzeugId: v.fahrzeugId,
+                    vonLagerortId: herkunft.vonLagerortId, chargeId: herkunft.chargeId, quelle,
+                  });
+                } else {
+                  zugangAnEinheitBuchen(tx, {
+                    artikelId: a.artikelId, menge, einheitId: v.fahrzeugId, quelle,
+                    charge: herkunft.charge.art === "neu"
+                      ? { art: "neu", chargenNr: herkunft.charge.chargenNr ?? "", verfall: herkunft.charge.verfall }
+                      : herkunft.charge,
+                  });
+                  b.aufgefuellt = menge;
+                }
+              }
+            } catch (e) {
+              if (!(e instanceof BuchungAbgewiesen)) throw e;
+              const name = artikelName(a.artikelId);
+              throw e.message.includes(name) ? e : new BuchungAbgewiesen(`${name}: ${e.message}`);
             }
             bewegt.set(a.artikelId, b);
           }
