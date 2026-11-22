@@ -391,6 +391,31 @@ export const lagerortVerfall = sqliteTable(
   (t) => [uniqueIndex("idx_lagerort_verfall_ort_artikel").on(t.lagerortId, t.artikelId)],
 );
 
+/**
+ * IDA-412 — DER GEMELDETE VERFALL JE FACH (Soll-Position).
+ *
+ * Das Detail UNTER `lagerort_verfall`: liegt ein Artikel in zwei Fächern, trägt jedes sein Datum.
+ * `lagerort_verfall` bleibt das früheste Datum je Artikel und Einheit, und alles, was warnt, liest
+ * weiter dort. Wer hier schreibt, zieht die Einheitszeile nach (`_lib/schreibpfade/fachVerfall.ts`).
+ *
+ * ⚠️ EIN ARTIKELWEITER SCHREIBWEG (Verwaltung, Aussondern, Mitwandern) VERWIRFT DAS DETAIL dieses
+ * Artikels an dieser Einheit: er sagt etwas über alle Fächer zugleich, und ein stehengebliebenes
+ * Fachdatum widerspräche ihm. Ein Fach ohne Zeile zeigt das Datum der Einheit.
+ */
+export const fachVerfall = sqliteTable(
+  "fach_verfall",
+  {
+    id: text("id").primaryKey(),
+    sollPositionId: text("soll_position_id").notNull()
+      .references(() => sollPositionen.id, { onDelete: "cascade" }),
+    verfall: text("verfall").notNull(),   // "YYYY-MM", streng ueber MONAT_REGEX
+    erfasstAt: integer("erfasst_at", { mode: "timestamp" }).notNull(),
+    quelleTyp: text("quelle_typ", { enum: ["token", "oidc", "system"] }).notNull(),
+    quelleId: text("quelle_id").notNull(),
+  },
+  (t) => [uniqueIndex("idx_fach_verfall_position").on(t.sollPositionId)],
+);
+
 export const bzGeraete = sqliteTable(
   "bz_geraete",
   {

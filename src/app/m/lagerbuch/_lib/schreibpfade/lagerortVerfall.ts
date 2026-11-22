@@ -28,6 +28,7 @@ import { lagerorte, lagerortVerfall, newId, sollPositionen } from "../../_db/sch
 import { MONAT_REGEX } from "../konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../lesepfade/bestand";
 import type { Quelle, Tx } from "./abbuchung";
+import { loescheFachVerfallFuer, loescheFachVerfallFuerArtikel } from "./fachVerfall";
 
 /**
  * Setzt den gemeldeten Verfall fuer (Lagerort, Artikel).
@@ -77,6 +78,9 @@ export function setzeVerfall(
       },
     })
     .run();
+  // IDA-412: ein ARTIKELWEITES Datum sagt etwas über alle Fächer zugleich — ein stehengebliebenes
+  // Fachdatum widerspräche ihm. Ein Fach ohne eigene Zeile zeigt das Datum der Einheit.
+  loescheFachVerfallFuerArtikel(db, lagerortId, artikelId);
 }
 
 /** Entfernt genau EINE Angabe — z. B. wenn der Artikel an diesem Lagerort aus dem
@@ -90,6 +94,8 @@ export function loescheVerfallEintrag(
       eq(lagerortVerfall.artikelId, artikelId),
     ))
     .run();
+  // IDA-412: ohne Einheitszeile auch kein Fachdetail darunter.
+  loescheFachVerfallFuerArtikel(db, lagerortId, artikelId);
 }
 
 /**
@@ -158,6 +164,9 @@ export function uebernimmVerfall(
       },
     })
     .run();
+  // IDA-412: am Zielort kam ein früheres Datum an, von dem niemand weiß, in welches Fach. Das
+  // Fachdetail dort fällt; jedes Fach zeigt jetzt das (frühere) Datum der Einheit.
+  loescheFachVerfallFuerArtikel(db, nachLagerortId, artikelId);
 }
 
 /**
@@ -308,4 +317,5 @@ export function loescheVerfallFuer(
     ? eq(lagerortVerfall.lagerortId, id)
     : eq(lagerortVerfall.artikelId, id);
   db.delete(lagerortVerfall).where(wo).run();
+  loescheFachVerfallFuer(db, feld, id);
 }

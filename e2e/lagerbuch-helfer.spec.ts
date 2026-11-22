@@ -811,6 +811,12 @@ test.describe("DRK-306 — letzter Check und Verfall leeren", () => {
         "e2e-drk306-verfall", "e2e-fahrzeug", "e2e-check-artikel",
         VORBELEGT, Math.floor(Date.now() / 1000),
       );
+      // IDA-412: ein artikelweites Datum verwirft das Fachdetail (`setzeVerfall`). Der rohe Insert
+      // oben geht an diesem Weg vorbei; ein Fachdatum aus einem früheren Test stünde sonst davor.
+      db.prepare(
+        "delete from fach_verfall where soll_position_id in"
+          + " (select id from soll_positionen where fahrzeug_id = ? and artikel_id = ?)",
+      ).run("e2e-fahrzeug", "e2e-check-artikel");
     } finally {
       db.close();
     }

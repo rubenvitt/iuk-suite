@@ -856,7 +856,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
     expect(query("[data-rolle='nf-liste']").textContent).toContain("Lücke 5");
   });
 
-  it("der Verfallsknopf steht in JEDER Zeile, der Wert ist einer je Artikel (IDA-305)", async () => {
+  it("der Verfallsknopf steht in JEDER Zeile, der Wert ist einer je FACH (IDA-305, IDA-412)", async () => {
     // Nur in der ersten Zeile stand er bei 215 Positionen Faecher weiter oben,
     // und in der Modultasche, in der man die Packung hielt, fehlte er.
     // Uhr fest vor 2027-03: danach zeigte der Chip „abgelaufen" statt „03/27".
@@ -890,12 +890,13 @@ describe("CheckFlow — der Zaehlschritt", () => {
     // Aufklappen ist je ZEILE: der zweite Knopf oeffnet nur sein Feld.
     await clickElement(knoepfe[1]);
     expect(queryAll("[data-rolle='zaehlliste'] input[type='month']").length).toBe(1);
-    expect(query("[data-rolle='verfall-hinweis']").textContent).toContain("frühestes Datum");
+    expect(query("[data-rolle='verfall-hinweis']").textContent).toContain("nur dieses Fach");
     const hinweis = query("[data-rolle='verfall-hinweis']");
     expect(query("[data-rolle='zaehlliste'] input[type='month']").getAttribute("aria-describedby")).toBe(hinweis.id);
-    // Der Wert ist EINER je Artikel: in Fach 2 getippt, steht er auch in Fach 1.
+    // IDA-412: der Wert ist EINER je FACH — in Fach 2 getippt, bleibt Fach 1 ohne Angabe.
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
-    expect(knoepfe[0].getAttribute("aria-label")).toMatch(/^Kompresse \(Fach 1\): Verfall .*03\/27/);
+    expect(knoepfe[1].getAttribute("aria-label")).toMatch(/^Kompresse \(Fach 2\): Verfall .*03\/27/);
+    expect(knoepfe[0].getAttribute("aria-label")).toBe("Kompresse (Fach 1): Verfall angeben");
   });
 
   it("das Verfallsfeld ist ZUGEKLAPPT — eine vorhandene Angabe bleibt sichtbar (IDA-233)", async () => {
@@ -1476,6 +1477,58 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     });
   });
 
+  describe("IDA-412: Verfall je Fach", () => {
+    const ZWEI = [
+      POS({ id: "sp-schublade", fachLabel: "Schublade 1" }),
+      POS({ id: "sp-rucksack", fachLabel: "Rucksack" }),
+    ];
+    const zweiFaecher = (verfallFach: Record<string, string>) => mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        soll={ZWEI}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{ "art-1": "2027-03" }}
+        verfallFach={verfallFach}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    const knopf = (i: number) => queryAll("[data-rolle='verfall-knopf']")[i]!;
+
+    it("zeigt je Fach sein Datum — ohne eigenes das der Einheit", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-07-15T10:00:00Z"));
+      onTestFinished(() => { vi.useRealTimers(); });
+      await zweiFaecher({ "sp-rucksack": "2027-06" });
+      expect(knopf(0).getAttribute("aria-label")).toMatch(/^Kompresse \(Schublade 1\): Verfall .*03\/27/);
+      expect(knopf(1).getAttribute("aria-label")).toMatch(/^Kompresse \(Rucksack\): Verfall .*06\/27/);
+    });
+
+    it("ändert sich EIN Fach, gehen ALLE Fächer des Artikels mit ihrem angezeigten Wert", async () => {
+      await zweiFaecher({ "sp-rucksack": "2027-06" });
+      await clickElement(knopf(0));
+      await fill("[data-rolle='zaehlliste'] input[type='month']", "2028-01");
+      await alleBestaetigen();
+      await click(WEITER);
+      await click(ABSCHLIESSEN);
+      expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
+        { sollPositionId: "sp-schublade", verfall: "2028-01" },
+        { sollPositionId: "sp-rucksack", verfall: "2027-06" },
+      ]);
+    });
+
+    it("nichts geändert → nichts gesendet", async () => {
+      await zweiFaecher({ "sp-rucksack": "2027-06" });
+      await alleBestaetigen();
+      await click(WEITER);
+      await click(ABSCHLIESSEN);
+      expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([]);
+    });
+  });
+
   it("ein GEAENDERTER Verfall wird gesendet", async () => {
     // Die Gegenprobe zum Filter oben: ohne sie bliebe „nur Geaendertes" auch
     // dann gruen, wenn gar nichts mehr gesendet wuerde.
@@ -1498,7 +1551,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     await click(WEITER);
     await click(ABSCHLIESSEN);
     expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
-      { artikelId: "art-1", verfall: "2027-03" },
+      { sollPositionId: "sp-1", verfall: "2027-03" },   // IDA-412: je Fach
     ]);
   });
 
@@ -1527,7 +1580,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     await click(WEITER);
     await click(ABSCHLIESSEN);
     expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
-      { artikelId: "art-1", verfall: null },
+      { sollPositionId: "sp-1", verfall: null },   // IDA-412: je Fach
     ]);
   });
 });
@@ -3084,7 +3137,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
     await click(WEITER);
     await click(ABSCHLIESSEN);
     expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
-      { artikelId: "art-1", verfall: null },
+      { sollPositionId: "sp-1", verfall: null },   // IDA-412: je Fach
     ]);
   });
 

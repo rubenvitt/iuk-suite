@@ -65,7 +65,7 @@ export type CheckZaehlung = {
   geraete: Record<string, CheckGeraetAntwort | undefined>;
   druck: Record<string, number | undefined>;
   /** ⚠️ NUR die GEAENDERTEN. Ein fehlender Eintrag laesst die Angabe
-   *  unangetastet; `""`/`null` LOESCHT sie. */
+   *  unangetastet; `""`/`null` LOESCHT sie. IDA-412: nach sollPositionId (Fach). */
   verfaelle: Record<string, string | null | undefined>;
 };
 
@@ -76,7 +76,8 @@ export type CheckNutzlast = {
     geraetId: string; vorhanden: boolean; zustand?: Zustand; bemerkung?: string; selbsttest?: boolean;
   }[];
   flaschen: { flascheId: string; druckBar: number }[];
-  verfaelle: { artikelId: string; verfall: string | null }[];
+  /** IDA-412: je Fach. Der Server nimmt weiter auch `{ artikelId }` (Entwürfe von vorher). */
+  verfaelle: { sollPositionId: string; verfall: string | null }[];
 };
 
 /**
@@ -152,7 +153,7 @@ export function checkNutzlast(args: {
       // sie ohnehin ab, und ein Tippfehler soll nicht den GANZEN Check-Abschluss
       // ablehnen — die uebrigen Angaben sind davon unberuehrt.
       .filter(([, v]) => !v || MONAT_REGEX.test(v))
-      .map(([artikelId, v]) => ({ artikelId, verfall: v ? v : null })),
+      .map(([sollPositionId, v]) => ({ sollPositionId, verfall: v ? v : null })),
   };
 }
 

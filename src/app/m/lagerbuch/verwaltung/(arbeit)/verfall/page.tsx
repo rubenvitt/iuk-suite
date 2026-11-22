@@ -87,6 +87,10 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
     ortTyp: meldung.lagerortTyp,
     ortEinheitenart: meldung.lagerortEinheitenart,
     artikelName: meldung.artikelName,
+    // IDA-412: je Fach, wenn der Artikel in mehreren liegt und dort eigene Daten gemeldet sind.
+    faecherText: meldung.faecher.some((f) => f.verfall)
+      ? meldung.faecher.map((f) => (f.verfall ? `${f.fachLabel} ${fmtVerfall(f.verfall)}` : f.fachLabel)).join(" · ")
+      : null,
     verfall: meldung.verfall,
     verfallText: fmtVerfall(meldung.verfall),
     statusTon: ampelTon(meldung.ampel),

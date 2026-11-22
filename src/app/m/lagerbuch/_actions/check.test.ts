@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import {
   lagerorte, artikel, chargen, buchungen, sollPositionen, geraete,
-  o2Flaschen, o2Messungen, checks, lagerortVerfall, maengel,
+  o2Flaschen, o2Messungen, checks, lagerortVerfall, maengel, fachVerfall,
 } from "../_db/schema";
 import {
   CHECK_ABGLEICH, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, HANDLAGER_ID,
@@ -848,6 +848,54 @@ describe("checkAbschluss — Verfall", () => {
       fahrzeugId: "fz-1", ...leer, verfaelle: [{ artikelId: "art-1", verfall: "2027-00" }],
     }, t.db);
     expect(!r.ok && r.grund).toBe("eingabe");
+  });
+});
+
+describe("checkAbschluss — IDA-412: Verfall je Fach", () => {
+  beforeEach(() => {
+    t.db.insert(sollPositionen).values([
+      { id: "sp-1b", fahrzeugId: "fz-1", fachLabel: "Rucksack", sort: 3, artikelId: "art-1",
+        soll: 4, entfernt: false },
+    ]).run();
+  });
+  const fachDaten = () => Object.fromEntries(
+    t.db.select().from(fachVerfall).all().map((z) => [z.sollPositionId, z.verfall]),
+  );
+  const einheit = () => t.db.select().from(lagerortVerfall).all()
+    .find((z) => z.lagerortId === "fz-1" && z.artikelId === "art-1")?.verfall ?? null;
+
+  it("speichert je Fach und warnt an der Einheit mit dem frühesten Datum", async () => {
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      verfaelle: [
+        { sollPositionId: "sp-1", verfall: "2027-03" },
+        { sollPositionId: "sp-1b", verfall: "2027-06" },
+      ],
+    }, t.db);
+    expect(r.ok).toBe(true);
+    expect(fachDaten()).toEqual({ "sp-1": "2027-03", "sp-1b": "2027-06" });
+    expect(einheit()).toBe("2027-03");
+  });
+
+  it("ein Fach einer anderen Einheit wirft (WURF 4) — und nichts ist geschrieben", async () => {
+    await expect(checkAbschluss({
+      fahrzeugId: "fz-1", ...leer, verfaelle: [{ sollPositionId: "sp-fremd", verfall: "2027-03" }],
+    }, t.db)).rejects.toThrow(/Fach gehört nicht/);
+    expect(t.db.select().from(fachVerfall).all()).toHaveLength(0);
+    expect(t.db.select().from(checks).all()).toHaveLength(0);
+  });
+
+  it("ein Entwurf von vorher (je Artikel) kommt an, gilt für den Artikel und verwirft das Fachdetail", async () => {
+    await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      verfaelle: [{ sollPositionId: "sp-1", verfall: "2027-03" }, { sollPositionId: "sp-1b", verfall: "2027-06" }],
+    }, t.db);
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer, verfaelle: [{ artikelId: "art-1", verfall: "2027-01" }],
+    }, t.db);
+    expect(r.ok).toBe(true);
+    expect(fachDaten()).toEqual({});
+    expect(einheit()).toBe("2027-01");
   });
 });
 

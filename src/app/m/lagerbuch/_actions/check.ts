@@ -22,6 +22,7 @@ import { revalidiereBestand } from "../_lib/revalidierung";
 import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { setzeVerfall, verfallFolgtDemMaterial } from "../_lib/schreibpfade/lagerortVerfall";
+import { setzeFachVerfaelle } from "../_lib/schreibpfade/fachVerfall";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
 import { druckZuHoch, o2Status } from "../_lib/domain/o2";
 import { ortsartAus, punktFuerGeraet } from "../_lib/maengel/checkliste";
@@ -116,11 +117,22 @@ const CheckSchema = z.object({
   // Im Fahrzeug abgelesener Verfall je Artikel („YYYY-MM", fruehestes Datum im
   // Fahrzeug). Durchgehend optional: null/"" loescht eine fruehere Angabe, ein
   // FEHLENDER Eintrag laesst sie unangetastet.
-  verfaelle: z.array(z.object({
-    artikelId: z.string().min(1),
-    verfall: z.union([z.string().regex(MONAT_REGEX), z.literal("")])
-      .nullable().transform((v) => v || null),
-  })).default([]),
+  //
+  // IDA-412: JE FACH (`sollPositionId`). Die Form je Artikel (`artikelId`) bleibt lesbar: ein
+  // Entwurf von vorher liegt womöglich noch auf einem Gerät (IDA-358). Sie gilt für alle Fächer
+  // des Artikels und verwirft deren Einzeldaten, wie jeder artikelweite Schreibweg.
+  verfaelle: z.array(z.union([
+    z.object({
+      sollPositionId: z.string().min(1),
+      verfall: z.union([z.string().regex(MONAT_REGEX), z.literal("")])
+        .nullable().transform((v) => v || null),
+    }),
+    z.object({
+      artikelId: z.string().min(1),
+      verfall: z.union([z.string().regex(MONAT_REGEX), z.literal("")])
+        .nullable().transform((v) => v || null),
+    }),
+  ])).default([]),
 });
 
 export type CheckAbschlussWert = {
@@ -589,12 +601,20 @@ export async function checkAbschluss(
       });
 
       const sollArtikel = new Set(sollRows.map((s) => s.artikelId));
+      const fachWerte: { sollPositionId: string; verfall: string | null }[] = [];
       for (const e of v.verfaelle) {
+        if ("sollPositionId" in e) {
+          if (!byId.has(e.sollPositionId)) throw new Error("Fach gehört nicht zu diesem Fahrzeug");   // WURF 4
+          fachWerte.push(e);
+          continue;
+        }
         if (!sollArtikel.has(e.artikelId)) throw new Error("Artikel gehört nicht zu diesem Fahrzeug");   // WURF 4
         setzeVerfall(tx, {
           lagerortId: v.fahrzeugId, artikelId: e.artikelId, verfall: e.verfall, quelle,
         });
       }
+      // IDA-412: je Fach, und die Einheitszeile als frühestes Datum der Fächer.
+      setzeFachVerfaelle(tx, { lagerortId: v.fahrzeugId, werte: fachWerte, quelle });
 
       /*
        * IDA-247 — DER UEBERSCHUSS IN DIE ENTNAHMEBOX. Nach dem Verfall, weil

@@ -23,7 +23,9 @@
  * Kein "use client", kein Icon-Import.
  */
 import { eq } from "drizzle-orm";
-import { artikel, chargen, lagerorte, lagerortVerfall } from "../../_db/schema";
+import {
+  artikel, chargen, fachVerfall, lagerorte, lagerortVerfall, sollPositionen,
+} from "../../_db/schema";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import type { Einheitenart } from "../konstanten";
 import { chargeText } from "../format";
@@ -269,7 +271,68 @@ export type LagerortVerfallZeile = {
   lagerortEinheitenart: Einheitenart | null;
   artikelId: string; artikelName: string; einheit: string;
   verfall: string; erfasstAt: Date; ampel: Ampel; abgelaufen: boolean; text: string;
+  /**
+   * IDA-412: liegt der Artikel in MEHREREN Fächern, das Datum je Fach (Fach-Reihenfolge, früheste
+   * zuerst bei gleichem Fach). Leer bei einem einzigen Fach — dort ist das Fach die Zeile selbst.
+   */
+  faecher: FachVerfallAnzeige[];
 };
+
+export type FachVerfallAnzeige = {
+  sollPositionId: string; fachLabel: string;
+  /** `null` = für dieses Fach nichts eigenes gemeldet; es gilt das Datum der Einheit. */
+  verfall: string | null;
+  text: string; ampel: Ampel | null;
+};
+
+/**
+ * IDA-412 — das Fachdetail je (Einheit, Artikel): aktive Positionen mit ihrem Datum. Nur für Artikel
+ * mit MEHR ALS EINEM aktiven Fach; bei einem einzigen sagt die Einheitszeile schon alles.
+ */
+export function fachVerfallJeArtikel(
+  db: Leser, lagerortId: string | null, now: Date = new Date(),
+): Map<string, FachVerfallAnzeige[]> {
+  const schwellen = verfallSchwellen();
+  const positionen = (lagerortId
+    ? db.select().from(sollPositionen).where(eq(sollPositionen.fahrzeugId, lagerortId)).all()
+    : db.select().from(sollPositionen).all()
+  ).filter((p) => !p.entfernt);
+  const daten = new Map(db.select().from(fachVerfall).all().map((z) => [z.sollPositionId, z.verfall]));
+  const gruppen = new Map<string, typeof positionen>();
+  for (const p of positionen) {
+    const k = fachSchluessel(p.fahrzeugId, p.artikelId);
+    gruppen.set(k, [...(gruppen.get(k) ?? []), p]);
+  }
+  const ergebnis = new Map<string, FachVerfallAnzeige[]>();
+  for (const [k, liste] of gruppen) {
+    if (liste.length < 2) continue;
+    ergebnis.set(k, liste
+      .sort((a, b) => a.sort - b.sort || a.fachLabel.localeCompare(b.fachLabel))
+      .map((p) => {
+        const v = daten.get(p.id) ?? null;
+        if (!v) return { sollPositionId: p.id, fachLabel: p.fachLabel, verfall: null, text: "—", ampel: null };
+        const s = verfallStatus(v, schwellen, now);
+        return { sollPositionId: p.id, fachLabel: p.fachLabel, verfall: v, text: chargeText(s, v), ampel: s.ampel };
+      }));
+  }
+  return ergebnis;
+}
+
+/** Schlüssel für `fachVerfallJeArtikel`. */
+export const fachSchluessel = (lagerortId: string, artikelId: string) => `${lagerortId}\u0000${artikelId}`;
+
+/**
+ * IDA-412 — das gemeldete Datum je aktivem FACH einer Einheit (sollPositionId → „YYYY-MM").
+ * Ein Fach ohne eigene Zeile fehlt; dort gilt das Datum der Einheit (`verfallFuerLagerort`).
+ */
+export function fachVerfallFuerLagerort(db: Leser, lagerortId: string): Map<string, string> {
+  const aktiv = new Set(db.select().from(sollPositionen)
+    .where(eq(sollPositionen.fahrzeugId, lagerortId)).all()
+    .filter((p) => !p.entfernt).map((p) => p.id));
+  return new Map(db.select().from(fachVerfall).all()
+    .filter((z) => aktiv.has(z.sollPositionId))
+    .map((z) => [z.sollPositionId, z.verfall]));
+}
 
 /**
  * Die im Fahrzeug gemeldeten Verfaelle.
@@ -297,6 +360,7 @@ export function lagerortVerfallListe(
     ? db.select().from(lagerortVerfall)
         .where(eq(lagerortVerfall.lagerortId, opts.lagerortId)).all()
     : db.select().from(lagerortVerfall).all();
+  const faecher = fachVerfallJeArtikel(db, opts.lagerortId ?? null, now);
 
   const zeilen: LagerortVerfallZeile[] = [];
   for (const r of rows) {
@@ -312,6 +376,7 @@ export function lagerortVerfallListe(
       artikelId: a.id, artikelName: a.name, einheit: a.einheit,
       verfall: r.verfall, erfasstAt: r.erfasstAt,
       ampel: s.ampel, abgelaufen: s.abgelaufen, text: chargeText(s, r.verfall),
+      faecher: faecher.get(fachSchluessel(r.lagerortId, r.artikelId)) ?? [],
     });
   }
   const rang = (z: LagerortVerfallZeile) =>

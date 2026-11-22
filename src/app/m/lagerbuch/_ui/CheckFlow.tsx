@@ -182,6 +182,7 @@ export function CheckFlow({
   geraete,
   flaschen,
   verfall,
+  verfallFach = {},
   warn,
   andereEinheitErreichbar,
   kontoZugang,
@@ -216,6 +217,11 @@ export function CheckFlow({
   flaschen: CheckFlasche[];
   /** Beim letzten Check gemeldeter Verfall je artikelId („YYYY-MM"), leer = keine Angabe. */
   verfall: Record<string, string>;
+  /**
+   * IDA-412: gemeldeter Verfall je FACH (sollPositionId → „YYYY-MM"). Ein Fach ohne Eintrag zeigt
+   * das Datum des Artikels an dieser Einheit (`verfall`).
+   */
+  verfallFach?: Record<string, string>;
   warn: VerfallSchwellen;
   /**
    * DIE HERKUNFT DES ZUGANGS — DRK-305: `true` heisst „angemeldetes Konto, kein
@@ -423,7 +429,7 @@ export function CheckFlow({
     },
     wiederherstellen: (w) => {
       setPhase(w.phase); setIst(w.ist); setNachfuell(w.nachfuell); setBox(w.box);
-      setGeraeteState(w.geraete); setDruck(w.druck); setVerfallState(w.verfall);
+      setGeraeteState(w.geraete); setDruck(w.druck); setVerfallState(verfallJeFach(w.verfall));
       setPlombenWert(w.plombenWert); setPlombeFehlt(w.plombeFehlt);
     },
     senden: (nutzlast, sendungId) => checkAbschluss({ ...nutzlast, sendungId }),
@@ -503,9 +509,25 @@ export function CheckFlow({
   const boxWert = (p: CheckPos) => box[p.id] ?? 0;
   const zuViel = (p: CheckPos) => ueberschuss(istWert(p), p.soll, p.sollMax);
 
-  // Verfall haengt am ARTIKEL, nicht am Fach. Vorbelegt ist der beim letzten
-  // Check gemeldete Wert; leeren heisst „keine Angabe" (`:100-109`).
-  const verfallWert = (artikelId: string) => verfallState[artikelId] ?? verfall[artikelId] ?? "";
+  /*
+   * IDA-412 — VERFALL JE FACH. Bis hier hing er am Artikel, und zwei Fächer desselben Artikels
+   * teilten ein Datum. Vorbelegt ist das Datum DIESES Fachs, sonst das des Artikels an der Einheit;
+   * leeren heisst „keine Angabe". Der Zustand ist nach sollPositionId geschlüsselt.
+   */
+  const verfallVorwert = (p: CheckPos) => verfallFach[p.id] ?? verfall[p.artikelId] ?? "";
+  const verfallWert = (p: CheckPos) => verfallState[p.id] ?? verfallVorwert(p);
+  /**
+   * Ein Entwurf von vor IDA-412 (IDA-358, er liegt auf dem Gerät) ist nach artikelId geschlüsselt.
+   * Sein Wert gilt dann für jedes Fach des Artikels — genau das, was er damals bedeutete.
+   */
+  function verfallJeFach(roh: Record<string, string> | undefined): Record<string, string> {
+    const aus: Record<string, string> = {};
+    for (const [k, wert] of Object.entries(roh ?? {})) {
+      if (sollAlle.some((p) => p.id === k)) aus[k] = wert;
+      else for (const p of sollAlle.filter((q) => q.artikelId === k)) aus[p.id] ??= wert;
+    }
+    return aus;
+  }
 
   // Anzeigereihenfolge Fach fuer Fach. Seit IDA-305 traegt JEDE Zeile den
   // Verfallsknopf: nur in der ersten Zeile je Artikel stand er bei 215
@@ -604,13 +626,20 @@ export function CheckFlow({
     box: Object.fromEntries(soll.map((p) => [p.id, boxWert(p)])),
     geraete: Object.fromEntries(geraete.map((g) => [g.id, geraetE(g.id)])),
     druck: Object.fromEntries(flaschen.map((f) => [f.id, druckWert(f)])),
-    // NUR die GEAENDERTEN — ein fehlender Eintrag laesst die Angabe
-    // unangetastet (`:152-155`).
-    verfaelle: Object.fromEntries(
-      Object.entries(verfallState)
-        .filter(([artikelId, wert]) => wert !== (verfall[artikelId] ?? ""))
-        .map(([artikelId, wert]) => [artikelId, wert || null]),
-    ),
+    /*
+     * NUR die Artikel mit einer ÄNDERUNG — ein fehlender Eintrag lässt die Angabe unangetastet.
+     * IDA-412: hat sich an EINEM Fach etwas geändert, gehen ALLE Fächer dieses Artikels mit dem
+     * angezeigten Wert. Der Server rechnet daraus das früheste Datum des Artikels, und das soll aus
+     * dem stammen, was auf dem Schirm stand, nicht aus einem Rest von vorher.
+     */
+    verfaelle: Object.fromEntries((() => {
+      const geaendert = new Set(soll
+        .filter((p) => verfallState[p.id] !== undefined && verfallState[p.id] !== verfallVorwert(p))
+        .map((p) => p.artikelId));
+      return soll
+        .filter((p) => geaendert.has(p.artikelId))
+        .map((p) => [p.id, verfallWert(p) || null]);
+    })()),
   });
 
   function abschliessen() {
@@ -1210,7 +1239,7 @@ export function CheckFlow({
   if (aktivePhase === "zaehlen") {
     const ungezaehlt = soll.filter((p) => !gezaehlt(p)).length;
     const ablaufend = zaehleAblaufende(
-      Object.fromEntries(soll.map((p) => [p.artikelId, verfallWert(p.artikelId) || null])),
+      Object.fromEntries(soll.map((p) => [p.id, verfallWert(p) || null])),
       warn,
       new Date(),
     );
@@ -1311,7 +1340,7 @@ export function CheckFlow({
                 {imFach.map((p) => {
                     const wert = istWert(p);
                     const offen = !gezaehlt(p);
-                    const vw = verfallWert(p.artikelId);
+                    const vw = verfallWert(p);
                     const vc = verfallChip(vw);
                     // Mehrfach gefuehrt: Feld und Knopf nennen das Fach mit, sonst
                     // loeste `getByLabel(/^Verfall …/)` auf zwei Elemente auf.
@@ -1485,7 +1514,7 @@ export function CheckFlow({
                                 }
                               }}
                               onChange={(e) =>
-                                setVerfallState((v) => ({ ...v, [p.artikelId]: e.target.value }))
+                                setVerfallState((v) => ({ ...v, [p.id]: e.target.value }))
                               }
                             />
                             {/*
@@ -1493,7 +1522,7 @@ export function CheckFlow({
 
                               ⚠️ ER SCHREIBT `""`, NIEMALS `delete` ODER
                               `undefined`. `verfallWert` loest ueber
-                              `verfallState[a] ?? verfall[a] ?? ""` auf: ein
+                              `verfallState[p.id] ?? verfallVorwert(p)` auf: ein
                               entfernter Schluessel faellt durch die ??-Kette
                               auf den VORBELEGTEN Wert zurueck, und der alte
                               Monat stuende sofort wieder im Feld. Weder
@@ -1503,9 +1532,9 @@ export function CheckFlow({
 
                               ⚠️ ER IST KEIN LOESCHKNOPF FUER DIE HISTORIE.
                               `checkNutzlast` macht aus `""` ein `verfall: null`,
-                              der Server ruft damit `loescheVerfallEintrag` —
-                              also GENAU EINE Zeile in `lagerort_verfall`,
-                              dem AKTUELLEN Stand des Fahrzeugs. Die
+                              der Server loescht damit die Angabe DIESES Fachs
+                              (`setzeFachVerfaelle`) und rechnet den Artikel
+                              neu — der AKTUELLE Stand des Fahrzeugs. Die
                               `ergebnis`-JSONs frueherer Checks sind eigene
                               Momentaufnahmen und bleiben unberuehrt; der
                               Nachweis DIESES Checks entsteht erst danach aus
@@ -1544,7 +1573,7 @@ export function CheckFlow({
                                 */
                                 aria-label={`${benannt}: Verfall entfernen`}
                                 onClick={() =>
-                                  setVerfallState((v) => ({ ...v, [p.artikelId]: "" }))
+                                  setVerfallState((v) => ({ ...v, [p.id]: "" }))
                                 }
                               >
                                 <Ikone name="kreuz" groesse={20} />
@@ -1552,7 +1581,7 @@ export function CheckFlow({
                             )}
                             {mehrfach && (
                               <span id={`verfall-hinweis-${p.id}`} className={s.verfallHinweis} data-rolle="verfall-hinweis">
-                                gilt für alle Fächer – frühestes Datum eintragen
+                                nur dieses Fach – Datum der Packungen hier
                               </span>
                             )}
                           </div>

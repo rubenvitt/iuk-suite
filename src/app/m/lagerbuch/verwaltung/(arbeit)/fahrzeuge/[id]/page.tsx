@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { lagerorte } from "../../../../_db/schema";
-import { ampelTon } from "../../../../_lib/format";
+import { ampelTon, fmtVerfall } from "../../../../_lib/format";
 import {
   artikelListe,
   chargenJeArtikelAmLagerort,
@@ -16,7 +16,7 @@ import {
   templateDetail,
   templateListeAktiv,
 } from "../../../../_lib/lesepfade/fahrzeuge";
-import { verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
+import { fachVerfallFuerLagerort, verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
 import { zugangsZiele } from "../../../../_lib/lesepfade/orte";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { einheitenartLabel } from "../../../../_lib/konstanten";
@@ -45,11 +45,15 @@ function verfallZeilen(
   soll: ReturnType<typeof sollFuerFahrzeug>,
   verfall: ReturnType<typeof verfallFuerLagerort>,
   chargen: Map<string, ChargeZeile[]>,
+  /** IDA-412: das gemeldete Datum je Fach (sollPositionId → „YYYY-MM"). */
+  fachVerfall: Map<string, string> = new Map(),
 ): VerfallAnzeigeZeile[] {
   const jeArtikel = new Map<string, {
     artikelId: string;
     artikelName: string;
     faecher: string[];
+    /** IDA-412: je Fach das eigene Datum, wo eins gemeldet ist. */
+    fachDaten: Map<string, string>;
     /* Je Artikel derselbe Wert an ALLEN seinen Soll-Positionen — der Bestand
      * haengt am (Lagerort, Artikel), nicht am Fach. */
     bestand: number;
@@ -66,6 +70,8 @@ function verfallZeilen(
       if (!vorhanden.faecher.includes(position.fachLabel)) {
         vorhanden.faecher.push(position.fachLabel);
       }
+      const datum = fachVerfall.get(position.id);
+      if (datum) vorhanden.fachDaten.set(position.fachLabel, datum);
       vorhanden.soll += position.soll;
       continue;
     }
@@ -73,6 +79,8 @@ function verfallZeilen(
       artikelId: position.artikelId,
       artikelName: position.artikelName,
       faecher: [position.fachLabel],
+      fachDaten: new Map(fachVerfall.has(position.id)
+        ? [[position.fachLabel, fachVerfall.get(position.id)!]] : []),
       bestand: position.fahrzeugBestand,
       soll: position.soll,
       einheit: position.einheit,
@@ -84,7 +92,13 @@ function verfallZeilen(
     return {
       artikelId: artikel.artikelId,
       artikelName: artikel.artikelName,
-      fachText: artikel.faecher.join(" · "),
+      // IDA-412: liegt der Artikel in mehreren Fächern, steht je Fach sein Datum dabei —
+      // „Schublade 1 03/2027 · Rucksack 06/2027". Ein Fach ohne eigenes zeigt nur den Namen.
+      fachText: artikel.faecher.length > 1
+        ? artikel.faecher
+          .map((f) => (artikel.fachDaten.has(f) ? `${f} ${fmtVerfall(artikel.fachDaten.get(f)!)}` : f))
+          .join(" · ")
+        : artikel.faecher.join(" · "),
       verfall: eintrag?.verfall ?? null,
       statusTon: eintrag ? ampelTon(eintrag.ampel) : null,
       statusText: eintrag?.text ?? null,
@@ -219,6 +233,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
     // EINE Aggregation fuer das ganze Blatt — `chargenMitRest` je Artikel waere
     // bei 60 Soll-Positionen 60 Vollaggregationen (§5.2.3).
     chargenJeArtikelAmLagerort(db, id),
+    fachVerfallFuerLagerort(db, id),
   );
   const kennzahlen = verfallKennzahlen(soll, gemeldeterVerfall);
   const artikel = artikelListe(db).map((eintrag) => ({

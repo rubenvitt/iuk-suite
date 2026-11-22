@@ -141,8 +141,10 @@ vi.mock("../../_lib/lesepfade/o2", () => ({
   o2FlaschenFuerLagerort: (...a: unknown[]) => flaschenFuer(...a),
 }));
 const verfallFuer = vi.fn<(...a: unknown[]) => Map<string, unknown>>(() => new Map());
+const fachVerfallFuer = vi.fn<(...a: unknown[]) => Map<string, string>>(() => new Map());
 vi.mock("../../_lib/lesepfade/verfall", () => ({
   verfallFuerLagerort: (...a: unknown[]) => verfallFuer(...a),
+  fachVerfallFuerLagerort: (...a: unknown[]) => fachVerfallFuer(...a),
 }));
 
 /*
@@ -311,7 +313,7 @@ const POS = (id: string, artikelId: string, entfernt = false) => ({
 const GERAET = (id: string) => ({
   id, typ: "medizin" as const, name: "AED", barcode: "1234",
   lagerortId: "fz-1", lagerortName: "FZ-1", anmerkung: null,
-  mtkFaellig: "2027-01-01", beschreibung: null, ablaufdatum: null, aktiv: true,
+  mtkFaellig: "2027-01-01", beschreibung: null, ablaufdatum: null, aktiv: true, selbsttest: false,
   faelligkeit: { tage: 500, text: "in 500 Tagen" }, chip: null,
 });
 
@@ -540,15 +542,15 @@ describe("/helfer/check — der Schnitt aufs Fahrzeug (Falle 15)", () => {
       .toBe("artikelId,artikelName,einheit,fachLabel,fahrzeugBestand,handlagerBestand,handlagerFach,id,soll,sollMax");
   });
 
-  it("reicht von den Geraeten NUR id, typ und name", async () => {
-    // `GeraetZeile` traegt zwoelf Felder — darunter `barcode`, `anmerkung`,
+  it("reicht von den Geraeten NUR id, typ, name und die Selbsttest-Frage", async () => {
+    // `GeraetZeile` traegt dreizehn Felder — darunter `barcode`, `anmerkung`,
     // `beschreibung`, `mtkFaellig` und die gerechnete `faelligkeit`. Der Check
-    // braucht drei.
+    // braucht vier (IDA-411: `selbsttest`).
     fahrzeuge.mockReturnValue([FZ("fz-1")]);
     geraeteFuer.mockReturnValue([GERAET("g-1")]);
     await mount(await CheckSeite(sp()));
     expect(query("[data-rolle='flow']").getAttribute("data-geraete-felder"))
-      .toBe("id,name,typ");
+      .toBe("id,name,selbsttest,typ");
     expect(query("[data-rolle='flow']").getAttribute("data-geraete-ids")).toBe("g-1");
   });
 

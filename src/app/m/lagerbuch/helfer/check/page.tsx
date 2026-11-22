@@ -5,7 +5,7 @@ import { sitzungsEtikett } from "../../_lib/zugangHerkunft";
 import { fahrzeugListe, sollFuerFahrzeug } from "../../_lib/lesepfade/fahrzeuge";
 import { geraeteFuerLagerort } from "../../_lib/lesepfade/geraete";
 import { o2FlaschenFuerLagerort } from "../../_lib/lesepfade/o2";
-import { verfallFuerLagerort } from "../../_lib/lesepfade/verfall";
+import { fachVerfallFuerLagerort, verfallFuerLagerort } from "../../_lib/lesepfade/verfall";
 import { letzterCheckZeitpunkt } from "../../_lib/lesepfade/checks";
 import { kurzcheckVorlage, letzteCheckId } from "../../_lib/lesepfade/kurzcheck";
 import { plombenFuerLagerort } from "../../_lib/lesepfade/plomben";
@@ -386,6 +386,8 @@ export default async function CheckSeite({
   const verfall = Object.fromEntries(
     [...verfallFuerLagerort(db, gewaehlt.id)].map(([artikelId, e]) => [artikelId, e.verfall]),
   );
+  // IDA-412: das Datum je Fach, wo eins gemeldet ist; sonst zeigt das Fach das der Einheit.
+  const verfallFach = Object.fromEntries(fachVerfallFuerLagerort(db, gewaehlt.id));
 
   /*
    * DER LETZTE CHECK — DRK-306, und er wird HIER formatiert, nicht in der Insel.
@@ -522,6 +524,7 @@ export default async function CheckSeite({
         geraete={geraete}
         flaschen={flaschen}
         verfall={verfall}
+        verfallFach={verfallFach}
         letzterCheckText={letzterCheckText}
         // IDA-247: nur eine Kiste, die aufnimmt, wird angeboten. Der Abschluss
         // prueft dasselbe noch einmal, falls sie waehrend des Checks wegfaellt.

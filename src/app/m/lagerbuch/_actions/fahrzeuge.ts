@@ -13,6 +13,7 @@ import { etikettOrt } from "../_lib/lesepfade/ortEtiketten";
 import { findeFahrzeug } from "../_lib/schreibpfade/fahrzeug";
 import { stelleOrtCodeSicher } from "../_lib/schreibpfade/ortCodes";
 import { loescheVerfallEintrag } from "../_lib/schreibpfade/lagerortVerfall";
+import { loescheFachVerfallDerPosition } from "../_lib/schreibpfade/fachVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
 import { bereitgestellteFahrzeuge, zuordnungenFuer } from "@/app/m/fahrzeuge/_lib/bereitstellung";
@@ -391,6 +392,9 @@ export async function sollPositionEntfernen(
 
           if (restPositionen.length === 0) {
             loescheVerfallEintrag(tx, gefunden.fahrzeugId, gefunden.artikelId);
+          } else if (gefunden.templatePositionId) {
+            // IDA-412: der Grabstein trägt kein Fachdatum mehr (hart gelöscht nimmt es die Kaskade mit).
+            loescheFachVerfallDerPosition(tx, gefunden.id);
           }
         }
 
