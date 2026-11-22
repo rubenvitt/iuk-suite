@@ -170,6 +170,7 @@ import checkOhneVorbelegung from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerb
 import lagerbuchUebersichtUndSpringen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-uebersicht-und-springen";
 import lagerbuchGeraeteEinzelnUndSelbsttest from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-23-geraete-einzeln-und-selbsttest";
 import lagerbuchVerfallJeFach from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-23-verfall-je-fach";
+import lagerbuchZaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-22-zaehlen";
 import kontrolleStornieren from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-11-10-kontrolle-stornieren";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
@@ -342,6 +343,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   lagerbuchUebersichtUndSpringen,
   lagerbuchGeraeteEinzelnUndSelbsttest,
   lagerbuchVerfallJeFach,
+  lagerbuchZaehlen,
   kontrolleStornieren,
   ruecklaufVomFahrzeug,
   checksLaufend,

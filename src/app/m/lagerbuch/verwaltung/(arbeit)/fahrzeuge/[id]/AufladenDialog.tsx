@@ -2,23 +2,14 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { Dayjs } from "dayjs";
-import { Alert, Button, Form, Input, InputNumber, Modal, Select } from "antd";
+import { Alert, Button, Form, InputNumber, Modal, Select } from "antd";
 import { bucheAufladen } from "../../../../_actions/aufladen";
 import { getDetail, type ArtikelDetailResult } from "../../../../_actions/detail";
-import { fmtVerfall } from "../../../../_lib/format";
-import { dieseEinheit, ortZeile, type Einheitenart } from "../../../../_lib/konstanten";
+import { dieseEinheit, type Einheitenart } from "../../../../_lib/konstanten";
 import { Ikone } from "../../../../_ui/ikonen";
 import { monatAusPicker } from "../../../../_ui/monat";
-import { MonatsFeld, useMonatsPruefung } from "../../../../_ui/MonatsFeld";
-
-/**
- * Der Wert der Herkunft „neu angeliefert" und der Charge „neue Charge".
- *
- * ⚠️ KEIN WERT, DEN EINE `lagerorte.id` ODER `chargen.id` ANNEHMEN KANN: beide
- * sind nanoid mit 21 Zeichen oder ein festes Wort wie `handlager`. Sonst
- * uebernaehme ein echter Ort still die Wahl „neu".
- */
-const NEU = "__neu__";
+import { useMonatsPruefung } from "../../../../_ui/MonatsFeld";
+import { HerkunftFelder, NEU, restAmOrt, suchFilter } from "./HerkunftFelder";
 
 const ALLGEMEIN = "Aufladen fehlgeschlagen.";
 
@@ -32,31 +23,6 @@ type Werte = {
   verfall?: Dayjs | null;
   menge: number;
 };
-
-type Quelle = { id: string; label: string; menge: number };
-
-/** Sucht in Beschriftung UND Stichwort (Fach bzw. Chargennummer). */
-function suchFilter(eingabe: string, option?: { label?: unknown; keywords?: string }): boolean {
-  const nadel = eingabe.trim().toLocaleLowerCase("de");
-  const label = typeof option?.label === "string" ? option.label : "";
-  return `${label} ${option?.keywords ?? ""}`.toLocaleLowerCase("de").includes(nadel);
-}
-
-/** Die Orte, an denen der Artikel liegt — ohne die Einheit selbst. */
-function quellenAus(detail: ArtikelDetailResult, fahrzeugId: string): Quelle[] {
-  const jeOrt = new Map<string, Quelle>();
-  for (const charge of detail.chargen) {
-    for (const ort of charge.orte) {
-      if (ort.id === fahrzeugId || ort.menge <= 0) continue;
-      const bisher = jeOrt.get(ort.id);
-      if (bisher) bisher.menge += ort.menge;
-      else jeOrt.set(ort.id, { id: ort.id, label: ortZeile(ort), menge: ort.menge });
-    }
-  }
-  // Die Reihenfolge kommt aus `verteilungJeCharge`: Handlager zuerst, dann die
-  // Einheiten — die Map haelt die Einfuegereihenfolge.
-  return [...jeOrt.values()];
-}
 
 /**
  * MATERIAL AUF DIESE EINHEIT PACKEN — DRK-485.
@@ -73,6 +39,9 @@ function quellenAus(detail: ArtikelDetailResult, fahrzeugId: string): Quelle[] {
  * ⚠️ DIE HERKUNFTSLISTE KOMMT AUS `getDetail`, nicht aus der Seite: die
  * Verteilung ALLER Artikel ueber alle Orte fuer jedes Fahrzeugblatt
  * vorzurechnen, damit einer davon gewaehlt wird, waere Ballast im Payload.
+ *
+ * Die Felder „Woher"/„Charge" stehen in `HerkunftFelder` — dieselben im
+ * Auffüllen des Verwaltungschecks.
  */
 export function AufladenDialog({
   fahrzeugId,
@@ -99,15 +68,7 @@ export function AufladenDialog({
   const herkunft = Form.useWatch("herkunft", form);
   const chargeId = Form.useWatch("chargeId", form);
 
-  const quellen = detail ? quellenAus(detail, fahrzeugId) : [];
-  const vonOrt = herkunft && herkunft !== NEU ? herkunft : null;
-  const ortChargen = vonOrt && detail
-    ? detail.chargen.flatMap((charge) => {
-      const menge = charge.orte.find((ort) => ort.id === vonOrt)?.menge ?? 0;
-      return menge > 0 ? [{ charge, menge }] : [];
-    })
-    : [];
-  const rest = vonOrt ? ortChargen.find((c) => c.charge.id === chargeId)?.menge : undefined;
+  const rest = restAmOrt(detail, herkunft, chargeId);
   const einheit = detail?.artikel.einheit ?? "";
 
   // Bei jedem Oeffnen frisch — die Form-Instanz ueberlebt `destroyOnHidden`.
@@ -153,22 +114,6 @@ export function AufladenDialog({
     } finally {
       if (angefragt.current === id) setLaedt(false);
     }
-  }
-
-  function herkunftGewaehlt(wert: string | undefined) {
-    /*
-     * Gibt es an diesem Ort genau EINE Charge, steht sie schon da — eine
-     * Auswahl aus einem Eintrag ist ein Klick ohne Entscheidung. Beim
-     * Wareneingang nicht: dort ist „neue Charge" immer die zweite Wahl.
-     */
-    const einzige = wert && wert !== NEU && detail
-      ? detail.chargen.filter((c) => c.orte.some((o) => o.id === wert && o.menge > 0))
-      : [];
-    form.setFieldsValue({
-      chargeId: einzige.length === 1 ? einzige[0]!.id : undefined,
-      chargenNr: undefined,
-      verfall: null,
-    });
   }
 
   function speichern(werte: Werte) {
@@ -217,30 +162,6 @@ export function AufladenDialog({
       }
     });
   }
-
-  const herkunftOptionen = detail
-    ? [
-      { value: NEU, label: "Neu angeliefert (Wareneingang)" },
-      ...quellen.map((q) => ({ value: q.id, label: `${q.label} · ${q.menge} ${einheit}`.trimEnd() })),
-    ]
-    : [];
-
-  const chargeOptionen = !detail || !herkunft
-    ? []
-    : herkunft === NEU
-      ? [
-        { value: NEU, label: "+ Neue Charge", keywords: "neue Charge" },
-        ...detail.chargen.map((charge) => ({
-          value: charge.id,
-          label: `${charge.chargenNr} · ${fmtVerfall(charge.verfall)}`,
-          keywords: charge.chargenNr,
-        })),
-      ]
-      : ortChargen.map(({ charge, menge }) => ({
-        value: charge.id,
-        label: `${charge.chargenNr} · ${fmtVerfall(charge.verfall)} · ${menge} ${einheit}`.trimEnd(),
-        keywords: charge.chargenNr,
-      }));
 
   return (
     <>
@@ -295,57 +216,12 @@ export function AufladenDialog({
               onChange={(id?: string) => { void artikelGewaehlt(id); }}
             />
           </Form.Item>
-          <Form.Item
-            name="herkunft"
-            label="Woher"
-            rules={[{ required: true, message: "Herkunft wählen" }]}
-          >
-            <Select
-              aria-label="Woher"
-              placeholder={laedt ? "Wird geladen …" : "Herkunft wählen"}
-              loading={laedt}
-              disabled={!detail}
-              options={herkunftOptionen}
-              onChange={herkunftGewaehlt}
-            />
-          </Form.Item>
-          <Form.Item
-            name="chargeId"
-            label="Charge"
-            rules={[{ required: true, message: "Charge wählen" }]}
-            extra={vonOrt ? "Nur Chargen, die an diesem Ort liegen — genau diese wandert mit." : undefined}
-          >
-            <Select
-              aria-label="Charge"
-              placeholder="Charge wählen"
-              showSearch
-              filterOption={suchFilter}
-              disabled={!herkunft}
-              options={chargeOptionen}
-            />
-          </Form.Item>
-          {herkunft === NEU && chargeId === NEU ? (
-            <>
-              <Form.Item
-                name="chargenNr"
-                label="Chargennummer"
-                rules={[{ required: true, whitespace: true, message: "Chargennummer angeben" }]}
-              >
-                <Input aria-label="Chargennummer" autoComplete="off" />
-              </Form.Item>
-              <Form.Item
-                name="verfall"
-                label="Verfallsmonat"
-                required
-                rules={[verfallPruefung.regel]}
-              >
-                <MonatsFeld
-                  aria-label="Verfallsmonat"
-                  onUngueltig={verfallPruefung.onUngueltig}
-                />
-              </Form.Item>
-            </>
-          ) : null}
+          <HerkunftFelder
+            detail={detail}
+            laedt={laedt}
+            fahrzeugId={fahrzeugId}
+            verfallPruefung={verfallPruefung}
+          />
           <Form.Item
             name="menge"
             label={rest === undefined ? "Menge" : `Menge (von dieser Charge liegen dort ${rest} ${einheit})`.trimEnd()}

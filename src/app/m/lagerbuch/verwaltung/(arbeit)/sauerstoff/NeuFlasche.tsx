@@ -46,16 +46,28 @@ export function lagerortFilter(eingabe: string, option?: LagerortOption): boolea
 
 export function NeuFlasche({
   lagerorte,
+  vorgabeLagerortId,
+  ausloeser = "primaer",
 }: {
   lagerorte: Lagerort[];
+  /** Wie bei `NeuGeraet`: belegt den Standort vor, eigener Entwurfsschlüssel je Ort. */
+  vorgabeLagerortId?: string;
+  /** `neutral`: ein einfacher Knopf statt der Primäraktion. */
+  ausloeser?: "primaer" | "neutral";
 }) {
+  const vorgabeOrt = vorgabeLagerortId && lagerorte.some((o) => o.id === vorgabeLagerortId)
+    ? vorgabeLagerortId
+    : undefined;
   const [offen, setOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
   const [form] = Form.useForm<Werte>();
   // IDA-358: die Eingaben ueberstehen ein Neuladen; liegt ein Entwurf, steht
   // der Dialog danach gleich wieder offen — sonst saehe ihn niemand.
-  const entwurf = useFormEntwurf(form, "lagerbuch:neu-flasche");
+  const entwurf = useFormEntwurf(
+    form,
+    vorgabeLagerortId ? `lagerbuch:neu-flasche:${vorgabeLagerortId}` : "lagerbuch:neu-flasche",
+  );
   const router = useRouter();
   /**
    * ⚠️ DIE BAR-ZAHL WIRD BEI JEDER EINGABE NEU GERECHNET, nicht einmal beim
@@ -104,7 +116,7 @@ export function NeuFlasche({
   return (
     <>
       <Button
-        type="primary"
+        type={ausloeser === "primaer" ? "primary" : "default"}
         icon={<Ikone name="plus" groesse={16} />}
         onClick={oeffnen}
       >
@@ -130,6 +142,7 @@ export function NeuFlasche({
           form={form}
           layout="vertical"
           disabled={laeuft}
+          initialValues={{ lagerortId: vorgabeOrt }}
           onFinish={speichern}
           onValuesChange={entwurf.onValuesChange}
           data-rolle="neue-o2-flasche"

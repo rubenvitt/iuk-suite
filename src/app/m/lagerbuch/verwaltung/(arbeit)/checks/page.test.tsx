@@ -255,6 +255,37 @@ describe("Checks-Seite", () => {
    * auf der jemand nach Auffälligkeiten sucht. Eine ruhige `0` dort ist genau
    * das 200, das lügt.
    */
+  it("zeigt beim Verwaltungscheck den Chip „Verwaltung\" und die Bewegungen", () => {
+    checkEintragen({
+      id: "check-verwaltung",
+      ergebnis: JSON.stringify({
+        version: 2, art: "verwaltung", positionen: [], geraete: [], flaschen: [], verfall: [],
+        artikel: [{ artikelId: "a1", sollSumme: 5, istSumme: 5, ausgesondert: 2, aufgefuellt: 2 }],
+      }),
+    });
+
+    const chips = tabelleAus(checksInhalt(t.db, {})).zeilen[0]!.ergebnisChips;
+
+    expect(chips.map((c) => c.text)).toEqual([
+      "Verwaltung", "2 ausgesondert", "2 aufgefüllt",
+    ]);
+  });
+
+  it("nennt einen ruhigen Verwaltungscheck „ohne Befund\", nie „vollständig\" — er kann eine Teilzählung sein", () => {
+    // Spec 6.12.6: ohne gezählte Position erlaubt — hier nur ein Gerät beantwortet.
+    checkEintragen({
+      id: "check-verwaltung-ruhig",
+      ergebnis: JSON.stringify({
+        version: 2, art: "verwaltung", positionen: [], artikel: [], flaschen: [], verfall: [],
+        geraete: [{ geraetId: "g-1", name: "Defi", vorhanden: true, zustand: "ok" }],
+      }),
+    });
+
+    const chips = tabelleAus(checksInhalt(t.db, {})).zeilen[0]!.ergebnisChips;
+
+    expect(chips.map((c) => c.text)).toEqual(["Verwaltung", "ohne Befund"]);
+  });
+
   describe("ein unlesbares ergebnis in der Übersicht (§11.5, 27)", () => {
     it("zeigt in der Positionen-Spalte das Wort statt der Zahl", () => {
       checkEintragen({ id: "check-kaputt", ergebnis: "{das ist kein json" });

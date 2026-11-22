@@ -4,17 +4,14 @@ import { withAuditContext, auditActor } from "@/core/audit/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
-import { artikel, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
+import { lagerortVerfall } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
+import { BuchungAbgewiesen } from "../_lib/buchungAbgewiesen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
-import { RUECKLAUF_KOMMENTAR, ausDieserEinheit } from "../_lib/konstanten";
-import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { zugangsZiele } from "../_lib/lesepfade/orte";
 import { revalidiereBestand } from "../_lib/revalidierung";
-import { raeumeVerfallAmLeerenOrt } from "../_lib/schreibpfade/lagerortVerfall";
-import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
+import { ruecklaufTx } from "../_lib/schreibpfade/einheitBewegung";
 import type { VerfallWert } from "../_lib/verfallStand";
-import { RUECKLAUF_PRAEFIX } from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /**
@@ -110,71 +107,24 @@ export async function bucheRuecklauf(
       try {
         fachFehler = db.transaction((tx): string | null => {
           /*
-           * RIEGEL 1 — DIE QUELLE IST EINE EINHEIT. Ohne die Probe entschiede
-           * der Fremdschluessel, und der laesst jeden Lagerort durch: aus einem
-           * Ruecklauf wuerde still ein Umlagern im Handlager, und die
-           * Handlager-Summe stiege um Material, das es nicht gibt.
-           *
-           * ⚠️ `aktiv` WIRD NICHT VERLANGT: eine stillgelegte Einheit ist genau
-           * die, die man ausraeumt — und diese Action erreicht ohnehin nur die
-           * Verwaltung (anders als `bucheInEntnahmebox`).
+           * Die Riegel (Quelle ist eine Einheit — `aktiv` wird NICHT verlangt, die
+           * stillgelegte raeumt man aus —, Ziel noch in `zugangsZiele`, Charge
+           * gehoert zum Artikel), die Deckung (abweisen statt kappen) und die
+           * Umlagerung stehen im gemeinsamen Schreibpfad; eine Absage kommt als
+           * `BuchungAbgewiesen` und wird unten im catch zur Meldung.
            */
-          const von = tx
-            .select({ typ: lagerorte.typ, einheitenart: lagerorte.einheitenart })
-            .from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get();
-          if (!von) return "Diese Einheit gibt es nicht mehr. Bitte die Seite neu laden.";
-          if (von.typ !== "fahrzeug") {
-            return "Zurückbuchen geht nur aus einem Fahrzeug oder einer Tasche.";
-          }
-
-          // RIEGEL 2 — das Ziel noch einmal, in der Transaktion.
-          if (!zugangsZiele(tx).some((o) => o.id === v.zielLagerortId)) {
-            return "Dieser Schrank nimmt kein Material mehr auf. Bitte die Seite neu laden.";
-          }
-
-          // RIEGEL 3 — die Charge gehoert zu diesem Artikel (I5).
-          const charge = tx.select({ artikelId: chargen.artikelId })
-            .from(chargen).where(eq(chargen.id, v.chargeId)).get();
-          if (!charge || charge.artikelId !== v.artikelId) {
-            return "Diese Charge gehört nicht zu diesem Artikel. Bitte die Seite neu laden.";
-          }
-
-          /*
-           * ⚠️ NICHT GEDECKT HEISST ABWEISEN, NICHT KAPPEN — dieselbe Regel wie
-           * bei jeder Umlagerung: gebucht waeren drei von fuenf getragenen
-           * Stueck, und die zwei stuenden weiter an der Einheit. Der Buchstand
-           * waere an BEIDEN Orten falsch, und niemand bekaeme es gesagt.
-           */
-          const vorhanden = restJeChargeFuerArtikelAnOrt(tx, v.artikelId, v.fahrzeugId)
-            .get(v.chargeId) ?? 0;
-          if (vorhanden < v.menge) {
-            const einheit = tx.select({ einheit: artikel.einheit }).from(artikel)
-              .where(eq(artikel.id, v.artikelId)).get()?.einheit ?? "";
-            return `Von dieser Charge liegen ${ausDieserEinheit(von.einheitenart)} nur `
-              + `${vorhanden} ${einheit}`.trimEnd()
-              + ". Es wurde nichts gebucht — bitte die Menge prüfen.";
-          }
-
-          umgelagert = umlagerungVonOrt(tx, {
+          umgelagert = ruecklaufTx(tx, {
+            fahrzeugId: v.fahrzeugId,
             artikelId: v.artikelId,
-            menge: v.menge,
-            // Genau diese Einheit, nicht ihr Teilbaum (DRK-354).
-            vonOrt: v.fahrzeugId,
-            nachLagerortId: v.zielLagerortId,
             chargeId: v.chargeId,
+            menge: v.menge,
+            zielLagerortId: v.zielLagerortId,
             quelle,
-            kommentar: RUECKLAUF_KOMMENTAR,
-            // Das Praefix kommt aus `_lib/vorgang.ts` — eine Quelle, kein Literal.
-            referenz: `${RUECKLAUF_PRAEFIX}${v.fahrzeugId}`,
-          }).umgelagert;
-          if (umgelagert < v.menge) {
-            // Unerreichbar hinter der Deckungspruefung — deshalb ein Wurf, der
-            // die ganze Transaktion zuruecknimmt, und keine Meldung.
-            throw new Error("Deckung und Buchung sind uneins");
-          }
+          });
 
           /*
-           * ⚠️ DIE GEMELDETE VERFALLSANGABE WANDERT NICHT MIT — im Handlager
+           * ⚠️ DIE GEMELDETE VERFALLSANGABE WANDERT NICHT MIT (`ruecklaufTx` raeumt sie
+           * am leeren Ort ab) — im Handlager
            * traegt die CHARGE den Verfall, nicht der Ort (dieselbe Lage wie beim
            * Einraeumen aus der Box, Begruendung an `raeumeVerfallAmLeerenOrt`).
            * An der Einheit faellt sie, sobald dort nichts mehr liegt; sonst
@@ -185,7 +135,6 @@ export async function bucheRuecklauf(
            * Aussondern (`useVerfallStand`), und ein eigener Wert daneben liesse
            * den Monatswaehler etwas behaupten, das nicht gespeichert ist.
            */
-          raeumeVerfallAmLeerenOrt(tx, v.fahrzeugId, v.artikelId);
           verfall = tx.select({ verfall: lagerortVerfall.verfall })
             .from(lagerortVerfall)
             .where(and(
@@ -195,10 +144,14 @@ export async function bucheRuecklauf(
             .get()?.verfall ?? null;
           return null;
         });
-      } catch {
+      } catch (e) {
+        // `BuchungAbgewiesen` traegt einen fertigen Satz; alles andere ist ein
+        // Defekt hinter dem Rueckfall.
         return {
           ok: false,
-          fehler: "Die Buchung wurde nicht gespeichert. Bitte die Seite neu laden und es erneut versuchen.",
+          fehler: e instanceof BuchungAbgewiesen
+            ? e.message
+            : "Die Buchung wurde nicht gespeichert. Bitte die Seite neu laden und es erneut versuchen.",
         };
       }
 

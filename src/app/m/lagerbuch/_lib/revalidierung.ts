@@ -117,6 +117,7 @@ export const BESTANDSFLAECHEN: readonly string[] = [
    * still veralten — dieselbe Teil-Liste, nur je Aufruf statt je Schreiber.
    */
   "/m/lagerbuch/verwaltung/fahrzeuge/[id]",
+  "/m/lagerbuch/verwaltung/fahrzeuge/[id]/zaehlen",
   "/m/lagerbuch/auffuellen/[artikelId]",
   "/m/lagerbuch/a/[artikelId]",
 ];

@@ -4,18 +4,15 @@ import { withAuditContext, auditActor } from "@/core/audit/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
-import { artikel, chargen, lagerorte } from "../_db/schema";
+import { lagerorte } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { BuchungAbgewiesen } from "../_lib/buchungAbgewiesen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
-import { AUFLADEN_KOMMENTAR, MONAT_REGEX, ortZeile } from "../_lib/konstanten";
-import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
+import { MONAT_REGEX, ortZeile } from "../_lib/konstanten";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { revalidiereBestand } from "../_lib/revalidierung";
-import { verfallFolgtDemMaterial } from "../_lib/schreibpfade/lagerortVerfall";
-import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
+import { aufladenVonOrtTx } from "../_lib/schreibpfade/einheitBewegung";
 import { zugangAnEinheitBuchen } from "../_lib/schreibpfade/zugang";
-import { AUFLADEN_PRAEFIX } from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /**
@@ -140,56 +137,15 @@ export async function bucheAufladen(
             return null;
           }
 
-          const { vonLagerortId, chargeId } = v.herkunft;
-
-          // RIEGEL 1 — die Quelle gibt es. Ob sie aktiv ist, zaehlt nicht.
-          const von = tx.select().from(lagerorte).where(eq(lagerorte.id, vonLagerortId)).get();
-          if (!von) return "Diesen Ort gibt es nicht mehr. Bitte die Seite neu laden.";
-
-          // RIEGEL 2 — die Charge gehoert zu diesem Artikel (I5).
-          const charge = tx.select({ artikelId: chargen.artikelId })
-            .from(chargen).where(eq(chargen.id, chargeId)).get();
-          if (!charge || charge.artikelId !== v.artikelId) {
-            return "Diese Charge gehört nicht zu diesem Artikel. Bitte die Seite neu laden.";
-          }
-
-          // RIEGEL 3 — gedeckt, sonst nichts (Kopf dieser Datei).
-          const vorhanden = restJeChargeFuerArtikelAnOrt(tx, v.artikelId, vonLagerortId)
-            .get(chargeId) ?? 0;
-          if (vorhanden < v.menge) {
-            const einheit = tx.select({ einheit: artikel.einheit }).from(artikel)
-              .where(eq(artikel.id, v.artikelId)).get()?.einheit ?? "";
-            return `In „${ortZeile(von)}“ liegen von dieser Charge nur `
-              + `${Math.max(vorhanden, 0)} ${einheit}`.trimEnd()
-              + ". Es wurde nichts gebucht — bitte die Menge prüfen.";
-          }
-
-          gebucht = umlagerungVonOrt(tx, {
+          // Quelle, Charge, Deckung, Umlagerung und Verfallsfolge: gemeinsamer
+          // Schreibpfad; eine Absage kommt als `BuchungAbgewiesen` (catch unten).
+          gebucht = aufladenVonOrtTx(tx, {
             artikelId: v.artikelId,
             menge: v.menge,
-            // GENAU DIESER ORT, nicht sein Teilbaum (DRK-354).
-            vonOrt: vonLagerortId,
-            nachLagerortId: v.fahrzeugId,
-            chargeId,
+            fahrzeugId: v.fahrzeugId,
+            vonLagerortId: v.herkunft.vonLagerortId,
+            chargeId: v.herkunft.chargeId,
             quelle,
-            kommentar: AUFLADEN_KOMMENTAR,
-            referenz: `${AUFLADEN_PRAEFIX}${v.fahrzeugId}`,
-          }).umgelagert;
-          if (gebucht < v.menge) {
-            // Unerreichbar hinter der Deckungspruefung — ein Wurf, der die
-            // ganze Transaktion zuruecknimmt, und keine Meldung.
-            throw new Error("Deckung und Buchung sind uneins");
-          }
-
-          /*
-           * DIE GEMELDETE VERFALLSANGABE FOLGT DEM MATERIAL (DRK-377) — die
-           * Regel fuer JEDEN Weg zwischen zwei Orten. Aus dem Nachbarfahrzeug
-           * oder der Kiste wandert die Meldung mit, und die geleerte Quelle
-           * verliert ihre. Aus einem Schrank ist beides ein No-Op: im
-           * Handlager traegt die Charge den Verfall, nicht der Ort.
-           */
-          verfallFolgtDemMaterial(tx, {
-            vonLagerortId, nachLagerortId: v.fahrzeugId, artikelId: v.artikelId,
           });
           return null;
         });

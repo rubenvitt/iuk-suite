@@ -211,6 +211,24 @@ describe("offenJeArtikel — DIE EINE `offen`-Formel (§5.8.3)", () => {
     expect(offenJeArtikel({})).toBe(0);
   });
 
+  it("rechnet die Bewegungen des Verwaltungschecks ein (Aufgefuellt gleicht aus)", () => {
+    expect(offenJeArtikel({ sollSumme: 10, istSumme: 4, aufgefuellt: 6 })).toBe(0);
+    expect(offenJeArtikel({ sollSumme: 10, istSumme: 10, ausgesondert: 3 })).toBe(3);
+    expect(offenJeArtikel({ sollSumme: 10, istSumme: 10, zurueckgelegt: 2 })).toBe(2);
+    // Mehr aufgefuellt als fehlte: geklemmt, nicht negativ.
+    expect(offenJeArtikel({ sollSumme: 5, istSumme: 5, aufgefuellt: 9 })).toBe(0);
+  });
+
+  it("`summiereCheckErgebnis` zaehlt die Bewegungen getrennt und nicht in `korrigiert`", () => {
+    const roh = JSON.stringify({
+      version: 2, positionen: [], geraete: [], flaschen: [], verfall: [], art: "verwaltung",
+      artikel: [{ artikelId: "a", sollSumme: 10, istSumme: 10, ausgesondert: 3, aufgefuellt: 1 }],
+    });
+    const s = summiereCheckErgebnis(roh);
+    expect(s).toMatchObject({ ausgesondert: 3, aufgefuellt: 1, korrigiert: 0, offen: 2 });
+    expect(s).not.toHaveProperty("zurueckgelegt");
+  });
+
   it("ist die Formel, aus der `summiereCheckErgebnis` seine Summe bildet", () => {
     // Die 12 ist VON HAND gerechnet (8 + 0 + 4) und nicht aus der Implementierung
     // abgeleitet — eine geaenderte Klemmung oder ein vergessener

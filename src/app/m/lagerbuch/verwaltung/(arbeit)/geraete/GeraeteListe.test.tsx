@@ -447,6 +447,31 @@ describe("NeuGeraet", () => {
       .toContain("RTW 1");
   });
 
+  it("belegt den Standort mit der Vorgabe vor, auch nach dem Wiederöffnen", async () => {
+    await mount(<NeuGeraet lagerorte={LAGERORTE} vorgabeLagerortId="rtw-1" />);
+    await oeffneDialog();
+
+    expect(queryPortal("[aria-label='Standort']").closest(".ant-select")?.textContent)
+      .toContain("RTW 1");
+  });
+
+  it("ignoriert eine Vorgabe, die es unter den Standorten nicht gibt", async () => {
+    await mount(<NeuGeraet lagerorte={LAGERORTE} vorgabeLagerortId="gibt-es-nicht" />);
+    await oeffneDialog();
+
+    expect(queryPortal("[aria-label='Standort']").closest(".ant-select")?.textContent)
+      .not.toContain("gibt-es-nicht");
+  });
+
+  it("ist ohne Angabe die Primäraktion, mit ausloeser=neutral ein einfacher Knopf", async () => {
+    await mount(<NeuGeraet lagerorte={LAGERORTE} />);
+    expect(knopfMitText("Neues Gerät").className).toContain("ant-btn-primary");
+    await unmount();
+
+    await mount(<NeuGeraet lagerorte={LAGERORTE} ausloeser="neutral" />);
+    expect(knopfMitText("Neues Gerät").className).not.toContain("ant-btn-primary");
+  });
+
   it("sendet für Medizin keine Objektfelder und schließt, leert und aktualisiert nur bei Erfolg", async () => {
     await mount(<NeuGeraet lagerorte={LAGERORTE} />);
     await oeffneDialog();

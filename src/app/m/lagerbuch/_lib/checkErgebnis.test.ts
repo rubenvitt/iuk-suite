@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCheckErgebnis, LEERES_ERGEBNIS } from "./checkErgebnis";
+import { parseCheckErgebnis, checkArtUndPlomben, LEERES_ERGEBNIS } from "./checkErgebnis";
 
 describe("parseCheckErgebnis — das ALTE Format (V1)", () => {
   it("erkennt ein Array und liefert version 1", () => {
@@ -287,5 +287,32 @@ describe("parseCheckErgebnis — unlesbar ist von legitim leer unterscheidbar (�
       expect(e.version).toBe(1);
       expect(e).not.toHaveProperty("unlesbar");
     }
+  });
+});
+
+describe("Check-Art „verwaltung\" und ihre Bewegungen", () => {
+  const rumpf = { version: 2, positionen: [], geraete: [], flaschen: [], verfall: [] };
+
+  it("parst art, Bewegungen je Artikel und kommentar", () => {
+    const e = parseCheckErgebnis(JSON.stringify({
+      ...rumpf, art: "verwaltung", kommentar: "Zählung nach Einsatz",
+      artikel: [{ artikelId: "a1", ausgesondert: 2, zurueckgelegt: 1, aufgefuellt: 3 }],
+    }));
+    if (e.version !== 2) throw new Error("V2 erwartet");
+    expect(e.art).toBe("verwaltung");
+    expect(e.kommentar).toBe("Zählung nach Einsatz");
+    expect(e.artikel[0]).toMatchObject({ ausgesondert: 2, zurueckgelegt: 1, aufgefuellt: 3 });
+  });
+
+  it("checkArtUndPlomben kennt „verwaltung\", eine unbekannte Art bleibt „voll\"", () => {
+    const roh = (art: string) => JSON.stringify({ ...rumpf, artikel: [], art });
+    expect(checkArtUndPlomben(roh("verwaltung")).art).toBe("verwaltung");
+    expect(checkArtUndPlomben(roh("xyz")).art).toBe("voll");
+    expect(checkArtUndPlomben(roh("kurz")).art).toBe("kurz");
+  });
+
+  it("ein Check ohne kommentar traegt das Feld nicht", () => {
+    const e = parseCheckErgebnis(JSON.stringify({ ...rumpf, artikel: [] }));
+    expect(e).not.toHaveProperty("kommentar");
   });
 });

@@ -83,11 +83,20 @@ function kameraText(err: unknown): string {
 export function BarcodeScanner({
   zuBarcode,
   zielPfad,
+  onTreffer,
   nichtGefunden = NICHT_GEFUNDEN,
 }: {
   zuBarcode: (rohwert: string) => Promise<{ id: string } | null>;
   /** AEUSSERER Pfad (`/verwaltung/geraete/<id>`). Ein innerer wuerde doppelt praefixiert. */
-  zielPfad: (id: string) => string;
+  zielPfad?: (id: string) => string;
+  /**
+   * Verwaltungscheck: der Scanner steht dort in einem Dialog und darf die Seite
+   * nicht verlassen. Gesetzt, wird beim Treffer statt der Navigation `onTreffer`
+   * gerufen (Kamera aus, Doppelfeuer-Sperre bleibt gesetzt, bis die Insel
+   * neu gemountet wird); ohne sie bleibt alles beim Alten und `zielPfad` ist
+   * Pflicht.
+   */
+  onTreffer?: (id: string) => void;
   /**
    * Optional mit Vorgabe — NICHT Pflicht: der Zwei-Prop-Aufruf steht in
    * Teil 5, T138 bereits geschrieben (`BarcodeScanner({ zuBarcode, zielPfad })`).
@@ -122,7 +131,8 @@ export function BarcodeScanner({
           // einer Server Action wird (vor allem im Dev-Modus) gern abgebrochen,
           // und nach einem Scan ist ein frischer Seitenaufbau ohnehin gewollt
           // (1:1, `:42-44`).
-          window.location.assign(zielPfad(treffer.id));
+          if (onTreffer) onTreffer(treffer.id);
+          else if (zielPfad) window.location.assign(zielPfad(treffer.id));
           return;   // busy bleibt gesetzt, sonst navigiert ein Folge-Scan doppelt (`:46`)
         }
         setMeldung(nichtGefunden(code));
@@ -134,7 +144,7 @@ export function BarcodeScanner({
       // Kurze Sperre, damit derselbe (unbekannte) Code nicht im Dauerfeuer nervt (`:55-57`).
       setTimeout(() => { busyRef.current = false; }, 2000);
     },
-    [zuBarcode, zielPfad, nichtGefunden],
+    [zuBarcode, zielPfad, onTreffer, nichtGefunden],
   );
 
   useEffect(() => {

@@ -80,6 +80,7 @@ const SOLL = [
   "/m/lagerbuch/helfer/check",
   "/m/lagerbuch/auffuellen/box",
   "/m/lagerbuch/verwaltung/fahrzeuge/[id]",
+  "/m/lagerbuch/verwaltung/fahrzeuge/[id]/zaehlen",
   "/m/lagerbuch/auffuellen/[artikelId]",
   "/m/lagerbuch/a/[artikelId]",
 ];
@@ -200,7 +201,7 @@ const ACTIONS = join(MODUL, "_actions");
  * nur Stammdaten. Deshalb steht hier `insert`/`update` und nicht der blosse
  * Tabellenname — die Unterscheidung ist Schreiben gegen Lesen.
  */
-const SCHREIBT = /(?:insert\(\s*(?:buchungen|chargen)\s*\)|update\(\s*chargen\s*\)|schreibpfade\/(?:abbuchung|zugang|umlagerung|korrektur)")/;
+const SCHREIBT = /(?:insert\(\s*(?:buchungen|chargen)\s*\)|update\(\s*chargen\s*\)|schreibpfade\/(?:abbuchung|zugang|umlagerung|korrektur|einheitBewegung|check)")/;
 
 function actionDateien(): { name: string; text: string }[] {
   return readdirSync(ACTIONS)
@@ -222,6 +223,7 @@ describe("_actions/ — jeder Bestandsschreiber benutzt die eine Liste", () => {
       "entnahmebox.ts",
       "inventur.ts",
       "ruecklauf.ts",
+      "verwaltungscheck.ts",
     ]);
   });
 
@@ -289,6 +291,7 @@ const SEITEN: Record<string, "bestand" | "kein-bestand"> = {
   "/verwaltung/inventur": "bestand",
   "/verwaltung/fahrzeuge": "bestand",
   "/verwaltung/fahrzeuge/[id]": "bestand",
+  "/verwaltung/fahrzeuge/[id]/zaehlen": "bestand",  // Buchstand je Artikel an der Einheit
   "/verwaltung/entnahmebox": "bestand",
   "/auffuellen": "bestand",
   "/auffuellen/box": "bestand",          // `einraeumPosten` — die Posten IN der Kiste

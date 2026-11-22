@@ -30,6 +30,7 @@ const BASIS: CheckDetail = {
   altFormat: false,
   art: "voll",
   plomben: [],
+  kommentar: null,
   unlesbar: false,
   offen: false,
   hatZwischenstand: false,
@@ -165,6 +166,7 @@ function gefuellterCheck(): CheckDetail {
       artikelId: "a1", artikelName: "Verband", einheit: "Stk.",
       sollSumme: 2, istSumme: 1, recordedVorher: 1,
       korrektur: 0, nachfuellGebucht: 0, offen: 1,
+      ausgesondert: 0, zurueckgelegt: 0, aufgefuellt: 0,
     }],
     positionen: [{
       id: "sp1", fachLabel: "Fach 1", artikelId: "a1",
@@ -224,6 +226,47 @@ describe("Check-Detailseite", () => {
       ["id", "name", "druck", "druckZahl", "fuellstandChip"],
       ["id", "artikel", "verfallText", "statusChip"],
     ]);
+  });
+
+  describe("Verwaltungscheck", () => {
+    const bewegt = (): CheckDetail => ({
+      ...gefuellterCheck(),
+      art: "verwaltung",
+      kommentar: "Nach dem Einsatz geprüft",
+      artikel: [{
+        ...gefuellterCheck().artikel[0]!, ausgesondert: 2, zurueckgelegt: 1, aufgefuellt: 3,
+      }],
+    });
+
+    it("nennt die Art im Kopf und zeigt den Kommentar als Absatz", () => {
+      const seite = checkDetailInhalt(bewegt());
+      const kopf = textVon(elementeVomTyp(seite, SeitenKopf)[0].props.beschreibung as ReactNode);
+
+      expect(kopf).toMatch(/^Verwaltungscheck/);
+      expect(textVon(seite)).toContain("Nach dem Einsatz geprüft");
+    });
+
+    it("schaltet die Bewegungsspalten nur ein, wenn irgendein Wert über null liegt", () => {
+      const mit = tabellenAus(checkDetailInhalt(bewegt()));
+      expect(mit.bewegungsSpalten).toBe(true);
+      expect(mit.abgleichZeilen[0]).toMatchObject({
+        ausgesondertZahl: 2, zurueckgelegtZahl: 1, aufgefuelltZahl: 3,
+      });
+
+      const ohne = tabellenAus(checkDetailInhalt({ ...bewegt(), artikel: gefuellterCheck().artikel }));
+      expect(ohne.bewegungsSpalten).toBe(false);
+      expect(ohne.abgleichZeilen[0]).not.toHaveProperty("ausgesondertZahl");
+    });
+
+    it("nennt die Ist-Spalte des Abgleichs nur beim Verwaltungscheck „gebucht“", () => {
+      expect(tabellenAus(checkDetailInhalt(bewegt())).istGebucht).toBe(true);
+      expect(tabellenAus(checkDetailInhalt(gefuellterCheck())).istGebucht).toBe(false);
+    });
+
+    it("zeigt ohne Kommentar keinen Absatz", () => {
+      expect(textVon(checkDetailInhalt({ ...bewegt(), kommentar: null })))
+        .not.toContain("Nach dem Einsatz");
+    });
   });
 
   it("zeigt die vier Nachweis-Kennzahlen aus der Check-Summe mit ihren Signaltönen", () => {
@@ -295,6 +338,7 @@ describe("Check-Detailseite", () => {
         artikelId: "a1", artikelName: "Verband", einheit: "Stk.",
         sollSumme: 4, istSumme: 2, recordedVorher: 1,
         korrektur: 1, nachfuellGebucht: 1, offen: 1,
+        ausgesondert: 0, zurueckgelegt: 0, aufgefuellt: 0,
       }],
       positionen: [{
         id: "sp-7", fachLabel: "Fach 7", artikelId: "a1",

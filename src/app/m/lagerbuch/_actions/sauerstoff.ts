@@ -161,6 +161,58 @@ export async function setFlascheAktiv(
   });
 }
 
+const UmsetzenSchema = z.object({
+  flascheId: z.string().min(1),
+  lagerortId: z.string().min(1, "Standort wählen"),
+});
+
+/**
+ * Verwaltungscheck: eine Flasche an einen anderen Standort setzen, sonst
+ * nichts. Zielregel wie `flascheSpeichern` (`istAktiverLagerort`, nie die
+ * Entnahmebox); Größe, Nennfülldruck und Wechselgrenze bleiben.
+ */
+export async function flascheUmsetzen(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<ActionErgebnis<{ id: string }>> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
+
+    const geparst = UmsetzenSchema.safeParse(eingabe);
+    if (!geparst.success) return fehlerhaft(geparst.error);
+    const { flascheId, lagerortId } = geparst.data;
+
+    const flasche = db.select({ lagerortId: o2Flaschen.lagerortId, aktiv: o2Flaschen.aktiv })
+      .from(o2Flaschen)
+      .where(eq(o2Flaschen.id, flascheId))
+      .get();
+    if (!flasche || !flasche.aktiv) {
+      return { ok: false, fehler: "Sauerstoffflasche nicht gefunden oder inaktiv." };
+    }
+    if (!istAktiverLagerort(db, lagerortId)) {
+      return { ok: false, fehler: LAGERORT_FEHLER };
+    }
+
+    const typVon = (id: string) => db.select({ typ: lagerorte.typ }).from(lagerorte)
+      .where(eq(lagerorte.id, id)).get()?.typ;
+    const altTyp = typVon(flasche.lagerortId);
+    const neuTyp = typVon(lagerortId);
+
+    db.update(o2Flaschen).set({ lagerortId }).where(eq(o2Flaschen.id, flascheId)).run();
+
+    revalidatePath(LISTENPFAD);
+    revalidatePath(verwaltungDetailPfadIntern("sauerstoff", flascheId));
+    // Die Flasche steht im Fahrzeugblatt ihres alten und ihres neuen Orts.
+    if (altTyp === "fahrzeug") {
+      revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", flasche.lagerortId));
+    }
+    if (neuTyp === "fahrzeug" && lagerortId !== flasche.lagerortId) {
+      revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", lagerortId));
+    }
+    return { ok: true, wert: { id: flascheId } };
+  });
+}
+
 const MessungSchema = z.object({
   flascheId: z.string().min(1),
   // 0 bar ist ein gültiger Messwert: Eine leere Flasche ist keine fehlende

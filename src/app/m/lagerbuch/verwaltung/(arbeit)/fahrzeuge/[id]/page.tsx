@@ -1,4 +1,4 @@
-import { Card } from "antd";
+import { Button, Card } from "antd";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
@@ -36,6 +36,7 @@ import { VerfallEditor, type VerfallAnzeigeZeile } from "./VerfallEditor";
 import { PlombenEditor } from "./PlombenEditor";
 import { WeitereAktionen } from "./WeitereAktionen";
 import { blattAdresse } from "./reiter";
+import { verwaltungDetailPfad } from "../../../../_lib/verwaltungPfad";
 import { plombenFuerLagerort } from "../../../../_lib/lesepfade/plomben";
 import { fmtDatumZeit } from "../../../../_lib/zeit";
 
@@ -299,6 +300,8 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
               beschriftung="Check durchführen"
               primaer
             />
+            {/* Zählen und einrichten: neutral — der Check bleibt die Hauptaktion. */}
+            <Button href={verwaltungDetailPfad("fahrzeuge", fahrzeug.id, "zaehlen")}>Zählen</Button>
             {/*
               DRK-485 — MATERIAL AUFLADEN, von einem anderen Ort oder neu. Nur
               an der AKTIVEN Einheit, dieselbe Regel wie beim Check davor:

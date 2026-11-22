@@ -6,12 +6,12 @@ import { Ikone } from "../../../_ui/ikonen";
  * und vom Fahrzeugblatt (genau dieses eine).
  *
  * Er führt in DIESELBE Fläche, die eine Helferin nach dem Kärtchen-Scan sieht
- * (`/helfer/check`). Das ist die tragende Entscheidung des Tickets: es gibt
- * genau eine Check-Oberfläche, und der Unterschied zwischen den beiden Wegen
- * liegt allein in der Bindung — wer scannt, prüft das Fahrzeug seines Kärtchens
- * (DRK-302), wer angemeldet kommt, wählt aus allen aktiven. Eine zweite,
- * verwaltungseigene Check-Fläche wäre eine zweite Wahrheit darüber, wie ein
- * Fahrzeug geprüft wird.
+ * (`/helfer/check`); der Unterschied der beiden Wege liegt in der Bindung —
+ * wer scannt, prüft das Fahrzeug seines Kärtchens (DRK-302), wer angemeldet
+ * kommt, wählt aus allen aktiven. IDA-413 DEUTET DRK-305 UM: „genau eine
+ * Check-Oberfläche" gilt nicht mehr, die eine Wahrheit liegt im SCHREIBWEG
+ * (`_lib/schreibpfade`). Die Zählseite der Verwaltung (`…/[id]/zaehlen`)
+ * ist die zweite Oberfläche und bucht über denselben Weg wie `checkAbschluss`.
  *
  * ⚠️ `?fz=` IST EINE VORAUSWAHL, KEINE ZUSAGE. `helfer/check/page.tsx` sucht die
  * Id in der auf `aktiv` gefilterten Liste; ein stillgelegtes Fahrzeug fällt dort

@@ -23,6 +23,7 @@ vi.mock("../_db/client", () => ({
 
 import {
   geraetSpeichern,
+  geraetUmsetzen,
   geraetZuBarcode,
   setGeraetAktiv,
 } from "./geraete";
@@ -76,11 +77,12 @@ function sqliteAenderungen() {
 }
 
 describe("Bauform und Riegel", () => {
-  it("exportiert genau die drei bewachten Actions", async () => {
+  it("exportiert genau die vier bewachten Actions", async () => {
     const mod = await import("./geraete");
 
     expect(Object.keys(mod).sort()).toEqual([
       "geraetSpeichern",
+      "geraetUmsetzen",
       "geraetZuBarcode",
       "setGeraetAktiv",
     ]);
@@ -89,6 +91,7 @@ describe("Bauform und Riegel", () => {
   it.each([
     ["geraetSpeichern", () => geraetSpeichern({}, t.db)],
     ["setGeraetAktiv", () => setGeraetAktiv({}, t.db)],
+    ["geraetUmsetzen", () => geraetUmsetzen({}, t.db)],
     ["geraetZuBarcode", () => geraetZuBarcode("SN-1", t.db)],
   ])("%s ruft den Admin-Riegel vor Validierung oder Datenzugriff auf", async (_name, aufruf) => {
     const riegelFehler = new Error("Riegel vor Eingabe und DB");
@@ -407,5 +410,100 @@ describe("geraetZuBarcode", () => {
     expect(erg).toEqual({ ok: false, fehler: "Gerät konnte nicht gesucht werden." });
     expect(fehlerVon(erg).fehler).not.toMatch(/no such table|sqlite/i);
     expect(revalidiert).toEqual([]);
+  });
+});
+
+describe("geraetUmsetzen", () => {
+  function geraetVorbelegen(feld: Partial<typeof geraete.$inferInsert> = {}) {
+    t.db.insert(geraete).values({
+      id: "g-1",
+      typ: "objekt",
+      name: "Spineboard",
+      barcode: "SN-9",
+      lagerortId: "ort-aktiv",
+      anmerkung: "alt",
+      beschreibung: "mit Gurten",
+      ablaufdatum: "2029-01-01",
+      selbsttest: true,
+      aktiv: true,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      ...feld,
+    }).run();
+  }
+
+  const zeile = () => t.db.select().from(geraete).where(eq(geraete.id, "g-1")).get();
+
+  it("ändert nur lagerortId und lässt jedes andere Feld stehen", async () => {
+    t.db.insert(lagerorte).values({ id: "ort-neu", name: "Lager neu", typ: "lager", aktiv: true }).run();
+    geraetVorbelegen();
+    const vorher = zeile();
+
+    const erg = await geraetUmsetzen({ geraetId: "g-1", lagerortId: "ort-neu" }, t.db);
+
+    expect(wertVon<{ id: string }>(erg)).toEqual({ id: "g-1" });
+    expect(zeile()).toEqual({ ...vorher, lagerortId: "ort-neu" });
+    expect(revalidiert).toEqual(expect.arrayContaining([LISTENPFAD, `${LISTENPFAD}/g-1`]));
+  });
+
+  it("revalidiert beide Fahrzeugblätter, wenn alter und neuer Ort Fahrzeuge sind", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "fz-alt", name: "RTW 1", typ: "fahrzeug", aktiv: true },
+      { id: "fz-neu", name: "RTW 2", typ: "fahrzeug", aktiv: true },
+    ]).run();
+    geraetVorbelegen({ lagerortId: "fz-alt" });
+
+    await geraetUmsetzen({ geraetId: "g-1", lagerortId: "fz-neu" }, t.db);
+
+    expect(revalidiert).toEqual(expect.arrayContaining([
+      "/m/lagerbuch/verwaltung/fahrzeuge/fz-alt",
+      "/m/lagerbuch/verwaltung/fahrzeuge/fz-neu",
+    ]));
+  });
+
+  it("revalidiert kein Fahrzeugblatt, wenn beide Orte Lager sind", async () => {
+    t.db.insert(lagerorte).values({ id: "ort-neu", name: "Lager neu", typ: "lager", aktiv: true }).run();
+    geraetVorbelegen();
+
+    await geraetUmsetzen({ geraetId: "g-1", lagerortId: "ort-neu" }, t.db);
+
+    expect(revalidiert.filter((p) => p.includes("/fahrzeuge"))).toEqual([]);
+  });
+
+  it("weist die Entnahmebox als Ziel ab", async () => {
+    geraetVorbelegen();
+
+    const erg = await geraetUmsetzen({ geraetId: "g-1", lagerortId: ENTNAHMEBOX_ID }, t.db);
+
+    expect(fehlerVon(erg).fehler).toBe(LAGERORT_FEHLER);
+    expect(zeile()?.lagerortId).toBe("ort-aktiv");
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("weist einen inaktiven oder unbekannten Ort ab", async () => {
+    geraetVorbelegen();
+
+    for (const ziel of ["ort-inaktiv", "gibt-es-nicht"]) {
+      const erg = await geraetUmsetzen({ geraetId: "g-1", lagerortId: ziel }, t.db);
+      expect(fehlerVon(erg).fehler).toBe(LAGERORT_FEHLER);
+    }
+    expect(zeile()?.lagerortId).toBe("ort-aktiv");
+  });
+
+  it("weist ein inaktives oder unbekanntes Gerät ab", async () => {
+    t.db.insert(lagerorte).values({ id: "ort-neu", name: "Lager neu", typ: "lager", aktiv: true }).run();
+    geraetVorbelegen({ aktiv: false });
+
+    const inaktiv = await geraetUmsetzen({ geraetId: "g-1", lagerortId: "ort-neu" }, t.db);
+    const fehlt = await geraetUmsetzen({ geraetId: "g-x", lagerortId: "ort-neu" }, t.db);
+
+    expect(fehlerVon(inaktiv).fehler).toBe("Gerät nicht gefunden oder inaktiv.");
+    expect(fehlerVon(fehlt).fehler).toBe("Gerät nicht gefunden oder inaktiv.");
+    expect(zeile()?.lagerortId).toBe("ort-aktiv");
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("weist ungültige Eingabe ab", async () => {
+    const erg = await geraetUmsetzen({ geraetId: "", lagerortId: "" }, t.db);
+    expect(fehlerVon(erg).fehler).toBe("Bitte die markierten Felder prüfen.");
   });
 });
