@@ -49,6 +49,8 @@ export type GeraetZeile = {
   anmerkung: string | null;
   mtkFaellig: string | null; beschreibung: string | null; ablaufdatum: string | null;
   aktiv: boolean;
+  /** IDA-411: der Fahrzeug-Check fragt nach dem Selbsttest. */
+  selbsttest: boolean;
   faelligkeit: DatumFaelligkeit;
   /** ⚠️ `null` bei typ='objekt' ohne Ablaufdatum — dann gibt es KEINEN Chip. */
   chip: FaelligChip | null;
@@ -63,7 +65,7 @@ function toZeile(
     lagerortId: g.lagerortId, lagerortName: standort.name,
     lagerortStandort: standort, anmerkung: g.anmerkung,
     mtkFaellig: g.mtkFaellig, beschreibung: g.beschreibung, ablaufdatum: g.ablaufdatum,
-    aktiv: g.aktiv, faelligkeit: f, chip: geraetFaelligChip(g.typ, f),
+    aktiv: g.aktiv, selbsttest: g.selbsttest, faelligkeit: f, chip: geraetFaelligChip(g.typ, f),
   };
 }
 

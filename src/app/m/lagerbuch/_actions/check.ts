@@ -102,6 +102,12 @@ const CheckSchema = z.object({
     vorhanden: z.boolean(),
     zustand: z.enum(ZUSTAENDE).optional(),
     bemerkung: z.string().trim().optional(),
+    /*
+     * IDA-411: „Selbsttest bestanden?" bei einem Gerät mit dieser Frage. OPTIONAL: ein Entwurf von
+     * vor IDA-411 (IDA-358, er liegt auf dem Gerät) kennt das Feld nicht und soll trotzdem ankommen.
+     * Bei einem Gerät OHNE die Frage wird ein mitgesendeter Wert verworfen, nicht gespeichert.
+     */
+    selbsttest: z.boolean().optional(),
   })).default([]),
   flaschen: z.array(z.object({
     flascheId: z.string().min(1),
@@ -487,14 +493,16 @@ export async function checkAbschluss(
 
       // Geraete am Fahrzeug (standort-basiert): nur eingereichte Geraete
       // akzeptieren, die wirklich HIER stehen. Zustand und Bemerkung als Snapshot.
-      const geraeteHier = new Set(
-        tx.select({ id: geraete.id }).from(geraete)
-          .where(eq(geraete.lagerortId, v.fahrzeugId)).all().map((g) => g.id),
+      const geraeteHier = new Map(
+        tx.select({ id: geraete.id, selbsttest: geraete.selbsttest }).from(geraete)
+          .where(eq(geraete.lagerortId, v.fahrzeugId)).all().map((g) => [g.id, g.selbsttest]),
       );
       const ortsart = ortsartAus(fz);
       const geraeteErgebnis = v.geraete.map((e) => {
         if (!geraeteHier.has(e.geraetId)) throw new Error("Gerät gehört nicht zu diesem Fahrzeug");   // WURF 2
-        if (!e.vorhanden || e.zustand === ZUSTAND_DEFEKT) {
+        const selbsttest = e.vorhanden && geraeteHier.get(e.geraetId) === true ? e.selbsttest : undefined;
+        const selbsttestDurchgefallen = selbsttest === false;
+        if (!e.vorhanden || e.zustand === ZUSTAND_DEFEKT || selbsttestDurchgefallen) {
           geraeteAuffaellig++;
           /*
            * IDA-377 — „fehlt" UND „Defekt" WERDEN EIN MANGEL, ohne weiteren Handgriff. Bis hier sagte
@@ -506,7 +514,10 @@ export async function checkAbschluss(
             legeMangelAn(tx, {
               lagerortId: v.fahrzeugId,
               punkte: [punktFuerGeraet(ortsart, !e.vorhanden)],
-              beschreibung: e.bemerkung || null,
+              // IDA-411: ein durchgefallener Selbsttest sagt es selbst, die Bemerkung steht dahinter.
+              beschreibung: selbsttestDurchgefallen
+                ? ["Selbsttest nicht bestanden", e.bemerkung].filter(Boolean).join(" — ")
+                : e.bemerkung || null,
               melderName: null,
               quelle,
               fotos: 0,
@@ -520,6 +531,7 @@ export async function checkAbschluss(
         return {
           geraetId: e.geraetId, vorhanden: e.vorhanden,
           zustand: e.zustand ?? null, bemerkung: e.bemerkung ?? null,
+          ...(selbsttest !== undefined ? { selbsttest } : {}),
         };
       });
 

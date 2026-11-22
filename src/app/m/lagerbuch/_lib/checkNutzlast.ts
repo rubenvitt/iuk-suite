@@ -23,7 +23,8 @@ import { verfallStatus, type VerfallSchwellen } from "./domain/verfall";
 import { MONAT_REGEX, type Zustand } from "./konstanten";
 
 export type CheckPositionEingabe = { id: string; artikelId: string; soll: number };
-export type CheckGeraetEingabe = { id: string };
+/** IDA-411: `selbsttest` = das Gerät wird nach seinem Selbsttest gefragt. */
+export type CheckGeraetEingabe = { id: string; selbsttest?: boolean };
 export type CheckFlascheEingabe = { id: string; nennfuelldruckBar: number };
 
 /**
@@ -32,11 +33,28 @@ export type CheckFlascheEingabe = { id: string; nennfuelldruckBar: number };
  * niemand angesehen hatte. Fehlt der Eintrag oder nur der Zustand eines vorhandenen Geräts, ist es
  * NICHT BEANTWORTET (`geraetBeantwortet`), und der Check lässt sich nicht abschließen.
  */
-export type CheckGeraetAntwort = { vorhanden?: boolean; zustand?: Zustand; bemerkung?: string };
+export type CheckGeraetAntwort = {
+  vorhanden?: boolean; zustand?: Zustand; bemerkung?: string;
+  /** IDA-411: „Selbsttest bestanden?" — nur bei Geräten mit dieser Frage. */
+  selbsttest?: boolean;
+};
 
-/** Beantwortet heißt: „fehlt" oder ein gewählter Zustand. */
-export function geraetBeantwortet(a: CheckGeraetAntwort | undefined): boolean {
-  return a !== undefined && (a.vorhanden === false || a.zustand !== undefined);
+/**
+ * Beantwortet heißt: „fehlt" oder ein gewählter Zustand — und bei einem Gerät mit Selbsttest-Frage
+ * (IDA-411) zusätzlich ja/nein zum Selbsttest. Ein fehlendes Gerät hat keinen Selbsttest.
+ */
+export function geraetBeantwortet(
+  a: CheckGeraetAntwort | undefined, mitSelbsttest = false,
+): boolean {
+  if (a === undefined) return false;
+  if (a.vorhanden === false) return true;
+  if (a.zustand === undefined) return false;
+  return !mitSelbsttest || a.selbsttest !== undefined;
+}
+
+/** IDA-411: auffällig heißt „fehlt", „Defekt" oder Selbsttest nicht bestanden. */
+export function geraetAuffaellig(a: CheckGeraetAntwort | undefined): boolean {
+  return a?.vorhanden === false || a?.zustand === "Defekt" || a?.selbsttest === false;
 }
 
 export type CheckZaehlung = {
@@ -54,7 +72,9 @@ export type CheckZaehlung = {
 export type CheckNutzlast = {
   fahrzeugId: string;
   positionen: { sollPositionId: string; ist: number; nachfuellMenge: number; boxMenge: number }[];
-  geraete: { geraetId: string; vorhanden: boolean; zustand?: Zustand; bemerkung?: string }[];
+  geraete: {
+    geraetId: string; vorhanden: boolean; zustand?: Zustand; bemerkung?: string; selbsttest?: boolean;
+  }[];
   flaschen: { flascheId: string; druckBar: number }[];
   verfaelle: { artikelId: string; verfall: string | null }[];
 };
@@ -110,12 +130,15 @@ export function checkNutzlast(args: {
     // was gilt, wenn das je umgangen wird: kein Nachweis für etwas, das niemand angesehen hat.
     geraete: geraete.flatMap((g) => {
       const a = z.geraete[g.id];
-      if (!a || !geraetBeantwortet(a)) return [];
+      if (!a || !geraetBeantwortet(a, g.selbsttest === true)) return [];
       const vorhanden = a.vorhanden !== false;
       return [{
         geraetId: g.id, vorhanden,
         ...(vorhanden && a.zustand ? { zustand: a.zustand } : {}),
         ...(a.bemerkung ? { bemerkung: a.bemerkung } : {}),
+        // Nur gefragt, nur vorhanden: ein Gerät ohne die Frage sendet nie einen Selbsttest.
+        ...(vorhanden && g.selbsttest === true && a.selbsttest !== undefined
+          ? { selbsttest: a.selbsttest } : {}),
       }];
     }),
     flaschen: flaschen.flatMap((f) => {

@@ -266,8 +266,10 @@ test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
 
   await weiter.click();
   await expect(page.getByText("Sind die Geräte da und in Ordnung?")).toBeVisible();
-  // IDA-377: nichts ist vorgewählt; „Alle in Ordnung" ist der bewusste Tipp.
-  await page.locator("[data-rolle='geraete-alle-ok']").click();
+  // IDA-377: nichts ist vorgewählt. IDA-411: kein Sammelknopf — jedes Gerät einzeln.
+  for (const knopf of await page.getByRole("button", { name: "In Ordnung", exact: true }).all()) {
+    await knopf.click();
+  }
   const vorhanden = page.locator("[data-rolle='geraet-vorhanden']").first();
   await expect(vorhanden).toHaveAttribute("aria-pressed", "true");
   await bild(page, bilder, "c6-geraete", [[vorhanden, page.getByRole("button", { name: "In Ordnung" }).first()]], schritt("Geräte"));

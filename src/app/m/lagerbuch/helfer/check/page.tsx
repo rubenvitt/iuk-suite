@@ -369,7 +369,7 @@ export default async function CheckSeite({
   const immerZaehlen = new Set(sollZeilen.filter((p) => p.immerZaehlen).map((p) => p.id));
   const box = boxOrt(db);
   const geraete = geraeteFuerLagerort(db, gewaehlt.id).map((g) => ({
-    id: g.id, typ: g.typ, name: g.name,
+    id: g.id, typ: g.typ, name: g.name, selbsttest: g.selbsttest,
   }));
   // ⚠️ `letzterDruck` geht UNVERAENDERT weiter, `null` eingeschlossen. Ein
   // `?? 0` hier stellte den Fehlalarm wieder her, gegen den Teil 3 den Typ

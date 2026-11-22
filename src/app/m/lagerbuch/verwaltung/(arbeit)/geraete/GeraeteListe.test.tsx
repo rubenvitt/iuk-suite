@@ -462,6 +462,7 @@ describe("NeuGeraet", () => {
       barcode: "MED-NEU-1",
       lagerortId: "rtw-1",
       anmerkung: "bereit",
+      selbsttest: false,
       mtkFaellig: undefined,
     });
     await warteAuf(
@@ -491,6 +492,7 @@ describe("NeuGeraet", () => {
       barcode: undefined,
       lagerortId: "rtw-1",
       anmerkung: undefined,
+      selbsttest: false,
       beschreibung: "Spineboard mit Gurtspinne",
       ablaufdatum: undefined,
     });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Alert, Button, DatePicker, Form, Input, Radio, Select } from "antd";
+import { Alert, Button, Checkbox, DatePicker, Form, Input, Radio, Select } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useRouter } from "next/navigation";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
@@ -26,6 +26,7 @@ export type GeraetInitial = {
   mtkFaellig: string | null;
   beschreibung: string | null;
   ablaufdatum: string | null;
+  selbsttest: boolean;
 };
 
 type Werte = {
@@ -37,6 +38,7 @@ type Werte = {
   mtkFaellig?: Dayjs | null;
   beschreibung?: string;
   ablaufdatum?: Dayjs | null;
+  selbsttest?: boolean;
 };
 
 type LagerortSelectOption = {
@@ -145,6 +147,7 @@ export function GeraetForm({
         ? optionalerText(werte.beschreibung)
         : undefined,
       ablaufdatum: werte.typ === "objekt" ? tag(werte.ablaufdatum) : undefined,
+      selbsttest: werte.selbsttest === true,
     });
   }
 
@@ -162,6 +165,7 @@ export function GeraetForm({
         mtkFaellig: initial.mtkFaellig ? dayjs(initial.mtkFaellig) : null,
         beschreibung: initial.beschreibung ?? "",
         ablaufdatum: initial.ablaufdatum ? dayjs(initial.ablaufdatum) : null,
+        selbsttest: initial.selbsttest,
       }}
       onFinish={speichern}
       onValuesChange={entwurf.onValuesChange}
@@ -227,6 +231,10 @@ export function GeraetForm({
 
         <Form.Item name="anmerkung" label="Anmerkung (optional)">
           <Input aria-label="Anmerkung" placeholder="Freitext" />
+        </Form.Item>
+        {/* IDA-411: z. B. corpuls C3 oder AED — der Check fragt dann „Selbsttest bestanden?“. */}
+        <Form.Item name="selbsttest" valuePropName="checked">
+          <Checkbox>Im Check nach dem Selbsttest fragen</Checkbox>
         </Form.Item>
       </Felder>
       <Button type="primary" htmlType="submit" loading={entwurf.zustand === "sendet"}>

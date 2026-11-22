@@ -96,6 +96,7 @@ export function geraetSeitenInhalt(db: DB, id: string, jetzt: Date): ReactNode {
           mtkFaellig: geraet.mtkFaellig,
           beschreibung: geraet.beschreibung,
           ablaufdatum: geraet.ablaufdatum,
+          selbsttest: geraet.selbsttest,
         }}
         lagerorte={lagerortOptionen(db)}
       />

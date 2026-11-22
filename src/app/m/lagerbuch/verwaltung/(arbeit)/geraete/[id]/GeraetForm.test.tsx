@@ -76,6 +76,7 @@ const MEDIZIN: GeraetInitial = {
   mtkFaellig: "2027-03-01",
   beschreibung: null,
   ablaufdatum: null,
+  selbsttest: true,
 };
 
 const OBJEKT: GeraetInitial = {
@@ -88,6 +89,7 @@ const OBJEKT: GeraetInitial = {
   mtkFaellig: null,
   beschreibung: "Mit Gurtspinne",
   ablaufdatum: "2028-04-05",
+  selbsttest: false,
 };
 
 const ORTE = [
@@ -247,6 +249,7 @@ describe("GeraetForm — Felder und Typtrennung", () => {
       mtkFaellig: "2027-03-01",
       beschreibung: undefined,
       ablaufdatum: undefined,
+      selbsttest: true,
     });
     expect(mocks.refresh).toHaveBeenCalledOnce();
   });
@@ -277,6 +280,7 @@ describe("GeraetForm — Felder und Typtrennung", () => {
       mtkFaellig: undefined,
       beschreibung: "Mit Gurtspinne",
       ablaufdatum: "2028-04-05",
+      selbsttest: false,
     });
   });
 });

@@ -38,6 +38,12 @@ const GeraetSchema = z.object({
   mtkFaellig: OptionalerTagSchema,
   beschreibung: z.string().trim().optional(),
   ablaufdatum: OptionalerTagSchema,
+  /*
+   * IDA-411: fragt der Fahrzeug-Check nach dem Selbsttest? OPTIONAL, und ein fehlender Wert ändert
+   * beim Bearbeiten NICHTS: ein Formular oder Entwurf von vor IDA-411 kennt das Feld nicht und darf
+   * einen gesetzten Schalter nicht still zurücknehmen.
+   */
+  selbsttest: z.boolean().optional(),
 });
 
 const AktivSchema = z.object({
@@ -133,6 +139,7 @@ export async function geraetSpeichern(
         mtkFaellig: istMedizin ? orNull(v.mtkFaellig) : null,
         beschreibung: istMedizin ? null : orNull(v.beschreibung),
         ablaufdatum: istMedizin ? null : orNull(v.ablaufdatum),
+        ...(v.selbsttest !== undefined ? { selbsttest: v.selbsttest } : {}),
       };
 
       if (v.id) {

@@ -636,6 +636,62 @@ describe("checkAbschluss — IDA-377: ein auffaelliges Geraet wird ein Mangel", 
   });
 });
 
+describe("checkAbschluss — IDA-411: der Selbsttest", () => {
+  const c3 = () => t.db.insert(geraete).values({
+    id: "g-c3", typ: "medizin", name: "corpuls C3", lagerortId: "fz-1", aktiv: true,
+    createdAt: new Date(), selbsttest: true,
+  }).run();
+  const geraetImNachweis = (checkId: string) =>
+    (JSON.parse(t.db.select().from(checks).where(eq(checks.id, checkId)).get()!.ergebnis!) as {
+      geraete: Record<string, unknown>[];
+    }).geraete;
+
+  it("nicht bestanden ist auffaellig und wird ein Mangel — der Text sagt es, die Bemerkung steht dahinter", async () => {
+    c3();
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      geraete: [{ geraetId: "g-c3", vorhanden: true, zustand: "In Ordnung", selbsttest: false, bemerkung: "Fehler 12" }],
+    }, t.db);
+    expect(r.ok && r.wert.geraeteAuffaellig).toBe(1);
+    expect(r.ok && r.wert.geraeteGemeldet).toBe(1);
+    const m = t.db.select().from(maengel).all();
+    expect(m.map((x) => ({ geraet: x.geraetId, punkte: x.punkte, text: x.beschreibung }))).toEqual([
+      { geraet: "g-c3", punkte: ["Gerät im Fahrzeug defekt"], text: "Selbsttest nicht bestanden — Fehler 12" },
+    ]);
+    expect(geraetImNachweis(r.ok ? r.wert.checkId : "")[0]).toMatchObject({ selbsttest: false });
+  });
+
+  it("bestanden ist unauffaellig und steht im Nachweis", async () => {
+    c3();
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      geraete: [{ geraetId: "g-c3", vorhanden: true, zustand: "In Ordnung", selbsttest: true }],
+    }, t.db);
+    expect(r.ok && r.wert.geraeteAuffaellig).toBe(0);
+    expect(t.db.select().from(maengel).all()).toHaveLength(0);
+    expect(geraetImNachweis(r.ok ? r.wert.checkId : "")[0]).toMatchObject({ selbsttest: true });
+  });
+
+  it("ein Entwurf von vor IDA-411 ohne das Feld kommt an — und behauptet keinen Selbsttest", async () => {
+    c3();
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      geraete: [{ geraetId: "g-c3", vorhanden: true, zustand: "In Ordnung" }],
+    }, t.db);
+    expect(r.ok).toBe(true);
+    expect(geraetImNachweis(r.ok ? r.wert.checkId : "")[0]).not.toHaveProperty("selbsttest");
+  });
+
+  it("bei einem Geraet OHNE die Frage wird ein mitgesendeter Wert verworfen", async () => {
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      geraete: [{ geraetId: "g-1", vorhanden: true, zustand: "In Ordnung", selbsttest: false }],
+    }, t.db);
+    expect(r.ok && r.wert.geraeteAuffaellig).toBe(0);
+    expect(geraetImNachweis(r.ok ? r.wert.checkId : "")[0]).not.toHaveProperty("selbsttest");
+  });
+});
+
 describe("checkAbschluss — Flaschen", () => {
   it("IDA-377: weist einen Druck ueber 110 % des Nennfuelldrucks ab — als Rueckgabewert, ohne zu schreiben", async () => {
     const r = await checkAbschluss({

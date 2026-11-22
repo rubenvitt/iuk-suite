@@ -259,6 +259,8 @@ export const geraete = sqliteTable(
     ablaufdatum: text("ablaufdatum"),       // "YYYY-MM-DD", nur typ='objekt'
     aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    // IDA-411: der Fahrzeug-Check fragt bei diesem Gerät „Selbsttest bestanden?“ (C3, AED).
+    selbsttest: integer("selbsttest", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [index("idx_geraete_lagerort").on(t.lagerortId)],
 );

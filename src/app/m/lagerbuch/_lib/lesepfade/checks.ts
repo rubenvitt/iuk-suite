@@ -225,6 +225,8 @@ export type CheckArtikelDetail = {
 export type CheckGeraetDetail = {
   geraetId: string; name: string; typ: "medizin" | "objekt" | null;
   vorhanden: boolean; zustand: string | null; bemerkung: string | null;
+  /** IDA-411: `null` = nicht gefragt (Gerät ohne Selbsttest-Frage oder Altcheck). */
+  selbsttest: boolean | null;
 };
 export type CheckFlascheDetail = {
   flascheId: string; name: string;
@@ -397,6 +399,7 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
       geraetId: x.geraetId, name: g?.name ?? "(gelöschtes Gerät)", typ: g?.typ ?? null,
       vorhanden: Boolean(x.vorhanden), zustand: x.zustand ?? null,
       bemerkung: x.bemerkung ?? null,
+      selbsttest: typeof x.selbsttest === "boolean" ? x.selbsttest : null,
     };
   });
 
