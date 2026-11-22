@@ -255,6 +255,36 @@ describe("Checks-Seite", () => {
    * auf der jemand nach Auffälligkeiten sucht. Eine ruhige `0` dort ist genau
    * das 200, das lügt.
    */
+  it("zeigt beim Verwaltungscheck den Chip „Verwaltung\" und die Bewegungen", () => {
+    checkEintragen({
+      id: "check-verwaltung",
+      ergebnis: JSON.stringify({
+        version: 2, art: "verwaltung", positionen: [], geraete: [], flaschen: [], verfall: [],
+        artikel: [{ artikelId: "a1", sollSumme: 5, istSumme: 5, ausgesondert: 2, aufgefuellt: 2 }],
+      }),
+    });
+
+    const chips = tabelleAus(checksInhalt(t.db, {})).zeilen[0]!.ergebnisChips;
+
+    expect(chips.map((c) => c.text)).toEqual([
+      "Verwaltung", "2 ausgesondert", "2 aufgefüllt",
+    ]);
+  });
+
+  it("setzt beim ruhigen Verwaltungscheck „vollständig\" hinter den Verwaltungs-Chip", () => {
+    checkEintragen({
+      id: "check-verwaltung-ruhig",
+      ergebnis: JSON.stringify({
+        version: 2, art: "verwaltung", positionen: [], artikel: [], geraete: [], flaschen: [],
+        verfall: [],
+      }),
+    });
+
+    const chips = tabelleAus(checksInhalt(t.db, {})).zeilen[0]!.ergebnisChips;
+
+    expect(chips.map((c) => c.text)).toEqual(["Verwaltung", "vollständig"]);
+  });
+
   describe("ein unlesbares ergebnis in der Übersicht (§11.5, 27)", () => {
     it("zeigt in der Positionen-Spalte das Wort statt der Zahl", () => {
       checkEintragen({ id: "check-kaputt", ergebnis: "{das ist kein json" });

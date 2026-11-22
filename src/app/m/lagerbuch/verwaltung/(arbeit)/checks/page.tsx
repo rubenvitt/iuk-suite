@@ -58,6 +58,21 @@ function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
   if (zeile.art === "kurz") {
     chips.push({ schluessel: "kurz", text: "Kurzcheck", ton: "grau", zeichen: null });
   }
+  // Der Check der Verwaltung zaehlt vollstaendig, ist aber kein Helfer-Check:
+  // die Zeile sagt es, damit „vollständig" nicht fuer beide Arten dasselbe heisst.
+  if (zeile.art === "verwaltung") {
+    chips.push({ schluessel: "verwaltung", text: "Verwaltung", ton: "grau", zeichen: null });
+  }
+  // Bewegungen der Verwaltung (nur dort belegt); eigene Chips, nicht in „korrigiert".
+  for (const [schluessel, menge, wort] of [
+    ["ausgesondert", zeile.ausgesondert, "ausgesondert"],
+    ["zurueckgelegt", zeile.zurueckgelegt, "zurückgelegt"],
+    ["aufgefuellt", zeile.aufgefuellt, "aufgefüllt"],
+  ] as const) {
+    if ((menge ?? 0) > 0) {
+      chips.push({ schluessel, text: `${menge} ${wort}`, ton: "grau", zeichen: null });
+    }
+  }
   if (zeile.plombenOffen > 0) {
     chips.push({
       schluessel: "plomben",
@@ -110,7 +125,7 @@ function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
       zeichen: "sauerstoff",
     });
   }
-  if (chips.every((c) => c.schluessel === "kurz")) {
+  if (chips.every((c) => c.schluessel === "kurz" || c.schluessel === "verwaltung")) {
     chips.push({
       schluessel: "vollstaendig",
       text: zeile.art === "kurz" ? "ohne Befund" : "vollständig",

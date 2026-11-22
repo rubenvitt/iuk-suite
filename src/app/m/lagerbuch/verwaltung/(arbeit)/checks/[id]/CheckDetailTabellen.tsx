@@ -52,6 +52,14 @@ export type AbgleichAnzeigeZeile = {
   nachgefuelltZahl: number;
   offenZahl: number;
   offenChip: DetailChipAnzeige;
+  /**
+   * Verwaltungscheck: die drei Bewegungen. ⚠️ ALLE ODER KEINES: die Zeilenquelle
+   * (`page.tsx`) setzt sie nur, wenn irgendein Artikel des Checks eine Bewegung
+   * hat — dasselbe Kriterium schaltet die Spalten ein (`bewegungsSpalten`).
+   */
+  ausgesondertZahl?: number;
+  zurueckgelegtZahl?: number;
+  aufgefuelltZahl?: number;
 };
 
 export type NachfuellAnzeigeZeile = {
@@ -101,6 +109,8 @@ export type VerfallAnzeigeZeile = {
 
 export type CheckDetailTabellenProps = {
   abgleichZeilen: AbgleichAnzeigeZeile[];
+  /** Die drei Bewegungsspalten im Abgleich zeigen (nur, wenn irgendein Wert > 0). */
+  bewegungsSpalten?: boolean;
   nachfuellZeilen: NachfuellAnzeigeZeile[];
   geraeteZeilen: GeraetAnzeigeZeile[];
   flaschenZeilen: FlascheAnzeigeZeile[];
@@ -214,6 +224,27 @@ const ABGLEICH_SPALTEN: TableProps<AbgleichAnzeigeZeile>["columns"] = [
     onFilter: OFFEN_FILTER.onFilter,
     render: (offenChip: DetailChipAnzeige) => <AnzeigeChip chip={offenChip} />,
   },
+];
+
+/** Die Bewegungsspalten stehen zwischen „Nachgefüllt" und „Offen". */
+const BEWEGUNGS_SPALTEN: TableProps<AbgleichAnzeigeZeile>["columns"] = [
+  ["Ausgesondert", "ausgesondert", (z: AbgleichAnzeigeZeile) => z.ausgesondertZahl ?? 0],
+  ["Zurückgelegt", "zurueckgelegt", (z: AbgleichAnzeigeZeile) => z.zurueckgelegtZahl ?? 0],
+  ["Aufgefüllt", "aufgefuellt", (z: AbgleichAnzeigeZeile) => z.aufgefuelltZahl ?? 0],
+].map(([title, key, zahl]) => ({
+  title: title as string,
+  key: key as string,
+  align: "right" as const,
+  sorter: nachZahl<AbgleichAnzeigeZeile>(zahl as (z: AbgleichAnzeigeZeile) => number),
+  render: (_: unknown, zeile: AbgleichAnzeigeZeile) => (
+    <span style={SCHRIFT.mono}>{(zahl as (z: AbgleichAnzeigeZeile) => number)(zeile)}</span>
+  ),
+}));
+
+const ABGLEICH_SPALTEN_MIT_BEWEGUNG: TableProps<AbgleichAnzeigeZeile>["columns"] = [
+  ...ABGLEICH_SPALTEN!.slice(0, -1),
+  ...BEWEGUNGS_SPALTEN!,
+  ABGLEICH_SPALTEN!.at(-1)!,
 ];
 
 const NACHFUELL_SPALTEN: TableProps<NachfuellAnzeigeZeile>["columns"] = [
@@ -454,6 +485,7 @@ function Steuerzeile({
 
 export function CheckDetailTabellen({
   abgleichZeilen,
+  bewegungsSpalten,
   nachfuellZeilen,
   geraeteZeilen,
   flaschenZeilen,
@@ -548,7 +580,7 @@ export function CheckDetailTabellen({
           aria-label="Abgleich"
           leer={{ nichts: leertext("Keine Positionen erfasst."), gefiltert: "Keine Position passt zum Filter." }}
           dataSource={ganz ? abgleichZeilen : abgleichAbw}
-          columns={ABGLEICH_SPALTEN}
+          columns={bewegungsSpalten ? ABGLEICH_SPALTEN_MIT_BEWEGUNG : ABGLEICH_SPALTEN}
         />
       ),
     },

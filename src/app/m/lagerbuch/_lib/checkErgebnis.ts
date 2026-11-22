@@ -18,6 +18,14 @@
  * die einzige Auswertung, die es fuer sie je gab.
  */
 
+/**
+ * Die Art einer Pruefung. `verwaltung` ist der Check der Verwaltung (kein
+ * Helfer-Ablauf): er traegt zusaetzlich Bewegungen je Artikel und einen
+ * Kommentar. Die Whitelist in `parseCheckErgebnis` und `checkArtUndPlomben`
+ * haengt an diesem Typ — ein vierter Wert muss an beiden Stellen auftauchen.
+ */
+export type CheckArt = "kurz" | "voll" | "verwaltung";
+
 /** V2: eine gezaehlte Position. `sollPositionId` zeigt auf `soll_positionen.id`
  *  und kann auf eine geloeschte Zeile zeigen — `ergebnis` ist freies JSON OHNE
  *  Fremdschluessel. Der Leser ueberbrueckt das tolerant (T49). */
@@ -46,6 +54,16 @@ export type CheckArtikelRoh = {
   nachfuellGebucht?: number;
   /** IDA-247: in die Entnahmebox umgelagert, nur wenn > 0. */
   boxGebucht?: number;
+  /**
+   * Verwaltungscheck: aus dem Bestand genommen (Aussondern). Nur wenn > 0; fehlt
+   * in jedem aelteren Check und zaehlt dann 0. Erhoeht `offen` (siehe
+   * `offenJeArtikel`).
+   */
+  ausgesondert?: number;
+  /** Verwaltungscheck: aus dem Rücklauf zurück in den Bestand gelegt, nur wenn > 0. */
+  zurueckgelegt?: number;
+  /** Verwaltungscheck: aus dem Lager aufgefüllt, nur wenn > 0. Senkt `offen`. */
+  aufgefuellt?: number;
 };
 
 /** V2: die Geraete-Quittierung. ⚠️ `zustand` ist ein FREIER String, weil ein
@@ -118,9 +136,13 @@ export type CheckErgebnisV2 = {
   /**
    * IDA-222: Kurz- oder Vollcheck. ⚠️ ADDITIV UND OPTIONAL: jeder Check vor
    * IDA-222 traegt das Feld nicht und war ein Vollcheck — Leser fragen
-   * `art === "kurz"`, nie `art === "voll"`.
+   * `art === "kurz"`, nie `art === "voll"`. Dasselbe gilt fuer `"verwaltung"`:
+   * wer nur `"kurz"` kennt, behandelt ihn wie einen Vollcheck, und das ist die
+   * sichere Richtung — der Verwaltungscheck zaehlt vollstaendig.
    */
-  art?: "kurz" | "voll";
+  art?: CheckArt;
+  /** Verwaltungscheck: Freitext der Verwaltung zum Check. Fehlt = keiner. */
+  kommentar?: string;
   /** IDA-222: abgelesene bzw. gesetzte Plomben; fehlt bei Altchecks. */
   plomben?: CheckPlombeRoh[];
   /**
@@ -249,7 +271,8 @@ export function parseCheckErgebnis(roh: string | null): CheckErgebnis {
     geraete: liste<CheckGeraetRoh>(o.geraete),
     flaschen: liste<CheckFlascheRoh>(o.flaschen),
     verfall: liste<CheckVerfallRoh>(o.verfall),
-    ...(o.art === "kurz" || o.art === "voll" ? { art: o.art } : {}),
+    ...(o.art === "kurz" || o.art === "voll" || o.art === "verwaltung" ? { art: o.art } : {}),
+    ...(typeof o.kommentar === "string" && o.kommentar !== "" ? { kommentar: o.kommentar } : {}),
     ...(Array.isArray(o.plomben) ? { plomben: o.plomben as CheckPlombeRoh[] } : {}),
   };
 }
@@ -262,7 +285,7 @@ export function parseCheckErgebnis(roh: string | null): CheckErgebnis {
  * und unlesbare Ergebnisse sind Vollchecks ohne Plomben.
  */
 export function checkArtUndPlomben(roh: string | null): {
-  art: "kurz" | "voll";
+  art: CheckArt;
   plomben: CheckPlombeRoh[];
   plombenOffen: number;
 } {
@@ -270,7 +293,8 @@ export function checkArtUndPlomben(roh: string | null): {
   if (e.version !== 2) return { art: "voll", plomben: [], plombenOffen: 0 };
   const plomben = e.plomben ?? [];
   return {
-    art: e.art === "kurz" ? "kurz" : "voll",
+    // Unbekannte Werte bleiben „voll" (Altchecks, fremde Schreiber).
+    art: e.art === "kurz" || e.art === "verwaltung" ? e.art : "voll",
     plomben,
     plombenOffen: plomben.filter((p) => p.intakt === false).length,
   };

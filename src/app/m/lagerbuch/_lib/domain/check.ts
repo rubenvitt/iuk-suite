@@ -2,7 +2,7 @@
  * Fahrzeug-Check: Fehlmengen und die EINE Summenrechnung.
  * Kein "use client", kein Datenbankzugriff.
  */
-import { parseCheckErgebnis } from "../checkErgebnis";
+import { parseCheckErgebnis, type CheckArtikelRoh } from "../checkErgebnis";
 import { o2Status } from "./o2";
 import { ZUSTAND_DEFEKT } from "../konstanten";
 
@@ -23,8 +23,11 @@ export function fehlmengen<T extends { soll: number; ist: number }>(
 }
 
 /**
- * DIE EINE `offen`-Formel: `max(0, soll − ist − nachgefuellt + inBox)`, JE ARTIKEL
- * geklemmt. `boxGebucht` (IDA-247) fehlt in jedem aelteren Check und zaehlt dann 0;
+ * DIE EINE `offen`-Formel: `max(0, soll − ist − nachgefuellt + inBox + ausgesondert
+ * + zurueckgelegt − aufgefuellt)`, JE ARTIKEL geklemmt. Die drei letzten Glieder
+ * sind die Bewegungen des Verwaltungschecks: was die Verwaltung nach dem Zaehlen
+ * aus dem Bestand nimmt oder zurueckstellt, fehlt weiter bzw. wieder; was sie
+ * auffuellt, gleicht aus. Sie fehlen in jedem Helfer-Check und zaehlen dann 0. `boxGebucht` (IDA-247) fehlt in jedem aelteren Check und zaehlt dann 0;
  * es wirkt nur, wenn derselbe Artikel in einem Fach zu viel und in einem anderen zu
  * wenig hatte.
  *
@@ -42,9 +45,11 @@ export function fehlmengen<T extends { soll: number; ist: number }>(
 export function offenJeArtikel(a: {
   sollSumme?: number | null; istSumme?: number | null; nachfuellGebucht?: number | null;
   boxGebucht?: number | null;
+  ausgesondert?: number | null; zurueckgelegt?: number | null; aufgefuellt?: number | null;
 }): number {
   return Math.max(0,
-    (a.sollSumme ?? 0) - (a.istSumme ?? 0) - (a.nachfuellGebucht ?? 0) + (a.boxGebucht ?? 0));
+    (a.sollSumme ?? 0) - (a.istSumme ?? 0) - (a.nachfuellGebucht ?? 0) + (a.boxGebucht ?? 0)
+    + (a.ausgesondert ?? 0) + (a.zurueckgelegt ?? 0) - (a.aufgefuellt ?? 0));
 }
 
 export type CheckSummen = {
@@ -63,6 +68,15 @@ export type CheckSummen = {
   /** Altformat (V1) ohne Positionsdetails. Die Detailseite SAGT es (§11.5, 26). */
   altFormat: boolean;
   /**
+   * Verwaltungscheck: Summe der Bewegungen je Art. ⚠️ OPTIONAL UND NUR BEI > 0
+   * GESETZT: in jedem Helfer-Check und im Altformat fehlen die Felder, damit
+   * keine Zusicherung ueber eine Summe um drei Nullen waechst. Leser fragen
+   * `(x.ausgesondert ?? 0) > 0`.
+   */
+  ausgesondert?: number;
+  zurueckgelegt?: number;
+  aufgefuellt?: number;
+  /**
    * §11.5, Zustand 27: der Rohwert war nicht lesbar. **Alle Zaehler oben sind
    * dann 0 — aber nicht, weil nichts zu melden war.**
    *
@@ -80,6 +94,18 @@ export type CheckSummen = {
    */
   unlesbar: boolean;
 };
+
+/** Die Bewegungssummen — nur die Arten > 0, siehe `CheckSummen.ausgesondert`. */
+function bewegungen(artikel: CheckArtikelRoh[]): Pick<CheckSummen, "ausgesondert" | "zurueckgelegt" | "aufgefuellt"> {
+  const summe = (f: "ausgesondert" | "zurueckgelegt" | "aufgefuellt") =>
+    artikel.reduce((s, a) => s + (a[f] ?? 0), 0);
+  const [aus, zur, auf] = [summe("ausgesondert"), summe("zurueckgelegt"), summe("aufgefuellt")];
+  return {
+    ...(aus > 0 ? { ausgesondert: aus } : {}),
+    ...(zur > 0 ? { zurueckgelegt: zur } : {}),
+    ...(auf > 0 ? { aufgefuellt: auf } : {}),
+  };
+}
 
 /**
  * DIE EINE Summenrechnung fuer Uebersicht UND Detail (§5.8.3).
@@ -182,6 +208,8 @@ export function summiereCheckErgebnis(
     flaschenAuffaellig,
     nichtBewertbar,
     altFormat: false,
+    // Bewegungen des Verwaltungschecks: eigene Zaehler, NICHT in `korrigiert`.
+    ...bewegungen(e.artikel),
     // Der Grund kommt aus dem Parser und wird hier nur durchgereicht — die
     // Zaehlung selbst kann ihn nicht kennen.
     unlesbar: e.unlesbar === true,

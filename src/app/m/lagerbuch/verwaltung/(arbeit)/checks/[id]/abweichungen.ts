@@ -35,6 +35,9 @@ export function abgleichWeichtAb(zeile: AbgleichAnzeigeZeile): boolean {
   return zeile.istZahl !== zeile.sollZahl
     || zeile.korrekturZahl !== 0
     || zeile.nachgefuelltZahl > 0
+    || (zeile.ausgesondertZahl ?? 0) > 0
+    || (zeile.zurueckgelegtZahl ?? 0) > 0
+    || (zeile.aufgefuelltZahl ?? 0) > 0
     || zeile.offenZahl > 0;
 }
 

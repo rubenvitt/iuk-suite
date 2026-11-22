@@ -24,7 +24,7 @@ import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from 
 import type { DB } from "../../_db/client";
 import { quelleAufloeser } from "../../_db/quelle";
 import type { Einheitenart } from "../konstanten";
-import { checkArtUndPlomben, parseCheckErgebnis, type CheckPlombeRoh } from "../checkErgebnis";
+import { checkArtUndPlomben, parseCheckErgebnis, type CheckArt, type CheckPlombeRoh } from "../checkErgebnis";
 import { offenJeArtikel, summiereCheckErgebnis, type CheckSummen } from "../domain/check";
 import { o2Status } from "../domain/o2";
 import { wechselGrenzeNachschlag } from "./o2";
@@ -82,8 +82,8 @@ export type CheckHistorieZeile = CheckSummen & {
    * ist zugleich die Lesart von „soweit vorhanden" im Ticket.
    */
   wer: string;
-  /** IDA-222: Kurz- oder Vollcheck; Altchecks sind Vollchecks. */
-  art: "kurz" | "voll";
+  /** IDA-222: Kurz-, Voll- oder Verwaltungscheck; Altchecks sind Vollchecks. */
+  art: CheckArt;
   /** IDA-222: im Kurzcheck abgelesene Plomben, die nicht mehr standen. */
   plombenOffen: number;
 };
@@ -221,6 +221,8 @@ export type CheckArtikelDetail = {
   artikelId: string; artikelName: string; einheit: string;
   sollSumme: number; istSumme: number; recordedVorher: number;
   korrektur: number; nachfuellGebucht: number; offen: number;
+  /** Verwaltungscheck: die drei Bewegungen, 0 in jedem anderen Check. */
+  ausgesondert: number; zurueckgelegt: number; aufgefuellt: number;
 };
 export type CheckGeraetDetail = {
   geraetId: string; name: string; typ: "medizin" | "objekt" | null;
@@ -266,9 +268,11 @@ export type CheckDetail = {
    *  Zustand 26) — alles andere ist eine leere Tabelle, die wie ein Fehler
    *  aussieht. */
   altFormat: boolean;
-  /** IDA-222: Kurz- oder Vollcheck und was mit den Plomben war. */
-  art: "kurz" | "voll";
+  /** IDA-222: Kurz-, Voll- oder Verwaltungscheck und was mit den Plomben war. */
+  art: CheckArt;
   plomben: CheckPlombeRoh[];
+  /** Verwaltungscheck: der Freitext zum Check; `null` = keiner. */
+  kommentar: string | null;
   /**
    * ⚠️ §11.5, Zustand 27, und NICHT dasselbe wie `altFormat`: der Rohwert war
    * nicht lesbar, die leeren Listen unten sind also kein Befund, sondern ein
@@ -390,6 +394,8 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
       // `summiereCheckErgebnis` die Summe bildet (§5.8.3) — sonst stuenden hier
       // Zeilen, deren `offen` sich nicht zur ausgewiesenen Summe addiert.
       offen: offenJeArtikel(g),
+      ausgesondert: g.ausgesondert ?? 0, zurueckgelegt: g.zurueckgelegt ?? 0,
+      aufgefuellt: g.aufgefuellt ?? 0,
     };
   });
 
@@ -469,6 +475,7 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
     positionen, artikel: artikelD, geraete: geraeteD, flaschen: flaschenD, verfall: verfallD,
     altFormat: summe.altFormat,
     ...(({ art, plomben }) => ({ art, plomben }))(checkArtUndPlomben(c.ergebnis)),
+    kommentar: (e.version === 2 ? e.kommentar : undefined) ?? null,
     // Aus DERSELBEN Quelle wie `altFormat` daneben. Seit die Uebersicht den
     // Grund ebenfalls anzeigt, traegt ihn `CheckSummen`; eine zweite Herleitung
     // hier waere eine zweite Wahrheit ueber dasselbe JSON — genau der Bruch, den

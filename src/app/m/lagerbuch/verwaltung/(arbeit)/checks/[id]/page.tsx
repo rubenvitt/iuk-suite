@@ -25,6 +25,10 @@ import { zeitzone } from "@/core/zeit";
 
 export const dynamic = "force-dynamic";
 
+const CHECK_ART_TITEL: Record<CheckDetail["art"], string> = {
+  kurz: "Kurzcheck", voll: "Vollcheck", verwaltung: "Verwaltungscheck",
+};
+
 function chip(
   text: string,
   ton: DetailChipAnzeige["ton"],
@@ -37,6 +41,10 @@ export function checkDetailInhalt(
   check: CheckDetail,
   alleAnfangs: AbschnittSchluessel[] = [],
 ): ReactNode {
+  // Verwaltungscheck: die Bewegungsspalten gibt es nur, wenn irgendein Artikel eine hat.
+  const bewegungsSpalten = check.artikel.some(
+    (a) => a.ausgesondert > 0 || a.zurueckgelegt > 0 || a.aufgefuellt > 0,
+  );
   const abgleichZeilen: AbgleichAnzeigeZeile[] = check.artikel.map((artikel) => ({
     id: artikel.artikelId,
     artikel: artikel.artikelName,
@@ -57,6 +65,13 @@ export function checkDetailInhalt(
     offenChip: artikel.offen > 0
       ? chip(`fehlt ${artikel.offen}`, "rot", "warnung")
       : chip("vollständig", "ok"),
+    ...(bewegungsSpalten
+      ? {
+        ausgesondertZahl: artikel.ausgesondert,
+        zurueckgelegtZahl: artikel.zurueckgelegt,
+        aufgefuelltZahl: artikel.aufgefuellt,
+      }
+      : {}),
   }));
   const nachfuellZeilen: NachfuellAnzeigeZeile[] = check.positionen.map((position) => {
     const luecke = position.soll - position.ist;
@@ -184,7 +199,7 @@ export function checkDetailInhalt(
               * „abgeschlossen" noch stillschweigend vorausgesetzt war.
               */}
             {/* IDA-222: welche Pruefung — ein Kurzcheck zaehlt nur eine Stichprobe. */}
-            {check.art === "kurz" ? "Kurzcheck" : "Vollcheck"}{" · "}
+            {CHECK_ART_TITEL[check.art]}{" · "}
             {check.completedAt
               ? `Abgeschlossen ${check.completedAt.toLocaleString("de-DE", {
                 timeZone: zeitzone(),
@@ -341,6 +356,13 @@ export function checkDetailInhalt(
         * beides, gewinnt die Bedingung hier — die Nullen fallen weg. Das ist
         * richtig herum: bei ihm steht nicht einmal fest, ob noch gezaehlt wird.
         */}
+      {/* Verwaltungscheck: der Freitext der Verwaltung, wenn sie einen geschrieben hat. */}
+      {check.kommentar ? (
+        <p data-rolle="check-kommentar" style={{ marginBlockEnd: SPACE.lg, whiteSpace: "pre-wrap" }}>
+          {check.kommentar}
+        </p>
+      ) : null}
+
       {check.offen && !check.hatZwischenstand ? null : (
       <Kennzahlen>
         <Kachel
@@ -399,6 +421,7 @@ export function checkDetailInhalt(
 
       <CheckDetailTabellen
         abgleichZeilen={abgleichZeilen}
+        bewegungsSpalten={bewegungsSpalten}
         nachfuellZeilen={nachfuellZeilen}
         geraeteZeilen={geraeteZeilen}
         flaschenZeilen={flaschenZeilen}
