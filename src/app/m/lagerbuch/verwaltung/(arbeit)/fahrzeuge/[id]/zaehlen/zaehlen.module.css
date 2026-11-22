@@ -1,0 +1,148 @@
+/*
+ * DIE ZÄHLSEITE EINER EINHEIT (Verwaltungscheck) — Karten des Reiters „Bestand"
+ * und die klebende Abschlussleiste. Nach dem Vorbild der Inventur
+ * (`inventur/inventurkarte.module.css`), nicht aus ihr importiert: die Inventur
+ * wird nicht verallgemeinert (Spec 6.3).
+ *
+ * ⚠️ KEINE EIGENE MEDIA QUERY FÜR DIE KARTEN. Ob sie zu sehen sind, entscheidet
+ * `core/tabelle/schmalkarten.module.css`; die Leiste schaltet mit demselben
+ * Breakpoint der Suite (767.98px, docs/design/README.md).
+ *
+ * ⚠️ KEINE SCHRIFT UNTER 16px AN BEDIENBAREM (`core/theme/feldschrift.test.ts`).
+ */
+
+.karte {
+  border: 1px solid var(--lb-linie);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--lb-flaeche, transparent);
+}
+
+.name {
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.merkmale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--lb-stahl);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stepper und „Stimmt"/Abweichung in einer Zeile; das Feld nimmt den Rest. */
+.zaehlzeile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stepper > :global(.ant-input-number) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.verfall {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.verfallTitel {
+  color: var(--lb-stahl);
+  font-size: 14px;
+}
+
+/*
+ * DIE ABSCHLUSSLEISTE STEHT FEST AM UNTEREN RAND — `sticky`, nicht `fixed`
+ * (Begründung in `inventur/inventurkarte.module.css`, `.abschluss`). Am
+ * Schreibtisch endet der virtuelle Tabellenkörper über ihr (`onHoehe` → `rand`,
+ * Falle 16). Deckender Hintergrund: Karten scrollen darunter durch.
+ */
+.abschluss {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  border: 1px solid var(--lb-linie);
+  border-radius: 6px;
+  background: var(--lb-karte);
+  box-shadow: 0 -4px 16px rgba(12, 18, 24, 0.08);
+}
+
+.abschlussZeile {
+  display: grid;
+  grid-template-columns: auto minmax(200px, 1fr) auto;
+  grid-template-areas: "fortschritt kommentar knopf";
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.fortschritt {
+  grid-area: fortschritt;
+  font-size: 14px;
+  color: var(--lb-stahl);
+  font-variant-numeric: tabular-nums;
+}
+
+.fortschritt strong {
+  color: var(--lb-tinte);
+}
+
+.kommentar {
+  grid-area: kommentar;
+  min-width: 0;
+}
+
+.knopf {
+  grid-area: knopf;
+}
+
+/* Der Grund einer Sperre steht SICHTBAR neben dem Knopf (docs/design/README.md, Formulare Regel 1). */
+.sperrgruende {
+  margin: 0;
+  padding-inline-start: 20px;
+  color: var(--lb-stahl);
+  font-size: 14px;
+}
+
+.kennzahlen {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 767.98px) {
+  .abschlussZeile {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "kommentar kommentar"
+      "fortschritt knopf";
+  }
+}
