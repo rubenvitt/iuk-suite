@@ -200,7 +200,7 @@ const ACTIONS = join(MODUL, "_actions");
  * nur Stammdaten. Deshalb steht hier `insert`/`update` und nicht der blosse
  * Tabellenname — die Unterscheidung ist Schreiben gegen Lesen.
  */
-const SCHREIBT = /(?:insert\(\s*(?:buchungen|chargen)\s*\)|update\(\s*chargen\s*\)|schreibpfade\/(?:abbuchung|zugang|umlagerung|korrektur)")/;
+const SCHREIBT = /(?:insert\(\s*(?:buchungen|chargen)\s*\)|update\(\s*chargen\s*\)|schreibpfade\/(?:abbuchung|zugang|umlagerung|korrektur|einheitBewegung|check)")/;
 
 function actionDateien(): { name: string; text: string }[] {
   return readdirSync(ACTIONS)
