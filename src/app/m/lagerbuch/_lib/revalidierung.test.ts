@@ -222,6 +222,7 @@ describe("_actions/ — jeder Bestandsschreiber benutzt die eine Liste", () => {
       "entnahmebox.ts",
       "inventur.ts",
       "ruecklauf.ts",
+      "verwaltungscheck.ts",
     ]);
   });
 
