@@ -6,15 +6,15 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb, type DB } from "../_db/client";
 import {
-  checks, sollPositionen, geraete, o2Flaschen, o2Messungen, lagerorte, plomben, newId,
+  checks, sollPositionen, o2Flaschen, lagerorte, plomben, newId,
 } from "../_db/schema";
 import { bereichsAbweisung } from "../_lib/helferBereich";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
 import {
-  CHECK_ABGLEICH, CHECK_MESSUNG, CHECK_NACHFUELLUNG,
+  CHECK_ABGLEICH, CHECK_NACHFUELLUNG,
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME,
-  MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT,
+  MONAT_REGEX, ZUSTAENDE,
   dieseEinheit, grossAmAnfang,
 } from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
@@ -24,9 +24,11 @@ import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { setzeVerfall, verfallFolgtDemMaterial } from "../_lib/schreibpfade/lagerortVerfall";
 import { setzeFachVerfaelle } from "../_lib/schreibpfade/fachVerfall";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
-import { druckZuHoch, o2Status } from "../_lib/domain/o2";
-import { ortsartAus, punktFuerGeraet } from "../_lib/maengel/checkliste";
-import { legeMangelAn, offenerMangelZuGeraet } from "../_lib/maengel/daten";
+import { druckZuHoch } from "../_lib/domain/o2";
+import {
+  bucheFlaschenMessungen, bucheGeraeteAntworten, gruppiereZaehlung, schreibeCheckZeile,
+  setzePlombenNummern,
+} from "../_lib/schreibpfade/check";
 import { offenJeArtikel } from "../_lib/domain/check";
 import { ueberschuss } from "../_lib/domain/sollBereich";
 import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
@@ -363,82 +365,61 @@ export async function checkAbschluss(
       const byId = new Map(sollRows.map((s) => [s.id, s]));
       const referenz = `check:${checkId}`;
 
-      type Gruppe = {
-        artikelId: string; positionen: string[];
-        sollSumme: number; istSumme: number; nachfuellGewuenscht: number;
-        boxGewuenscht: number;
-      };
-      const gruppen = new Map<string, Gruppe>();
+      /*
+       * WURF 1 von 4 (fremde Position) und IDA-222 — EIN ARTIKEL WIRD GANZ ODER
+       * GAR NICHT GEZAEHLT — stehen in `gruppiereZaehlung` (gemeinsam mit dem
+       * Verwaltungscheck). Die Oberflaeche zieht immer ganze Artikel
+       * (`_lib/domain/stichprobe.ts`); `gruppiereZaehlung` ist der Riegel fuer
+       * jeden anderen Weg.
+       */
+      const zaehlung = gruppiereZaehlung(sollRows, v.positionen);
+
+      // Was nur der Helfer-Check kennt: Nachfuell- und Box-Wunsch je Position,
+      // geklemmt und je Artikel summiert.
+      const wunsch = new Map<string, { nachfuell: number; box: number }>();
       const posErgebnis: {
         sollPositionId: string; artikelId: string; soll: number; ist: number;
         sollMax?: number; box?: number;
-      }[] = [];
-
-      for (const p of v.positionen) {
-        const row = byId.get(p.sollPositionId);
-        // WURF 1 von 4 (§7.3, Riegelfall — nicht „erwartbar", sondern
-        // „manipuliert"). Kein Helfer erreicht das ueber die Oberflaeche: die
-        // Nutzlast entsteht aus Daten, die derselbe Server gerade geliefert hat.
-        if (!row) throw new Error("Soll-Position gehört nicht zu diesem Fahrzeug");
+      }[] = v.positionen.map((p) => {
+        const row = byId.get(p.sollPositionId)!;   // `gruppiereZaehlung` hat die Zugehoerigkeit geprueft
         const nachfuellWunsch = Math.min(p.nachfuellMenge, Math.max(0, row.soll - p.ist));
         const boxWunsch = Math.min(p.boxMenge, ueberschuss(p.ist, row.soll, row.sollMax));
-        const g = gruppen.get(row.artikelId) ?? {
-          artikelId: row.artikelId, positionen: [], sollSumme: 0, istSumme: 0, nachfuellGewuenscht: 0,
-          boxGewuenscht: 0,
-        };
-        g.positionen.push(row.id);
-        g.sollSumme += row.soll;
-        g.istSumme += p.ist;
-        g.nachfuellGewuenscht += nachfuellWunsch;
-        g.boxGewuenscht += boxWunsch;
-        gruppen.set(row.artikelId, g);
+        const w = wunsch.get(row.artikelId) ?? { nachfuell: 0, box: 0 };
+        w.nachfuell += nachfuellWunsch;
+        w.box += boxWunsch;
+        wunsch.set(row.artikelId, w);
         // IDA-247: `sollMax` und `box` NUR, wenn gesetzt — ein Check ohne
         // Bereich und ohne Kiste schreibt dasselbe JSON wie vorher.
-        posErgebnis.push({
+        return {
           sollPositionId: row.id, artikelId: row.artikelId, soll: row.soll, ist: p.ist,
           ...(row.sollMax != null && row.sollMax > row.soll ? { sollMax: row.sollMax } : {}),
           ...(boxWunsch > 0 ? { box: boxWunsch } : {}),
-        });
-      }
-
-      // DRK-297, Fixrunde 1 (Befund 3) — EINMAL vor der Gruppenschleife
-      // geladen, nicht einmal je Artikelgruppe: `handlagerOrte` haengt an
-      // keinem Artikel, ein Fahrzeug-Check mit vielen Positionen laedt sie
-      // sonst unnoetig oft neu.
-      /*
-       * IDA-222 — EIN ARTIKEL WIRD GANZ ODER GAR NICHT GEZAEHLT.
-       *
-       * Der Abgleich darunter setzt den Fahrzeugbestand je Artikel auf die
-       * Summe der gezaehlten Positionen. Fehlt eine Position desselben Artikels
-       * (Kurzcheck zieht nur eine Stichprobe), waere das eine Teilsumme — und
-       * die Korrekturbuchung landet unwiderruflich im Journal. Die Oberflaeche
-       * zieht deshalb immer ganze Artikel (`_lib/domain/stichprobe.ts`); hier
-       * steht der Riegel fuer jeden anderen Weg.
-       */
-      for (const g of gruppen.values()) {
-        const alle = sollRows.filter((r) => r.artikelId === g.artikelId).length;
-        if (g.positionen.length !== alle) {
-          throw new Error("Ein Artikel wurde nur in einem Teil seiner Fächer gezählt");
-        }
-      }
+        };
+      });
+      const gruppen = [...zaehlung.values()].map((g) => ({
+        artikelId: g.artikelId, positionen: g.positionen, sollSumme: g.sollSumme, istSumme: g.istSumme,
+        nachfuellGewuenscht: wunsch.get(g.artikelId)?.nachfuell ?? 0,
+        boxGewuenscht: wunsch.get(g.artikelId)?.box ?? 0,
+      }));
 
       /*
        * IDA-222 — PLOMBEN. Im Kurzcheck wird jede stehende Plombe abgelesen;
        * passt die Nummer nicht oder fehlt sie, steht die Plombe nicht mehr
        * (`nummer` wird geleert, der naechste Vollcheck setzt sie neu), und ihr
-       * Fach MUSS in dieser Nutzlast gezaehlt sein. Im Vollcheck wird gesetzt.
+       * Fach MUSS in dieser Nutzlast gezaehlt sein. Im Vollcheck wird gesetzt
+       * (`setzePlombenNummern`, gemeinsam mit dem Verwaltungscheck).
        */
-      const plombenHier = new Map(
-        tx.select().from(plomben).where(eq(plomben.lagerortId, v.fahrzeugId)).all()
-          .filter((p) => p.aktiv)
-          .map((p) => [p.id, p]),
-      );
-      const gezaehltIds = new Set(v.positionen.map((p) => p.sollPositionId));
-      const plombenErgebnis: CheckPlombeRoh[] = [];
-      for (const e of v.plomben) {
-        const pl = plombenHier.get(e.plombeId);
-        if (!pl) throw new Error("Plombe gehört nicht zu diesem Fahrzeug");
-        if (v.art === "kurz") {
+      let plombenErgebnis: CheckPlombeRoh[] = [];
+      if (v.art === "kurz") {
+        const plombenHier = new Map(
+          tx.select().from(plomben).where(eq(plomben.lagerortId, v.fahrzeugId)).all()
+            .filter((p) => p.aktiv)
+            .map((p) => [p.id, p]),
+        );
+        const gezaehltIds = new Set(v.positionen.map((p) => p.sollPositionId));
+        for (const e of v.plomben) {
+          const pl = plombenHier.get(e.plombeId);
+          if (!pl) throw new Error("Plombe gehört nicht zu diesem Fahrzeug");
           const intakt = pl.nummer !== null && e.nummer !== null
             && plombenNummerNorm(e.nummer) === plombenNummerNorm(pl.nummer);
           if (!intakt) {
@@ -455,23 +436,23 @@ export async function checkAbschluss(
             plombeId: pl.id, bezeichnung: pl.bezeichnung,
             erwartet: pl.nummer, gelesen: e.nummer, intakt,
           });
-        } else if (e.nummer) {
-          plombenGesetzt++;
-          tx.update(plomben).set({ nummer: e.nummer, gesetztAt: new Date() })
-            .where(eq(plomben.id, pl.id)).run();
-          plombenErgebnis.push({ plombeId: pl.id, bezeichnung: pl.bezeichnung, gesetzt: e.nummer });
         }
-      }
-      if (v.art === "kurz") {
         for (const pl of plombenHier.values()) {
           if (plombeDecktAb(pl) && !v.plomben.some((e) => e.plombeId === pl.id)) {
             throw new Error("Eine stehende Plombe wurde nicht abgelesen");
           }
         }
+      } else {
+        plombenErgebnis = setzePlombenNummern(tx, { lagerortId: v.fahrzeugId, eintraege: v.plomben });
+        plombenGesetzt = plombenErgebnis.length;
       }
 
+      // DRK-297, Fixrunde 1 (Befund 3) — EINMAL vor der Gruppenschleife
+      // geladen, nicht einmal je Artikelgruppe: `handlagerOrte` haengt an
+      // keinem Artikel, ein Fahrzeug-Check mit vielen Positionen laedt sie
+      // sonst unnoetig oft neu.
       const handlagerBereich = handlagerOrte(tx);
-      const artikelErgebnis = [...gruppen.values()].map((g) => {
+      const artikelErgebnis = gruppen.map((g) => {
         // I4: nach `korrekturAufLagerort(…, istMenge)` gilt
         // `bestandProLagerort(…, fahrzeugId) === istMenge`.
         const { diff: korrektur } = korrekturAufLagerort(tx, {
@@ -503,102 +484,19 @@ export async function checkAbschluss(
         };
       });
 
-      // Geraete am Fahrzeug (standort-basiert): nur eingereichte Geraete
-      // akzeptieren, die wirklich HIER stehen. Zustand und Bemerkung als Snapshot.
-      const geraeteHier = new Map(
-        tx.select({ id: geraete.id, selbsttest: geraete.selbsttest }).from(geraete)
-          .where(eq(geraete.lagerortId, v.fahrzeugId)).all().map((g) => [g.id, g.selbsttest]),
-      );
-      const ortsart = ortsartAus(fz);
-      const geraeteErgebnis = v.geraete.map((e) => {
-        if (!geraeteHier.has(e.geraetId)) throw new Error("Gerät gehört nicht zu diesem Fahrzeug");   // WURF 2
-        const selbsttest = e.vorhanden && geraeteHier.get(e.geraetId) === true ? e.selbsttest : undefined;
-        const selbsttestDurchgefallen = selbsttest === false;
-        if (!e.vorhanden || e.zustand === ZUSTAND_DEFEKT || selbsttestDurchgefallen) {
-          geraeteAuffaellig++;
-          /*
-           * IDA-377 — „fehlt" UND „Defekt" WERDEN EIN MANGEL, ohne weiteren Handgriff. Bis hier sagte
-           * der Schlussschirm „bitte der Verwaltung melden", und in der Verwaltung stand davon nichts
-           * unter Mängel. Jetzt steht er dort, am Gerät und im Sofort-Push wie jede andere Meldung.
-           * Ist zu diesem Gerät schon einer offen, bleibt es bei dem einen.
-           */
-          if (!offenerMangelZuGeraet(tx, e.geraetId)) {
-            legeMangelAn(tx, {
-              lagerortId: v.fahrzeugId,
-              punkte: [punktFuerGeraet(ortsart, !e.vorhanden)],
-              // IDA-411: ein durchgefallener Selbsttest sagt es selbst, die Bemerkung steht dahinter.
-              beschreibung: selbsttestDurchgefallen
-                ? ["Selbsttest nicht bestanden", e.bemerkung].filter(Boolean).join(" — ")
-                : e.bemerkung || null,
-              melderName: null,
-              quelle,
-              fotos: 0,
-              jetzt: new Date(),
-              geraetId: e.geraetId,
-              checkId,
-            });
-          }
-          geraeteGemeldet++;
-        }
-        return {
-          geraetId: e.geraetId, vorhanden: e.vorhanden,
-          zustand: e.zustand ?? null, bemerkung: e.bemerkung ?? null,
-          ...(selbsttest !== undefined ? { selbsttest } : {}),
-        };
+      // Geraete (WURF 2, Maengel nach IDA-377) und Flaschen (WURF 3, Messungen)
+      // — gemeinsam mit dem Verwaltungscheck in `_lib/schreibpfade/check.ts`.
+      const geraeteGebucht = bucheGeraeteAntworten(tx, {
+        fahrzeug: fz, antworten: v.geraete, quelle, checkId,
       });
+      geraeteAuffaellig = geraeteGebucht.auffaellig;
+      geraeteGemeldet = geraeteGebucht.gemeldet;
 
-      const flaschenHier = new Map(
-        tx.select().from(o2Flaschen).where(eq(o2Flaschen.lagerortId, v.fahrzeugId)).all()
-          .map((f) => [f.id, f]),
-      );
-      const flaschenErgebnis = v.flaschen.map((e) => {
-        const f = flaschenHier.get(e.flascheId);
-        if (!f) throw new Error("Flasche gehört nicht zu diesem Fahrzeug");   // WURF 3
-        tx.insert(o2Messungen).values({
-          id: newId(), flascheId: e.flascheId, ts: new Date(), druckBar: e.druckBar,
-          ...quelle, kommentar: `${CHECK_MESSUNG} ${referenz}`,
-        }).run();
-
-        // §5.12, §7.9.4 (NEU): eine Flasche OHNE bekannten Nennfuelldruck ist
-        // NICHT BEWERTBAR, nicht „niedrig". `fuellstandProzent` gibt bei
-        // `nennfuelldruckBar <= 0` eine 0 zurueck (in `o2.ts`), und `o2Status` macht
-        // daraus ampel "rot" mit `niedrig: true` — die Flasche erschiene als
-        // niedrig, obwohl sie schlicht nicht bewertbar ist, UND DIE HELFERIN
-        // LIEFE LOS, UM EINE VOLLE FLASCHE ZU TAUSCHEN.
-        //
-        // Die MESSUNG wird trotzdem geschrieben: sie ist Rohdatum und bleibt
-        // richtig, auch wenn die Bewertung fehlt.
-        if (f.nennfuelldruckBar <= 0) flaschenNichtBewertbar++;
-        // Der Grenzwert kommt aus DIESER Flasche (DRK-308) — `flaschenHier` ist
-        // die Stammzeile, nicht der Snapshot. Fehlte er hier, zaehlte der Check
-        // gegen die Vorbelegung, waehrend die Uebersicht daneben gegen die
-        // eingestellte Vorgabe zaehlt: zwei Zahlen fuer dieselbe Frage.
-        else if (o2Status(e.druckBar, f.nennfuelldruckBar, f.wechselAbProzent).niedrig) {
-          flaschenAuffaellig++;
-        }
-
-        // Nennfuelldruck als Snapshot mitschreiben, damit der Fuellstand spaeter
-        // auch dann rekonstruierbar ist, wenn die Flasche umkonfiguriert oder
-        // geloescht wird.
-        //
-        // ⚠️ `<= 0` WIRD ALS `null` GESCHRIEBEN, NICHT ALS 0. `CheckFlascheRoh`
-        // (`_lib/checkErgebnis.ts:58-65`) fuehrt DREI verschiedene Zustaende: eine
-        // Zahl = Snapshot, `undefined` = Snapshot fehlt (jeder Altcheck), `null` =
-        // ausdruecklich „unbekannt" — und diese Datei ist der Schreiber, den der
-        // Kommentar dort mit „ab jetzt geschrieben" meint.
-        //
-        // Eine geschriebene `0` ist dagegen eine ZAHL und passiert jeden
-        // `??`-Riegel des Lesers ungebremst (`_lib/lesepfade/checks.ts:168,174`
-        // prueft `nenn === null`); `o2Status(druck, 0)` liefert 0 %, ampel „rot"
-        // und `niedrig: true`. Der historische Nachweis behauptete dann eine
-        // NIEDRIGE Flasche, wo bloss die Bezugsgroesse fehlt — dieselbe Falle, die
-        // `flaschenNichtBewertbar` zwoelf Zeilen darueber im Live-Zweig abfaengt.
-        return {
-          flascheId: e.flascheId,
-          druckBar: e.druckBar,
-          nennfuelldruckBar: f.nennfuelldruckBar > 0 ? f.nennfuelldruckBar : null,
-        };
+      const flaschenGebucht = bucheFlaschenMessungen(tx, {
+        fahrzeugId: v.fahrzeugId, flaschen: v.flaschen, quelle, referenz,
       });
+      flaschenAuffaellig = flaschenGebucht.auffaellig;
+      flaschenNichtBewertbar = flaschenGebucht.nichtBewertbar;
 
       const sollArtikel = new Set(sollRows.map((s) => s.artikelId));
       const fachWerte: { sollPositionId: string; verfall: string | null }[] = [];
@@ -626,7 +524,7 @@ export async function checkAbschluss(
        * (`_lib/lesepfade/entnahmebox.ts`); eine `check:`-Referenz liesse die
        * Teile in der Kiste ohne Herkunft liegen.
        */
-      for (const g of gruppen.values()) {
+      for (const g of gruppen) {
         if (g.boxGewuenscht <= 0) continue;
         const { umgelagert } = umlagerungVonOrt(tx, {
           artikelId: g.artikelId, menge: g.boxGewuenscht,
@@ -651,9 +549,8 @@ export async function checkAbschluss(
       }));
       verfallAuffaellig = verfallErgebnis.filter((e) => e.ampel !== "gruen").length;
 
-      tx.insert(checks).values({
-        id: checkId, fahrzeugId: v.fahrzeugId, ...quelle,
-        startedAt: new Date(), completedAt: new Date(),
+      schreibeCheckZeile(tx, {
+        id: checkId, fahrzeugId: v.fahrzeugId, quelle,
         // ⚠️ `version: 2` wird ab jetzt AUSGESCHRIEBEN. Der Bestand schreibt das
         // Objekt ohne Diskriminator; `parseCheckErgebnis` (Teil 3, T37) erkennt
         // Alt-Objekte weiterhin an der Form. Ein geschriebenes Feld macht die
@@ -661,12 +558,12 @@ export async function checkAbschluss(
         //
         // ⚠️ DIE FELDNAMEN SIND NICHT UMBENENNBAR (§4.10, 1:1-Pflicht 2) — sonst
         // wird jede historische Auswertung stumm 0.
-        ergebnis: JSON.stringify({
+        ergebnis: {
           version: 2,
           positionen: posErgebnis,
           artikel: artikelErgebnis,
-          geraete: geraeteErgebnis,
-          flaschen: flaschenErgebnis,
+          geraete: geraeteGebucht.ergebnis,
+          flaschen: flaschenGebucht.ergebnis,
           verfall: verfallErgebnis,
           art: v.art,
           plomben: plombenErgebnis,
@@ -676,8 +573,8 @@ export async function checkAbschluss(
             geraeteAuffaellig, flaschenAuffaellig, flaschenNichtBewertbar, verfallAuffaellig,
             plombenOffen, plombenGesetzt, geraeteGemeldet,
           },
-        }),
-      }).run();
+        },
+      });
     });
 
     /*
