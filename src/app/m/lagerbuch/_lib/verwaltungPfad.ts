@@ -42,8 +42,8 @@ export type Detailflaeche =
   | "sauerstoff"
   | "inventur/verlauf";
 
-/** Unterseiten einer Detailseite — heute nur die BZ-Kontrolle. */
-export type Unterseite = "kontrolle";
+/** Unterseiten einer Detailseite — BZ-Kontrolle und die Zählseite einer Einheit. */
+export type Unterseite = "kontrolle" | "zaehlen";
 
 /** Aeusserer Pfad einer Detailseite, fuer `Link`, `href` und `redirect()`. */
 export function verwaltungDetailPfad(

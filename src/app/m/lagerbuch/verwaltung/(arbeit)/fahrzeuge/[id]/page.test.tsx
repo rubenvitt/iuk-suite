@@ -2,6 +2,7 @@
 
 import { act, isValidElement, type ReactElement, type ReactNode } from "react";
 import { readFileSync } from "node:fs";
+import { Button } from "antd";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -641,6 +642,11 @@ describe("Fahrzeugblatt — Kopf und Kacheln (IDA-232)", () => {
     const aktionen = kopf.props.aktionen;
     const [check] = elementeVomTyp(aktionen, CheckDurchfuehrenKnopf);
     expect(check.props).toEqual({ fahrzeugId: "fz-1", beschriftung: "Check durchführen", primaer: true });
+    // Der Einstieg in die Zählseite: neutral, ein Anker mit `href`, kein `size`.
+    const zaehlen = elementeVomTyp(aktionen, Button).find((k) => textVon(k.props.children as ReactNode) === "Zählen");
+    expect(zaehlen?.props.href).toBe("/verwaltung/fahrzeuge/fz-1/zaehlen");
+    expect(zaehlen?.props.type).toBeUndefined();
+    expect(zaehlen?.props.size).toBeUndefined();
     expect(elementeVomTyp(aktionen, AufladenDialog)).toHaveLength(1);
     expect(elementeVomTyp(aktionen, WeitereAktionen)).toHaveLength(1);
     // Der Druck steht im Menü, nicht als eigener Knopf.
@@ -652,6 +658,7 @@ describe("Fahrzeugblatt — Kopf und Kacheln (IDA-232)", () => {
     const [kopf] = elementeVomTyp(fahrzeugInhalt(t.db, "fz-1", JETZT), SeitenKopf);
     const aktionen = kopf.props.aktionen;
     expect(elementeVomTyp(aktionen, CheckDurchfuehrenKnopf)).toHaveLength(0);
+    expect(elementeVomTyp(aktionen, Button).some((k) => textVon(k.props.children as ReactNode) === "Zählen")).toBe(false);
     expect(elementeVomTyp(aktionen, AufladenDialog)).toHaveLength(0);
     expect(elementeVomTyp(aktionen, ChecklisteKnopf)).toHaveLength(1);
     expect(textVon(kopf.props.beschreibung as ReactNode)).toContain("inaktiv");
