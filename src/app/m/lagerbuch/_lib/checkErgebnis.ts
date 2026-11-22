@@ -56,6 +56,8 @@ export type CheckGeraetRoh = {
   vorhanden?: boolean;
   zustand?: string | null;
   bemerkung?: string | null;
+  /** IDA-411: nur bei Geräten mit Selbsttest-Frage. Fehlt = nicht gefragt (jeder Altcheck). */
+  selbsttest?: boolean | null;
 };
 
 /**

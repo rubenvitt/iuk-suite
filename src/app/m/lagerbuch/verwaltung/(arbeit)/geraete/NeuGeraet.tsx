@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, DatePicker, Form, Input, Modal, Radio, Select } from "antd";
+import { Alert, Button, Checkbox, DatePicker, Form, Input, Modal, Radio, Select } from "antd";
 import type { Dayjs } from "dayjs";
 import { geraetSpeichern } from "../../../_actions/geraete";
 import { standortMeta } from "../../../_lib/konstanten";
@@ -21,6 +21,7 @@ type Werte = {
   mtkFaellig?: Dayjs | null;
   beschreibung?: string;
   ablaufdatum?: Dayjs | null;
+  selbsttest?: boolean;
 };
 
 const FORM_FELDER = new Set<keyof Werte>([
@@ -97,6 +98,7 @@ export function NeuGeraet({
           barcode: werte.barcode?.trim() || undefined,
           lagerortId: werte.lagerortId,
           anmerkung: werte.anmerkung?.trim() || undefined,
+          selbsttest: werte.selbsttest === true,
         };
         const payload = werte.typ === "medizin"
           ? { ...gemeinsam, mtkFaellig: tag(werte.mtkFaellig) }
@@ -233,6 +235,10 @@ export function NeuGeraet({
           )}
           <Form.Item name="anmerkung" label="Anmerkung (optional)">
             <Input.TextArea aria-label="Anmerkung" autoSize={{ minRows: 2, maxRows: 5 }} />
+          </Form.Item>
+          {/* IDA-411: z. B. corpuls C3 oder AED — der Check fragt dann „Selbsttest bestanden?“. */}
+          <Form.Item name="selbsttest" valuePropName="checked">
+            <Checkbox>Im Check nach dem Selbsttest fragen</Checkbox>
           </Form.Item>
         </Form>
         {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}

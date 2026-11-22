@@ -22,6 +22,7 @@ import { revalidiereBestand } from "../_lib/revalidierung";
 import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { setzeVerfall, verfallFolgtDemMaterial } from "../_lib/schreibpfade/lagerortVerfall";
+import { setzeFachVerfaelle } from "../_lib/schreibpfade/fachVerfall";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
 import { druckZuHoch, o2Status } from "../_lib/domain/o2";
 import { ortsartAus, punktFuerGeraet } from "../_lib/maengel/checkliste";
@@ -102,6 +103,12 @@ const CheckSchema = z.object({
     vorhanden: z.boolean(),
     zustand: z.enum(ZUSTAENDE).optional(),
     bemerkung: z.string().trim().optional(),
+    /*
+     * IDA-411: „Selbsttest bestanden?" bei einem Gerät mit dieser Frage. OPTIONAL: ein Entwurf von
+     * vor IDA-411 (IDA-358, er liegt auf dem Gerät) kennt das Feld nicht und soll trotzdem ankommen.
+     * Bei einem Gerät OHNE die Frage wird ein mitgesendeter Wert verworfen, nicht gespeichert.
+     */
+    selbsttest: z.boolean().optional(),
   })).default([]),
   flaschen: z.array(z.object({
     flascheId: z.string().min(1),
@@ -110,11 +117,22 @@ const CheckSchema = z.object({
   // Im Fahrzeug abgelesener Verfall je Artikel („YYYY-MM", fruehestes Datum im
   // Fahrzeug). Durchgehend optional: null/"" loescht eine fruehere Angabe, ein
   // FEHLENDER Eintrag laesst sie unangetastet.
-  verfaelle: z.array(z.object({
-    artikelId: z.string().min(1),
-    verfall: z.union([z.string().regex(MONAT_REGEX), z.literal("")])
-      .nullable().transform((v) => v || null),
-  })).default([]),
+  //
+  // IDA-412: JE FACH (`sollPositionId`). Die Form je Artikel (`artikelId`) bleibt lesbar: ein
+  // Entwurf von vorher liegt womöglich noch auf einem Gerät (IDA-358). Sie gilt für alle Fächer
+  // des Artikels und verwirft deren Einzeldaten, wie jeder artikelweite Schreibweg.
+  verfaelle: z.array(z.union([
+    z.object({
+      sollPositionId: z.string().min(1),
+      verfall: z.union([z.string().regex(MONAT_REGEX), z.literal("")])
+        .nullable().transform((v) => v || null),
+    }),
+    z.object({
+      artikelId: z.string().min(1),
+      verfall: z.union([z.string().regex(MONAT_REGEX), z.literal("")])
+        .nullable().transform((v) => v || null),
+    }),
+  ])).default([]),
 });
 
 export type CheckAbschlussWert = {
@@ -487,14 +505,16 @@ export async function checkAbschluss(
 
       // Geraete am Fahrzeug (standort-basiert): nur eingereichte Geraete
       // akzeptieren, die wirklich HIER stehen. Zustand und Bemerkung als Snapshot.
-      const geraeteHier = new Set(
-        tx.select({ id: geraete.id }).from(geraete)
-          .where(eq(geraete.lagerortId, v.fahrzeugId)).all().map((g) => g.id),
+      const geraeteHier = new Map(
+        tx.select({ id: geraete.id, selbsttest: geraete.selbsttest }).from(geraete)
+          .where(eq(geraete.lagerortId, v.fahrzeugId)).all().map((g) => [g.id, g.selbsttest]),
       );
       const ortsart = ortsartAus(fz);
       const geraeteErgebnis = v.geraete.map((e) => {
         if (!geraeteHier.has(e.geraetId)) throw new Error("Gerät gehört nicht zu diesem Fahrzeug");   // WURF 2
-        if (!e.vorhanden || e.zustand === ZUSTAND_DEFEKT) {
+        const selbsttest = e.vorhanden && geraeteHier.get(e.geraetId) === true ? e.selbsttest : undefined;
+        const selbsttestDurchgefallen = selbsttest === false;
+        if (!e.vorhanden || e.zustand === ZUSTAND_DEFEKT || selbsttestDurchgefallen) {
           geraeteAuffaellig++;
           /*
            * IDA-377 — „fehlt" UND „Defekt" WERDEN EIN MANGEL, ohne weiteren Handgriff. Bis hier sagte
@@ -506,7 +526,10 @@ export async function checkAbschluss(
             legeMangelAn(tx, {
               lagerortId: v.fahrzeugId,
               punkte: [punktFuerGeraet(ortsart, !e.vorhanden)],
-              beschreibung: e.bemerkung || null,
+              // IDA-411: ein durchgefallener Selbsttest sagt es selbst, die Bemerkung steht dahinter.
+              beschreibung: selbsttestDurchgefallen
+                ? ["Selbsttest nicht bestanden", e.bemerkung].filter(Boolean).join(" — ")
+                : e.bemerkung || null,
               melderName: null,
               quelle,
               fotos: 0,
@@ -520,6 +543,7 @@ export async function checkAbschluss(
         return {
           geraetId: e.geraetId, vorhanden: e.vorhanden,
           zustand: e.zustand ?? null, bemerkung: e.bemerkung ?? null,
+          ...(selbsttest !== undefined ? { selbsttest } : {}),
         };
       });
 
@@ -577,12 +601,20 @@ export async function checkAbschluss(
       });
 
       const sollArtikel = new Set(sollRows.map((s) => s.artikelId));
+      const fachWerte: { sollPositionId: string; verfall: string | null }[] = [];
       for (const e of v.verfaelle) {
+        if ("sollPositionId" in e) {
+          if (!byId.has(e.sollPositionId)) throw new Error("Fach gehört nicht zu diesem Fahrzeug");   // WURF 4
+          fachWerte.push(e);
+          continue;
+        }
         if (!sollArtikel.has(e.artikelId)) throw new Error("Artikel gehört nicht zu diesem Fahrzeug");   // WURF 4
         setzeVerfall(tx, {
           lagerortId: v.fahrzeugId, artikelId: e.artikelId, verfall: e.verfall, quelle,
         });
       }
+      // IDA-412: je Fach, und die Einheitszeile als frühestes Datum der Fächer.
+      setzeFachVerfaelle(tx, { lagerortId: v.fahrzeugId, werte: fachWerte, quelle });
 
       /*
        * IDA-247 — DER UEBERSCHUSS IN DIE ENTNAHMEBOX. Nach dem Verfall, weil

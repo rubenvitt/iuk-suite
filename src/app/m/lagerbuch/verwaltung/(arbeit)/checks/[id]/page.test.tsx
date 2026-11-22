@@ -172,7 +172,7 @@ function gefuellterCheck(): CheckDetail {
     }],
     geraete: [{
       geraetId: "g1", name: "Monitor", typ: "medizin",
-      vorhanden: true, zustand: "In Ordnung", bemerkung: null,
+      vorhanden: true, zustand: "In Ordnung", bemerkung: null, selbsttest: null,
     }],
     flaschen: [{
       flascheId: "f1", name: "O2", druckBar: 180,
@@ -362,19 +362,19 @@ describe("Check-Detailseite", () => {
       geraete: [
         {
           geraetId: "g-null", name: "Absaugpumpe", typ: "medizin",
-          vorhanden: true, zustand: null, bemerkung: null,
+          vorhanden: true, zustand: null, bemerkung: null, selbsttest: null,
         },
         {
           geraetId: "g-fremd", name: "Monitor", typ: "medizin",
-          vorhanden: false, zustand: "Sonderprüfung", bemerkung: "Werkstatt informieren",
+          vorhanden: false, zustand: "Sonderprüfung", bemerkung: "Werkstatt informieren", selbsttest: null,
         },
         {
           geraetId: "g-defekt", name: "Spineboard", typ: "objekt",
-          vorhanden: true, zustand: "Defekt", bemerkung: null,
+          vorhanden: true, zustand: "Defekt", bemerkung: null, selbsttest: null,
         },
         {
           geraetId: "g-spuren", name: "Tragestuhl", typ: "objekt",
-          vorhanden: true, zustand: "Gebrauchsspuren", bemerkung: null,
+          vorhanden: true, zustand: "Gebrauchsspuren", bemerkung: null, selbsttest: null,
         },
       ],
     };

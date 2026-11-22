@@ -176,7 +176,9 @@ export function summiereCheckErgebnis(
     // ueberfuellter Artikel die Fehlmenge eines anderen auf. Die Formel steht in
     // `offenJeArtikel` und NUR dort; die Detailzeilen rufen dieselbe Funktion.
     offen: e.artikel.reduce((s, a) => s + offenJeArtikel(a), 0),
-    geraeteAuffaellig: e.geraete.filter((g) => !g.vorhanden || g.zustand === ZUSTAND_DEFEKT).length,
+    // IDA-411: ein nicht bestandener Selbsttest zählt wie „Defekt".
+    geraeteAuffaellig: e.geraete
+      .filter((g) => !g.vorhanden || g.zustand === ZUSTAND_DEFEKT || g.selbsttest === false).length,
     flaschenAuffaellig,
     nichtBewertbar,
     altFormat: false,

@@ -124,15 +124,16 @@ describe("checkNutzlast — die Verfaelle sind die EINE Ausnahme", () => {
      * Listen „vereinheitlicht", LOESCHT bei jedem Check jede Verfallsangabe, die
      * niemand angefasst hat.
      */
-    const n = checkNutzlast({ ...BASIS, z: { ...LEER, verfaelle: { a1: "2026-09" } } });
-    expect(n.verfaelle).toEqual([{ artikelId: "a1", verfall: "2026-09" }]);
+    // IDA-412: geschlüsselt nach Fach (sollPositionId).
+    const n = checkNutzlast({ ...BASIS, z: { ...LEER, verfaelle: { sp1: "2026-09" } } });
+    expect(n.verfaelle).toEqual([{ sollPositionId: "sp1", verfall: "2026-09" }]);
   });
 
   it("ein LEERER String wird zu null — das ist 'loeschen', nicht 'unangetastet'", () => {
-    expect(checkNutzlast({ ...BASIS, z: { ...LEER, verfaelle: { a1: "" } } }).verfaelle)
-      .toEqual([{ artikelId: "a1", verfall: null }]);
-    expect(checkNutzlast({ ...BASIS, z: { ...LEER, verfaelle: { a2: null } } }).verfaelle)
-      .toEqual([{ artikelId: "a2", verfall: null }]);
+    expect(checkNutzlast({ ...BASIS, z: { ...LEER, verfaelle: { sp1: "" } } }).verfaelle)
+      .toEqual([{ sollPositionId: "sp1", verfall: null }]);
+    expect(checkNutzlast({ ...BASIS, z: { ...LEER, verfaelle: { sp2: null } } }).verfaelle)
+      .toEqual([{ sollPositionId: "sp2", verfall: null }]);
   });
 
   it("`undefined` wird gar nicht gesendet", () => {
@@ -144,8 +145,8 @@ describe("checkNutzlast — die Verfaelle sind die EINE Ausnahme", () => {
     // Der Server lehnt ihn ohnehin ab (MONAT_REGEX in der Zod-Form, Teil 4). Hier
     // wird er ausgelassen, damit ein Tippfehler nicht den GANZEN Check-Abschluss
     // ablehnt — die uebrigen Angaben sind davon unberuehrt.
-    const n = checkNutzlast({ ...BASIS, z: { ...LEER, verfaelle: { a1: "2026-13", a2: "2026-09" } } });
-    expect(n.verfaelle).toEqual([{ artikelId: "a2", verfall: "2026-09" }]);
+    const n = checkNutzlast({ ...BASIS, z: { ...LEER, verfaelle: { sp1: "2026-13", sp2: "2026-09" } } });
+    expect(n.verfaelle).toEqual([{ sollPositionId: "sp2", verfall: "2026-09" }]);
   });
 });
 

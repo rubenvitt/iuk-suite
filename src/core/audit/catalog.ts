@@ -192,6 +192,12 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "fach_verfall": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
     "geraete": {
       "mode": "audited",
       "primaryKey": [

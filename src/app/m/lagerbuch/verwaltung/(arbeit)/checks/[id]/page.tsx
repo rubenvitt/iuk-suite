@@ -103,7 +103,16 @@ export function checkDetailInhalt(
       vorhandenChip: geraet.vorhanden
         ? chip("vorhanden", "ok")
         : chip("fehlt", "rot", "warnung"),
-      zustandChip: chip(geraet.zustand ?? "nicht erfasst", zustandTon),
+      /*
+       * IDA-411: der Selbsttest steht IM Zustandschip, nicht in einer eigenen Spalte — die meisten
+       * Geräte haben keinen, und eine Spalte voller „—" trüge nichts. Nicht bestanden färbt rot und
+       * macht die Zeile damit zur Abweichung (`geraetWeichtAb`).
+       */
+      zustandChip: geraet.selbsttest === null
+        ? chip(geraet.zustand ?? "nicht erfasst", zustandTon)
+        : geraet.selbsttest
+          ? chip(`${geraet.zustand ?? "nicht erfasst"} · Selbsttest bestanden`, zustandTon)
+          : chip(`${geraet.zustand ?? "nicht erfasst"} · Selbsttest nicht bestanden`, "rot", "warnung"),
       bemerkungText: geraet.bemerkung ?? "—",
     };
   });

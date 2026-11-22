@@ -161,10 +161,18 @@ const alleBestaetigen = async () => {
 
 /**
  * IDA-377: Geraete starten UNBEANTWORTET und sperren den Schritt. Fuer jeden
- * Test, der nur durch den Geraeteschritt will: ein Tipp auf „Alle in Ordnung"
- * — derselbe bewusste Tipp wie bei der Helferin.
+ * Test, der nur durch den Geraeteschritt will: je offenem Geraet ein Tipp auf
+ * „In Ordnung" — seit IDA-411 gibt es keinen Sammelknopf mehr, die Helferin
+ * tippt genauso jedes einzeln an.
  */
-const alleGeraeteOk = () => click("[data-rolle='geraete-alle-ok']");
+const alleGeraeteOk = async () => {
+  for (const z of queryAll("[data-rolle='geraet']")) {
+    if (z.querySelector("[aria-pressed='true']")) continue;
+    const knopf = [...z.querySelectorAll<HTMLElement>("[data-rolle='geraet-zustand']")]
+      .find((b) => b.textContent === "In Ordnung");
+    if (knopf) await clickElement(knopf);
+  }
+};
 
 /** IDA-377: der Druck startet LEER — jede Flasche der Liste wird abgelesen. */
 const druckAblesen = async (wert: number) => {
@@ -848,7 +856,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
     expect(query("[data-rolle='nf-liste']").textContent).toContain("Lücke 5");
   });
 
-  it("der Verfallsknopf steht in JEDER Zeile, der Wert ist einer je Artikel (IDA-305)", async () => {
+  it("der Verfallsknopf steht in JEDER Zeile, der Wert ist einer je FACH (IDA-305, IDA-412)", async () => {
     // Nur in der ersten Zeile stand er bei 215 Positionen Faecher weiter oben,
     // und in der Modultasche, in der man die Packung hielt, fehlte er.
     // Uhr fest vor 2027-03: danach zeigte der Chip „abgelaufen" statt „03/27".
@@ -882,12 +890,13 @@ describe("CheckFlow — der Zaehlschritt", () => {
     // Aufklappen ist je ZEILE: der zweite Knopf oeffnet nur sein Feld.
     await clickElement(knoepfe[1]);
     expect(queryAll("[data-rolle='zaehlliste'] input[type='month']").length).toBe(1);
-    expect(query("[data-rolle='verfall-hinweis']").textContent).toContain("frühestes Datum");
+    expect(query("[data-rolle='verfall-hinweis']").textContent).toContain("nur dieses Fach");
     const hinweis = query("[data-rolle='verfall-hinweis']");
     expect(query("[data-rolle='zaehlliste'] input[type='month']").getAttribute("aria-describedby")).toBe(hinweis.id);
-    // Der Wert ist EINER je Artikel: in Fach 2 getippt, steht er auch in Fach 1.
+    // IDA-412: der Wert ist EINER je FACH — in Fach 2 getippt, bleibt Fach 1 ohne Angabe.
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
-    expect(knoepfe[0].getAttribute("aria-label")).toMatch(/^Kompresse \(Fach 1\): Verfall .*03\/27/);
+    expect(knoepfe[1].getAttribute("aria-label")).toMatch(/^Kompresse \(Fach 2\): Verfall .*03\/27/);
+    expect(knoepfe[0].getAttribute("aria-label")).toBe("Kompresse (Fach 1): Verfall angeben");
   });
 
   it("das Verfallsfeld ist ZUGEKLAPPT — eine vorhandene Angabe bleibt sichtbar (IDA-233)", async () => {
@@ -1468,6 +1477,58 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     });
   });
 
+  describe("IDA-412: Verfall je Fach", () => {
+    const ZWEI = [
+      POS({ id: "sp-schublade", fachLabel: "Schublade 1" }),
+      POS({ id: "sp-rucksack", fachLabel: "Rucksack" }),
+    ];
+    const zweiFaecher = (verfallFach: Record<string, string>) => mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        soll={ZWEI}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{ "art-1": "2027-03" }}
+        verfallFach={verfallFach}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    const knopf = (i: number) => queryAll("[data-rolle='verfall-knopf']")[i]!;
+
+    it("zeigt je Fach sein Datum — ohne eigenes das der Einheit", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-07-15T10:00:00Z"));
+      onTestFinished(() => { vi.useRealTimers(); });
+      await zweiFaecher({ "sp-rucksack": "2027-06" });
+      expect(knopf(0).getAttribute("aria-label")).toMatch(/^Kompresse \(Schublade 1\): Verfall .*03\/27/);
+      expect(knopf(1).getAttribute("aria-label")).toMatch(/^Kompresse \(Rucksack\): Verfall .*06\/27/);
+    });
+
+    it("ändert sich EIN Fach, gehen ALLE Fächer des Artikels mit ihrem angezeigten Wert", async () => {
+      await zweiFaecher({ "sp-rucksack": "2027-06" });
+      await clickElement(knopf(0));
+      await fill("[data-rolle='zaehlliste'] input[type='month']", "2028-01");
+      await alleBestaetigen();
+      await click(WEITER);
+      await click(ABSCHLIESSEN);
+      expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
+        { sollPositionId: "sp-schublade", verfall: "2028-01" },
+        { sollPositionId: "sp-rucksack", verfall: "2027-06" },
+      ]);
+    });
+
+    it("nichts geändert → nichts gesendet", async () => {
+      await zweiFaecher({ "sp-rucksack": "2027-06" });
+      await alleBestaetigen();
+      await click(WEITER);
+      await click(ABSCHLIESSEN);
+      expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([]);
+    });
+  });
+
   it("ein GEAENDERTER Verfall wird gesendet", async () => {
     // Die Gegenprobe zum Filter oben: ohne sie bliebe „nur Geaendertes" auch
     // dann gruen, wenn gar nichts mehr gesendet wuerde.
@@ -1490,7 +1551,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     await click(WEITER);
     await click(ABSCHLIESSEN);
     expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
-      { artikelId: "art-1", verfall: "2027-03" },
+      { sollPositionId: "sp-1", verfall: "2027-03" },   // IDA-412: je Fach
     ]);
   });
 
@@ -1519,7 +1580,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     await click(WEITER);
     await click(ABSCHLIESSEN);
     expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
-      { artikelId: "art-1", verfall: null },
+      { sollPositionId: "sp-1", verfall: null },   // IDA-412: je Fach
     ]);
   });
 });
@@ -1694,30 +1755,73 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
     expect(exists("[data-rolle='o2-liste']")).toBe(true);
   });
 
-  it("„Alle in Ordnung“ setzt nur die OFFENEN — eine gegebene Antwort bleibt stehen (IDA-377)", async () => {
+  it("es gibt keinen Sammelknopf „Alle in Ordnung“ mehr — jedes Geraet einzeln (IDA-411)", async () => {
     await geraeteFlow();
-    expect(query("[data-rolle='geraete-alle-ok']").textContent).toBe("Alle in Ordnung");
-    await tippe(0, "Defekt");
-    // Mit einer Antwort heisst der Knopf, was er tut.
-    expect(query("[data-rolle='geraete-alle-ok']").textContent).toBe("Übrige in Ordnung");
-    await alleGeraeteOk();
-    expect(zustandVon(0)).toEqual(["Defekt"]);
-    expect(zustandVon(1)).toEqual(["In Ordnung"]);
-    // Nichts mehr offen, nichts mehr zu uebernehmen.
     expect(exists("[data-rolle='geraete-alle-ok']")).toBe(false);
-    await click(ABSCHLIESSEN);
-    expect(abschluss.mock.calls[0][0].geraete).toStrictEqual([
-      { geraetId: "g-1", vorhanden: true, zustand: "Defekt" },
-      { geraetId: "g-2", vorhanden: true, zustand: "In Ordnung" },
-    ]);
+    expect(document.body.textContent).not.toContain("Alle in Ordnung");
+    expect(document.body.textContent).not.toContain("Übrige in Ordnung");
+    await tippe(0, "Defekt");
+    expect(document.body.textContent).not.toContain("Übrige in Ordnung");
+    expect(zustandVon(1)).toEqual([]);
   });
 
-  it("„Alle in Ordnung“ laesst auch ein FEHLENDES Geraet stehen (IDA-377)", async () => {
-    await geraeteFlow();
-    await tippe(1, "fehlt");
-    await alleGeraeteOk();
-    expect(zeile(1).querySelector("[data-rolle='geraet-fehlt']")!.getAttribute("aria-pressed")).toBe("true");
-    expect(zustandVon(0)).toEqual(["In Ordnung"]);
+  describe("Selbsttest (IDA-411)", () => {
+    const C3: CheckGeraet = { ...GERAET, id: "g-c3", name: "corpuls C3", selbsttest: true };
+    const mitC3 = async () => {
+      await mount(
+        <CheckFlow
+          kontoZugang={false} {...VOLL}
+          fahrzeug={FZ}
+          soll={[]}
+          geraete={[C3]}
+          flaschen={[]}
+          verfall={{}}
+          warn={WARN}
+          andereEinheitErreichbar
+          letzterCheckText={null}
+        />,
+      );
+    };
+
+    it("ein Geraet ohne Frage zeigt keinen Selbsttest", async () => {
+      await geraeteFlow();
+      expect(exists("[data-rolle='geraet-selbsttest']")).toBe(false);
+    });
+
+    it("mit Frage sperrt ein offener Selbsttest den Abschluss, auch bei „In Ordnung“", async () => {
+      await mitC3();
+      await tippe(0, "In Ordnung");
+      expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(true);
+      expect(query("[data-rolle='abschlussleiste']").textContent).toContain("Noch 1 von 1 offen");
+      await click("[data-rolle='geraet-selbsttest-ok']");
+      expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(false);
+      await click(ABSCHLIESSEN);
+      expect(abschluss.mock.calls[0][0].geraete).toStrictEqual([
+        { geraetId: "g-c3", vorhanden: true, zustand: "In Ordnung", selbsttest: true },
+      ]);
+    });
+
+    it("nicht bestanden wird gesendet", async () => {
+      await mitC3();
+      await tippe(0, "In Ordnung");
+      await click("[data-rolle='geraet-selbsttest-nicht-ok']");
+      await click(ABSCHLIESSEN);
+      expect(abschluss.mock.calls[0][0].geraete).toStrictEqual([
+        { geraetId: "g-c3", vorhanden: true, zustand: "In Ordnung", selbsttest: false },
+      ]);
+    });
+
+    it("ein fehlendes Geraet braucht keinen Selbsttest und sendet keinen", async () => {
+      await mitC3();
+      await click("[data-rolle='geraet-selbsttest-ok']");
+      await tippe(0, "fehlt");
+      expect(exists("[data-rolle='geraet-selbsttest']")).toBe(false);
+      expect(query<HTMLButtonElement>(ABSCHLIESSEN).disabled).toBe(false);
+      await click(ABSCHLIESSEN);
+      expect(abschluss.mock.calls[0][0].geraete).toStrictEqual([
+        { geraetId: "g-c3", vorhanden: false },
+      ]);
+    });
   });
 
   it("der Riegel steht in `abschliessen` SELBST, nicht nur am Knopf (IDA-377)", async () => {
@@ -1752,8 +1856,7 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
     await click(ABSCHLIESSEN);
     expect(abschluss).not.toHaveBeenCalled();
     // Der Tipp fuehrt dorthin, wo noch etwas offen ist.
-    expect(exists("[data-rolle='geraete-alle-ok']")).toBe(true);
-    expect(query("[data-rolle='geraete-alle-ok']").textContent).toBe("Übrige in Ordnung");
+    expect(query("[data-rolle='abschlussleiste']").textContent).toContain("Noch 1 von 2 offen");
   });
 });
 
@@ -3034,7 +3137,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
     await click(WEITER);
     await click(ABSCHLIESSEN);
     expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
-      { artikelId: "art-1", verfall: null },
+      { sollPositionId: "sp-1", verfall: null },   // IDA-412: je Fach
     ]);
   });
 

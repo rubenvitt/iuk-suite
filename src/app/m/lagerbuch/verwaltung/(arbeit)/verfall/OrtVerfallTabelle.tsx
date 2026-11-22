@@ -65,6 +65,11 @@ export type OrtVerfallZeile = {
   ortEinheitenart: Einheitenart | null;
   artikelName: string;
   /**
+   * IDA-412: liegt der Artikel in mehreren Fächern, je Fach das Datum („Schublade 1 03/2027 ·
+   * Rucksack 06/2027"). `null` bei einem Fach — dort ist die Zeile das Fach.
+   */
+  faecherText?: string | null;
+  /**
    * ⚠️ "YYYY-MM" — DER SORTIERWERT, NIE ANGEZEIGT. Als Anzeigetext ordnete
    * „01/2027" vor „05/2026", und die Spalte waere still falsch, sobald ein
    * Jahreswechsel in der Liste liegt. Dasselbe Muster wie `letzterCheckIso`
@@ -254,6 +259,7 @@ function spalten(
       dataIndex: "artikelName",
       key: "artikel",
       sorter: nachText<OrtVerfallZeile>((zeile) => zeile.artikelName),
+      render: (_text: string, zeile: OrtVerfallZeile) => <ArtikelMitFaechern zeile={zeile} />,
     },
     {
       title: "Verfall",
@@ -285,6 +291,18 @@ function spalten(
   ];
 }
 
+/** IDA-412: der Artikel, darunter sein Datum je Fach, wenn er in mehreren liegt. */
+function ArtikelMitFaechern({ zeile }: { zeile: OrtVerfallZeile }) {
+  return (
+    <div>
+      <span>{zeile.artikelName}</span>
+      {zeile.faecherText ? (
+        <div style={SCHRIFT.neben} data-rolle="verfall-faecher">{zeile.faecherText}</div>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Die Spalten des Gruppenmodus.
  *
@@ -314,7 +332,7 @@ function gruppenSpalten(
       sorter: undefined,
       render: (_wert: unknown, zeile: Baumzeile) => {
         if (!istGruppe(zeile)) {
-          return <span>{zeile.artikelName}</span>;
+          return <ArtikelMitFaechern zeile={zeile} />;
         }
         return (
           <Flex gap={6} wrap align="center">

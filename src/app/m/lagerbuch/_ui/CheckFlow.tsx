@@ -13,6 +13,7 @@ import {
   checkNutzlast,
   zaehleAblaufende,
   geraetBeantwortet,
+  geraetAuffaellig,
   type CheckZaehlung,
   type CheckGeraetAntwort,
 } from "../_lib/checkNutzlast";
@@ -71,7 +72,8 @@ export type CheckPos = {
   fahrzeugBestand: number;
   handlagerBestand: number;
 };
-export type CheckGeraet = { id: string; typ: "medizin" | "objekt"; name: string };
+/** IDA-411: `selbsttest` = der Check fragt „Selbsttest bestanden?" (C3, AED). */
+export type CheckGeraet = { id: string; typ: "medizin" | "objekt"; name: string; selbsttest?: boolean };
 export type CheckFlasche = {
   id: string;
   name: string;
@@ -180,6 +182,7 @@ export function CheckFlow({
   geraete,
   flaschen,
   verfall,
+  verfallFach = {},
   warn,
   andereEinheitErreichbar,
   kontoZugang,
@@ -214,6 +217,11 @@ export function CheckFlow({
   flaschen: CheckFlasche[];
   /** Beim letzten Check gemeldeter Verfall je artikelId („YYYY-MM"), leer = keine Angabe. */
   verfall: Record<string, string>;
+  /**
+   * IDA-412: gemeldeter Verfall je FACH (sollPositionId → „YYYY-MM"). Ein Fach ohne Eintrag zeigt
+   * das Datum des Artikels an dieser Einheit (`verfall`).
+   */
+  verfallFach?: Record<string, string>;
   warn: VerfallSchwellen;
   /**
    * DIE HERKUNFT DES ZUGANGS — DRK-305: `true` heisst „angemeldetes Konto, kein
@@ -421,7 +429,7 @@ export function CheckFlow({
     },
     wiederherstellen: (w) => {
       setPhase(w.phase); setIst(w.ist); setNachfuell(w.nachfuell); setBox(w.box);
-      setGeraeteState(w.geraete); setDruck(w.druck); setVerfallState(w.verfall);
+      setGeraeteState(w.geraete); setDruck(w.druck); setVerfallState(verfallJeFach(w.verfall));
       setPlombenWert(w.plombenWert); setPlombeFehlt(w.plombeFehlt);
     },
     senden: (nutzlast, sendungId) => checkAbschluss({ ...nutzlast, sendungId }),
@@ -501,9 +509,25 @@ export function CheckFlow({
   const boxWert = (p: CheckPos) => box[p.id] ?? 0;
   const zuViel = (p: CheckPos) => ueberschuss(istWert(p), p.soll, p.sollMax);
 
-  // Verfall haengt am ARTIKEL, nicht am Fach. Vorbelegt ist der beim letzten
-  // Check gemeldete Wert; leeren heisst „keine Angabe" (`:100-109`).
-  const verfallWert = (artikelId: string) => verfallState[artikelId] ?? verfall[artikelId] ?? "";
+  /*
+   * IDA-412 — VERFALL JE FACH. Bis hier hing er am Artikel, und zwei Fächer desselben Artikels
+   * teilten ein Datum. Vorbelegt ist das Datum DIESES Fachs, sonst das des Artikels an der Einheit;
+   * leeren heisst „keine Angabe". Der Zustand ist nach sollPositionId geschlüsselt.
+   */
+  const verfallVorwert = (p: CheckPos) => verfallFach[p.id] ?? verfall[p.artikelId] ?? "";
+  const verfallWert = (p: CheckPos) => verfallState[p.id] ?? verfallVorwert(p);
+  /**
+   * Ein Entwurf von vor IDA-412 (IDA-358, er liegt auf dem Gerät) ist nach artikelId geschlüsselt.
+   * Sein Wert gilt dann für jedes Fach des Artikels — genau das, was er damals bedeutete.
+   */
+  function verfallJeFach(roh: Record<string, string> | undefined): Record<string, string> {
+    const aus: Record<string, string> = {};
+    for (const [k, wert] of Object.entries(roh ?? {})) {
+      if (sollAlle.some((p) => p.id === k)) aus[k] = wert;
+      else for (const p of sollAlle.filter((q) => q.artikelId === k)) aus[p.id] ??= wert;
+    }
+    return aus;
+  }
 
   // Anzeigereihenfolge Fach fuer Fach. Seit IDA-305 traegt JEDE Zeile den
   // Verfallsknopf: nur in der ersten Zeile je Artikel stand er bei 215
@@ -554,7 +578,8 @@ export function CheckFlow({
   const geraetE = (id: string): CheckGeraetAntwort => geraeteState[id] ?? {};
   const setGeraet = (id: string, patch: Partial<CheckGeraetAntwort>) =>
     setGeraeteState((v) => ({ ...v, [id]: { ...(v[id] ?? {}), ...patch } }));
-  const geraeteOffen = geraete.filter((g) => !geraetBeantwortet(geraeteState[g.id])).length;
+  const geraeteOffen = geraete
+    .filter((g) => !geraetBeantwortet(geraeteState[g.id], g.selbsttest === true)).length;
 
   /** `undefined` = noch nicht abgelesen. */
   const druckWert = (f: CheckFlasche): number | undefined => druck[f.id];
@@ -601,13 +626,20 @@ export function CheckFlow({
     box: Object.fromEntries(soll.map((p) => [p.id, boxWert(p)])),
     geraete: Object.fromEntries(geraete.map((g) => [g.id, geraetE(g.id)])),
     druck: Object.fromEntries(flaschen.map((f) => [f.id, druckWert(f)])),
-    // NUR die GEAENDERTEN — ein fehlender Eintrag laesst die Angabe
-    // unangetastet (`:152-155`).
-    verfaelle: Object.fromEntries(
-      Object.entries(verfallState)
-        .filter(([artikelId, wert]) => wert !== (verfall[artikelId] ?? ""))
-        .map(([artikelId, wert]) => [artikelId, wert || null]),
-    ),
+    /*
+     * NUR die Artikel mit einer ÄNDERUNG — ein fehlender Eintrag lässt die Angabe unangetastet.
+     * IDA-412: hat sich an EINEM Fach etwas geändert, gehen ALLE Fächer dieses Artikels mit dem
+     * angezeigten Wert. Der Server rechnet daraus das früheste Datum des Artikels, und das soll aus
+     * dem stammen, was auf dem Schirm stand, nicht aus einem Rest von vorher.
+     */
+    verfaelle: Object.fromEntries((() => {
+      const geaendert = new Set(soll
+        .filter((p) => verfallState[p.id] !== undefined && verfallState[p.id] !== verfallVorwert(p))
+        .map((p) => p.artikelId));
+      return soll
+        .filter((p) => geaendert.has(p.artikelId))
+        .map((p) => [p.id, verfallWert(p) || null]);
+    })()),
   });
 
   function abschliessen() {
@@ -622,7 +654,7 @@ export function CheckFlow({
     const nutzlast = checkNutzlast({
       fahrzeugId: fahrzeug.id,
       positionen: soll.map((p) => ({ id: p.id, artikelId: p.artikelId, soll: p.soll })),
-      geraete: geraete.map((g) => ({ id: g.id })),
+      geraete: geraete.map((g) => ({ id: g.id, selbsttest: g.selbsttest === true })),
       flaschen: flaschen.map((f) => ({ id: f.id, nennfuelldruckBar: f.nennfuelldruckBar })),
       z: zaehlung(),
     });
@@ -756,10 +788,7 @@ export function CheckFlow({
       ursache.handlagerLeer += luecke - machbar;
     }
     const inEinheit = inDerEinheit(fahrzeug.einheitenart);
-    const gemeldet = geraete.filter((g) => {
-      const a = geraeteState[g.id];
-      return a?.vorhanden === false || a?.zustand === "Defekt";
-    });
+    const gemeldet = geraete.filter((g) => geraetAuffaellig(geraeteState[g.id]));
     return (
       <>
         <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Fertig</div>
@@ -1210,7 +1239,7 @@ export function CheckFlow({
   if (aktivePhase === "zaehlen") {
     const ungezaehlt = soll.filter((p) => !gezaehlt(p)).length;
     const ablaufend = zaehleAblaufende(
-      Object.fromEntries(soll.map((p) => [p.artikelId, verfallWert(p.artikelId) || null])),
+      Object.fromEntries(soll.map((p) => [p.id, verfallWert(p) || null])),
       warn,
       new Date(),
     );
@@ -1311,7 +1340,7 @@ export function CheckFlow({
                 {imFach.map((p) => {
                     const wert = istWert(p);
                     const offen = !gezaehlt(p);
-                    const vw = verfallWert(p.artikelId);
+                    const vw = verfallWert(p);
                     const vc = verfallChip(vw);
                     // Mehrfach gefuehrt: Feld und Knopf nennen das Fach mit, sonst
                     // loeste `getByLabel(/^Verfall …/)` auf zwei Elemente auf.
@@ -1485,7 +1514,7 @@ export function CheckFlow({
                                 }
                               }}
                               onChange={(e) =>
-                                setVerfallState((v) => ({ ...v, [p.artikelId]: e.target.value }))
+                                setVerfallState((v) => ({ ...v, [p.id]: e.target.value }))
                               }
                             />
                             {/*
@@ -1493,7 +1522,7 @@ export function CheckFlow({
 
                               ⚠️ ER SCHREIBT `""`, NIEMALS `delete` ODER
                               `undefined`. `verfallWert` loest ueber
-                              `verfallState[a] ?? verfall[a] ?? ""` auf: ein
+                              `verfallState[p.id] ?? verfallVorwert(p)` auf: ein
                               entfernter Schluessel faellt durch die ??-Kette
                               auf den VORBELEGTEN Wert zurueck, und der alte
                               Monat stuende sofort wieder im Feld. Weder
@@ -1503,9 +1532,9 @@ export function CheckFlow({
 
                               ⚠️ ER IST KEIN LOESCHKNOPF FUER DIE HISTORIE.
                               `checkNutzlast` macht aus `""` ein `verfall: null`,
-                              der Server ruft damit `loescheVerfallEintrag` —
-                              also GENAU EINE Zeile in `lagerort_verfall`,
-                              dem AKTUELLEN Stand des Fahrzeugs. Die
+                              der Server loescht damit die Angabe DIESES Fachs
+                              (`setzeFachVerfaelle`) und rechnet den Artikel
+                              neu — der AKTUELLE Stand des Fahrzeugs. Die
                               `ergebnis`-JSONs frueherer Checks sind eigene
                               Momentaufnahmen und bleiben unberuehrt; der
                               Nachweis DIESES Checks entsteht erst danach aus
@@ -1544,7 +1573,7 @@ export function CheckFlow({
                                 */
                                 aria-label={`${benannt}: Verfall entfernen`}
                                 onClick={() =>
-                                  setVerfallState((v) => ({ ...v, [p.artikelId]: "" }))
+                                  setVerfallState((v) => ({ ...v, [p.id]: "" }))
                                 }
                               >
                                 <Ikone name="kreuz" groesse={20} />
@@ -1552,7 +1581,7 @@ export function CheckFlow({
                             )}
                             {mehrfach && (
                               <span id={`verfall-hinweis-${p.id}`} className={s.verfallHinweis} data-rolle="verfall-hinweis">
-                                gilt für alle Fächer – frühestes Datum eintragen
+                                nur dieses Fach – Datum der Packungen hier
                               </span>
                             )}
                           </div>
@@ -1683,17 +1712,10 @@ export function CheckFlow({
   // ——— Schritt: Geraete ———
   if (aktivePhase === "geraete") {
     /*
-     * IDA-377 — „ALLE IN ORDNUNG" IST EIN BEWUSSTER TIPP, KEINE VORBELEGUNG. Er setzt jedes noch
-     * unbeantwortete Geraet auf „vorhanden, In Ordnung" und laesst gegebene Antworten stehen; so bleibt
-     * der Check bei zwanzig heilen Geraeten schnell, und keines steht auf gruen, bevor jemand tippt.
+     * IDA-411 — KEIN „ALLE IN ORDNUNG" MEHR. Der Sammelknopf aus IDA-377 setzte jedes offene Gerät mit
+     * einem Tipp auf „vorhanden, In Ordnung"; im ersten echten Vollcheck war der Geräteschritt damit
+     * erledigt, ohne dass jemand ein Gerät angesehen hatte. Jetzt bekommt jedes Gerät seine Antwort.
      */
-    const alleInOrdnung = () =>
-      setGeraeteState((v) => ({
-        ...v,
-        ...Object.fromEntries(geraete
-          .filter((g) => !geraetBeantwortet(v[g.id]))
-          .map((g) => [g.id, { ...(v[g.id] ?? {}), vorhanden: true, zustand: "In Ordnung" as const }])),
-      }));
     return (
       <>
         <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Geräte</div>
@@ -1711,17 +1733,7 @@ export function CheckFlow({
         )}
         <div className={`${s.karte} ${s.kartePad}`}>
           <div className={s.zeileName}>Sind die Geräte da und in Ordnung?</div>
-          {geraeteOffen > 0 && (
-            <button
-              className={`${s.knopf} ${s.knopfGeist}`}
-              type="button"
-              onClick={alleInOrdnung}
-              data-rolle="geraete-alle-ok"
-              style={{ marginTop: 10 }}
-            >
-              {geraeteOffen === geraete.length ? "Alle in Ordnung" : "Übrige in Ordnung"}
-            </button>
-          )}
+          <div className={s.zeileMeta}>Bitte jedes Gerät einzeln ansehen.</div>
         </div>
         <div className={s.karte}>
           {geraete.map((g) => {
@@ -1750,7 +1762,7 @@ export function CheckFlow({
                       aria-pressed={e.vorhanden === false}
                       data-rolle="geraet-fehlt"
                       className={s.chipKnopf}
-                      onClick={() => setGeraet(g.id, { vorhanden: false, zustand: undefined })}
+                      onClick={() => setGeraet(g.id, { vorhanden: false, zustand: undefined, selbsttest: undefined })}
                     >
                       <HelferChip ton={e.vorhanden === false ? "rot" : "grau"}>
                         {e.vorhanden === false && <Ikone name="haken" groesse={13} />}fehlt
@@ -1774,6 +1786,28 @@ export function CheckFlow({
                         </button>
                       ))}
                   </div>
+                  {/* IDA-411: nur bei Geräten mit Selbsttest-Frage, und nur, wenn das Gerät da ist. */}
+                  {g.selbsttest === true && e.vorhanden !== false && (
+                    <div className={s.zeileMeta} data-rolle="geraet-selbsttest">
+                      <span>Selbsttest:</span>
+                      {([true, false] as const).map((ok) => (
+                        <button
+                          key={String(ok)}
+                          type="button"
+                          aria-pressed={e.selbsttest === ok}
+                          aria-label={`${g.name}: Selbsttest ${ok ? "bestanden" : "nicht bestanden"}`}
+                          data-rolle={ok ? "geraet-selbsttest-ok" : "geraet-selbsttest-nicht-ok"}
+                          className={s.chipKnopf}
+                          onClick={() => setGeraet(g.id, { vorhanden: true, selbsttest: ok })}
+                        >
+                          <HelferChip ton={e.selbsttest === ok ? (ok ? "ok" : "rot") : "grau"}>
+                            {e.selbsttest === ok && <Ikone name="haken" groesse={13} />}
+                            {ok ? "bestanden" : "nicht bestanden"}
+                          </HelferChip>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <input
                     className={s.feld}
                     placeholder="Bemerkung (optional)"
