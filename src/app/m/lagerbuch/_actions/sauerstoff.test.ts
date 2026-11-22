@@ -21,7 +21,7 @@ vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf übergibt t.db"); },
 }));
 
-import { flascheSpeichern, messungErfassen, setFlascheAktiv } from "./sauerstoff";
+import { flascheSpeichern, flascheUmsetzen, messungErfassen, setFlascheAktiv } from "./sauerstoff";
 
 const VIEWER = {
   sub: "u-admin",
@@ -378,6 +378,10 @@ describe("Admin-Riegel", () => {
       name: "messungErfassen",
       aufruf: () => messungErfassen({ flascheId: "", druckBar: -1 }, t.db),
     },
+    {
+      name: "flascheUmsetzen",
+      aufruf: () => flascheUmsetzen({ flascheId: "", lagerortId: "" }, t.db),
+    },
   ])("lässt bei $name den Admin-Riegel vor ungültiger Eingabe entscheiden", async ({ aufruf }) => {
     const verweigert = new Error("Kein Lagerbuch-Zugang");
     adminRiegel.mockRejectedValueOnce(verweigert);
@@ -387,6 +391,51 @@ describe("Admin-Riegel", () => {
     expect(adminRiegel).toHaveBeenCalledTimes(1);
     expect(t.db.select().from(o2Flaschen).all()).toEqual([]);
     expect(t.db.select().from(o2Messungen).all()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+});
+
+describe("flascheUmsetzen", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "ort-lager", name: "Handlager", typ: "lager", aktiv: true },
+    ]).run();
+  });
+
+  it("ändert nur lagerortId und revalidiert Fahrzeugblatt (alt) und Sauerstoffseiten", async () => {
+    flascheVorbelegen();
+    const vorher = flasche();
+
+    const erg = await flascheUmsetzen({ flascheId: FLASCHE_ID, lagerortId: "ort-lager" }, t.db);
+
+    expect(erg).toEqual({ ok: true, wert: { id: FLASCHE_ID } });
+    expect(flasche()).toEqual({ ...vorher, lagerortId: "ort-lager" });
+    expect(revalidiert).toEqual(expect.arrayContaining([
+      LISTENPFAD,
+      detailPfad(FLASCHE_ID),
+      `/m/lagerbuch/verwaltung/fahrzeuge/${AKTIVER_ORT_ID}`,
+    ]));
+  });
+
+  it("weist die Entnahmebox, einen inaktiven und einen unbekannten Ort ab", async () => {
+    flascheVorbelegen();
+
+    for (const ziel of [ENTNAHMEBOX_ID, INAKTIVER_ORT_ID, "gibt-es-nicht"]) {
+      const erg = await flascheUmsetzen({ flascheId: FLASCHE_ID, lagerortId: ziel }, t.db);
+      expect(erg).toEqual({ ok: false, fehler: "Lagerort nicht gefunden oder inaktiv." });
+    }
+    expect(flasche()?.lagerortId).toBe(AKTIVER_ORT_ID);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("weist eine inaktive oder unbekannte Flasche ab", async () => {
+    flascheVorbelegen({ aktiv: false });
+
+    for (const id of [FLASCHE_ID, "flasche-fehlt"]) {
+      const erg = await flascheUmsetzen({ flascheId: id, lagerortId: "ort-lager" }, t.db);
+      expect(erg).toEqual({ ok: false, fehler: "Sauerstoffflasche nicht gefunden oder inaktiv." });
+    }
+    expect(flasche()?.lagerortId).toBe(AKTIVER_ORT_ID);
     expect(revalidiert).toEqual([]);
   });
 });

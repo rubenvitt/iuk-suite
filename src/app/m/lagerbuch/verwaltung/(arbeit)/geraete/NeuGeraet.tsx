@@ -57,9 +57,23 @@ function tag(datum: Dayjs | null | undefined): string | undefined {
 
 export function NeuGeraet({
   lagerorte,
+  vorgabeLagerortId,
+  ausloeser = "primaer",
 }: {
   lagerorte: Lagerort[];
+  /**
+   * Verwaltungscheck: „Gerät hier anlegen" am Fahrzeugblatt belegt den Standort
+   * vor. Ein Id, den es in `lagerorte` nicht gibt, bleibt unbeachtet (sonst
+   * zeigte das Select die rohe Id). Der Entwurf bekommt einen eigenen
+   * Schlüssel je Ort, damit zwei Blätter sich nicht überschreiben.
+   */
+  vorgabeLagerortId?: string;
+  /** `neutral`: ein einfacher Knopf statt der Primäraktion (Knopf in einer Zeile). */
+  ausloeser?: "primaer" | "neutral";
 }) {
+  const vorgabeOrt = vorgabeLagerortId && lagerorte.some((o) => o.id === vorgabeLagerortId)
+    ? vorgabeLagerortId
+    : undefined;
   const [offen, setOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
@@ -67,7 +81,10 @@ export function NeuGeraet({
   const [form] = Form.useForm<Werte>();
   // IDA-358: die Eingaben ueberstehen ein Neuladen; liegt ein Entwurf, steht
   // der Dialog danach gleich wieder offen — sonst saehe ihn niemand.
-  const entwurf = useFormEntwurf(form, "lagerbuch:neu-geraet");
+  const entwurf = useFormEntwurf(
+    form,
+    vorgabeLagerortId ? `lagerbuch:neu-geraet:${vorgabeLagerortId}` : "lagerbuch:neu-geraet",
+  );
   const router = useRouter();
   const typ = Form.useWatch("typ", form) ?? "medizin";
 
@@ -132,7 +149,7 @@ export function NeuGeraet({
   return (
     <>
       <Button
-        type="primary"
+        type={ausloeser === "primaer" ? "primary" : "default"}
         icon={<Ikone name="plus" groesse={16} />}
         onClick={oeffnen}
       >
@@ -159,7 +176,7 @@ export function NeuGeraet({
           form={form}
           layout="vertical"
           disabled={laeuft}
-          initialValues={{ typ: "medizin" }}
+          initialValues={{ typ: "medizin", lagerortId: vorgabeOrt }}
           onFinish={speichern}
           onValuesChange={entwurf.onValuesChange}
           data-rolle="neues-geraet"

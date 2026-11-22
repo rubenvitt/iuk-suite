@@ -21,6 +21,7 @@ import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
 
 const LISTENPFAD = "/m/lagerbuch/verwaltung/geraete";
 const LAGERORT_FEHLER = "Lagerort nicht gefunden oder inaktiv.";
+const GERAET_FEHLER = "Gerät nicht gefunden oder inaktiv.";
 const BARCODE_FEHLER = "Barcode bereits vergeben.";
 
 const TagSchema = z.string()
@@ -49,6 +50,11 @@ const GeraetSchema = z.object({
 const AktivSchema = z.object({
   id: z.string().min(1),
   aktiv: z.boolean(),
+});
+
+const UmsetzenSchema = z.object({
+  geraetId: z.string().min(1),
+  lagerortId: z.string().min(1, "Standort wählen"),
 });
 
 type FehlerErgebnis = Extract<ActionErgebnis, { ok: false }>;
@@ -164,6 +170,59 @@ export async function geraetSpeichern(
 
     revalidate(id);
     return { ok: true, wert: { id } };
+  });
+}
+
+/**
+ * Verwaltungscheck: ein Gerät an einen anderen Standort setzen, sonst nichts.
+ * Dieselbe Zielregel wie `geraetSpeichern` (aktiver Lagerort, nie die
+ * Entnahmebox), aber ausdrücklich NUR `lagerortId` — Typ, Barcode, Fristen und
+ * Schalter bleiben, anders als beim Speichern des ganzen Formulars.
+ */
+export async function geraetUmsetzen(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<ActionErgebnis<{ id: string }>> {
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
+
+    const geparst = UmsetzenSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    const { geraetId, lagerortId } = geparst.data;
+
+    try {
+      const geraet = db.select({ id: geraete.id, lagerortId: geraete.lagerortId, aktiv: geraete.aktiv })
+        .from(geraete)
+        .where(eq(geraete.id, geraetId))
+        .get();
+      if (!geraet || !geraet.aktiv) return festerFehler(GERAET_FEHLER);
+
+      // Die Entnahmebox ist kein Standort (siehe `geraetSpeichern`).
+      if (istEntnahmebox(lagerortId)) return festerFehler(LAGERORT_FEHLER);
+      const ziel = db.select({ id: lagerorte.id, typ: lagerorte.typ }).from(lagerorte)
+        .where(and(eq(lagerorte.id, lagerortId), eq(lagerorte.aktiv, true)))
+        .get();
+      if (!ziel) return festerFehler(LAGERORT_FEHLER);
+
+      const alt = db.select({ typ: lagerorte.typ }).from(lagerorte)
+        .where(eq(lagerorte.id, geraet.lagerortId))
+        .get();
+
+      db.update(geraete).set({ lagerortId }).where(eq(geraete.id, geraetId)).run();
+
+      revalidate(geraetId);
+      revalidatePath(LISTENPFAD, "layout");
+      // Das Gerät steht im Fahrzeugblatt seines alten und seines neuen Orts.
+      if (alt?.typ === "fahrzeug") {
+        revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", geraet.lagerortId));
+      }
+      if (ziel.typ === "fahrzeug" && lagerortId !== geraet.lagerortId) {
+        revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", lagerortId));
+      }
+    } catch {
+      return festerFehler("Gerät konnte nicht umgesetzt werden.");
+    }
+    return { ok: true, wert: { id: geraetId } };
   });
 }
 

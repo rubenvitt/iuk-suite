@@ -393,6 +393,18 @@ describe("BarcodeScanner — die manuelle Suche", () => {
     expect(zugewiesen).toEqual(["/verwaltung/geraete/g1"]);
   });
 
+  it("mit `onTreffer` wird gemeldet statt navigiert — und `zielPfad` ist dann nicht noetig", async () => {
+    sichererKontext(false);
+    const treffer: string[] = [];
+    await mount(
+      <BarcodeScanner zuBarcode={props.zuBarcode} onTreffer={(id) => treffer.push(id)} />,
+    );
+    await fill("[data-rolle='scan-manuell']", "SN-1");
+    await submitForm("[data-rolle='scan-form']");
+    expect(treffer).toEqual(["g1"]);
+    expect(zugewiesen).toEqual([]);
+  });
+
   it("normalisiert die Eingabe ueber `normalisiereBarcode`", async () => {
     // Ein aus einem QR getippter Deep-Link findet sein Geraet nur so.
     const gesehen: string[] = [];
