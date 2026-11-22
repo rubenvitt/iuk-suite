@@ -15,7 +15,7 @@ import { druckZuHoch } from "./domain/o2";
 import { obergrenze, ueberschuss } from "./domain/sollBereich";
 import { verfallStatus } from "./domain/verfall";
 import { geraetBeantwortet } from "./checkNutzlast";
-import { MONAT_REGEX, type Zustand } from "./konstanten";
+import { MONAT_REGEX, PSEUDO_VERFALL, type Zustand } from "./konstanten";
 import type { VerwaltungscheckDaten } from "./lesepfade/verwaltungscheck";
 
 export type Herkunft =
@@ -122,6 +122,58 @@ function basisVorAussondern(ist: number, a: Ausgleich | undefined): number {
   return ist - (a?.auffuellen?.mitgezaehlt ? a.auffuellen.menge : 0);
 }
 
+export type ChargeAnEinheit = VerwaltungscheckDaten["chargenAnEinheit"][string][number];
+
+/** FEFO über eine Chargenliste: früherer Verfall zuerst, sonst die gelieferte Reihenfolge (stabil). */
+function fefoAbziehen(chargen: ChargeAnEinheit[], menge: number): ChargeAnEinheit[] {
+  let offen = menge;
+  return chargen.map((c, i) => ({ c, i }))
+    .sort((a, b) => a.c.verfall.localeCompare(b.c.verfall) || a.i - b.i)
+    .map(({ c }) => {
+      const nimm = Math.min(Math.max(c.menge, 0), Math.max(offen, 0));
+      offen -= nimm;
+      return { ...c, menge: c.menge - nimm };
+    });
+}
+
+/** Steht für die Korrektur-Charge, die der Server bei einem Plus ohne Charge erst anlegt — nie wählbar. */
+const KORREKTUR_CHARGE = "";
+
+/**
+ * DIE CHARGEN AN DER EINHEIT, WIE SIE DAS ZURÜCKLEGEN SIEHT — nach der Zählung
+ * und nach dem Aussondern, in FEFO-Reihenfolge, nur mit Rest > 0.
+ *
+ * Der Abschluss bucht ZUERST die Korrektur auf `Ist − mitgezählt`
+ * (`korrekturAufLagerort`, `_lib/schreibpfade/korrektur.ts`), DANN das
+ * Aussondern (FEFO an der Einheit) und prüft erst danach den Rest der
+ * gewählten Charge. Dieselbe Regel hier:
+ *   Minus → FEFO über die Chargen der Einheit,
+ *   Plus  → auf die jüngste Charge des Artikels (`korrekturPlusCharge`, auch
+ *           wenn sie bisher nicht hier lag), ohne jede Charge auf eine
+ *           Korrektur-Charge, die erst im Abschluss entsteht und hier nicht
+ *           wählbar ist.
+ * Ein Artikel, der nicht ganz gezählt ist, behält seine Chargen von heute.
+ */
+export function chargenNachZaehlung(daten: VerwaltungscheckDaten, z: ZaehlZustand, artikelId: string): ChargeAnEinheit[] {
+  let chargen = daten.chargenAnEinheit[artikelId] ?? [];
+  const ist = istSumme(z, jeArtikel(daten).get(artikelId) ?? []);
+  if (ist !== null) {
+    const a = z.ausgleich[artikelId];
+    const diff = Math.max(0, basisVorAussondern(ist, a)) - (daten.buchstand[artikelId] ?? 0);
+    if (diff < 0) {
+      chargen = fefoAbziehen(chargen, -diff);
+    } else if (diff > 0) {
+      const plus = daten.korrekturPlusCharge[artikelId];
+      const id = plus?.chargeId ?? KORREKTUR_CHARGE;
+      chargen = chargen.some((c) => c.chargeId === id)
+        ? chargen.map((c) => (c.chargeId === id ? { ...c, menge: c.menge + diff } : c))
+        : [...chargen, plus ? { ...plus, menge: diff } : { chargeId: id, label: "", verfall: PSEUDO_VERFALL, menge: diff }];
+    }
+    if (a?.aussondern) chargen = fefoAbziehen(chargen, a.aussondern.menge);
+  }
+  return fefoAbziehen(chargen, 0).filter((c) => c.menge > 0 && c.chargeId !== KORREKTUR_CHARGE);
+}
+
 export type AusgleichZeile = {
   artikelId: string;
   artikelName: string;
@@ -185,7 +237,31 @@ export function ausgleichZeilen(daten: VerwaltungscheckDaten, z: ZaehlZustand, j
 export type Sperrgrund = {
   art: "teilartikel" | "plombe" | "abgelaufen" | "menge" | "druck" | "leer";
   text: string;
+  /** Nur „teilartikel": der Artikelname — `sperrZeilenKurz` fasst danach zusammen. */
+  artikel?: string;
 };
+
+/** So viele Gründe stehen in der klebenden Leiste, bevor „alle zeigen" kommt. */
+const SPERR_ZEILEN = 3;
+
+/**
+ * DIE GRÜNDE FÜR DIE KLEBENDE LEISTE — kurz, damit sie auf 390px nicht den
+ * Bildschirm füllt: mehr als zwei angefangene Artikel werden EINE Zeile mit
+ * den ersten Namen, danach stehen höchstens drei Zeilen; `weitere` zählt den
+ * Rest. `gekuerzt` heißt: die volle Liste (`sperrGruende`) sagt mehr.
+ */
+export function sperrZeilenKurz(gruende: readonly Sperrgrund[]): { zeilen: string[]; weitere: number; gekuerzt: boolean } {
+  const teil = gruende.filter((g) => g.art === "teilartikel");
+  let zeilen = gruende.map((g) => g.text);
+  if (teil.length > 2) {
+    const namen = teil.slice(0, 2).map((g) => g.artikel ?? g.text);
+    const sammel = `${teil.length} Artikel: auch in weiteren Fächern zählen (${namen.join(", ")}, …)`;
+    const erste = gruende.findIndex((g) => g.art === "teilartikel");
+    zeilen = gruende.flatMap((g, i) => (i === erste ? [sammel] : g.art === "teilartikel" ? [] : [g.text]));
+  }
+  const sichtbar = zeilen.slice(0, SPERR_ZEILEN);
+  return { zeilen: sichtbar, weitere: zeilen.length - sichtbar.length, gekuerzt: sichtbar.length < gruende.length };
+}
 
 function fachName(fachLabel: string | null): string {
   return fachLabel === null ? "ohne Fach" : `Fach ${fachLabel}`;
@@ -205,7 +281,8 @@ export function sperrGruende(daten: VerwaltungscheckDaten, z: ZaehlZustand, jetz
     const offen = positionen.filter((p) => !gezaehlt(z, p.id));
     if (offen.length === 0 || offen.length === positionen.length) continue;
     const faecher = [...new Set(offen.map((p) => fachName(p.fachLabel)))];
-    gruende.push({ art: "teilartikel", text: `${positionen[0]!.artikelName}: auch in ${faecher.join(", ")} zählen` });
+    const artikelName = positionen[0]!.artikelName;
+    gruende.push({ art: "teilartikel", text: `${artikelName}: auch in ${faecher.join(", ")} zählen`, artikel: artikelName });
   }
 
   // Spec 6.12.3: eine neue Nummer an einer Plombe mit Fach verlangt das ganze Fach. Ohne Fach frei.
@@ -245,6 +322,11 @@ export function sperrGruende(daten: VerwaltungscheckDaten, z: ZaehlZustand, jetz
       gruende.push({ art: "menge", text: `${name}: höchstens ${basis} aussondern` });
     } else if (a.zuruecklegen && a.zuruecklegen.menge > basis - ausgesondert) {
       gruende.push({ art: "menge", text: `${name}: höchstens ${basis - ausgesondert} zurücklegen` });
+    } else if (a.zuruecklegen?.chargeId) {
+      // Der Server prüft den Rest der Charge NACH Korrektur und Aussondern (`chargenNachZaehlung`).
+      const { chargeId, menge } = a.zuruecklegen;
+      const n = chargenNachZaehlung(daten, z, artikelId).find((c) => c.chargeId === chargeId)?.menge ?? 0;
+      if (menge > n) gruende.push({ art: "menge", text: `${name}: höchstens ${n} von dieser Charge zurücklegen` });
     }
   }
 

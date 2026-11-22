@@ -20,7 +20,7 @@ import { sollText } from "../../../../../_lib/domain/sollBereich";
 import { ENTNAHMEBOX_ID } from "../../../../../_lib/konstanten";
 import type { VerwaltungscheckDaten } from "../../../../../_lib/lesepfade/verwaltungscheck";
 import {
-  ausgleichZeilen, type Ausgleich, type AusgleichZeile, type Herkunft, type ZaehlZustand,
+  ausgleichZeilen, chargenNachZaehlung, type Ausgleich, type AusgleichZeile, type Herkunft, type ZaehlZustand,
 } from "../../../../../_lib/verwaltungscheck";
 import { Chip } from "../../../../../_ui/Chip";
 import { Ikone } from "../../../../../_ui/ikonen";
@@ -175,6 +175,7 @@ export function AusgleichReiter({ daten, zustand, aendere, gesperrt }: ReiterPro
           <ZuruecklegenDialog
             zeile={offeneZeile}
             daten={daten}
+            chargen={chargenNachZaehlung(daten, zustand, offeneZeile.artikelId)}
             vorher={zustand.ausgleich[offeneZeile.artikelId]?.zuruecklegen}
             onUebernehmen={uebernimm("zuruecklegen", offeneZeile.artikelId)}
             onSchliessen={schliessen}

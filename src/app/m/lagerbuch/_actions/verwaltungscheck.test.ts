@@ -10,7 +10,7 @@ import { summiereCheckErgebnis } from "../_lib/domain/check";
 import { statistikDaten } from "../_lib/lesepfade/statistik";
 import { kurzcheckVorlage } from "../_lib/lesepfade/kurzcheck";
 import { verwaltungscheckDaten } from "../_lib/lesepfade/verwaltungscheck";
-import { baueNutzlast, leererZustand } from "../_lib/verwaltungscheck";
+import { baueNutzlast, chargenNachZaehlung, leererZustand, sperrGruende } from "../_lib/verwaltungscheck";
 
 /**
  * DER VERWALTUNGSCHECK-ABSCHLUSS — Spec 6.8 und 6.12.
@@ -365,6 +365,39 @@ describe("verwaltungscheckAbschluss — Ausgleich", () => {
     expect(bestand("fz-1")).toBe(5);
     expect(erg.wert.zurueckgelegt).toBe(2);
     expect(neueZeilen().every((b) => b.referenz === `${RUECKLAUF_PRAEFIX}fz-1`)).toBe(true);
+  });
+
+  it("prüft die Charge beim Zurücklegen nach der Zählung — wie die Seite vorher rechnet", async () => {
+    // ch-1 (01/30) 5, ch-3 (01/31) 2 an der Einheit; gezählt 4: die Korrektur nimmt 3 von ch-1.
+    t.db.insert(chargen).values({ id: "ch-3", artikelId: "art-1", chargenNr: "L3", verfall: "2031-01", createdAt: JETZT }).run();
+    buchen("fz-1", 5);
+    buchen("fz-1", 2, "ch-3");
+    const daten = verwaltungscheckDaten(t.db, "fz-1")!;
+    const z = {
+      ...leererZustand(),
+      ist: { "sp-1": 2, "sp-2": 2 },
+      ausgleich: { "art-1": { zuruecklegen: { menge: 3, zielLagerortId: "sch-1", chargeId: "ch-1" } } },
+    };
+    expect(chargenNachZaehlung(daten, z, "art-1").map((c) => [c.chargeId, c.menge])).toEqual([["ch-1", 2], ["ch-3", 2]]);
+    expect(sperrGruende(daten, z, new Date()).map((g) => g.text)).toEqual([
+      "Kompresse: höchstens 2 von dieser Charge zurücklegen",
+    ]);
+
+    const erg = await verwaltungscheckAbschluss(baueNutzlast(daten, z, SENDUNG), t.db);
+    expect(erg).toEqual({
+      ok: false,
+      fehler: "Kompresse: nach der Zählung liegen von dieser Charge an diesem Fahrzeug nur 2 Stk. "
+        + "Es wurde nichts gebucht — bitte die Menge prüfen.",
+    });
+    expect(neueZeilen()).toEqual([]);
+
+    // Dieselbe Prüfung für die Entnahmebox mit gewählter Charge.
+    const box = await verwaltungscheckAbschluss(nutzlast({
+      ausgleich: [{ artikelId: "art-1", zuruecklegen: { menge: 3, zielLagerortId: ENTNAHMEBOX_ID, chargeId: "ch-1" } }],
+    }, [2, 2]), t.db);
+    expect(box.ok).toBe(false);
+    if (box.ok) return;
+    expect(box.fehler).toMatch(/^Kompresse: nach der Zählung liegen von dieser Charge an diesem Fahrzeug nur 2 Stk\./);
   });
 
   it("legt ohne Charge in die Entnahmebox", async () => {

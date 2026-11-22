@@ -51,10 +51,14 @@ export function gruppiereZaehlung(
 ): Map<string, ZaehlGruppe> {
   const byId = new Map(sollRows.map((s) => [s.id, s]));
   const gruppen = new Map<string, ZaehlGruppe & { mitBereich: boolean; obergrenze: number }>();
+  const gesehen = new Set<string>();
   for (const p of positionen) {
     const row = byId.get(p.sollPositionId);
     // WURF 1 von 4 (§7.3, Riegelfall — nicht „erwartbar", sondern „manipuliert").
     if (!row) throw new Error("Soll-Position gehört nicht zu diesem Fahrzeug");
+    // Derselbe Riegelfall: doppelt zählte das Ist doppelt, und die Fächerzahl unten stimmte trotzdem.
+    if (gesehen.has(row.id)) throw new Error("Soll-Position wurde doppelt gezählt");
+    gesehen.add(row.id);
     const g = gruppen.get(row.artikelId) ?? {
       artikelId: row.artikelId, positionen: [], sollSumme: 0, istSumme: 0, mitBereich: false, obergrenze: 0,
     };

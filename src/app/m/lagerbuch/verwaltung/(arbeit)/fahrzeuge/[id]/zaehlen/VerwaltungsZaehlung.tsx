@@ -34,6 +34,7 @@ import {
   fortschritt,
   leererZustand,
   sperrGruende,
+  sperrZeilenKurz,
   type Fortschritt,
   type Sperrgrund,
   type VerwaltungscheckNutzlast,
@@ -180,6 +181,9 @@ function Abschlussleiste({
   onHoehe: (hoehe: number) => void;
 }) {
   const [frage, setFrage] = useState(false);
+  // Die Leiste klebt: die Gründe stehen gekürzt da, die volle Liste auf Wunsch (`sperrZeilenKurz`).
+  const [alleGruende, setAlleGruende] = useState(false);
+  const kurz = sperrZeilenKurz(gruende);
   const knopfGesperrt = laeuft || gruende.length > 0;
   // Die Höhe geht hinauf (Falle 16). jsdom kennt keinen `ResizeObserver`.
   const leiste = useCallback((element: HTMLDivElement | null) => {
@@ -200,7 +204,14 @@ function Abschlussleiste({
       ) : null}
       {gruende.length > 0 ? (
         <ul className={k.sperrgruende} data-rolle="sperrgruende" aria-label="Noch nicht abschließbar">
-          {gruende.map((g) => <li key={`${g.art}:${g.text}`}>{g.text}</li>)}
+          {(alleGruende ? gruende.map((g) => g.text) : kurz.zeilen).map((text) => <li key={text}>{text}</li>)}
+          {kurz.gekuerzt ? (
+            <li className={k.sperrUmschalter}>
+              <Button type="link" data-rolle="sperrgruende-alle" onClick={() => setAlleGruende((a) => !a)}>
+                {alleGruende ? "weniger zeigen" : kurz.weitere > 0 ? `und ${kurz.weitere} weitere — alle zeigen` : "alle zeigen"}
+              </Button>
+            </li>
+          ) : null}
         </ul>
       ) : null}
       <div className={k.abschlussZeile}>

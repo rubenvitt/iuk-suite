@@ -58,8 +58,8 @@ function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
   if (zeile.art === "kurz") {
     chips.push({ schluessel: "kurz", text: "Kurzcheck", ton: "grau", zeichen: null });
   }
-  // Der Check der Verwaltung zaehlt vollstaendig, ist aber kein Helfer-Check:
-  // die Zeile sagt es, damit „vollständig" nicht fuer beide Arten dasselbe heisst.
+  // Der Check der Verwaltung ist kein Helfer-Check und darf ein Teil sein (nur
+  // ein Fach, nur Geraete, Spec 6.12.6): ruhig heisst er „ohne Befund" wie kurz.
   if (zeile.art === "verwaltung") {
     chips.push({ schluessel: "verwaltung", text: "Verwaltung", ton: "grau", zeichen: null });
   }
@@ -128,7 +128,7 @@ function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
   if (chips.every((c) => c.schluessel === "kurz" || c.schluessel === "verwaltung")) {
     chips.push({
       schluessel: "vollstaendig",
-      text: zeile.art === "kurz" ? "ohne Befund" : "vollständig",
+      text: zeile.art === "kurz" || zeile.art === "verwaltung" ? "ohne Befund" : "vollständig",
       ton: "ok",
       zeichen: null,
     });

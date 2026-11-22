@@ -5,16 +5,18 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb, type DB } from "../_db/client";
-import { artikel, checks, lagerorte, o2Flaschen, plomben, sollPositionen } from "../_db/schema";
+import { artikel, chargen, checks, lagerorte, o2Flaschen, plomben, sollPositionen } from "../_db/schema";
 import type { ActionErgebnis } from "../_lib/actionErgebnis";
 import { BuchungAbgewiesen } from "../_lib/buchungAbgewiesen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import {
-  CHECK_ABGLEICH, ENTNAHMEBOX_ID, MONAT_REGEX, ZUSTAENDE, dieseEinheit, grossAmAnfang,
+  CHECK_ABGLEICH, ENTNAHMEBOX_ID, MONAT_REGEX, ZUSTAENDE, anDieserEinheit, dieseEinheit, grossAmAnfang,
+  type Einheitenart,
 } from "../_lib/konstanten";
 import { druckZuHoch } from "../_lib/domain/o2";
 import { offenJeArtikel } from "../_lib/domain/check";
 import type { CheckArtikelRoh, CheckPositionRoh } from "../_lib/checkErgebnis";
+import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
 import { revalidiereBestand } from "../_lib/revalidierung";
 import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
@@ -25,6 +27,7 @@ import {
 import {
   aufladenVonOrtTx, auffuellenAusHandlagerTx, aussondernAnEinheitTx, inEntnahmeboxTx, ruecklaufTx,
 } from "../_lib/schreibpfade/einheitBewegung";
+import type { Tx } from "../_lib/schreibpfade/abbuchung";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
 import { setzeFachVerfaelle } from "../_lib/schreibpfade/fachVerfall";
 import { zugangAnEinheitBuchen } from "../_lib/schreibpfade/zugang";
@@ -276,6 +279,11 @@ export async function verwaltungscheckAbschluss(
               }
               if (a.zuruecklegen) {
                 const z = a.zuruecklegen;
+                if (z.chargeId) {
+                  pruefeChargeNachZaehlung(tx, {
+                    fahrzeug: fz, artikelId: a.artikelId, chargeId: z.chargeId, menge: z.menge,
+                  });
+                }
                 if (z.zielLagerortId === ENTNAHMEBOX_ID) {
                   b.zurueckgelegt = inEntnahmeboxTx(tx, {
                     fahrzeugId: v.fahrzeugId, artikelId: a.artikelId, menge: z.menge,
@@ -429,6 +437,32 @@ export async function verwaltungscheckAbschluss(
       }
       return { ok: true, wert };
     },
+  );
+}
+
+/**
+ * DER REST DER GEWÄHLTEN CHARGE NACH DER ZÄHLUNG — vor `ruecklaufTx` bzw.
+ * `inEntnahmeboxTx`, deren Texte auch `bucheRuecklauf`/`bucheInEntnahmebox`
+ * gehören und bleiben. Hier stehen Korrektur und Aussondern schon im Journal;
+ * die Seite hat mit demselben Stand gerechnet (`chargenNachZaehlung`), und die
+ * Absage sagt deshalb „nach der Zählung", nicht „heute".
+ *
+ * Eine fremde Charge fällt hier durch: der Schreibpfad weist sie mit eigenem Text ab.
+ */
+function pruefeChargeNachZaehlung(
+  tx: Tx,
+  a: { fahrzeug: { id: string; einheitenart: Einheitenart | null }; artikelId: string; chargeId: string; menge: number },
+): void {
+  const charge = tx.select({ artikelId: chargen.artikelId }).from(chargen).where(eq(chargen.id, a.chargeId)).get();
+  if (!charge || charge.artikelId !== a.artikelId) return;
+  const rest = restJeChargeFuerArtikelAnOrt(tx, a.artikelId, a.fahrzeug.id).get(a.chargeId) ?? 0;
+  if (rest >= a.menge) return;
+  const art = tx.select({ name: artikel.name, einheit: artikel.einheit }).from(artikel)
+    .where(eq(artikel.id, a.artikelId)).get();
+  throw new BuchungAbgewiesen(
+    `${art?.name ?? "Dieser Artikel"}: nach der Zählung liegen von dieser Charge `
+    + `${anDieserEinheit(a.fahrzeug.einheitenart)} nur ${Math.max(rest, 0)} ${art?.einheit ?? ""}`.trimEnd()
+    + ". Es wurde nichts gebucht — bitte die Menge prüfen.",
   );
 }
 

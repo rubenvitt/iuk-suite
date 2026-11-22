@@ -258,6 +258,11 @@ describe("Check-Detailseite", () => {
       expect(ohne.abgleichZeilen[0]).not.toHaveProperty("ausgesondertZahl");
     });
 
+    it("nennt die Ist-Spalte des Abgleichs nur beim Verwaltungscheck „gebucht“", () => {
+      expect(tabellenAus(checkDetailInhalt(bewegt())).istGebucht).toBe(true);
+      expect(tabellenAus(checkDetailInhalt(gefuellterCheck())).istGebucht).toBe(false);
+    });
+
     it("zeigt ohne Kommentar keinen Absatz", () => {
       expect(textVon(checkDetailInhalt({ ...bewegt(), kommentar: null })))
         .not.toContain("Nach dem Einsatz");

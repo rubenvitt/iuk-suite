@@ -172,7 +172,7 @@ export const VerfallZelle = memo(function VerfallZelle({ zeile, wert, gezaehlt, 
   const status = gueltig ? verfallStatus(gueltig, schwellen, new Date()) : null;
   return (
     <Flex vertical gap={SPACE.xs}>
-      <Flex gap={SPACE.xs} align="center">
+      <Flex gap={SPACE.xs} align="center" wrap>
         <MonatsFeld
           aria-label={`Verfall ${zeile.benannt}`}
           disabled={gesperrt || !gezaehlt}

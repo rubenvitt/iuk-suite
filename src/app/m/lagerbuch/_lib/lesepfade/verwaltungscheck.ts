@@ -19,15 +19,14 @@
  * ⚠️ `null` HEISST „KEINE FAHRZEUG-EINHEIT". Ob die Einheit AKTIV ist, entscheidet
  * die Seite: sie zeigt dann einen Leerzustand und kein `notFound` (Falle 23).
  */
-import { eq } from "drizzle-orm";
-import { lagerorte, o2Flaschen } from "../../_db/schema";
+import { eq, inArray } from "drizzle-orm";
+import { chargen, lagerorte, o2Flaschen } from "../../_db/schema";
 import type { GeraetTyp } from "../domain/geraet";
 import { verfallSchwellen, type VerfallSchwellen } from "../domain/verfall";
 import { fmtVerfall } from "../format";
 import { standortZeile, type Einheitenart } from "../konstanten";
 import { fmtDatumZeit } from "../zeit";
-import type { AufladenArtikel } from "../../verwaltung/(arbeit)/fahrzeuge/[id]/AufladenDialog";
-import { artikelListe, chargenJeArtikelAmLagerort } from "./artikel";
+import { chargenJeArtikelAmLagerort } from "./artikel";
 import { bestandJeArtikelAnOrt, type Leser } from "./bestand";
 import { lagerortOptionen, type LagerortOption } from "./bz";
 import { boxOrt } from "./entnahmebox";
@@ -53,8 +52,19 @@ export type VerwaltungscheckDaten = {
   verfallFach: Record<string, string>;
   /** Das gemeldete Datum je Artikel (`YYYY-MM`), artikelId → Datum. */
   verfallArtikel: Record<string, string>;
-  /** Chargen mit Rest an der Einheit — für das Zurücklegen. */
-  chargenAnEinheit: Record<string, { chargeId: string; label: string; menge: number }[]>;
+  /**
+   * Chargen mit Rest an der Einheit — für das Zurücklegen, in FEFO-Reihenfolge
+   * (`vergleicheFefoCharge`). Der Client rechnet daraus den Stand nach der
+   * Zählung (`chargenNachZaehlung`); `verfall` ist sein Sortierschlüssel.
+   */
+  chargenAnEinheit: Record<string, { chargeId: string; label: string; verfall: string; menge: number }[]>;
+  /**
+   * Je gezähltem Artikel die Charge, auf die ein PLUS der Korrektur geht: die
+   * jüngste des Artikels, gleich wo sie liegt — dieselbe Regel wie
+   * `korrekturAufLagerort` (`_lib/schreibpfade/korrektur.ts`). Fehlt der
+   * Artikel, hat er keine Charge, und der Server legt eine Korrektur-Charge an.
+   */
+  korrekturPlusCharge: Record<string, { chargeId: string; label: string; verfall: string }>;
   plomben: {
     id: string; bezeichnung: string; fachLabel: string | null;
     nummer: string | null; gesetzt: string | null;
@@ -66,7 +76,6 @@ export type VerwaltungscheckDaten = {
   ruecklaufZiele: { id: string; name: string }[];
   entnahmeboxAktiv: boolean;
   lagerorte: LagerortOption[];
-  aufladenArtikel: AufladenArtikel[];
   schwellen: VerfallSchwellen;
 };
 
@@ -81,10 +90,34 @@ export function verwaltungscheckDaten(db: Leser, fahrzeugId: string): Verwaltung
   }));
 
   const chargenAnEinheit: VerwaltungscheckDaten["chargenAnEinheit"] = {};
-  for (const [artikelId, chargen] of chargenJeArtikelAmLagerort(db, fahrzeugId)) {
-    chargenAnEinheit[artikelId] = chargen.map((c) => ({
-      chargeId: c.id, label: `${c.chargenNr} · ${fmtVerfall(c.verfall)}`, menge: c.rest,
+  for (const [artikelId, liste] of chargenJeArtikelAmLagerort(db, fahrzeugId)) {
+    chargenAnEinheit[artikelId] = liste.map((c) => ({
+      chargeId: c.id, label: `${c.chargenNr} · ${fmtVerfall(c.verfall)}`, verfall: c.verfall, menge: c.rest,
     }));
+  }
+
+  /*
+   * Die geratene Charge eines Plus — gespiegelt aus `korrekturAufLagerort`:
+   * `verfall`, dann `createdAt`, dann `id`, jeweils ABSTEIGEND, über ALLE
+   * Chargen des Artikels. `lesepfade/verwaltungscheck.test.ts` hält beide Wege gegeneinander.
+   */
+  const korrekturPlusCharge: VerwaltungscheckDaten["korrekturPlusCharge"] = {};
+  const sollArtikel = [...new Set(positionen.map((p) => p.artikelId))];
+  if (sollArtikel.length > 0) {
+    const juengste = new Map<string, typeof chargen.$inferSelect>();
+    for (const c of db.select().from(chargen).where(inArray(chargen.artikelId, sollArtikel)).all()) {
+      const bisher = juengste.get(c.artikelId);
+      if (!bisher || (c.verfall.localeCompare(bisher.verfall)
+        || (c.createdAt.getTime() - bisher.createdAt.getTime())
+        || c.id.localeCompare(bisher.id)) > 0) {
+        juengste.set(c.artikelId, c);
+      }
+    }
+    for (const [artikelId, c] of juengste) {
+      korrekturPlusCharge[artikelId] = {
+        chargeId: c.id, label: `${c.chargenNr} · ${fmtVerfall(c.verfall)}`, verfall: c.verfall,
+      };
+    }
   }
 
   const orte = new Map(db.select().from(lagerorte).all().map((l) => [l.id, {
@@ -103,6 +136,7 @@ export function verwaltungscheckDaten(db: Leser, fahrzeugId: string): Verwaltung
       [...verfallFuerLagerort(db, fahrzeugId)].map(([artikelId, e]) => [artikelId, e.verfall]),
     ),
     chargenAnEinheit,
+    korrekturPlusCharge,
     // Der Zeitpunkt wird HIER formatiert — die Insel bekommt Text, kein `Date`.
     plomben: plombenFuerLagerort(db, fahrzeugId).map((p) => ({
       id: p.id, bezeichnung: p.bezeichnung, fachLabel: p.fachLabel, nummer: p.nummer,
@@ -132,7 +166,6 @@ export function verwaltungscheckDaten(db: Leser, fahrzeugId: string): Verwaltung
     ruecklaufZiele: zugangsZiele(db).map(({ id, name }) => ({ id, name })),
     entnahmeboxAktiv: boxOrt(db)?.aktiv ?? false,
     lagerorte: lagerortOptionen(db),
-    aufladenArtikel: artikelListe(db).map((a) => ({ id: a.id, name: a.name, fach: a.fach })),
     schwellen: verfallSchwellen(),
   };
 }

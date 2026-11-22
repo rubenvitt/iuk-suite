@@ -136,9 +136,9 @@ export type CheckErgebnisV2 = {
   /**
    * IDA-222: Kurz- oder Vollcheck. ⚠️ ADDITIV UND OPTIONAL: jeder Check vor
    * IDA-222 traegt das Feld nicht und war ein Vollcheck — Leser fragen
-   * `art === "kurz"`, nie `art === "voll"`. Dasselbe gilt fuer `"verwaltung"`:
-   * wer nur `"kurz"` kennt, behandelt ihn wie einen Vollcheck, und das ist die
-   * sichere Richtung — der Verwaltungscheck zaehlt vollstaendig.
+   * `art === "kurz"`, nie `art === "voll"`. ⚠️ `"verwaltung"` ist KEIN Vollcheck:
+   * er darf ein Teil sein (nur ein Fach, nur Geraete, Spec 6.12.6). Wer daraus
+   * „vollständig" ableitet, fragt deshalb nach beiden (`checks/page.tsx`).
    */
   art?: CheckArt;
   /** Verwaltungscheck: Freitext der Verwaltung zum Check. Fehlt = keiner. */

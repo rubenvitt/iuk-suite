@@ -25,10 +25,12 @@ import { getDetail, type ArtikelDetailResult } from "../../../../../_actions/det
 import { BUCHUNG_MENGE_MAX } from "../../../../../_lib/grenzen";
 import { ENTNAHMEBOX_ID } from "../../../../../_lib/konstanten";
 import type { VerwaltungscheckDaten } from "../../../../../_lib/lesepfade/verwaltungscheck";
-import type { Ausgleich, AusgleichZeile, Herkunft } from "../../../../../_lib/verwaltungscheck";
+import type {
+  Ausgleich, AusgleichZeile, ChargeAnEinheit, Herkunft,
+} from "../../../../../_lib/verwaltungscheck";
 import { useMonatsPruefung } from "../../../../../_ui/MonatsFeld";
 import {
-  HANDLAGER_ZUERST, HerkunftFelder, NEU, suchFilter, type HerkunftWerte,
+  HANDLAGER_ZUERST, HerkunftFelder, NEU, restAmOrt, suchFilter, type HerkunftWerte,
 } from "../HerkunftFelder";
 import { verfallAusPicker } from "./BestandZellen";
 
@@ -44,9 +46,27 @@ const MENGE_REGELN: FormRule[] = [
   { type: "integer", min: 1, max: BUCHUNG_MENGE_MAX, message: "Menge: eine ganze Zahl ab 1." },
 ];
 
-function MengeFeld({ einheit }: { einheit: string }) {
+function MengeFeld({ einheit, rest }: {
+  einheit: string;
+  /** Was von der gewählten Charge am gewählten Ort liegt (`restAmOrt`) — dann die Obergrenze. */
+  rest?: number;
+}) {
+  /*
+   * Die Obergrenze als Regel, nicht als `max` am Feld: das kappte beim
+   * Verlassen still, statt es zu melden — derselbe Grund wie beim `precision`.
+   */
+  const regeln: FormRule[] = rest === undefined
+    ? MENGE_REGELN
+    : [...MENGE_REGELN, { type: "integer", max: rest, message: `Höchstens ${rest} — mehr liegt dort nicht.` }];
   return (
-    <Form.Item name="menge" label={`Menge (${einheit})`} rules={MENGE_REGELN}>
+    <Form.Item
+      name="menge"
+      label={rest === undefined
+        ? `Menge (${einheit})`
+        : `Menge (von dieser Charge liegen dort ${rest} ${einheit})`.trimEnd()}
+      rules={regeln}
+      dependencies={["herkunft", "chargeId"]}
+    >
       <InputNumber<number> aria-label="Menge" style={{ width: "100%" }} />
     </Form.Item>
   );
@@ -135,6 +155,10 @@ export function AuffuellenDialog({ zeile, daten, vorher, onUebernehmen, onSchlie
   const [detail, setDetail] = useState<ArtikelDetailResult | null>(null);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
+  const herkunft = Form.useWatch("herkunft", form);
+  const chargeId = Form.useWatch("chargeId", form);
+  // Von einem Ort wie beim Aufladen: genau diese Charge, also höchstens, was dort von ihr liegt.
+  const rest = restAmOrt(detail, herkunft, chargeId);
 
   // Die Verteilung über alle Orte kommt wie beim Aufladen aus `getDetail`, nicht aus der Seite.
   useEffect(() => {
@@ -169,7 +193,7 @@ export function AuffuellenDialog({ zeile, daten, vorher, onUebernehmen, onSchlie
         onFinish={uebernehmen}
         data-rolle="auffuellen-form"
       >
-        <MengeFeld einheit={zeile.einheit} />
+        <MengeFeld einheit={zeile.einheit} rest={rest} />
         <HerkunftFelder
           detail={detail}
           laedt={laedt}
@@ -194,17 +218,27 @@ export function AuffuellenDialog({ zeile, daten, vorher, onUebernehmen, onSchlie
 type ZuruecklegenAbsicht = NonNullable<Ausgleich["zuruecklegen"]>;
 type ZuruecklegenWerte = { menge?: number; zielLagerortId?: string; chargeId?: string };
 
+/** Was im Dialog steht, wenn es für einen Schrank keine Charge gibt. */
+const KEINE_CHARGE_HINWEIS =
+  "Für einen Schrank gibt es hier keine Charge — in die Entnahmebox legen oder beim Auffüllen "
+  + "die Herkunft mit ‚Schon eingeräumt und mitgezählt‘ angeben.";
+
 /**
  * ZURÜCKLEGEN — Menge vorbelegt mit dem Überschuss; Ziel ein Handlager-Schrank
  * oder die Entnahmebox (wenn aktiv). In den Schrank ist die Charge Pflicht
  * (Spec 6.12.1, DRK-366: im Handlager trägt die Charge den Verfall), in die
  * Box nicht — dort wandern die zuerst ablaufenden.
+ *
+ * ⚠️ `chargen` IST DER STAND NACH DER ZÄHLUNG (`chargenNachZaehlung`), nicht
+ * `daten.chargenAnEinheit`: der Abschluss bucht erst Korrektur und Aussondern
+ * und prüft dann den Rest der gewählten Charge. Eine Charge, die die Korrektur
+ * leert, stünde sonst zur Wahl und scheiterte erst beim Abschließen.
  */
-export function ZuruecklegenDialog({ zeile, daten, vorher, onUebernehmen, onSchliessen }: DialogProps<ZuruecklegenAbsicht>) {
+export function ZuruecklegenDialog({ zeile, daten, chargen, vorher, onUebernehmen, onSchliessen }:
+  DialogProps<ZuruecklegenAbsicht> & { chargen: ChargeAnEinheit[] }) {
   const [form] = Form.useForm<ZuruecklegenWerte>();
   const ziel = Form.useWatch("zielLagerortId", form);
   const inDieBox = ziel === ENTNAHMEBOX_ID;
-  const chargen = daten.chargenAnEinheit[zeile.artikelId] ?? [];
 
   const zielOptionen = [
     ...daten.ruecklaufZiele.map((z) => ({ value: z.id, label: z.name })),
@@ -263,11 +297,14 @@ export function ZuruecklegenDialog({ zeile, daten, vorher, onUebernehmen, onSchl
             showSearch
             filterOption={suchFilter}
             options={chargen.map((c) => ({
-              value: c.chargeId, label: `${c.label} · ${c.menge} ${zeile.einheit}`, keywords: c.label,
+              value: c.chargeId, label: `${c.label} · nach der Zählung: ${c.menge} ${zeile.einheit}`, keywords: c.label,
             }))}
           />
         </Form.Item>
       </Form>
+      {chargen.length === 0 && !inDieBox
+        ? <Alert type="info" showIcon={false} title={KEINE_CHARGE_HINWEIS} data-rolle="keine-charge" />
+        : null}
     </Dialog>
   );
 }

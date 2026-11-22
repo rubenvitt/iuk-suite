@@ -271,18 +271,19 @@ describe("Checks-Seite", () => {
     ]);
   });
 
-  it("setzt beim ruhigen Verwaltungscheck „vollständig\" hinter den Verwaltungs-Chip", () => {
+  it("nennt einen ruhigen Verwaltungscheck „ohne Befund\", nie „vollständig\" — er kann eine Teilzählung sein", () => {
+    // Spec 6.12.6: ohne gezählte Position erlaubt — hier nur ein Gerät beantwortet.
     checkEintragen({
       id: "check-verwaltung-ruhig",
       ergebnis: JSON.stringify({
-        version: 2, art: "verwaltung", positionen: [], artikel: [], geraete: [], flaschen: [],
-        verfall: [],
+        version: 2, art: "verwaltung", positionen: [], artikel: [], flaschen: [], verfall: [],
+        geraete: [{ geraetId: "g-1", name: "Defi", vorhanden: true, zustand: "ok" }],
       }),
     });
 
     const chips = tabelleAus(checksInhalt(t.db, {})).zeilen[0]!.ergebnisChips;
 
-    expect(chips.map((c) => c.text)).toEqual(["Verwaltung", "vollständig"]);
+    expect(chips.map((c) => c.text)).toEqual(["Verwaltung", "ohne Befund"]);
   });
 
   describe("ein unlesbares ergebnis in der Übersicht (§11.5, 27)", () => {

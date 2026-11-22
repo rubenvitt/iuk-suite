@@ -3,8 +3,8 @@ import type { VerwaltungscheckEingabe } from "../_actions/verwaltungscheck";
 import { ENTNAHMEBOX_ID } from "./konstanten";
 import type { VerwaltungscheckDaten } from "./lesepfade/verwaltungscheck";
 import {
-  ausgleichZeilen, baueNutzlast, fortschritt, leererZustand, sperrGruende,
-  type VerwaltungscheckNutzlast, type ZaehlZustand,
+  ausgleichZeilen, baueNutzlast, chargenNachZaehlung, fortschritt, leererZustand, sperrGruende, sperrZeilenKurz,
+  type Sperrgrund, type VerwaltungscheckNutzlast, type ZaehlZustand,
 } from "./verwaltungscheck";
 
 /**
@@ -31,6 +31,7 @@ function daten(extra: Partial<VerwaltungscheckDaten> = {}): VerwaltungscheckDate
     verfallFach: {},
     verfallArtikel: { "art-1": "2030-01", "art-2": "2029-05", "art-3": "2028-03" },
     chargenAnEinheit: {},
+    korrekturPlusCharge: {},
     plomben: [
       { id: "pl-2", bezeichnung: "Siegel Fach 2", fachLabel: "2", nummer: null, gesetzt: null },
       { id: "pl-frei", bezeichnung: "Siegel Tür", fachLabel: null, nummer: "77", gesetzt: "77 · gesetzt 01.11.2026, 10:00" },
@@ -45,7 +46,6 @@ function daten(extra: Partial<VerwaltungscheckDaten> = {}): VerwaltungscheckDate
     ruecklaufZiele: [{ id: "sch-1", name: "Schrank 1" }],
     entnahmeboxAktiv: true,
     lagerorte: [],
-    aufladenArtikel: [],
     schwellen: { rotTage: 28, gelbTage: 90 },
     ...extra,
   };
@@ -195,7 +195,7 @@ describe("sperrGruende", () => {
     });
     const z = zustand({ ist: { "sp-1": 3 } });
     expect(sperrGruende(d, z, JETZT)).toEqual([
-      { art: "teilartikel", text: "Kompresse: auch in Fach 2, Fach 4 zählen" },
+      { art: "teilartikel", text: "Kompresse: auch in Fach 2, Fach 4 zählen", artikel: "Kompresse" },
     ]);
   });
 
@@ -246,6 +246,11 @@ describe("sperrGruende", () => {
   });
 
   it("sperrt Zurücklegen über das, was nach dem Aussondern bleibt", () => {
+    // Plus 3 auf ch-1 (Korrektur), dann 3 ausgesondert: von ch-1 bleiben 5.
+    const d = daten({
+      chargenAnEinheit: { "art-1": [{ chargeId: "ch-1", label: "A · 01/30", verfall: "2030-01", menge: 5 }] },
+      korrekturPlusCharge: { "art-1": { chargeId: "ch-1", label: "A · 01/30", verfall: "2030-01" } },
+    });
     const z = zustand({
       ist: { "sp-1": 4, "sp-2": 4 },
       ausgleich: { "art-1": {
@@ -253,13 +258,13 @@ describe("sperrGruende", () => {
         zuruecklegen: { menge: 6, zielLagerortId: "sch-1", chargeId: "ch-1" },
       } },
     });
-    expect(sperrGruende(daten(), z, JETZT)).toEqual([
+    expect(sperrGruende(d, z, JETZT)).toEqual([
       { art: "menge", text: "Kompresse: höchstens 5 zurücklegen" },
     ]);
     const passt = zustand({ ...z, ausgleich: { "art-1": { ...z.ausgleich["art-1"], zuruecklegen: {
       menge: 5, zielLagerortId: "sch-1", chargeId: "ch-1",
     } } } });
-    expect(sperrGruende(daten(), passt, JETZT)).toEqual([]);
+    expect(sperrGruende(d, passt, JETZT)).toEqual([]);
   });
 
   it("rechnet mitgezählt Aufgefülltes aus dem Ist heraus, bevor ausgesondert wird", () => {
@@ -299,11 +304,159 @@ describe("sperrGruende", () => {
     expect(sperrGruende(daten(), z, JETZT)).toEqual([]);
   });
 
+  it("sperrt Zurücklegen über das, was nach der Zählung von der gewählten Charge bleibt", () => {
+    // Gezählt 4 statt 5: die Korrektur nimmt 1 von der zuerst ablaufenden ch-1 (3 → 2).
+    const z = zustand({
+      ist: { "sp-1": 2, "sp-2": 2 },
+      ausgleich: { "art-1": { zuruecklegen: { menge: 3, zielLagerortId: "sch-1", chargeId: "ch-1" } } },
+    });
+    expect(sperrGruende(mitChargen(), z, JETZT)).toEqual([
+      { art: "menge", text: "Kompresse: höchstens 2 von dieser Charge zurücklegen" },
+    ]);
+    const passt = zustand({ ...z, ausgleich: { "art-1": { zuruecklegen: {
+      menge: 2, zielLagerortId: "sch-1", chargeId: "ch-1",
+    } } } });
+    expect(sperrGruende(mitChargen(), passt, JETZT)).toEqual([]);
+  });
+
+  it("prüft die Charge auch für die Entnahmebox, aber nicht ohne Chargenwahl", () => {
+    const z = zustand({
+      ist: { "sp-1": 2, "sp-2": 2 },
+      ausgleich: { "art-1": { zuruecklegen: { menge: 3, zielLagerortId: ENTNAHMEBOX_ID, chargeId: "ch-1" } } },
+    });
+    expect(sperrGruende(mitChargen(), z, JETZT)).toEqual([
+      { art: "menge", text: "Kompresse: höchstens 2 von dieser Charge zurücklegen" },
+    ]);
+    const ohneCharge = zustand({ ...z, ausgleich: { "art-1": { zuruecklegen: {
+      menge: 3, zielLagerortId: ENTNAHMEBOX_ID,
+    } } } });
+    expect(sperrGruende(mitChargen(), ohneCharge, JETZT)).toEqual([]);
+  });
+
+  it("sperrt eine Charge, die nach der Zählung nicht mehr an der Einheit liegt", () => {
+    // Gezählt 2 statt 5: ch-1 (3) ist ganz weg.
+    const z = zustand({
+      ist: { "sp-1": 1, "sp-2": 1 },
+      ausgleich: { "art-1": { zuruecklegen: { menge: 1, zielLagerortId: "sch-1", chargeId: "ch-1" } } },
+    });
+    expect(sperrGruende(mitChargen(), z, JETZT)).toEqual([
+      { art: "menge", text: "Kompresse: höchstens 0 von dieser Charge zurücklegen" },
+    ]);
+  });
+
   it("sperrt einen Druck über dem Nennfülldruck", () => {
     expect(sperrGruende(daten(), zustand({ druck: { "o-1": 230 } }), JETZT)).toEqual([
       { art: "druck", text: "O2 klein: Druck über dem Nennfülldruck — am Manometer nachsehen" },
     ]);
     expect(sperrGruende(daten(), zustand({ druck: { "o-1": 220 } }), JETZT)).toEqual([]);
+  });
+});
+
+describe("sperrZeilenKurz", () => {
+  const teil = (artikel: string): Sperrgrund => ({ art: "teilartikel", text: `${artikel}: auch in Fach 2 zählen`, artikel });
+  const menge = (text: string): Sperrgrund => ({ art: "menge", text });
+
+  it("lässt bis zu drei Gründe und zwei angefangene Artikel stehen", () => {
+    const gruende = [teil("Kompresse"), teil("Pflaster"), menge("Mullbinde: höchstens 2 aussondern")];
+    expect(sperrZeilenKurz(gruende)).toEqual({ zeilen: gruende.map((g) => g.text), weitere: 0, gekuerzt: false });
+  });
+
+  it("fasst mehr als zwei angefangene Artikel in eine Zeile mit den ersten Namen", () => {
+    const gruende = [teil("Kompresse"), teil("Pflaster"), teil("Mullbinde"), teil("Schere"), menge("X: höchstens 1 aussondern")];
+    expect(sperrZeilenKurz(gruende)).toEqual({
+      zeilen: ["4 Artikel: auch in weiteren Fächern zählen (Kompresse, Pflaster, …)", "X: höchstens 1 aussondern"],
+      weitere: 0,
+      gekuerzt: true,
+    });
+  });
+
+  it("zeigt höchstens drei Zeilen und zählt den Rest", () => {
+    const gruende = ["a", "b", "c", "d", "e"].map((t) => menge(t));
+    expect(sperrZeilenKurz(gruende)).toEqual({ zeilen: ["a", "b", "c"], weitere: 2, gekuerzt: true });
+  });
+});
+
+/**
+ * Kompresse (Buchstand 5) an der Einheit: ch-1 läuft zuerst ab (3), ch-2 später (2).
+ * Absichtlich NICHT in FEFO-Reihenfolge geliefert — die Rechnung sortiert selbst.
+ * Ein Plus geht auf ch-2, die jüngste Charge des Artikels.
+ */
+function mitChargen(extra: Partial<VerwaltungscheckDaten> = {}): VerwaltungscheckDaten {
+  return daten({
+    chargenAnEinheit: { "art-1": [
+      { chargeId: "ch-2", label: "B · 01/30", verfall: "2030-01", menge: 2 },
+      { chargeId: "ch-1", label: "A · 01/27", verfall: "2027-01", menge: 3 },
+    ] },
+    korrekturPlusCharge: { "art-1": { chargeId: "ch-2", label: "B · 01/30", verfall: "2030-01" } },
+    ...extra,
+  });
+}
+
+/** Nur Charge und Menge — die Reihenfolge ist FEFO. */
+function rest(d: VerwaltungscheckDaten, z: ZaehlZustand, artikelId = "art-1") {
+  return chargenNachZaehlung(d, z, artikelId).map((c) => [c.chargeId, c.menge]);
+}
+
+describe("chargenNachZaehlung", () => {
+  it("lässt die Chargen, wenn der Artikel noch nicht ganz gezählt ist", () => {
+    expect(rest(mitChargen(), zustand({ ist: { "sp-1": 0 } }))).toEqual([["ch-1", 3], ["ch-2", 2]]);
+  });
+
+  it("lässt die Chargen, wenn das Gezählte dem Buchstand entspricht", () => {
+    expect(rest(mitChargen(), zustand({ ist: { "sp-1": 3, "sp-2": 2 } }))).toEqual([["ch-1", 3], ["ch-2", 2]]);
+  });
+
+  it("nimmt ein Minus von der zuerst ablaufenden Charge und lässt leere weg", () => {
+    expect(rest(mitChargen(), zustand({ ist: { "sp-1": 1, "sp-2": 1 } }))).toEqual([["ch-2", 2]]);
+    expect(rest(mitChargen(), zustand({ ist: { "sp-1": 1, "sp-2": 0 } }))).toEqual([["ch-2", 1]]);
+  });
+
+  it("bricht einen Gleichstand im Verfall in der gelieferten Reihenfolge", () => {
+    const d = mitChargen({ chargenAnEinheit: { "art-1": [
+      { chargeId: "ch-x", label: "X", verfall: "2028-01", menge: 2 },
+      { chargeId: "ch-y", label: "Y", verfall: "2028-01", menge: 3 },
+    ] } });
+    expect(rest(d, zustand({ ist: { "sp-1": 3, "sp-2": 0 } }))).toEqual([["ch-y", 3]]);
+  });
+
+  it("legt ein Plus auf die jüngste Charge des Artikels", () => {
+    expect(rest(mitChargen(), zustand({ ist: { "sp-1": 4, "sp-2": 3 } }))).toEqual([["ch-1", 3], ["ch-2", 4]]);
+  });
+
+  it("legt ein Plus auch auf eine Charge, die bisher nicht an der Einheit lag", () => {
+    const d = mitChargen({
+      korrekturPlusCharge: { "art-1": { chargeId: "ch-9", label: "N · 05/31", verfall: "2031-05" } },
+    });
+    expect(chargenNachZaehlung(d, zustand({ ist: { "sp-1": 4, "sp-2": 3 } }), "art-1")).toEqual([
+      { chargeId: "ch-1", label: "A · 01/27", verfall: "2027-01", menge: 3 },
+      { chargeId: "ch-2", label: "B · 01/30", verfall: "2030-01", menge: 2 },
+      { chargeId: "ch-9", label: "N · 05/31", verfall: "2031-05", menge: 2 },
+    ]);
+  });
+
+  it("bietet ohne jede Charge des Artikels nichts an — das Plus landet auf einer Korrektur-Charge", () => {
+    const d = daten({ buchstand: { "art-3": 0 } });
+    expect(rest(d, zustand({ ist: { "sp-4": 4 } }), "art-3")).toEqual([]);
+  });
+
+  it("rechnet mitgezählt Aufgefülltes aus dem Ist heraus", () => {
+    const z = zustand({
+      ist: { "sp-1": 4, "sp-2": 3 },
+      ausgleich: { "art-1": { auffuellen: { menge: 2, herkunft: { art: "handlager" }, mitgezaehlt: true } } },
+    });
+    expect(rest(mitChargen(), z)).toEqual([["ch-1", 3], ["ch-2", 2]]);
+  });
+
+  it("zieht das Aussondern nach der Korrektur ab, zuerst ablaufende zuerst", () => {
+    const z = zustand({ ist: { "sp-1": 3, "sp-2": 2 }, ausgleich: { "art-1": { aussondern: { menge: 4 } } } });
+    expect(rest(mitChargen(), z)).toEqual([["ch-2", 1]]);
+  });
+
+  it("sondert ein Plus auf einer Korrektur-Charge zuletzt aus", () => {
+    // Ohne Charge des Artikels: 3 kommen auf die Korrektur-Charge, 1 wird ausgesondert — nichts zum Anbieten.
+    const d = daten({ buchstand: { "art-3": 0 } });
+    const z = zustand({ ist: { "sp-4": 3 }, ausgleich: { "art-3": { aussondern: { menge: 1 } } } });
+    expect(rest(d, z, "art-3")).toEqual([]);
   });
 });
 

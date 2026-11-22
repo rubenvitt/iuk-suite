@@ -209,6 +209,16 @@ describe("CheckDetailTabellen", () => {
       .toEqual(["max-content", "max-content", "max-content", "max-content", "max-content"]);
   });
 
+  it("nennt beim Verwaltungscheck die Ist-Spalte „Gezählt (gebucht)“ — auch mit Bewegungsspalten", async () => {
+    // Dort steht Ist − mitgezählt Aufgefülltes (der gebuchte Abgleich), nicht die Summe der Fächer.
+    await mount(<CheckDetailTabellen {...GEFUELLT} istGebucht bewegungsSpalten alleAnfangs={[...ABSCHNITTE]} />);
+    const abgleich = queryAll<HTMLTableElement>("table")[0]!;
+    expect(Array.from(abgleich.querySelectorAll("thead th"), (spalte) => spalte.textContent)).toEqual([
+      "Artikel", "Soll", "Gezählt (gebucht)", "Korrigiert", "Nachgefüllt",
+      "Ausgesondert", "Zurückgelegt", "Aufgefüllt", "Offen",
+    ]);
+  });
+
   it("behält alle fünf Leertexte einschließlich Altformat-Erklärung bei", async () => {
     await mount(
       <CheckDetailTabellen

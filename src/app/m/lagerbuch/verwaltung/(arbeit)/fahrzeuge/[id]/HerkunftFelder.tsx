@@ -202,7 +202,7 @@ export function HerkunftFelder({
             label="Chargennummer"
             rules={[{ required: true, whitespace: true, message: "Chargennummer angeben" }]}
           >
-            <Input aria-label="Chargennummer" autoComplete="off" />
+            <Input aria-label="Chargennummer" autoComplete="off" maxLength={64} />
           </Form.Item>
           <Form.Item
             name="verfall"

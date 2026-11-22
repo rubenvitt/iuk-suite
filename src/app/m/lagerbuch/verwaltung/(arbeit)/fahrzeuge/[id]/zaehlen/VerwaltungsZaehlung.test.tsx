@@ -46,7 +46,7 @@ const DATEN: VerwaltungscheckDaten = {
   ruecklaufZiele: [],
   entnahmeboxAktiv: false,
   lagerorte: [],
-  aufladenArtikel: [],
+  korrekturPlusCharge: {},
   schwellen: { rotTage: 30, gelbTage: 90 },
 };
 
@@ -135,6 +135,30 @@ describe("VerwaltungsZaehlung", () => {
     await clickElement(inKarten('button[aria-label="Verbandpäckchen, Fach 3 stimmt"]'));
     expect(queryAll('[data-rolle="sperrgruende"]')).toHaveLength(0);
     expect(abschliessenKnopf().disabled).toBe(false);
+  });
+
+  it("hält die Sperrgründe kurz: angefangene Artikel in einer Zeile, der Rest hinter „alle zeigen“", async () => {
+    // Fünf Artikel in je zwei Fächern, jeder nur in Fach 1 gezählt.
+    const namen = ["Kompresse", "Pflaster", "Schere", "Decke", "Binde"];
+    const daten: VerwaltungscheckDaten = {
+      ...DATEN,
+      positionen: namen.flatMap((name, i) => [1, 2].map((fach) => ({
+        id: `q${i}-${fach}`, fachLabel: String(fach), artikelId: `b${i}`, artikelName: name,
+        einheit: "Stk", soll: 1, sollMax: null,
+      }))),
+      buchstand: {},
+    };
+    await mount(<VerwaltungsZaehlung daten={daten} />);
+    for (const name of namen) await clickElement(inKarten(`button[aria-label="${name}, Fach 1 stimmt"]`));
+
+    const zeilen = () => queryAll('[data-rolle="sperrgruende"] li').map((li) => li.textContent ?? "");
+    expect(zeilen()).toEqual([
+      "5 Artikel: auch in weiteren Fächern zählen (Kompresse, Pflaster, …)",
+      "alle zeigen",
+    ]);
+
+    await clickElement(query('[data-rolle="sperrgruende-alle"]'));
+    expect(zeilen()).toEqual([...namen.map((n) => `${n}: auch in Fach 2 zählen`), "weniger zeigen"]);
   });
 
   it("sendet beim Abschließen die Nutzlast aus `baueNutzlast` mit der Sendungs-ID des Entwurfs", async () => {

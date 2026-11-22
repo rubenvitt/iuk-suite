@@ -84,6 +84,18 @@ describe("gruppiereZaehlung", () => {
       .toThrow("Ein Artikel wurde nur in einem Teil seiner Fächer gezählt");
   });
 
+  it("wirft bei einer doppelt gezaehlten Position — auch wenn die Faecherzahl dann stimmt", () => {
+    // sp-mull-1 zweimal statt sp-mull-2: zwei Eintraege fuer zwei Faecher, das Ist zaehlte doppelt.
+    expect(() => gruppiereZaehlung(sollRows(), [
+      { sollPositionId: "sp-mull-1", ist: 3 },
+      { sollPositionId: "sp-mull-1", ist: 3 },
+    ])).toThrow("Soll-Position wurde doppelt gezählt");
+    expect(() => gruppiereZaehlung(sollRows(), [
+      { sollPositionId: "sp-decke", ist: 1 },
+      { sollPositionId: "sp-decke", ist: 1 },
+    ])).toThrow("Soll-Position wurde doppelt gezählt");
+  });
+
   it("wirft bei einer Position, die nicht zur Einheit gehoert", () => {
     expect(() => gruppiereZaehlung(sollRows(), [{ sollPositionId: "sp-fremd", ist: 1 }]))
       .toThrow("Soll-Position gehört nicht zu diesem Fahrzeug");

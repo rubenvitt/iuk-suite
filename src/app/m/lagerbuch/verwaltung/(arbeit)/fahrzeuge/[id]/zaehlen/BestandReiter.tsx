@@ -39,17 +39,22 @@ import { Schmalfilter } from "../../../inventur/Schmalfilter";
 import { BestandKarte } from "./BestandKarte";
 import { IstZelle, StimmtZelle, VerfallZelle, type BestandZeile } from "./BestandZellen";
 import type { ReiterProps } from "./reiter";
+import k from "./zaehlen.module.css";
 
+/*
+ * ⚠️ DREI SPALTEN, NICHT SECHS — gemessen bei 768px mit offener Seitenleiste:
+ * dort bleiben der Tabelle 472px (834px: 538px). Sechs Spalten (Fach, Artikel,
+ * Soll, Stimmt, Ist, Verfall) summierten sich auf 932px, und Ist und Verfall —
+ * die Bedienung — lagen rechts außerhalb des Bildes. Deshalb stehen Fach und
+ * Soll beim Artikel, der Verfall unter dem Stepper; zusammen 464px.
+ */
 const BREITE = {
-  fach: 100,
-  artikel: 200,
-  soll: 80,
+  // „Fach · Artikel" mit Kicker, Sortierer und Fach-Filter im Kopf.
+  artikel: 156,
   // „Stimmt" mit Haken bei schmalem Polster, 44px hoch (Falle 4).
   stimmt: 112,
-  // Drei Bedienelemente (44 + 90 + 44) plus Abstände und Zellenpolster.
-  ist: 210,
-  // Monatsfeld plus Ampel-Chip daneben.
-  verfall: 230,
+  // Drei Bedienelemente (44 + Feld + 44) über die Zellenbreite, darunter das Monatsfeld.
+  ist: 196,
 } as const;
 
 /** Die Fachbezeichnung zur Anzeige und als Filterwert — dieselbe wie in den Sperrgründen. */
@@ -123,38 +128,31 @@ export function BestandReiter({ daten, zustand, aendere, gesperrt, rand }: Reite
    */
   const spalten = useMemo<TableProps<BestandZeile>["columns"]>(() => [
     {
-      title: "Fach",
-      dataIndex: "fach",
-      width: BREITE.fach,
-      sorter: nachText<BestandZeile>((z) => z.fach),
+      // Der Fach-Filter bleibt im Spaltenkopf (Spec 6.3) — der Schlüssel heißt „fach" wie der des `Schmalfilter`.
+      title: "Fach · Artikel",
+      key: "fach",
+      dataIndex: "artikelName",
+      width: BREITE.artikel,
+      sorter: nachText<BestandZeile>((z) => `${z.fach} ${z.artikelName}`),
       filters: fachFilter,
       filteredValue: spaltenFilter.fach ?? null,
       onFilter: trifftWert<BestandZeile>((z) => z.fach),
-      render: (wert: string) => <span className={s.fach}>{wert}</span>,
-    },
-    {
-      title: "Artikel",
-      dataIndex: "artikelName",
-      width: BREITE.artikel,
-      sorter: nachText<BestandZeile>((z) => z.artikelName),
       render: (wert: string, zeile) => (
-        <>
+        <Flex vertical gap={SPACE.xs} align="flex-start">
+          <span className={s.fach}>{zeile.fach}</span>
           <span style={{ fontWeight: 600 }}>{wert}</span>
-          <div className={s.footnote} data-rolle="buchstand">{zeile.buchstand}</div>
-        </>
+          <span className={s.footnote} data-rolle="soll">
+            Soll {sollText(zeile.soll, zeile.sollMax)} {zeile.einheit}
+          </span>
+          <span className={s.footnote} data-rolle="buchstand">{zeile.buchstand}</span>
+        </Flex>
       ),
-    },
-    {
-      title: "Soll",
-      dataIndex: "soll",
-      width: BREITE.soll,
-      align: "right",
-      render: (_wert: number, zeile) => `${sollText(zeile.soll, zeile.sollMax)} ${zeile.einheit}`,
     },
     // ⚠️ KEIN SORTIERER AUF „Stimmt" UND „Ist": beide lesen den Zählstand und
     // sortierten sich beim Zählen unter dem Finger um.
     {
       title: "Stimmt",
+      key: "stimmt",
       dataIndex: "id",
       width: BREITE.stimmt,
       render: (_wert: string, zeile) => (
@@ -162,28 +160,23 @@ export function BestandReiter({ daten, zustand, aendere, gesperrt, rand }: Reite
       ),
     },
     {
-      title: "Ist",
+      // Spec 6.3: gemeint ist der Verfall NACH dem Ausgleich — der Kopf sagt es.
+      title: "Ist · Verfall danach",
+      key: "ist",
       dataIndex: "id",
       width: BREITE.ist,
-      align: "right",
       render: (_wert: string, zeile) => (
-        <IstZelle zeile={zeile} ist={ist[zeile.id]} aendere={aendere} gesperrt={gesperrt} />
-      ),
-    },
-    {
-      // Spec 6.3: gemeint ist der Verfall NACH dem Ausgleich — der Kopf sagt es.
-      title: "Verfall danach",
-      dataIndex: "verfallVorher",
-      width: BREITE.verfall,
-      render: (_wert: string | null, zeile) => (
-        <VerfallZelle
-          zeile={zeile}
-          wert={verfallNachher(zeile, verfall)}
-          gezaehlt={ist[zeile.id] !== undefined}
-          aendere={aendere}
-          gesperrt={gesperrt}
-          schwellen={daten.schwellen}
-        />
+        <Flex vertical gap={SPACE.sm}>
+          <IstZelle zeile={zeile} ist={ist[zeile.id]} aendere={aendere} gesperrt={gesperrt} className={k.stepper} />
+          <VerfallZelle
+            zeile={zeile}
+            wert={verfallNachher(zeile, verfall)}
+            gezaehlt={ist[zeile.id] !== undefined}
+            aendere={aendere}
+            gesperrt={gesperrt}
+            schwellen={daten.schwellen}
+          />
+        </Flex>
       ),
     },
   ], [fachFilter, spaltenFilter, ist, verfall, aendere, gesperrt, daten.schwellen]);

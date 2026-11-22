@@ -34,10 +34,12 @@ const DATEN: VerwaltungscheckDaten = {
   verfallArtikel: {},
   chargenAnEinheit: {
     a2: [
-      { chargeId: "c5", label: "L-5 · 05/28", menge: 4 },
-      { chargeId: "c6", label: "L-6 · 06/29", menge: 2 },
+      { chargeId: "c5", label: "L-5 · 05/28", verfall: "2028-05", menge: 4 },
+      { chargeId: "c6", label: "L-6 · 06/29", verfall: "2029-06", menge: 2 },
     ],
   },
+  // Das Plus der Kompresse (gezählt 6, im Lagerbuch 5) geht auf c6.
+  korrekturPlusCharge: { a2: { chargeId: "c6", label: "L-6 · 06/29", verfall: "2029-06" } },
   plomben: [],
   geraete: [],
   flaschen: [],
@@ -46,7 +48,6 @@ const DATEN: VerwaltungscheckDaten = {
   ruecklaufZiele: [{ id: "sch-1", name: "Schrank 1" }],
   entnahmeboxAktiv: true,
   lagerorte: [],
-  aufladenArtikel: [],
   schwellen: { rotTage: 30, gelbTage: 90 },
 };
 
@@ -218,11 +219,30 @@ describe("AusgleichReiter", () => {
     expect(zeile("a1").textContent).toContain("Nach dem Ausgleich: 4");
   });
 
+  it("Auffüllen von einem Ort nennt, was dort von der Charge liegt, und nimmt nicht mehr", async () => {
+    await mount(<Huelle start={GEZAEHLT} />);
+    await oeffne("a1", "auffuellen");
+    expect(dialog().textContent).not.toContain("liegen dort");
+    await waehle("Woher", "Schrank 1");
+    expect(dialog().textContent).toContain("Menge (von dieser Charge liegen dort 4 Stk)");
+
+    await tippe("Menge", "5");
+    await uebernehmen();
+    expect(stand.ausgleich.a1).toBeUndefined();
+    expect(dialog().textContent).toContain("Höchstens 4 — mehr liegt dort nicht.");
+
+    await tippe("Menge", "4");
+    await uebernehmen();
+    expect(stand.ausgleich.a1?.auffuellen?.menge).toBe(4);
+  });
+
   it("Auffüllen mit neuer Charge schreibt den Verfall als YYYY-MM", async () => {
     await mount(<Huelle start={GEZAEHLT} />);
     await oeffne("a1", "auffuellen");
     await waehle("Woher", "Neu angeliefert");
     await waehle("Charge", "Neue Charge");
+    // Die Grenze der Action (64 Zeichen) steht am Feld.
+    expect(queryPortal<HTMLInputElement>("input[aria-label='Chargennummer']").maxLength).toBe(64);
     await tippe("Chargennummer", "L-42");
     await tippe("Verfallsmonat", "3/2030");
     await uebernehmen();
@@ -256,6 +276,37 @@ describe("AusgleichReiter", () => {
     await waehle("Charge", "L-6");
     await uebernehmen();
     expect(stand.ausgleich.a2).toEqual({ zuruecklegen: { menge: 3, zielLagerortId: "sch-1", chargeId: "c6" } });
+  });
+
+  it("Zurücklegen bietet die Chargen mit ihrem Rest nach der Zählung an", async () => {
+    await mount(<Huelle start={GEZAEHLT} />);
+    await oeffne("a2", "zuruecklegen");
+    const optionen = Array.from((await oeffneAuswahl("Charge"))
+      .querySelectorAll<HTMLElement>(".ant-select-item-option")).map((o) => o.textContent);
+    expect(optionen).toEqual([
+      "L-5 · 05/28 · nach der Zählung: 4 Stk",
+      "L-6 · 06/29 · nach der Zählung: 3 Stk",
+    ]);
+    expect(document.body.querySelector('[data-rolle="keine-charge"]')).toBeNull();
+  });
+
+  it("Zurücklegen lässt eine Charge weg, die die Zählung geleert hat", async () => {
+    // Kompresse gezählt 1 statt 5: die Korrektur nimmt 4 von c5 (zuerst ablaufend).
+    await mount(<Huelle start={{ ...leererZustand(), ist: { p1: 1, p2: 1 } }} />);
+    await oeffne("a2", "zuruecklegen");
+    const optionen = Array.from((await oeffneAuswahl("Charge"))
+      .querySelectorAll<HTMLElement>(".ant-select-item-option")).map((o) => o.textContent);
+    expect(optionen).toEqual(["L-6 · 06/29 · nach der Zählung: 2 Stk"]);
+  });
+
+  it("Zurücklegen ohne Charge an der Einheit sagt, was stattdessen geht", async () => {
+    await mount(<Huelle start={GEZAEHLT} />);
+    await oeffne("a1", "zuruecklegen");
+    expect(dialog().querySelector('[data-rolle="keine-charge"]')?.textContent)
+      .toBe("Für einen Schrank gibt es hier keine Charge — in die Entnahmebox legen oder beim Auffüllen "
+        + "die Herkunft mit ‚Schon eingeräumt und mitgezählt‘ angeben.");
+    await waehle("Wohin", "Entnahmebox");
+    expect(dialog().querySelector('[data-rolle="keine-charge"]')).toBeNull();
   });
 
   it.each([[""], ["0"], ["-2"], ["2.5"]])("Aussondern übernimmt die Menge „%s“ nicht", async (menge) => {

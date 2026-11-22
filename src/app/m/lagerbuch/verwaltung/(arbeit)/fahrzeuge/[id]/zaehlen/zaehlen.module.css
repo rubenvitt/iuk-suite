@@ -56,8 +56,14 @@
   min-width: 0;
 }
 
+/*
+ * Das Feld wächst in die Breite (Karte), beginnt aber bei 64px statt antds 90px:
+ * in der Tabelle (`BestandReiter`, Spalte „Ist · Verfall danach") bestimmte
+ * sonst die Mindestbreite des Felds die Spalte, und sie ragte bei 768px über den Rand.
+ */
 .stepper > :global(.ant-input-number) {
   flex: 1 1 auto;
+  width: 64px;
   min-width: 0;
 }
 
@@ -169,6 +175,14 @@
   padding-inline-start: 20px;
   color: var(--lb-stahl);
   font-size: 14px;
+  /* Rückhalt: auch „alle zeigen" darf die klebende Leiste nicht über den Bildschirm treiben. */
+  max-height: min(30dvh, 12em);
+  overflow-y: auto;
+}
+
+/* Der Umschalter „alle zeigen" steht als letzter Eintrag, ohne Aufzählungszeichen. */
+.sperrUmschalter {
+  list-style: none;
 }
 
 .kennzahlen {

@@ -4,6 +4,7 @@ import {
   artikel, buchungen, chargen, geraete, lagerorte, lagerortVerfall, o2Flaschen, plomben, sollPositionen,
 } from "../../_db/schema";
 import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../konstanten";
+import { korrekturAufLagerort } from "../schreibpfade/korrektur";
 import { verwaltungscheckDaten } from "./verwaltungscheck";
 
 const JETZT = new Date("2026-08-07T12:00:00Z");
@@ -86,7 +87,37 @@ describe("verwaltungscheckDaten", () => {
     expect(d.buchstand).toEqual({ a1: 2 });
     expect(d.verfallArtikel).toEqual({ a1: "2027-03" });
     expect(d.verfallFach).toEqual({});
-    expect(d.chargenAnEinheit).toEqual({ a1: [{ chargeId: "c1", label: "LOT-1 · 01/30", menge: 2 }] });
+    expect(d.chargenAnEinheit).toEqual({
+      a1: [{ chargeId: "c1", label: "LOT-1 · 01/30", verfall: "2030-01", menge: 2 }],
+    });
+  });
+
+  it("nennt je Soll-Artikel die Charge eines Plus — dieselbe, die die Korrektur nimmt", () => {
+    // c2 und c3 gleichauf im Verfall; c3 ist jünger angelegt. c-alt liegt am Fahrzeug, ist aber älter.
+    const spaeter = new Date(JETZT.getTime() + 60_000);
+    t.db.insert(chargen).values([
+      { id: "c2", artikelId: "a1", chargenNr: "LOT-2", verfall: "2031-06", createdAt: JETZT },
+      { id: "c3", artikelId: "a1", chargenNr: "LOT-3", verfall: "2031-06", createdAt: spaeter },
+      { id: "c-grab", artikelId: "a2", chargenNr: "G", verfall: "2032-01", createdAt: JETZT },
+    ]).run();
+    const d = verwaltungscheckDaten(t.db, "fz-1")!;
+    // Nur Artikel mit Soll-Position (der Grabstein-Artikel nicht).
+    expect(d.korrekturPlusCharge).toEqual({
+      a1: { chargeId: "c3", label: "LOT-3 · 06/31", verfall: "2031-06" },
+    });
+
+    const { chargeId } = t.db.transaction((tx) => korrekturAufLagerort(tx, {
+      artikelId: "a1", lagerortId: "fz-1", istMenge: 5,
+      quelle: { quelleTyp: "system", quelleId: "t" }, kommentar: null, referenz: "check:x",
+    }));
+    expect(chargeId).toBe(d.korrekturPlusCharge.a1!.chargeId);
+  });
+
+  it("lässt die Charge eines Plus weg, wenn der Artikel keine Charge hat", () => {
+    t.db.insert(sollPositionen).values({
+      id: "p2", fahrzeugId: "fz-1", fachLabel: "Fach B", sort: 3, artikelId: "a2", soll: 1,
+    }).run();
+    expect(Object.keys(verwaltungscheckDaten(t.db, "fz-1")!.korrekturPlusCharge)).toEqual(["a1"]);
   });
 
   it("fuehrt nur aktive Plomben, Geraete und Flaschen der Einheit", () => {
@@ -108,12 +139,12 @@ describe("verwaltungscheckDaten", () => {
     expect(d.flaschenWoanders).toEqual([{ id: "f-dort", name: "O2 dort", ortLabel: expect.stringContaining("RTW 2") }]);
   });
 
-  it("traegt Ziele, Orte, Aufladeliste, Schwellen und den Entnahmebox-Zustand", () => {
+  it("traegt Ziele, Orte, Schwellen und den Entnahmebox-Zustand", () => {
     const d = verwaltungscheckDaten(t.db, "fz-1")!;
     expect(d.ruecklaufZiele.map((z) => z.id)).toContain(HANDLAGER_ID);
     expect(d.lagerorte.map((l) => l.id)).not.toContain(ENTNAHMEBOX_ID);
     expect(d.lagerorte.map((l) => l.id)).toContain("fz-2");
-    expect(d.aufladenArtikel).toEqual(expect.arrayContaining([{ id: "a1", name: "Mullbinde", fach: "C2" }]));
+    expect(d).not.toHaveProperty("aufladenArtikel");
     expect(d.schwellen).toEqual({ rotTage: 31, gelbTage: 56 });
     expect(typeof d.entnahmeboxAktiv).toBe("boolean");
   });

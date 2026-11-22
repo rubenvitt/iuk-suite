@@ -111,6 +111,12 @@ export type CheckDetailTabellenProps = {
   abgleichZeilen: AbgleichAnzeigeZeile[];
   /** Die drei Bewegungsspalten im Abgleich zeigen (nur, wenn irgendein Wert > 0). */
   bewegungsSpalten?: boolean;
+  /**
+   * Verwaltungscheck: „Gezählt" im Abgleich ist dort der GEBUCHTE Abgleich
+   * (Ist − mitgezählt Aufgefülltes, `istSumme`), nicht die Summe der Fächer —
+   * die Spalte sagt es („Gezählt (gebucht)").
+   */
+  istGebucht?: boolean;
   nachfuellZeilen: NachfuellAnzeigeZeile[];
   geraeteZeilen: GeraetAnzeigeZeile[];
   flaschenZeilen: FlascheAnzeigeZeile[];
@@ -246,6 +252,13 @@ const ABGLEICH_SPALTEN_MIT_BEWEGUNG: TableProps<AbgleichAnzeigeZeile>["columns"]
   ...BEWEGUNGS_SPALTEN!,
   ABGLEICH_SPALTEN!.at(-1)!,
 ];
+
+/** Dieselben Spalten, „Gezählt" als „Gezählt (gebucht)" — der Titel bleibt Text (Falle 17). */
+function mitGebuchtemIst(
+  spalten: TableProps<AbgleichAnzeigeZeile>["columns"],
+): TableProps<AbgleichAnzeigeZeile>["columns"] {
+  return spalten!.map((spalte) => (spalte.key === "ist" ? { ...spalte, title: "Gezählt (gebucht)" } : spalte));
+}
 
 const NACHFUELL_SPALTEN: TableProps<NachfuellAnzeigeZeile>["columns"] = [
   {
@@ -486,6 +499,7 @@ function Steuerzeile({
 export function CheckDetailTabellen({
   abgleichZeilen,
   bewegungsSpalten,
+  istGebucht,
   nachfuellZeilen,
   geraeteZeilen,
   flaschenZeilen,
@@ -501,6 +515,10 @@ export function CheckDetailTabellen({
   // baute jedes Rendern eine neue und zwaenge die Tabelle zur Neuberechnung.
   const geraeteListe = useMemo(() => geraeteSpalten(geraeteZeilen), [geraeteZeilen]);
   const verfallListe = useMemo(() => verfallSpalten(verfallZeilen), [verfallZeilen]);
+  const abgleichListe = useMemo(() => {
+    const spalten = bewegungsSpalten ? ABGLEICH_SPALTEN_MIT_BEWEGUNG : ABGLEICH_SPALTEN;
+    return istGebucht ? mitGebuchtemIst(spalten) : spalten;
+  }, [bewegungsSpalten, istGebucht]);
 
   /*
    * IDA-236 — ZUERST NUR DIE ABWEICHUNGEN. Bei 200 Artikeln standen hier rund
@@ -580,7 +598,7 @@ export function CheckDetailTabellen({
           aria-label="Abgleich"
           leer={{ nichts: leertext("Keine Positionen erfasst."), gefiltert: "Keine Position passt zum Filter." }}
           dataSource={ganz ? abgleichZeilen : abgleichAbw}
-          columns={bewegungsSpalten ? ABGLEICH_SPALTEN_MIT_BEWEGUNG : ABGLEICH_SPALTEN}
+          columns={abgleichListe}
         />
       ),
     },

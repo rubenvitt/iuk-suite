@@ -72,7 +72,7 @@ const DATEN: VerwaltungscheckDaten = {
     { id: "fz-1", name: "RTW 1", typ: "fahrzeug", kennung: "MS-1", einheitenart: "fahrzeug" },
     { id: "sch-1", name: "Schrank 1", typ: "lager", kennung: null, einheitenart: null },
   ],
-  aufladenArtikel: [],
+  korrekturPlusCharge: {},
   schwellen: { rotTage: 30, gelbTage: 90 },
 };
 

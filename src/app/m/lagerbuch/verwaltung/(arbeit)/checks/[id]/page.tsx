@@ -422,6 +422,7 @@ export function checkDetailInhalt(
       <CheckDetailTabellen
         abgleichZeilen={abgleichZeilen}
         bewegungsSpalten={bewegungsSpalten}
+        istGebucht={check.art === "verwaltung"}
         nachfuellZeilen={nachfuellZeilen}
         geraeteZeilen={geraeteZeilen}
         flaschenZeilen={flaschenZeilen}

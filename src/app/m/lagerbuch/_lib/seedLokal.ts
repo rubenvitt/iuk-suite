@@ -639,7 +639,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   /* 10 ── Der abgeschlossene RTW-Check. Er ist der Grund, aus dem der RTW seinen
    *       Bestand hat: erst `korrekturAufLagerort` auf die GEZAEHLTE Menge (I4),
    *       dann `umlagerung` fuer die Nachfuellung aus dem Handlager — genau die
-   *       Reihenfolge aus `_actions/check.ts:212-223`. Das Ergebnis-JSON wird aus
+   *       Reihenfolge aus `checkAbschluss` (`_actions/check.ts`). Das Ergebnis-JSON wird aus
    *       den TATSAECHLICHEN Rueckgabewerten gebaut, nicht erfunden.
    *
    *       ⚠️ Idempotenzgate ist die Referenz `check:<fester Id>`, nicht die
@@ -696,7 +696,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         id: CHECK_RTW, fahrzeugId: RTW, quelleTyp: "token", quelleId: CODE_RTW,
         startedAt: new Date(checkAbgeschlossenAm.getTime() - 1_500_000),
         completedAt: checkAbgeschlossenAm,
-        // Feldnamen und `version: 2` wie `_actions/check.ts:322-329` — sie sind
+        // Feldnamen und `version: 2` wie `schreibeCheckZeile` (`checkAbschluss`) — sie sind
         // Vertrag; ein umbenanntes Feld macht jede Auswertung stumm 0 (§4.10).
         ergebnis: JSON.stringify({
           version: 2,
