@@ -13,11 +13,11 @@ importers:
   .:
     dependencies:
       '@ant-design/cssinjs':
-        specifier: ^2.1.2
-        version: 2.1.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: ^2.2.0
+        version: 2.2.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@ant-design/nextjs-registry':
         specifier: ^1.3.0
-        version: 1.3.0(@ant-design/cssinjs@2.1.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(antd@6.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(next@16.4.6(patch_hash=494d042809a8d7d9cbfa264ab7555cb822301e9c7d290a02d4b93991ae56fd03)(@playwright/test@1.65.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 1.3.0(@ant-design/cssinjs@2.2.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(antd@6.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(next@16.4.6(patch_hash=494d042809a8d7d9cbfa264ab7555cb822301e9c7d290a02d4b93991ae56fd03)(@playwright/test@1.65.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@einsatzzeichen/core':
         specifier: 7.0.0
         version: 7.0.0
@@ -230,6 +230,12 @@ packages:
       react: '>=16.0.0'
       react-dom: '>=16.0.0'
 
+  '@ant-design/cssinjs@2.2.0':
+    resolution: {integrity: sha512-bP+zumx/nJQunCX3sWj69G05tUVwLPSFKVjel5OgkFRcWU8ssFjND/HGTBHNIHtRPMCXbu7BVeB7aCK25PG4Hw==}
+    peerDependencies:
+      react: '>=16.0.0'
+      react-dom: '>=16.0.0'
+
   '@ant-design/fast-color@3.0.1':
     resolution: {integrity: sha512-esKJegpW4nckh0o6kV3Tkb7NPIZYbPnnFxmQDUmL08ukXZAvV85TZBr70eGuke/CIArLaP6aw8lt9KILjnWuOw==}
     engines: {node: '>=8.x'}
@@ -332,12 +338,12 @@ packages:
     resolution: {integrity: sha512-Y5tqevQaUAZhhj82BpYMNC1ssvLQTVAfwKdm8iy8qwmhvC2/CpcAu8OC+QEtjM7pMk7knx83u1Qj8gzkicyelw==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/runtime@7.29.7':
-    resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
+  '@babel/runtime@7.29.15':
+    resolution: {integrity: sha512-304gsbbGVmQc+cNGHzwHBlqepYdWLKj3VXCQBGt/EGcV7PUPfKI7kAUNW1FZEOCwlQiLvQjg1JEaAlRQ616h+Q==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/runtime@8.1.2':
-    resolution: {integrity: sha512-Ay6HdEKZJAeGs6KKJ/ezCK5ssjFmkvUiR0TEGv/B1abyjLWrQ2RU+M507Ppk0NikhvVFhlEFC1/rHfCiYqSUcw==}
+  '@babel/runtime@8.1.3':
+    resolution: {integrity: sha512-tno/enifiFAE77kbJadRE5wKfmzxlYvdB5Dj8yqmWoT49mDJE+wvLgvJY/EKt/jQllv369GMxyyJ9tKfTL33Nw==}
 
   '@babel/template@7.29.7':
     resolution: {integrity: sha512-puq+Gf35oI24FeN11LkoUQFqv9uwNeWpxXZi/Ji3rRIoKAzKnxRaZ+Gkj0vKS9ZCiTESfng1N9LyOyXvo+m+Gg==}
@@ -1603,12 +1609,6 @@ packages:
       react: '>=16.9.0'
       react-dom: '>=16.9.0'
 
-  '@rc-component/util@1.12.0':
-    resolution: {integrity: sha512-AEjPL8JVdohIITaiXokyjL9WQ6tKWWjAYK9QU16tGNE9JaQABBQy+hA4H2Lup5MgXy9yY3iLrbZJheuU13hTdQ==}
-    peerDependencies:
-      react: '>=18.0.0'
-      react-dom: '>=18.0.0'
-
   '@rc-component/util@1.14.1':
     resolution: {integrity: sha512-pyCKpJ+L2EcNspFpKBG10C1dyMv0w9FzcM+gM3FK4h6/NtMZzdimr5iYDR8ptfp4wJj9lnYHg3OTvLVE1EuTbQ==}
     peerDependencies:
@@ -2463,9 +2463,6 @@ packages:
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
-
-  csstype@3.2.3:
-    resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
   csstype@3.2.4:
     resolution: {integrity: sha512-PoKaoPzQapnEoqUSnHx1u6W6ku8CVEgKsnpmmzU3m1nwkidpPBQ8V/Zq2+bWNrsOKoKLwTGdbx6xF7BXP1zLVQ==}
@@ -3862,9 +3859,6 @@ packages:
   react-is@16.13.1:
     resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
 
-  react-is@19.2.8:
-    resolution: {integrity: sha512-s5un28nYxKJw5gvUHyW5PCC28CvBqLu9r3cWgzHT4Vo/5fqqkFcdRYsGcKf50WMPpjjFZS5d76fn3YCo2njKwQ==}
-
   react-is@19.3.1:
     resolution: {integrity: sha512-RRieF6IyxQBkcK6pP8xOHprLTPW6QjRkbGdImtqNme+/hYVwCZkLQLdlZGOhUqXwkS9IEynaGvPJtv6XB/cz0Q==}
 
@@ -4528,20 +4522,32 @@ snapshots:
 
   '@ant-design/cssinjs-utils@2.1.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@ant-design/cssinjs': 2.1.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      '@babel/runtime': 7.29.14
+      '@ant-design/cssinjs': 2.2.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@babel/runtime': 7.29.15
       '@rc-component/util': 1.14.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
   '@ant-design/cssinjs@2.1.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@babel/runtime': 7.29.7
+      '@babel/runtime': 7.29.15
       '@emotion/hash': 0.8.0
       '@emotion/unitless': 0.7.5
-      '@rc-component/util': 1.12.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@rc-component/util': 1.14.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       clsx: 2.1.1
-      csstype: 3.2.3
+      csstype: 3.2.4
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+      stylis: 4.4.0
+
+  '@ant-design/cssinjs@2.2.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+    dependencies:
+      '@babel/runtime': 7.29.15
+      '@emotion/hash': 0.8.0
+      '@emotion/unitless': 0.7.5
+      '@rc-component/util': 1.14.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      clsx: 2.1.1
+      csstype: 3.2.4
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
       stylis: 4.4.0
@@ -4559,9 +4565,9 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  '@ant-design/nextjs-registry@1.3.0(@ant-design/cssinjs@2.1.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(antd@6.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(next@16.4.6(patch_hash=494d042809a8d7d9cbfa264ab7555cb822301e9c7d290a02d4b93991ae56fd03)(@playwright/test@1.65.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@ant-design/nextjs-registry@1.3.0(@ant-design/cssinjs@2.2.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(antd@6.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(next@16.4.6(patch_hash=494d042809a8d7d9cbfa264ab7555cb822301e9c7d290a02d4b93991ae56fd03)(@playwright/test@1.65.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@ant-design/cssinjs': 2.1.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@ant-design/cssinjs': 2.2.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       antd: 6.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       next: 16.4.6(patch_hash=494d042809a8d7d9cbfa264ab7555cb822301e9c7d290a02d4b93991ae56fd03)(@playwright/test@1.65.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react: 19.3.1
@@ -4569,7 +4575,7 @@ snapshots:
 
   '@ant-design/react-slick@2.0.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@babel/runtime': 7.29.14
+      '@babel/runtime': 7.29.15
       clsx: 2.1.1
       json2mq: 0.2.0
       react: 19.3.1
@@ -4663,9 +4669,9 @@ snapshots:
 
   '@babel/runtime@7.29.14': {}
 
-  '@babel/runtime@7.29.7': {}
+  '@babel/runtime@7.29.15': {}
 
-  '@babel/runtime@8.1.2': {}
+  '@babel/runtime@8.1.3': {}
 
   '@babel/template@7.29.7':
     dependencies:
@@ -5365,7 +5371,7 @@ snapshots:
 
   '@rc-component/async-validator@6.0.0':
     dependencies:
-      '@babel/runtime': 7.29.14
+      '@babel/runtime': 7.29.15
 
   '@rc-component/cascader@1.26.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
@@ -5385,7 +5391,7 @@ snapshots:
 
   '@rc-component/collapse@1.3.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@babel/runtime': 8.1.2
+      '@babel/runtime': 8.1.3
       '@rc-component/motion': 1.4.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@rc-component/util': 1.14.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       clsx: 2.1.1
@@ -5498,7 +5504,7 @@ snapshots:
 
   '@rc-component/mini-decimal@1.1.4':
     dependencies:
-      '@babel/runtime': 7.29.14
+      '@babel/runtime': 7.29.15
 
   '@rc-component/motion@1.4.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
@@ -5523,7 +5529,7 @@ snapshots:
 
   '@rc-component/overflow@1.0.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@babel/runtime': 7.29.14
+      '@babel/runtime': 7.29.15
       '@rc-component/resize-observer': 1.1.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@rc-component/util': 1.14.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       clsx: 2.1.1
@@ -5565,7 +5571,7 @@ snapshots:
 
   '@rc-component/qrcode@2.0.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@babel/runtime': 7.29.14
+      '@babel/runtime': 7.29.15
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
@@ -5584,7 +5590,7 @@ snapshots:
 
   '@rc-component/segmented@1.4.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@babel/runtime': 8.1.2
+      '@babel/runtime': 8.1.3
       '@rc-component/motion': 1.4.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@rc-component/util': 1.14.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       clsx: 2.1.1
@@ -5695,13 +5701,6 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  '@rc-component/util@1.12.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
-    dependencies:
-      is-mobile: 5.0.0
-      react: 19.3.1
-      react-dom: 19.3.1(react@19.3.1)
-      react-is: 19.2.8
-
   '@rc-component/util@1.14.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       is-mobile: 5.0.0
@@ -5711,7 +5710,7 @@ snapshots:
 
   '@rc-component/virtual-list@1.6.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@babel/runtime': 8.1.2
+      '@babel/runtime': 8.1.3
       '@rc-component/resize-observer': 1.1.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@rc-component/util': 1.14.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       clsx: 2.1.1
@@ -6520,8 +6519,6 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
-
-  csstype@3.2.3: {}
 
   csstype@3.2.4: {}
 
@@ -8017,8 +8014,6 @@ snapshots:
       scheduler: 0.28.0
 
   react-is@16.13.1: {}
-
-  react-is@19.2.8: {}
 
   react-is@19.3.1: {}
 
