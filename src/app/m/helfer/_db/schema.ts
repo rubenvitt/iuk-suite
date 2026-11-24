@@ -90,3 +90,17 @@ export const importlauf = sqliteTable("importlauf", {
   check("importlauf_quelle", sql`quelle IN ('hiorg','demo','datei')`),
   check("importlauf_ausgefiltert_json", sql`json_valid(ausgefiltert)`),
 ]);
+
+/**
+ * Ein Zugang, mit dem Lifeline Hub Personal und Qualifikationen abholt (LLH-1194, `api/stammdaten`). Gespeichert
+ * wird nur der SHA-256 des Schlüssels (`_lib/schluessel.ts`); die Verwaltung sieht ihn genau einmal, beim Anlegen.
+ */
+export const lifelineZugang = sqliteTable("helfer_zugang", {
+  id: text("id").primaryKey(),
+  bezeichnung: text("bezeichnung").notNull(),
+  schluesselHash: text("schluessel_hash").notNull(),
+  angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
+  angelegtVon: text("angelegt_von").notNull(),
+  /** Letzte erfolgreiche Abholung; technischer Kontakt, nicht im Audit (`AUDIT_TABLES.helfer`). */
+  zuletztAbgeholtAm: integer("zuletzt_abgeholt_am", { mode: "timestamp" }),
+}, (t) => [uniqueIndex("helfer_zugang_schluessel_idx").on(t.schluesselHash)]);
