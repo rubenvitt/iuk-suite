@@ -19,8 +19,12 @@
  * Helfer, denn die Freigabe gilt nur fürs Einsatzbuch, und zusätzlich die Fahrerlaubnisklassen und
  * die HiOrg-Kennung (IDA-365). Die Schichtplanung versiegelt nichts; sie gibt die Kennung nur im
  * Austauschblatt an Lifeline Hub weiter, damit dort dieselbe Person wiedererkannt wird.
+ *
+ * Dritter Empfänger ist Lifeline Hub selbst (`helferFuerLifeline`, LLH-1194, Route `api/stammdaten`): nur
+ * Freigegebene ohne Demo-Helfer, mit der EIGENEN Kennung (nie der aus HiOrg), „Nachname, Vorname“ und den Namen
+ * der Qualifikationen — der Vertrag „Stammdaten-Abruf“ von Lifeline Hub. Sonst nichts.
  */
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb, type HelferDb } from "../_db/client";
 import { helfer, importlauf } from "../_db/schema";
 import type { Qualifikation } from "./hiorg/person";
@@ -88,6 +92,28 @@ export function helferFuerSchichtplanung(db: HelferDb = getDb()): { helfer: Helf
       fahrerlaubnis: json<string[]>(z.fahrerlaubnis, []),
       demo: z.herkunft === "demo",
       hiorgId: z.herkunft === "hiorg" ? z.quellId : null,
+    })),
+  };
+}
+
+/** Eine Person im Vertrag „Stammdaten-Abruf“ von Lifeline Hub. */
+export interface PersonFuerLifeline {
+  kennung: string;
+  /** „Nachname, Vorname“ — Lifeline teilt am Komma. */
+  name: string;
+  /** Namen der Qualifikationen, ohne Dopplung, sortiert. */
+  qualifikationen: string[];
+}
+
+/** Was Lifeline Hub abholt: Freigegebene fürs Einsatzbuch, keine Demo-Helfer. */
+export function helferFuerLifeline(db: HelferDb = getDb()): { personal: PersonFuerLifeline[] } {
+  const zeilen = db.select({ id: helfer.id, vorname: helfer.vorname, nachname: helfer.nachname, qualifikationen: helfer.qualifikationen })
+    .from(helfer).where(and(eq(helfer.fuerEinsatzbuch, true), ne(helfer.herkunft, "demo"))).all();
+  return {
+    personal: zeilen.map((z) => ({
+      kennung: z.id,
+      name: `${z.nachname}, ${z.vorname}`,
+      qualifikationen: [...new Set(json<Qualifikation[]>(z.qualifikationen, []).map((q) => q.name))].sort((a, b) => a.localeCompare(b, "de")),
     })),
   };
 }
