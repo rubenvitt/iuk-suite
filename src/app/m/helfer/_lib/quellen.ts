@@ -14,5 +14,13 @@ export const QUELLE_TEXT: Record<Quelle, string> = { demo: "Demo", hiorg: "HiOrg
 export function quellwechselHinweis(anzahl: number, neu: Quelle, lifelineZugang: boolean): string {
   if (anzahl === 0) return neu === "datei" ? "Danach lädst du die Liste unter „Abgleich“ hoch." : "Danach holst du die Helfer unter „Abgleich“.";
   const basis = `Die ${anzahl} Helfer der bisherigen Quelle werden gelöscht. Danach holst du die neuen unter „Abgleich“.`;
-  return lifelineZugang ? `${basis} Die Personen bekommen dabei neue Kennungen: Lifeline Hub muss sie danach einmal neu zuordnen.` : basis;
+  return lifelineZugang ? `${basis} ${NEU_ZUORDNEN}` : basis;
+}
+
+const NEU_ZUORDNEN = "Die Personen bekommen dabei neue Kennungen: Lifeline Hub muss sie danach einmal neu zuordnen.";
+
+/** Der Text im Dialog „Alle Helferdaten löschen?“; mit Zugang für Lifeline Hub wie beim Quellwechsel ergänzt. */
+export function loeschHinweis(lifelineZugang: boolean): string {
+  const basis = "Das lässt sich nicht rückgängig machen; ein neuer Abgleich holt sie wieder aus der Quelle.";
+  return lifelineZugang ? `${basis} ${NEU_ZUORDNEN}` : basis;
 }

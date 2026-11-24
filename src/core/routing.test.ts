@@ -276,6 +276,12 @@ describe("Abruf ohne Login (helfer/api/stammdaten)", () => {
   it.each(["/api/stammdaten/x", "/api/stammdatenx", "/", "/einstellungen", "/m/helfer/einstellungen", "/m/helfer/api/stammdaten/x"])("%s bleibt hinter dem Login", (pathname) => {
     expect(decideRoute({ host, pathname, groups: null }).action).toBe("login");
   });
+  it("der interne Pfad geht nur auf dem Helfer-Host ohne Sitzung durch", () => {
+    expect(decideRoute({ host: "portal.localtest.me:3100", pathname: "/m/helfer/api/stammdaten", groups: null }).action).toBe("login");
+  });
+  it.each(["/m/helfer", "/m/helfer/"])("%s bleibt hinter dem Login", (pathname) => {
+    expect(decideRoute({ host, pathname, groups: null }).action).toBe("login");
+  });
   it("auf einem anderen Host ist /api/stammdaten kein Durchlass", () => {
     expect(decideRoute({ host: "portal.localtest.me:3100", pathname: "/api/stammdaten", groups: null })).not.toEqual({ action: "rewrite", target: "/m/helfer/api/stammdaten", moduleKey: "helfer" });
     expect(decideRoute({ host: "alpha.localtest.me", pathname: "/api/stammdaten", groups: null }).action).toBe("login");

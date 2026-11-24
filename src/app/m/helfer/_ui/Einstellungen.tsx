@@ -7,7 +7,7 @@ import { FELD_BREIT, Felder } from "@/core/seite/Seite";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { alleLoeschenAction, neueFreigebenAction, quelleAction, trennenAction } from "../_actions/verwaltung";
-import { QUELLE_TEXT, quellwechselHinweis, type Quelle } from "../_lib/quellen";
+import { loeschHinweis, QUELLE_TEXT, quellwechselHinweis, type Quelle } from "../_lib/quellen";
 import styles from "./helfer.module.css";
 
 export interface EinstellungenProps {
@@ -122,7 +122,7 @@ export function Einstellungen(p: EinstellungenProps) {
             loading={laeuft === "loeschen"}
             onClick={() => modal.confirm({
               title: "Alle Helferdaten löschen?",
-              content: "Das lässt sich nicht rückgängig machen; ein neuer Abgleich holt sie wieder aus der Quelle.",
+              content: loeschHinweis(p.lifelineZugang),
               okText: "Löschen",
               okButtonProps: { danger: true },
               cancelText: "Abbrechen",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quellwechselHinweis } from "./quellen";
+import { loeschHinweis, quellwechselHinweis } from "./quellen";
 
 describe("quellwechselHinweis", () => {
   it("nennt die zu löschenden Helfer", () => {
@@ -12,6 +12,18 @@ describe("quellwechselHinweis", () => {
   it("mit Zugang für Lifeline Hub und Bestand: Lifeline muss neu zuordnen (LLH-1194)", () => {
     expect(quellwechselHinweis(3, "hiorg", true)).toBe(
       "Die 3 Helfer der bisherigen Quelle werden gelöscht. Danach holst du die neuen unter „Abgleich“. " +
+        "Die Personen bekommen dabei neue Kennungen: Lifeline Hub muss sie danach einmal neu zuordnen.",
+    );
+  });
+});
+
+describe("loeschHinweis", () => {
+  it("ohne Zugang der bisherige Satz", () => {
+    expect(loeschHinweis(false)).toBe("Das lässt sich nicht rückgängig machen; ein neuer Abgleich holt sie wieder aus der Quelle.");
+  });
+  it("mit Zugang für Lifeline Hub: neue Kennungen, Lifeline muss neu zuordnen", () => {
+    expect(loeschHinweis(true)).toBe(
+      "Das lässt sich nicht rückgängig machen; ein neuer Abgleich holt sie wieder aus der Quelle. " +
         "Die Personen bekommen dabei neue Kennungen: Lifeline Hub muss sie danach einmal neu zuordnen.",
     );
   });
