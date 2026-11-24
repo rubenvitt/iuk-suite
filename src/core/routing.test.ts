@@ -263,3 +263,21 @@ describe("decideRoute — Einstiegshost (IDA-340)", () => {
     expect(antwortKoepfeFuer("/m/feedback/kxyz")).toBeNull();
   });
 });
+
+// LLH-1194: Lifeline Hub holt Personal mit eigenem Schlüssel ab; die Route prüft ihn selbst. Genau ein Pfad.
+describe("Abruf ohne Login (helfer/api/stammdaten)", () => {
+  const host = "helfer.localtest.me:3100";
+  it("auf dem Helfer-Host wird /api/stammdaten ohne Sitzung zur Route umgeschrieben", () => {
+    expect(decideRoute({ host, pathname: "/api/stammdaten", groups: null })).toEqual({ action: "rewrite", target: "/m/helfer/api/stammdaten", moduleKey: "helfer" });
+  });
+  it("der interne Pfad geht ohne Sitzung durch", () => {
+    expect(decideRoute({ host, pathname: "/m/helfer/api/stammdaten", groups: null })).toEqual({ action: "next" });
+  });
+  it.each(["/api/stammdaten/x", "/api/stammdatenx", "/", "/einstellungen", "/m/helfer/einstellungen", "/m/helfer/api/stammdaten/x"])("%s bleibt hinter dem Login", (pathname) => {
+    expect(decideRoute({ host, pathname, groups: null }).action).toBe("login");
+  });
+  it("auf einem anderen Host ist /api/stammdaten kein Durchlass", () => {
+    expect(decideRoute({ host: "portal.localtest.me:3100", pathname: "/api/stammdaten", groups: null })).not.toEqual({ action: "rewrite", target: "/m/helfer/api/stammdaten", moduleKey: "helfer" });
+    expect(decideRoute({ host: "alpha.localtest.me", pathname: "/api/stammdaten", groups: null }).action).toBe("login");
+  });
+});

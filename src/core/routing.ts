@@ -40,6 +40,14 @@ export function resolveHost(headers: Headers): string {
   return headers.get("host") ?? "";
 }
 
+/**
+ * ABRUF OHNE LOGIN (LLH-1194): Lifeline Hub holt Personal mit einem eigenen Schlüssel aus dem Helfer-Modul. Das
+ * Modul bleibt `requiresAuth: true`; durch geht nur GENAU dieser eine Pfad, und die Route prüft den Schlüssel
+ * und den Host selbst (`helfer/api/stammdaten/route.ts`). Kein Präfix-Vergleich: jeder Nachbarpfad bleibt
+ * hinter dem Login (`routing.test.ts`, „Abruf ohne Login“).
+ */
+export const ABRUF_OHNE_LOGIN = { modul: "helfer", pfad: "/api/stammdaten" } as const;
+
 export function decideRoute(input: {
   host: string;
   pathname: string;
@@ -58,6 +66,11 @@ export function decideRoute(input: {
   }
 
   if (pathname === "/api/audit/browser") return { action: "next" };
+
+  if (pathname === `/m/${ABRUF_OHNE_LOGIN.modul}${ABRUF_OHNE_LOGIN.pfad}`) return { action: "next" };
+  if (pathname === ABRUF_OHNE_LOGIN.pfad && moduleForHost(host)?.key === ABRUF_OHNE_LOGIN.modul) {
+    return { action: "rewrite", target: `/m/${ABRUF_OHNE_LOGIN.modul}${ABRUF_OHNE_LOGIN.pfad}`, moduleKey: ABRUF_OHNE_LOGIN.modul };
+  }
 
   if (PASSTHROUGH.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return { action: "next" };
