@@ -1,0 +1,41 @@
+# Runbook: Inbetriebnahme des Moduls `veranstaltungen`
+
+Das Modul führt geplante Dienste — Sanitätsdienste, Betreuungen, Übungen — mit Ort, Zeitraum, Veranstalter
+und Status (IDA-415). Die Schichtplanung hängt eine Planung an eine Veranstaltung und an einen Einsatz in
+Lifeline Hub (IDA-416). Lifeline Hub soll die Veranstaltungen später abholen und als Einsatzvorschlag zeigen
+(LLH-2097).
+
+## 1. Gruppen in Pocket ID
+
+| Variable | Vorgabe | Bedeutung |
+| --- | --- | --- |
+| `SUITE_ACCESS_GROUP_VERANSTALTUNGEN` | `veranstaltungen-nutzer,veranstaltungen-admin` | anlegen, ändern, absagen |
+| `SUITE_ADMIN_GROUP_VERANSTALTUNGEN` | `veranstaltungen-admin` | zusätzlich löschen |
+
+Wer nur in der Schichtplanung eine Veranstaltung auswählt, braucht keine dieser Gruppen: die Auswahl liest
+die Schichtplanung serverseitig. Statt neuer Gruppen lassen sich auch bestehende eintragen, etwa
+`SUITE_ACCESS_GROUP_VERANSTALTUNGEN=schichtplan-nutzer,schichtplan-admin`. Der Suite-Admin braucht wie
+überall eine der Zugangsgruppen.
+
+## 2. Umgebung
+
+```
+SUITE_HOST_VERANSTALTUNGEN=veranstaltungen.iuk-ue.de
+```
+
+Der Host braucht einen DNS-Eintrag und eine Traefik-Regel auf den Suite-Container. Die Datenbank
+`veranstaltungen.db` legt der Boot-Pfad an (`MODULE_MIGRATIONS`); das nächtliche Backup nimmt sie von selbst
+mit (`backup-sidecar.md`).
+
+## 3. Prüfen nach dem Deploy
+
+1. Mit einer Person in `veranstaltungen-nutzer` anmelden, **Neue Veranstaltung** anlegen.
+2. In der Schichtplanung **Neue Planung**, unter **Veranstaltung** die eben angelegte wählen: Name, Ort und
+   Zeitraum stehen drin. Unter **Einsatz in Lifeline Hub** einen Link aus der Adresszeile des Hubs einfügen.
+3. Im Kopf der Planung erscheinen Veranstaltung und **Einsatz öffnen**.
+4. Unter Portal → Verwaltung → Audit erscheinen die Änderungen mit Modul `veranstaltungen`.
+
+## 4. Was hier bewusst fehlt
+
+- **Abruf durch Lifeline Hub** (LLH-2097): der Hub holt die Veranstaltungen ab; bis dahin kein Austausch.
+- **Einsatzauswahl aus dem Hub** (IDA-419): bis dahin wird der Einsatz als Link eingefügt.
