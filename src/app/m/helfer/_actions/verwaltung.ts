@@ -11,7 +11,8 @@ import { schreibeEinstellung } from "../_lib/einstellungen";
 import { QUELLEN, type Quelle } from "../_lib/quellen";
 import { trenneVerbindung } from "../_lib/hiorg/verbindung";
 import { planeLauf, uebernehmeLauf } from "../_lib/lauf";
-import { requireHelferVerwaltenAktion } from "../_lib/zugang";
+import { legeZugangAn, widerrufeZugang } from "../_lib/schluessel";
+import { anzeigeName, requireHelferVerwaltenAktion } from "../_lib/zugang";
 
 /** Nach jedem Schreiben: alle Seiten des Moduls mit neuem Bestand. */
 function neuLaden(): void {
@@ -89,5 +90,30 @@ export async function alleLoeschenAction(): Promise<ActionErgebnis<number>> {
     const n = loescheAlles(getDb());
     neuLaden();
     return { ok: true, wert: n };
+  });
+}
+
+const zugangBezeichnung = z.string().trim().min(1, "Bitte eine Bezeichnung angeben, etwa „Lifeline Hub“.").max(80, "Höchstens 80 Zeichen.");
+
+/** Legt einen Zugang für Lifeline Hub an (LLH-1194). Der Schlüssel steht nur in dieser Antwort. */
+export async function zugangAnlegenAction(bezeichnung: unknown): Promise<ActionErgebnis<{ schluessel: string }>> {
+  const viewer = await requireHelferVerwaltenAktion();
+  const b = zugangBezeichnung.safeParse(bezeichnung);
+  if (!b.success) return { ok: false, fehler: b.error.issues[0].message, feldFehler: { bezeichnung: b.error.issues[0].message } };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const { schluessel } = legeZugangAn(getDb(), b.data, anzeigeName(viewer));
+    neuLaden();
+    return { ok: true, wert: { schluessel } };
+  });
+}
+
+/** Widerruft einen Zugang; Lifeline Hub bekommt ab dann 401. */
+export async function zugangWiderrufenAction(id: unknown): Promise<ActionAusgang> {
+  const viewer = await requireHelferVerwaltenAktion();
+  if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekannter Zugang." };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    if (!widerrufeZugang(getDb(), id)) return { ok: false, fehler: "Diesen Zugang gibt es nicht mehr." };
+    neuLaden();
+    return { ok: true };
   });
 }

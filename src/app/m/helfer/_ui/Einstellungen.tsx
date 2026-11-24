@@ -7,7 +7,7 @@ import { FELD_BREIT, Felder } from "@/core/seite/Seite";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { alleLoeschenAction, neueFreigebenAction, quelleAction, trennenAction } from "../_actions/verwaltung";
-import { QUELLE_TEXT, type Quelle } from "../_lib/quellen";
+import { QUELLE_TEXT, quellwechselHinweis, type Quelle } from "../_lib/quellen";
 import styles from "./helfer.module.css";
 
 export interface EinstellungenProps {
@@ -19,6 +19,8 @@ export interface EinstellungenProps {
   verbindung: { kontoName: string; verbundenVon: string; verbundenAm: string; erneuertAm: string } | null;
   /** Ergebnis der Rückkehr von HiOrg (`?hiorg=`), bereits als Text. */
   rueckmeldung: { art: "erfolg" | "warnung"; text: string } | null;
+  /** Ob ein Zugang für Lifeline Hub besteht — dann warnt der Quellwechsel (LLH-1194). */
+  lifelineZugang: boolean;
 }
 
 /** Die Einstellungen der Verwaltung: Quelle, Verbindung zu HiOrg, Vorgabe der Freigabe, Löschen. */
@@ -45,9 +47,7 @@ export function Einstellungen(p: EinstellungenProps) {
     if (neu === p.quelle) return;
     modal.confirm({
       title: `Zur Quelle „${QUELLE_TEXT[neu]}“ wechseln?`,
-      content: p.anzahl > 0
-        ? `Die ${p.anzahl} Helfer der bisherigen Quelle werden gelöscht. Danach holst du die neuen unter „Abgleich“.`
-        : neu === "datei" ? "Danach lädst du die Liste unter „Abgleich“ hoch." : "Danach holst du die Helfer unter „Abgleich“.",
+      content: quellwechselHinweis(p.anzahl, neu, p.lifelineZugang),
       okText: "Wechseln",
       cancelText: "Abbrechen",
       onOk: () => tue("quelle", () => quelleAction(neu), `Quelle „${QUELLE_TEXT[neu]}“ eingestellt.`),

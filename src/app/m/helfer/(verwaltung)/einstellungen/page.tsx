@@ -13,9 +13,11 @@ import { QUELLE_TEXT } from "../../_lib/quellen";
 import { hiorgKonfiguration } from "../../_lib/hiorg/konfiguration";
 import { verbindungsstand } from "../../_lib/hiorg/verbindung";
 import { requireHelferHost } from "../../_lib/host";
+import { hatLifelineZugang, listeZugaenge } from "../../_lib/schluessel";
 import { darfHelferVerwalten, requireHelferZugang } from "../../_lib/zugang";
 import { DemoHinweis } from "../../_ui/DemoHinweis";
 import { Einstellungen, type EinstellungenProps } from "../../_ui/Einstellungen";
+import { LifelineZugaenge } from "../../_ui/LifelineZugaenge";
 
 export const dynamic = "force-dynamic";
 
@@ -52,12 +54,14 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
           hiorgFehlt={k.ok ? [] : k.fehlt}
           verbindung={v ? { kontoName: v.kontoName, verbundenVon: v.verbundenVon, verbundenAm: ZEIT.format(v.verbundenAm), erneuertAm: ZEIT.format(v.erneuertAm) } : null}
           rueckmeldung={(hiorg && RUECKMELDUNG[hiorg]) || null}
+          lifelineZugang={hatLifelineZugang(db)}
         />
       ) : (
         <p style={{ margin: 0 }}>
           Quelle: {QUELLE_TEXT[e.quelle]}{v ? `, verbunden als ${v.kontoName}` : ""}
         </p>
       )}
+      {darfVerwalten ? <LifelineZugaenge liste={listeZugaenge(db)} /> : null}
       <section aria-labelledby="datenschutz" style={{ display: "grid", gap: SPACE.sm }}>
         <h2 id="datenschutz" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Datenschutz</h2>
         <ul style={{ margin: 0, paddingInlineStart: SPACE.xl, display: "grid", gap: SPACE.xs }}>
@@ -78,6 +82,11 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
           <li>
             <b>An die Schichtplanung</b> gehen alle übernommenen Personen, auch ohne Bereitstellung fürs Einsatztagebuch, mit Name,
             Qualifikationen und Fahrerlaubnisklassen. Sehen dürfen sie dort nur die Nutzer der Schichtplanung.
+          </li>
+          <li>
+            <b>An Lifeline Hub</b> gehen nur mit einem Zugang aus diesen Einstellungen die fürs Einsatztagebuch bereitgestellten
+            Personen, mit der eigenen Kennung der Suite, Name und Qualifikationen — keine Kennung aus HiOrg, keine Gruppen, keine
+            Fahrerlaubnis, keine Demo-Personen.
           </li>
           <li>
             <b>Sehen</b> darf die Liste nur, wer in der Zugangsgruppe des Moduls ist; die Suite-Administration allein reicht

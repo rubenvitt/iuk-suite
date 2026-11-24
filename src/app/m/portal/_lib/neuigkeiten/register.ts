@@ -46,6 +46,7 @@ import geteilterPlanAlsListe from "@/app/m/portal/_lib/neuigkeiten/notizen/kommp
 import baukastenFachaufgaben from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-11-11-baukasten-fachaufgaben";
 import helferAusHiorg from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-20-helfer-aus-hiorg";
 import helferAusExcel from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-24-helfer-aus-excel";
+import zugangLifeline from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-11-25-zugang-lifeline";
 import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-10-21-fahrzeuge-als-stammdaten";
 import fahrzeugeFahrzeugakte from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-11-12-fahrzeugakte";
 import schichtenImVorausPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/schichtplan/2026-11-01-schichten-im-voraus-planen";
@@ -221,6 +222,7 @@ import angemeldetUndAbmelden from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2
 const NOTIZEN: readonly Releasenotiz[] = [
   helferAusExcel,
   helferAusHiorg,
+  zugangLifeline,
   fahrzeugeAlsStammdaten,
   fahrzeugeFahrzeugakte,
   schichtenImVorausPlanen,
