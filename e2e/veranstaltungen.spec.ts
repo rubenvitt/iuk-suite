@@ -27,7 +27,7 @@ async function zeitraum(feld: Locator, von: string, bis: string): Promise<void> 
 
 test("Veranstaltung anlegen und eine Planung mit Hub-Einsatz daran hängen", async ({ page }) => {
   test.setTimeout(90_000);
-  const name = `Testlauf ${Date.now() % 100_000}`;
+  const name = `Testlauf ${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   await devLogin(page, { host: VA, groups: "veranstaltungen-nutzer,schichtplan-nutzer", callbackPath: "/" });
   await page.goto(url(VA, "/"));
   await page.waitForLoadState("networkidle");

@@ -60,7 +60,9 @@ export async function planungSpeichernAction(planId: string | null, eingabe: unk
   if (planId !== null && !idSchema.safeParse(planId).success) return { ok: false, fehler: UNGUELTIG };
   const e = felder(planungEingabe, eingabe);
   if (!e.ok) return e;
-  if (e.wert.veranstaltungId !== null && !gibtVeranstaltung(e.wert.veranstaltungId)) {
+  // Nur ein NEU gewählter Verweis muss bestehen: ist die Veranstaltung inzwischen gelöscht, bleibt die Planung speicherbar.
+  const bisher = planId === null ? null : ladePlanung(getDb(), planId)?.veranstaltungId ?? null;
+  if (e.wert.veranstaltungId !== null && e.wert.veranstaltungId !== bisher && !gibtVeranstaltung(e.wert.veranstaltungId)) {
     return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { veranstaltungId: "Diese Veranstaltung gibt es nicht mehr." } };
   }
   return withAuditContext({ actor: auditActor(viewer) }, async () => ergebnis(() => speicherePlanung(getDb(), planId, e.wert)));

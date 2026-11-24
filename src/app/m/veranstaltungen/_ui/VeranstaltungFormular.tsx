@@ -62,9 +62,9 @@ export function VeranstaltungFormular({ veranstaltung, darfLoeschen, onFertig }:
       okText: "Löschen",
       cancelText: "Abbrechen",
       onOk: async () => {
-        const r = await veranstaltungLoeschenAction(veranstaltung.id);
-        if (r.ok) onFertig();
-        else void message.warning(r.fehler);
+        const r = await veranstaltungLoeschenAction(veranstaltung.id).catch(() => null);
+        if (r?.ok) onFertig();
+        else void message.warning(r?.fehler ?? "Die Veranstaltung ließ sich nicht löschen.");
       },
     });
   }
@@ -74,7 +74,7 @@ export function VeranstaltungFormular({ veranstaltung, darfLoeschen, onFertig }:
     <div>
       <Feld titel="Name" fehler={fehler.name}>
         <Input value={name} aria-required status={fehler.name ? "error" : undefined} aria-invalid={!!fehler.name} maxLength={120} placeholder="z. B. Stadtfest Uelzen"
-          onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setFehler((f) => ({ ...f, name: "" })); }} />
+          onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setFehler((f) => (f.name === NAME_FEHLT ? { ...f, name: "" } : f)); }} />
       </Feld>
       <Feld titel="Art">
         <Select value={art} onChange={setArt} options={ARTEN.map((a) => ({ value: a, label: ART_TITEL[a] }))} />
@@ -85,7 +85,7 @@ export function VeranstaltungFormular({ veranstaltung, darfLoeschen, onFertig }:
       <div className={s.feld} role="group" aria-label="Zeitraum">
         <span className={s.feldTitel}>Zeitraum</span>
         <Zeitfelder wert={zeitraum} pflicht fehlerId={zeitFehler ? "veranstaltung-zeitraum-fehler" : undefined}
-          onChange={(z) => { setZeitraum(z); if (z.von !== null && z.bis !== null) setFehler((f) => ({ ...f, bis: "" })); }} />
+          onChange={(z) => { setZeitraum(z); if (z.von !== null && z.bis !== null) setFehler((f) => (f.bis === ZEIT_FEHLT ? { ...f, bis: "" } : f)); }} />
         {zeitFehler ? <span id="veranstaltung-zeitraum-fehler" className={s.feldFehler} role="alert">{zeitFehler}</span> : <span className={s.neben}>Höchstens 14 Tage.</span>}
       </div>
       <Feld titel="Ort" fehler={fehler.ort}><Input value={ort} onChange={(e) => setOrt(e.target.value)} maxLength={120} /></Feld>

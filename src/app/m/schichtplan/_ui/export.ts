@@ -89,9 +89,9 @@ export function planungsMappe(p: PlanungDTO, a: Auswertung, helfer: readonly Pla
   return [
     freiesBlatt("Planung", [
       ["Planung", p.name], ["Art", p.art === "lage" ? "Lage" : "Veranstaltung"], ["Ort", p.ort], ["Zeitraum", zeitspanne(p.von, p.bis, true)],
-      // IDA-416: der Einsatz in Lifeline Hub, damit beim Einlesen klar ist, wohin die Planung gehört.
-      ...(p.einsatz ? [["Einsatz in Lifeline Hub", einsatzLink(p.einsatz) ?? p.einsatz.id] as [string, string]] : []),
       ["Besetzung", `${a.ist} von ${a.soll} Plätzen`], ["Konflikte", a.konflikte.length],
+      // IDA-416: der Einsatz in Lifeline Hub, am Ende, damit die Zeilen davor ihren Platz behalten.
+      ...(p.einsatz ? [["Einsatz in Lifeline Hub", einsatzLink(p.einsatz) ?? p.einsatz.id] as [string, string]] : []),
     ], [16, 48]),
     blatt("Je Abschnitt", [
       { kopf: "Abschnitt / Fahrzeug", wert: (x: Eintrag) => einheitTitel(x.e), breite: 28 },
