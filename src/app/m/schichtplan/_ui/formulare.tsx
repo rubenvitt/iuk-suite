@@ -8,9 +8,10 @@ import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { einheitSpeichernAction, planungSpeichernAction, tempHelferSpeichernAction } from "../_actions/planung";
 import type { ActionErgebnis, FeldFehler } from "../_lib/actionErgebnis";
-import type { Anforderung, EinheitArt, EinheitDTO, FahrzeugWahl, PlanungArt, PlanungDTO, Quali, TempHelferDTO } from "../_lib/typen";
+import { einsatzText } from "../_lib/einsatz";
+import type { Anforderung, EinheitArt, EinheitDTO, FahrzeugWahl, PlanungArt, PlanungDTO, Quali, TempHelferDTO, VeranstaltungWahl } from "../_lib/typen";
 import { MAX_ANFORDERUNGEN, MINUTE, postenSchluessel } from "../_lib/typen";
-import { stunden } from "../_lib/zeit";
+import { stunden, zeitspanne } from "../_lib/zeit";
 import { type Zeitraum, Zeitfelder } from "./Zeitfelder";
 import s from "./schichtplan.module.css";
 
@@ -52,10 +53,12 @@ async function senden<T>(aufruf: () => Promise<ActionErgebnis<T>>, setFehler: (f
 
 /**
  * Anlegen oder ändern. Beim Anlegen lassen sich gleich Abschnitte (Freitext) und Fahrzeuge (Stammdaten)
- * mit einer gemeinsamen Schichtlänge hinzufügen; danach geht es im Raster weiter.
+ * mit einer gemeinsamen Schichtlänge hinzufügen; danach geht es im Raster weiter. Eine Planung für eine
+ * Veranstaltung hängt an einer aus dem Modul Veranstaltungen (IDA-415): beim Anlegen übernimmt sie deren
+ * Name, Ort und Zeitraum, die sich danach frei ändern lassen (Aufbau beginnt oft früher).
  */
-export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
-  planung: PlanungDTO | null; fahrzeuge: FahrzeugWahl[]; onGespeichert: (id: string, neu: PlanungDTO | null) => void;
+export function PlanungFormular({ planung, fahrzeuge, veranstaltungen = [], onGespeichert }: {
+  planung: PlanungDTO | null; fahrzeuge: FahrzeugWahl[]; veranstaltungen?: VeranstaltungWahl[]; onGespeichert: (id: string, neu: PlanungDTO | null) => void;
 }) {
   const { message } = App.useApp();
   const [name, setName] = useState(planung?.name ?? "");
@@ -67,15 +70,18 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
   const [gewaehlt, setGewaehlt] = useState<string[]>([]);
   const [maxDienst, setMaxDienst] = useState((planung?.maxDienstMin ?? 720) / 60);
   const [minRuhe, setMinRuhe] = useState((planung?.minRuheMin ?? 480) / 60);
+  const [veranstaltungId, setVeranstaltungId] = useState<string | null>(planung?.veranstaltungId ?? null);
+  const [einsatz, setEinsatz] = useState(einsatzText(planung?.einsatz ?? null));
   const [fehler, setFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
   // IDA-358: die Eingaben liegen auf dem Gerät, bis das Speichern bestätigt ist.
   const entwurf = useEntwurf({
     schluessel: planung ? `schichtplan:planung:${planung.id}:${fingerabdruck(planung)}` : "schichtplan:planung:neu",
-    stand: { name, art, ort, zeitraum, laenge, abschnitte, gewaehlt, maxDienst, minRuhe },
+    stand: { name, art, ort, zeitraum, laenge, abschnitte, gewaehlt, maxDienst, minRuhe, veranstaltungId, einsatz },
     wiederherstellen: (w) => {
       setName(w.name); setArt(w.art); setOrt(w.ort); setZeitraum(w.zeitraum); setLaenge(w.laenge);
       setAbschnitte(w.abschnitte); setGewaehlt(w.gewaehlt); setMaxDienst(w.maxDienst); setMinRuhe(w.minRuhe);
+      setVeranstaltungId(w.veranstaltungId ?? null); setEinsatz(w.einsatz ?? "");
     },
   });
 
@@ -94,6 +100,7 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
     const eingabe = {
       name, art, ort, von, bis,
       maxDienstMin: Math.round(maxDienst * 60), minRuheMin: Math.round(minRuhe * 60),
+      veranstaltungId: art === "veranstaltung" ? veranstaltungId : null, einsatz,
     };
     const id = await senden(() => planungSpeichernAction(planung?.id ?? null, eingabe), setFehler, (t) => void message.warning(t));
     if (id === null) { setLaeuft(false); return; }
@@ -117,11 +124,34 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
   return (
     <div>
       <div className={s.entwurf}><EntwurfHinweis entwurf={entwurf} /></div>
+      {art === "veranstaltung" ? (
+        <Feld titel="Veranstaltung" fehler={fehler.veranstaltungId}
+          hilfe={veranstaltungen.length ? (planung ? undefined : "Übernimmt die Angaben der Veranstaltung.") : "Im Modul Veranstaltungen ist noch keine eingetragen."}>
+          <Select allowClear value={veranstaltungId ?? undefined} placeholder="Veranstaltung wählen" showSearch={{ optionFilterProp: "label" }}
+            options={[
+              ...veranstaltungen.map((v) => ({ value: v.id, label: `${v.name}${v.abgesagt ? " (abgesagt)" : ""} · ${zeitspanne(v.von, v.bis, true)}` })),
+              ...(veranstaltungId && !veranstaltungen.some((v) => v.id === veranstaltungId) ? [{ value: veranstaltungId, label: "Gelöschte Veranstaltung" }] : []),
+            ]}
+            onChange={(id?: string) => {
+              setVeranstaltungId(id ?? null);
+              setFehler((f) => ohne(f, "veranstaltungId"));
+              const v = veranstaltungen.find((x) => x.id === id);
+              // Nur beim Anlegen: bei einer bestehenden Planung könnte ein neuer Zeitraum Schichten abschneiden.
+              if (!v || planung) return;
+              setName(v.name); setOrt(v.ort); setZeitraum({ von: v.von, bis: v.bis });
+              setFehler((f) => ohne(f, "name", "bis"));
+            }} />
+        </Feld>
+      ) : null}
       <Feld titel="Name" fehler={fehler.name}><Input value={name} aria-required status={fehler.name ? "error" : undefined} aria-invalid={!!fehler.name} onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setFehler((f) => (f.name === NAME_FEHLT ? ohne(f, "name") : f)); }} placeholder="z. B. Stadtfest Uelzen" maxLength={120} /></Feld>
       <Feld titel="Art">
         <Radio.Group value={art} onChange={(e) => setArt(e.target.value as PlanungArt)} options={[{ value: "veranstaltung", label: "Veranstaltung" }, { value: "lage", label: "Lage" }]} />
       </Feld>
       <Feld titel="Ort" fehler={fehler.ort}><Input value={ort} onChange={(e) => setOrt(e.target.value)} maxLength={120} /></Feld>
+      <Feld titel="Einsatz in Lifeline Hub" fehler={fehler.einsatz} hilfe="Link aus der Adresszeile des Einsatzes oder nur seine Nummer. Leer lassen, solange es keinen gibt.">
+        <Input value={einsatz} status={fehler.einsatz ? "error" : undefined} aria-invalid={!!fehler.einsatz} maxLength={500} placeholder="https://…/einsaetze/42"
+          onChange={(e) => { setEinsatz(e.target.value); setFehler((f) => ohne(f, "einsatz")); }} />
+      </Feld>
       <div className={s.feld} role="group" aria-label="Zeitraum">
         <span className={s.feldTitel}>Zeitraum</span>
         {/* Nur die eigene „fehlt“-Meldung verschwindet beim Ausfüllen; eine Serverablehnung (z. B. zu lang) bleibt bis zum nächsten Speichern. */}

@@ -87,6 +87,8 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   { key: "verpflegung", migrationsFolder: "src/app/m/verpflegung/_db/migrations" },
   // lagemonitor: OHNE Boot-Seed — die Beispielanzeige ist Entwicklungsdaten; das lokale Seed-Skript deckt Dev ab.
   { key: "lagemonitor", migrationsFolder: "src/app/m/lagemonitor/_db/migrations" },
+  // veranstaltungen: OHNE Boot-Seed — die Beispielveranstaltungen sind Entwicklungsdaten; das lokale Seed-Skript deckt Dev ab.
+  { key: "veranstaltungen", migrationsFolder: "src/app/m/veranstaltungen/_db/migrations" },
 ];
 
 /**

@@ -14,7 +14,8 @@ import type { ActionErgebnis } from "../_lib/actionErgebnis";
 import { tempAlsPlanHelfer } from "../_lib/planHelfer";
 import { pruefe } from "../_lib/pruefung";
 import { qualiKatalog } from "../_lib/qualis";
-import type { FahrzeugWahl, HelferQuelle, PlanHelfer, PlanungDTO } from "../_lib/typen";
+import { einsatzLink } from "../_lib/einsatz";
+import type { FahrzeugWahl, HelferQuelle, PlanHelfer, PlanungDTO, VeranstaltungWahl } from "../_lib/typen";
 import { MINUTE } from "../_lib/typen";
 import { stunden, zeitspanne } from "../_lib/zeit";
 import { AusgabeAnsicht, HelferAnsicht, PruefAnsicht } from "./ansichten";
@@ -40,8 +41,8 @@ function teile(k: string): { quelle: HelferQuelle; helferId: string } {
  * durch die Antwort des Servers; scheitert sie, kehrt der letzte bestätigte Stand zurück. Die Prüfregeln
  * laufen live im Browser — dieselbe Funktion wie in der Übersicht.
  */
-export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
-  start: PlanungDTO; stamm: PlanHelfer[]; fahrzeuge: FahrzeugWahl[]; darfLoeschen: boolean; jetzt: number;
+export function PlanEditor({ start, stamm, fahrzeuge, veranstaltungen = [], darfLoeschen, jetzt }: {
+  start: PlanungDTO; stamm: PlanHelfer[]; fahrzeuge: FahrzeugWahl[]; veranstaltungen?: VeranstaltungWahl[]; darfLoeschen: boolean; jetzt: number;
 }) {
   const { message } = App.useApp();
   const router = useRouter();
@@ -227,6 +228,9 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
     else void message.warning(r?.fehler ?? "Die Planung ließ sich nicht löschen.");
   }
 
+  const veranstaltung = p.veranstaltungId ? veranstaltungen.find((v) => v.id === p.veranstaltungId)?.name ?? "gelöscht" : null;
+  const hubLink = p.einsatz ? einsatzLink(p.einsatz) : null;
+  const zuordnung = [veranstaltung ? `Veranstaltung: ${veranstaltung}` : null, p.einsatz ? `Einsatz ${p.einsatz.id} in Lifeline Hub` : null].filter(Boolean).join(" · ");
   const regeln = `höchstens ${stunden(p.maxDienstMin * MINUTE)} im Dienst, ${stunden(p.minRuheMin * MINUTE)} Ruhe`;
 
   return (
@@ -234,9 +238,10 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
       <Seitenkopf
         titel={p.name}
         zurueck={{ titel: "Planungen", href: "/" }}
-        beschreibung={`${p.art === "lage" ? "Lage" : "Veranstaltung"} · ${zeitspanne(p.von, p.bis, true)} · ${p.ort || "Ort offen"} · ${regeln}`}
+        beschreibung={`${p.art === "lage" ? "Lage" : "Veranstaltung"} · ${zeitspanne(p.von, p.bis, true)} · ${p.ort || "Ort offen"} · ${regeln}${zuordnung ? ` · ${zuordnung}` : ""}`}
         aktionen={(
           <>
+            {hubLink ? <Button href={hubLink} target="_blank" rel="noopener noreferrer" icon={<Icons8Ikone name="link" groesse={16} />}>Einsatz öffnen</Button> : null}
             <Button onClick={() => setPlanungFlyin(true)} icon={<Icons8Ikone name="settings" groesse={16} />}>Planung bearbeiten</Button>
             {darfLoeschen ? (
               <Popconfirm title="Planung löschen?" description="Alle Schichten und Einteilungen fallen weg." okText="Löschen" cancelText="Abbrechen" onConfirm={() => void loeschen()}>
@@ -330,7 +335,7 @@ export function PlanEditor({ start, stamm, fahrzeuge, darfLoeschen, jetzt }: {
       <Drawer open={planungFlyin} onClose={() => setPlanungFlyin(false)} size={flyinBreite(560)} title="Planung bearbeiten" {...FLYIN}>
         {planungFlyin ? (
           <PlanungFormular
-            planung={p} fahrzeuge={fahrzeuge}
+            planung={p} fahrzeuge={fahrzeuge} veranstaltungen={veranstaltungen}
             onGespeichert={() => { setPlanungFlyin(false); router.refresh(); }}
           />
         ) : null}

@@ -57,6 +57,8 @@ import * as helferSchema from "@/app/m/helfer/_db/schema";
 import { seedLokalHelfer } from "@/app/m/helfer/_lib/seedLokal";
 import * as fahrzeugeSchema from "@/app/m/fahrzeuge/_db/schema";
 import { seedLokalFahrzeuge } from "@/app/m/fahrzeuge/_lib/seedLokal";
+import { getDb as getVeranstaltungenDb } from "@/app/m/veranstaltungen/_db/client";
+import { seedLokalVeranstaltungen } from "@/app/m/veranstaltungen/_lib/seedLokal";
 import * as schichtplanSchema from "@/app/m/schichtplan/_db/schema";
 import { seedLokalSchichtplan } from "@/app/m/schichtplan/_lib/seedLokal";
 import * as gemeinschaftSchema from "@/app/m/gemeinschaft/_db/schema";
@@ -86,7 +88,9 @@ export const SEED_MODULE: SeedModul[] = [
   { key: "kommplan", lauf: () => seedLokalKommplan(getModuleDb("kommplan", kommplanSchema)) },
   { key: "helfer", lauf: () => seedLokalHelfer(getModuleDb("helfer", helferSchema)) },
   { key: "fahrzeuge", lauf: () => seedLokalFahrzeuge(getModuleDb("fahrzeuge", fahrzeugeSchema)) },
-  // Nach helfer und fahrzeuge: die Demo-Planung teilt deren Demodaten ein.
+  // Vor schichtplan: die Demo-Planung hängt am Demo-Stadtfest.
+  { key: "veranstaltungen", lauf: () => seedLokalVeranstaltungen(getVeranstaltungenDb()) },
+  // Nach helfer, fahrzeuge und veranstaltungen: die Demo-Planung teilt deren Demodaten ein.
   { key: "schichtplan", lauf: () => seedLokalSchichtplan(getModuleDb("schichtplan", schichtplanSchema)) },
   { key: "gemeinschaft", lauf: () => seedLokalGemeinschaft(getModuleDb("gemeinschaft", gemeinschaftSchema)) },
   { key: "lagemonitor", lauf: () => seedLokalLagemonitor(getModuleDb("lagemonitor", lagemonitorSchema)) },

@@ -12,7 +12,7 @@ const h = (id: string, vorname: string, nachname: string, quelle: "stamm" | "tem
   ({ schluessel: `${quelle}:${id}`, quelle, id, vorname, nachname, qualifikationen: [], demo: true, organisation: quelle === "temp" ? "Nachbarkreis" : undefined });
 const helfer = [h("a", "Anna", "Albers"), h("b", "Ben", "Brandt"), h("t", "Erika", "Beispiel", "temp")];
 const p: PlanungDTO = {
-  id: "p", name: "Stadtfest Ärger & Co", art: "veranstaltung", ort: "Markt", von: T0, bis: T0 + 8 * STUNDE, maxDienstMin: 720, minRuheMin: 480,
+  id: "p", name: "Stadtfest Ärger & Co", art: "veranstaltung", ort: "Markt", von: T0, bis: T0 + 8 * STUNDE, maxDienstMin: 720, minRuheMin: 480, veranstaltungId: null, einsatz: null,
   einheiten: [{ id: "e", art: "abschnitt", name: "Wache", fahrzeugId: null, kenner: null, schichtMin: 240, soll: 2, anforderungen: [], position: 0 }],
   schichten: [{ id: "s2", einheitId: "e", von: T0 + 4 * STUNDE, bis: T0 + 8 * STUNDE }, { id: "s1", einheitId: "e", von: T0, bis: T0 + 4 * STUNDE }],
   zuordnungen: [{ schichtId: "s1", quelle: "stamm", helferId: "b" }, { schichtId: "s1", quelle: "temp", helferId: "t" }, { schichtId: "s2", quelle: "stamm", helferId: "a" }],

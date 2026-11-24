@@ -165,3 +165,21 @@ describe("Eingaben", () => {
     expect(planungEingabe.safeParse({ name: "x", art: "lage", von: T0, bis: T0 + 15 * 24 * STUNDE, maxDienstMin: 720, minRuheMin: 480 }).success).toBe(false);
   });
 });
+
+describe("Veranstaltung und Einsatz (IDA-415, IDA-416)", () => {
+  it("die Planung merkt sich Veranstaltung und Hub-Einsatz und lässt beides wieder lösen", () => {
+    const db = testDb();
+    const planId = speicherePlanung(db, null, plan({ veranstaltungId: "v1", einsatz: "https://hub.example.org/einsaetze/42/etb" }));
+    expect(ladePlanung(db, planId)).toMatchObject({ veranstaltungId: "v1", einsatz: { system: "lifeline-hub", id: "42", adresse: "https://hub.example.org" } });
+    speicherePlanung(db, planId, plan({ einsatz: "7" }));
+    expect(ladePlanung(db, planId)).toMatchObject({ veranstaltungId: null, einsatz: { id: "7", adresse: null } });
+    speicherePlanung(db, planId, plan());
+    expect(ladePlanung(db, planId)?.einsatz).toBeNull();
+  });
+
+  it("ein Text, der kein Einsatz ist, wird am Feld abgelehnt", () => {
+    const r = planungEingabe.safeParse({ ...plan(), einsatz: "https://hub.example.org/lagekarte" });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0].path).toEqual(["einsatz"]);
+  });
+});

@@ -3,6 +3,8 @@
  * (Falle 6): Server Components und Server Actions lesen dieselbe Datei wie der Editor.
  */
 
+import type { EinsatzVerweis } from "./einsatz";
+
 /** Eine Qualifikation, wie das Helfer-Modul sie herausgibt: Kürzel als Schlüssel, Name zur Anzeige. */
 export interface Quali { kurz: string; name: string }
 
@@ -46,6 +48,10 @@ export interface PlanungDTO {
   bis: number;
   maxDienstMin: number;
   minRuheMin: number;
+  /** Die Veranstaltung im Modul `veranstaltungen` (IDA-415) oder `null`. */
+  veranstaltungId: string | null;
+  /** Der Einsatz in Lifeline Hub (IDA-416) oder `null`. */
+  einsatz: EinsatzVerweis | null;
   einheiten: EinheitDTO[];
   schichten: SchichtDTO[];
   zuordnungen: ZuordnungDTO[];
@@ -67,6 +73,9 @@ export interface PlanHelfer {
   /** Kennung in HiOrg-Server (nur Stammhelfer aus HiOrg) — für das Austauschblatt an Lifeline Hub (IDA-365). */
   hiorgId?: string;
 }
+
+/** Eine Veranstaltung aus dem Modul `veranstaltungen`, wie die Auswahl im Formular sie braucht. */
+export interface VeranstaltungWahl { id: string; name: string; ort: string; von: number; bis: number; abgesagt: boolean }
 
 /** Ein Fahrzeug aus den Stammdaten, wie die Auswahl es braucht. */
 export interface FahrzeugWahl { id: string; name: string; kenner: string | null }

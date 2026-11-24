@@ -15,7 +15,7 @@ const einheit = (id: string, soll: number, anforderungen: EinheitDTO["anforderun
   ({ id, art: "abschnitt", name: id, fahrzeugId: null, kenner: null, schichtMin: 240, soll, anforderungen, position: 0 });
 
 function planung(teil: Partial<PlanungDTO>): PlanungDTO {
-  return { id: "p", name: "P", art: "veranstaltung", ort: "", von: T0, bis: T0 + 24 * STUNDE, maxDienstMin: 720, minRuheMin: 480, einheiten: [], schichten: [], zuordnungen: [], temporaere: [], ...teil };
+  return { id: "p", name: "P", art: "veranstaltung", ort: "", von: T0, bis: T0 + 24 * STUNDE, maxDienstMin: 720, minRuheMin: 480, veranstaltungId: null, einsatz: null, einheiten: [], schichten: [], zuordnungen: [], temporaere: [], ...teil };
 }
 
 describe("offeneAnforderungen", () => {

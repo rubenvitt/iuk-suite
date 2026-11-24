@@ -1,0 +1,38 @@
+/* Veranstaltungen. `.modul` trägt die Tokens (Falle 2: `--ant-*` ist nicht global), `.tokens` hängt
+   zusätzlich am `body` (`useTokensAmBody`), weil das Flyin in ein Portal außerhalb von `.modul` rendert.
+   Farbvokabular wie die Schichtplanung; Rot nur für „abgesagt“ als Text, nie als Fläche (Falle 3). */
+.modul, .tokens {
+  --va-ok-text: #1e7a3c;
+  --va-ok-flaeche: #e4f2e9;
+  --va-gelb-text: #8a5200;
+  --va-gelb-flaeche: #fbf1dc;
+  --va-grau-text: #5b6570;
+  --va-grau-flaeche: #e7eaec;
+  --va-rot-text: #8c0d16;
+}
+:root[data-theme="dark"] .modul, :root[data-theme="dark"] .tokens {
+  --va-ok-text: #7ee0a0;
+  --va-ok-flaeche: #10261a;
+  --va-gelb-text: #d9a032;
+  --va-gelb-flaeche: #2a1e05;
+  --va-grau-text: #9aa4ad;
+  --va-grau-flaeche: #1c2024;
+  --va-rot-text: #e8837c;
+}
+.modul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+
+.chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; }
+.zugesagt { color: var(--va-ok-text); background: var(--va-ok-flaeche); }
+.angefragt { color: var(--va-gelb-text); background: var(--va-gelb-flaeche); }
+.abgesagt { color: var(--va-rot-text); background: var(--va-grau-flaeche); }
+
+.kicker { font-family: var(--font-display); font-size: 12px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--iuk-gedaempft); }
+.neben { font-size: 12px; color: var(--iuk-gedaempft); }
+.karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 16px; }
+.inhalt { display: flex; flex-direction: column; gap: 8px; }
+.abgesagtName { text-decoration: line-through; }
+
+.feld { display: flex; flex-direction: column; gap: 6px; margin-block-end: 16px; }
+.feldTitel { font-weight: 600; font-size: 14px; }
+.feldFehler { font-size: 12px; color: var(--va-rot-text); }
+.knoepfe { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
