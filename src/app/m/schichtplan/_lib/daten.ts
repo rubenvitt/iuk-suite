@@ -8,6 +8,7 @@ import { and, asc, eq, inArray, max } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { SchichtplanDb, SchichtplanSchreiber } from "../_db/client";
 import { einheit, planung, schicht, tempHelfer, zuordnung } from "../_db/schema";
+import { einsatzAus, LIFELINE_HUB } from "./einsatz";
 import type { EinheitEingabe, PlanungEingabe, SchichtZeitEingabe, TempHelferEingabe } from "./eingabe";
 import type { Anforderung, EinheitDTO, HelferQuelle, PlanungDTO, Quali, SchichtDTO, TempHelferDTO } from "./typen";
 import { MIN_SCHICHT_MIN, MINUTE, postenSchluessel } from "./typen";
@@ -105,6 +106,8 @@ export function ladePlanung(db: SchichtplanDb, planId: string): PlanungDTO | nul
     .sort((a, b) => a.nachname.localeCompare(b.nachname, "de") || a.vorname.localeCompare(b.vorname, "de"));
   return {
     id: p.id, name: p.name, art: p.art, ort: p.ort, von: p.von, bis: p.bis, maxDienstMin: p.maxDienstMin, minRuheMin: p.minRuheMin,
+    veranstaltungId: p.veranstaltungId,
+    einsatz: p.einsatzSystem === LIFELINE_HUB && p.einsatzId ? { system: LIFELINE_HUB, id: p.einsatzId, adresse: p.einsatzAdresse } : null,
     einheiten, schichten, zuordnungen, temporaere,
   };
 }
@@ -120,7 +123,10 @@ export function allePlanungen(db: SchichtplanDb): PlanungDTO[] {
 // ── Planung ────────────────────────────────────────────────────────────────
 
 /** Anlegen (`planId === null`) oder ändern. Ein kürzerer Zeitraum darf keine Schicht abschneiden. */
-export function speicherePlanung(db: SchichtplanDb, planId: string | null, e: PlanungEingabe, jetzt = Date.now()): string {
+export function speicherePlanung(db: SchichtplanDb, planId: string | null, eingabe: PlanungEingabe, jetzt = Date.now()): string {
+  const { einsatz, ...rest } = eingabe;
+  const verweis = einsatz ? einsatzAus(einsatz) : null;
+  const e = { ...rest, einsatzSystem: verweis?.system ?? null, einsatzId: verweis?.id ?? null, einsatzAdresse: verweis?.adresse ?? null };
   return db.transaction((tx) => {
     if (planId === null) {
       const id = nanoid();

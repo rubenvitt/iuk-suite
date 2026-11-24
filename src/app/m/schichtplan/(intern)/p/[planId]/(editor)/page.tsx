@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { getDb } from "../../../../_db/client";
-import { fahrzeugAuswahl, stammHelfer } from "../../../../_lib/bestand";
+import { fahrzeugAuswahl, stammHelfer, veranstaltungAuswahl } from "../../../../_lib/bestand";
 import { requireSchichtplanHost } from "../../../../_lib/host";
 import { darfPlanungLoeschen, planungOder404, requireSchichtplanZugang } from "../../../../_lib/zugang";
 import { PlanEditor } from "../../../../_ui/PlanEditor";
@@ -17,6 +17,7 @@ export default async function PlanungSeite({ params }: { params: Promise<{ planI
       start={planung}
       stamm={stammHelfer()}
       fahrzeuge={fahrzeugAuswahl()}
+      veranstaltungen={veranstaltungAuswahl()}
       darfLoeschen={darfPlanungLoeschen(viewer.groups)}
       jetzt={new Date().getTime()}
     />

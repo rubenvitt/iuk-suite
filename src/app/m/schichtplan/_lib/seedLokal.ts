@@ -1,4 +1,6 @@
 import { bereitgestellteFahrzeuge, kurzname } from "@/app/m/fahrzeuge/_lib/bereitstellung";
+import { bereitgestellteVeranstaltungen } from "@/app/m/veranstaltungen/_lib/bereitstellung";
+import { DEMO_STADTFEST } from "@/app/m/veranstaltungen/_lib/seedLokal";
 import { helferFuerSchichtplanung } from "@/app/m/helfer/_lib/bereitstellung";
 import type { SchichtplanDb } from "../_db/client";
 import { planung } from "../_db/schema";
@@ -27,6 +29,8 @@ export async function seedLokalSchichtplan(db: SchichtplanDb, jetzt = Date.now()
   const um = (stunde: number) => ausWanduhr({ ...tag, stunde, minute: 0 });
   const planId = speicherePlanung(db, null, planungEingabe.parse({
     name: "Stadtfest (Demo)", art: "veranstaltung", ort: "Marktplatz", von: um(8), bis: um(22), maxDienstMin: 720, minRuheMin: 480,
+    // IDA-415: am Demo-Stadtfest der Veranstaltungen, wenn es das gibt (Seed läuft nach `veranstaltungen`).
+    veranstaltungId: bereitgestellteVeranstaltungen().find((v) => v.name === DEMO_STADTFEST)?.id ?? null,
   }));
   const san = { kurz: "San", name: "Sanitäter" };
   const rs = { kurz: "RS", name: "Rettungssanitäter" };

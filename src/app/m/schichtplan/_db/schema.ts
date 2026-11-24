@@ -22,6 +22,12 @@ export const planung = sqliteTable("planung", {
   maxDienstMin: integer("max_dienst_min").notNull().default(720),
   /** Mindestens so viele Minuten Ruhe, damit zwei Schichten als getrennte Dienste zählen. */
   minRuheMin: integer("min_ruhe_min").notNull().default(480),
+  /** Die Veranstaltung im Modul `veranstaltungen` (IDA-415), ohne Fremdschlüssel: andere Datenbank. Gelöscht → zeigt ins Leere. */
+  veranstaltungId: text("veranstaltung_id"),
+  /** Der Einsatz in einem Umsystem (IDA-416, heute nur `lifeline-hub`); alle drei gesetzt oder alle leer bis auf die Adresse. */
+  einsatzSystem: text("einsatz_system"),
+  einsatzId: text("einsatz_id"),
+  einsatzAdresse: text("einsatz_adresse"),
   angelegtAm: integer("angelegt_am").notNull(),
   aktualisiertAm: integer("aktualisiert_am").notNull(),
 }, () => [

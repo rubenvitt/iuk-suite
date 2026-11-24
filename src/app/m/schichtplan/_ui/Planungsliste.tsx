@@ -6,7 +6,7 @@ import { Button, Card, Drawer } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { flyinBreite } from "@/core/theme/flyin";
-import type { FahrzeugWahl, PlanungKurz } from "../_lib/typen";
+import type { FahrzeugWahl, PlanungKurz, VeranstaltungWahl } from "../_lib/typen";
 import { zeitspanne } from "../_lib/zeit";
 import { PlanungFormular } from "./formulare";
 import s from "./schichtplan.module.css";
@@ -14,7 +14,7 @@ import { Chip } from "./teile";
 import { useTokensAmBody } from "./useTokensAmBody";
 
 /** Die Übersicht: eine Karte je Planung mit Besetzung und Konflikten, dazu „Neue Planung“. */
-export function Planungsliste({ liste, fahrzeuge }: { liste: PlanungKurz[]; fahrzeuge: FahrzeugWahl[] }) {
+export function Planungsliste({ liste, fahrzeuge, veranstaltungen }: { liste: PlanungKurz[]; fahrzeuge: FahrzeugWahl[]; veranstaltungen: VeranstaltungWahl[] }) {
   const router = useRouter();
   useTokensAmBody();
   const [neu, setNeu] = useState(false);
@@ -45,7 +45,7 @@ export function Planungsliste({ liste, fahrzeuge }: { liste: PlanungKurz[]; fahr
         </div>
       )}
       <Drawer open={neu} onClose={() => setNeu(false)} size={flyinBreite(560)} title="Neue Planung" destroyOnHidden autoFocus={false} focusable={{ focusTriggerAfterClose: false }}>
-        {neu ? <PlanungFormular planung={null} fahrzeuge={fahrzeuge} onGespeichert={(id) => router.push(`/p/${id}`)} /> : null}
+        {neu ? <PlanungFormular planung={null} fahrzeuge={fahrzeuge} veranstaltungen={veranstaltungen} onGespeichert={(id) => router.push(`/p/${id}`)} /> : null}
       </Drawer>
     </div>
   );

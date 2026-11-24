@@ -5,7 +5,7 @@ import { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
-import { stammKennungen } from "../_lib/bestand";
+import { gibtVeranstaltung, stammKennungen } from "../_lib/bestand";
 import {
   Abgelehnt, entferneEinheit, ladePlanung, legeSchichtAn, loeschePlanung, loescheSchicht, loescheTempHelfer, NichtGefunden,
   setzeSchicht, speichereEinheit, speicherePlanung, speichereTempHelfer, teileZu, tragAus, verschiebeEinheit,
@@ -60,6 +60,11 @@ export async function planungSpeichernAction(planId: string | null, eingabe: unk
   if (planId !== null && !idSchema.safeParse(planId).success) return { ok: false, fehler: UNGUELTIG };
   const e = felder(planungEingabe, eingabe);
   if (!e.ok) return e;
+  // Nur ein NEU gewählter Verweis muss bestehen: ist die Veranstaltung inzwischen gelöscht, bleibt die Planung speicherbar.
+  const bisher = planId === null ? null : ladePlanung(getDb(), planId)?.veranstaltungId ?? null;
+  if (e.wert.veranstaltungId !== null && e.wert.veranstaltungId !== bisher && !gibtVeranstaltung(e.wert.veranstaltungId)) {
+    return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { veranstaltungId: "Diese Veranstaltung gibt es nicht mehr." } };
+  }
   return withAuditContext({ actor: auditActor(viewer) }, async () => ergebnis(() => speicherePlanung(getDb(), planId, e.wert)));
 }
 

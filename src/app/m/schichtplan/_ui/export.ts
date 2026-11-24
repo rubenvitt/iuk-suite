@@ -6,6 +6,7 @@
  */
 import { blatt, freiesBlatt, type FertigesBlatt } from "@/core/export/spalten";
 import { KONFLIKT_TITEL, type Auswertung, type Konflikt } from "../_lib/pruefung";
+import { einsatzLink } from "../_lib/einsatz";
 import type { EinheitDTO, PlanHelfer, PlanungDTO, SchichtDTO } from "../_lib/typen";
 import { schluessel, STUNDE } from "../_lib/typen";
 import { isoMitVersatz, zeitspanne } from "../_lib/zeit";
@@ -89,6 +90,8 @@ export function planungsMappe(p: PlanungDTO, a: Auswertung, helfer: readonly Pla
     freiesBlatt("Planung", [
       ["Planung", p.name], ["Art", p.art === "lage" ? "Lage" : "Veranstaltung"], ["Ort", p.ort], ["Zeitraum", zeitspanne(p.von, p.bis, true)],
       ["Besetzung", `${a.ist} von ${a.soll} Plätzen`], ["Konflikte", a.konflikte.length],
+      // IDA-416: der Einsatz in Lifeline Hub, am Ende, damit die Zeilen davor ihren Platz behalten.
+      ...(p.einsatz ? [["Einsatz in Lifeline Hub", einsatzLink(p.einsatz) ?? p.einsatz.id] as [string, string]] : []),
     ], [16, 48]),
     blatt("Je Abschnitt", [
       { kopf: "Abschnitt / Fahrzeug", wert: (x: Eintrag) => einheitTitel(x.e), breite: 28 },

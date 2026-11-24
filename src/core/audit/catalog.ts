@@ -913,6 +913,14 @@ export const AUDIT_TABLES = {
       }
     }
   },
+  "veranstaltungen": {
+    "veranstaltung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    }
+  },
   "konto": {
     "sitzung_widerruf": {
       "mode": "audited",

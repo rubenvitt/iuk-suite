@@ -237,6 +237,12 @@ export const MODULES: ModuleDef[] = [
   { key: "schichtplan", title: "Schichtplanung", icon: "calendar", shell: "full",
     requiresAuth: true, requiredGroups: ["schichtplan-nutzer", "schichtplan-admin"], adminGroups: ["schichtplan-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
+  // veranstaltungen: geplante Dienste wie Sanitätsdienste, Betreuungen und Übungen (IDA-415). Die
+  // Schichtplanung hängt eine Planung an eine Veranstaltung. Keine Personaldaten, aber Absprachen mit
+  // Veranstaltern; deshalb eigene Gruppen. Pflegen dürfen alle mit Zugang, löschen nur Modul-Admins.
+  { key: "veranstaltungen", title: "Veranstaltungen", icon: "megaphone", shell: "full",
+    requiresAuth: true, requiredGroups: ["veranstaltungen-nutzer", "veranstaltungen-admin"], adminGroups: ["veranstaltungen-admin"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   // gemeinschaft: die Helfergruppe „Gemeinschaft“ (IDA-320) mit Events, Projekten, Aufgaben und der Vermietung der
   // Bar (IDA-315). requiresAuth: false, weil drei Teile ohne Anmeldung gehen: Bar anfragen (`/bar`), Statusseite
   // einer Anfrage (`/status/<code>`) und der persönliche Link eines Mitglieds (`/mein/<link>`) — Mitglieder haben
@@ -427,7 +433,7 @@ export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[
 export const APP_BEREICHE: readonly { titel: string; module: readonly string[] }[] = [
   { titel: "Einsatz & Lage", module: ["einsatzbuch", "lagemonitor", "kommplan", "radio", "uav"] },
   { titel: "Material & Technik", module: ["lagerbuch", "verpflegung", "fahrzeuge", "wartung", "qr", "unterkunft"] },
-  { titel: "Menschen & Planung", module: ["helfer", "schichtplan", "aufgaben", "gemeinschaft"] },
+  { titel: "Menschen & Planung", module: ["helfer", "veranstaltungen", "schichtplan", "aufgaben", "gemeinschaft"] },
   { titel: "Austausch", module: ["portal", "files", "feedback"] },
 ];
 

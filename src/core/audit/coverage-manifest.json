@@ -211,6 +211,8 @@
   "src/app/m/schichtplan/_actions/planung.ts#einheitVerschiebenAction": { "kind": "context", "via": "aendere" },
   "src/app/m/schichtplan/_actions/planung.ts#planungLoeschenAction": { "kind": "context", "via": "planungLoeschenAction" },
   "src/app/m/schichtplan/_actions/planung.ts#planungSpeichernAction": { "kind": "context", "via": "planungSpeichernAction" },
+  "src/app/m/veranstaltungen/_actions/veranstaltung.ts#veranstaltungLoeschenAction": { "kind": "context", "via": "veranstaltungLoeschenAction" },
+  "src/app/m/veranstaltungen/_actions/veranstaltung.ts#veranstaltungSpeichernAction": { "kind": "context", "via": "veranstaltungSpeichernAction" },
   "src/app/m/schichtplan/_actions/planung.ts#schichtAnlegenAction": { "kind": "context", "via": "aendere" },
   "src/app/m/schichtplan/_actions/planung.ts#schichtLoeschenAction": { "kind": "context", "via": "aendere" },
   "src/app/m/schichtplan/_actions/planung.ts#schichtSetzenAction": { "kind": "context", "via": "aendere" },

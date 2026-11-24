@@ -247,6 +247,16 @@ const VERPFLEGUNG = modulZeichen(
 );
 
 /**
+ * Veranstaltungen: ein Megafon — Mundstück, Trichter und Griff —, mit dem eine Veranstaltung ausgerufen wird.
+ */
+const VERANSTALTUNGEN = modulZeichen(
+  "Veranstaltungen",
+  `<path class="t" d="M14 36.5 39.5 25.3A3 3 0 0 1 44 28v24a3 3 0 0 1-4.5 2.7L14 43.5Z"/>` +
+    `<rect class="t" x="5" y="35" width="11" height="10" rx="3"/>` +
+    `<path class="t" d="M18 45.5h7l-2 13a2.5 2.5 0 0 1-5 0Z"/>`,
+);
+
+/**
  * Die Zeichen nach Dateiname (`/favicon/<name>.svg`). Die Namen sind die
  * Modulschlüssel der Registry, `ida` ist das Suite-Zeichen.
  */
@@ -269,6 +279,7 @@ export const FORMEN: Readonly<Record<string, Form>> = {
   gemeinschaft: GEMEINSCHAFT,
   unterkunft: UNTERKUNFT,
   verpflegung: VERPFLEGUNG,
+  veranstaltungen: VERANSTALTUNGEN,
 };
 
 /** Die Favicons als fertige SVG-Dateien, gefärbt mit Hell/Dunkel-Umschaltung. */

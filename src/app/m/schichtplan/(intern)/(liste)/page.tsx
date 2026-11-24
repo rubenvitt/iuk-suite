@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { getDb } from "../../_db/client";
-import { fahrzeugAuswahl, stammHelfer, tempAlsPlanHelfer } from "../../_lib/bestand";
+import { fahrzeugAuswahl, stammHelfer, tempAlsPlanHelfer, veranstaltungAuswahl } from "../../_lib/bestand";
 import { allePlanungen } from "../../_lib/daten";
 import { requireSchichtplanHost } from "../../_lib/host";
 import { pruefe } from "../../_lib/pruefung";
@@ -22,5 +22,5 @@ export default async function SchichtplanStart() {
       soll: a.soll, ist: a.ist, offen: a.luecken.reduce((n, l) => n + l.fehlen, 0), konflikte: a.konflikte.length,
     };
   });
-  return <Planungsliste liste={liste} fahrzeuge={fahrzeugAuswahl()} />;
+  return <Planungsliste liste={liste} fahrzeuge={fahrzeugAuswahl()} veranstaltungen={veranstaltungAuswahl()} />;
 }

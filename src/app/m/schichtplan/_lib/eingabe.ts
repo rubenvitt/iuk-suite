@@ -3,6 +3,7 @@
  * glauben). Zeiten sind Millisekunden in der Suite-Zone, schon auf das Raster (`RASTER_MIN`) gerastet.
  */
 import { z } from "zod";
+import { einsatzAus } from "./einsatz";
 import { MAX_ANFORDERUNGEN, MIN_SCHICHT_MIN, MINUTE, RASTER_MIN, STUNDE } from "./typen";
 
 const text = (max: number, meldung = "Bitte ausfüllen.") => z.string().trim().min(1, meldung).max(max, `Höchstens ${max} Zeichen.`);
@@ -23,6 +24,11 @@ export const planungEingabe = z.object({
   bis: zeitpunkt,
   maxDienstMin: z.number().int().min(60).max(24 * 60),
   minRuheMin: z.number().int().min(0).max(24 * 60),
+  /** Die Veranstaltung (IDA-415); ob es sie gibt, prüft die Action über die Bereitstellung des Moduls. */
+  veranstaltungId: z.string().min(1).max(64).nullable().default(null),
+  /** Link oder Nummer des Einsatzes in Lifeline Hub (IDA-416); leer = keiner. */
+  einsatz: z.string().trim().max(500, "Höchstens 500 Zeichen.").default("")
+    .refine((t) => t === "" || einsatzAus(t) !== null, "Das ist kein Einsatz aus Lifeline Hub. Bitte den Link aus der Adresszeile (…/einsaetze/42) oder nur die Nummer eintragen."),
 }).superRefine((p, ctx) => {
   if (p.bis <= p.von) ctx.addIssue({ code: "custom", path: ["bis"], message: "Das Ende muss nach dem Beginn liegen." });
   else if (p.bis - p.von < MIN_SCHICHT_MIN * MINUTE) ctx.addIssue({ code: "custom", path: ["bis"], message: `Mindestens ${MIN_SCHICHT_MIN} Minuten.` });
