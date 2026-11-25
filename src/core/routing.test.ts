@@ -272,6 +272,13 @@ describe("decideRoute — Einstiegshost (IDA-340)", () => {
   it("die Einwurfwurzel ist eine vertrauliche Ansicht", () => {
     expect(antwortKoepfeFuer("/m/feedback/k")).not.toBeNull();
     expect(antwortKoepfeFuer("/m/feedback/kxyz")).toBeNull();
+    // Live-Quiz: Beitrittscode bzw. Moderations-Secret im Pfad.
+    for (const p of ["/m/feedback/q/ABC234", "/m/feedback/q/ABC234/strom", "/m/feedback/beamer/geheim", "/m/feedback/beamer/geheim/schritt"]) {
+      expect(antwortKoepfeFuer(p), p).not.toBeNull();
+    }
+    for (const p of ["/m/feedback/q", "/m/feedback/q/", "/m/feedback/beamer/", "/m/feedback/quiz/x", "/m/feedback/groups/1/quiz"]) {
+      expect(antwortKoepfeFuer(p), p).toBeNull();
+    }
   });
 });
 

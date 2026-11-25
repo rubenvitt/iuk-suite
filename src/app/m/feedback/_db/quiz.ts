@@ -20,6 +20,7 @@ import { pruefeFragen, type QuizFrage, type QuizModus } from "@/app/m/feedback/_
 import { phaseMitSperre, schrittAnzahl } from "@/app/m/feedback/_lib/quiz/ablauf";
 import { istRichtig, punkte } from "@/app/m/feedback/_lib/quiz/punkte";
 import type { RundenDaten } from "@/app/m/feedback/_lib/quiz/sichten";
+import { MAX_TEILNAHMEN_JE_RUNDE } from "@/app/m/feedback/_lib/quiz/grenzen";
 
 type DB = BetterSQLite3Database<typeof schema>;
 
@@ -354,7 +355,7 @@ export function tritteBei(
   db: DB,
   runde: QuizRundeRow,
   v: { token: string; spitzname: string | null },
-): { teilnahmeId: number } | { fehler: "spitzname_fehlt" | "spitzname_vergeben" | "beendet" } {
+): { teilnahmeId: number } | { fehler: "spitzname_fehlt" | "spitzname_vergeben" | "beendet" | "voll" } {
   return db.transaction((tx) => {
     const aktuell = holeRunde(tx, runde.id);
     if (!aktuell || aktuell.beendetAt !== null) return { fehler: "beendet" as const };
@@ -365,6 +366,8 @@ export function tritteBei(
       .where(and(eq(quizTeilnahmen.rundeId, aktuell.id), eq(quizTeilnahmen.tokenHash, hash)))
       .get();
     if (vorhanden) return { teilnahmeId: vorhanden.id };
+    const anzahl = tx.select({ id: quizTeilnahmen.id }).from(quizTeilnahmen).where(eq(quizTeilnahmen.rundeId, aktuell.id)).all().length;
+    if (anzahl >= MAX_TEILNAHMEN_JE_RUNDE) return { fehler: "voll" as const };
 
     let spitzname: string | null = null;
     if (aktuell.modus === "wettbewerb") {

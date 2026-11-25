@@ -421,6 +421,8 @@ export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[
   { modul: "gemeinschaft", muster: /^\/m\/gemeinschaft\/(mein|status)\/[^/]/ },
   // feedback (IDA-314): Einwurf und Abholen von „Ehrlich gesagt" — das Secret steht im Pfad, die Antwort hinter dem Code.
   { modul: "feedback", muster: /^\/m\/feedback\/k(\/|$)/ },
+  // feedback, Live-Quiz: Beitrittscode (Handy) bzw. Moderations-Secret (Beamer) im Pfad — no-store, noindex, no-referrer.
+  { modul: "feedback", muster: /^\/m\/feedback\/(q|beamer)\/[^/]/ },
 ];
 
 /**

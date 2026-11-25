@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as schema from "@/app/m/feedback/_db/schema";
 import { beendeRunde, starteOderHoleRunde } from "@/app/m/feedback/_db/quiz";
 import { tokenHash } from "@/app/m/feedback/_lib/quiz/codes";
+import { BEITRITT_JE_MINUTE, MAX_TEILNAHMEN_JE_RUNDE } from "@/app/m/feedback/_lib/quiz/grenzen";
 import {
   cookieAus,
   frischeDb,
@@ -119,12 +120,36 @@ describe("POST q/[code]/beitritt", () => {
     );
   });
 
-  it("drosselt nach 10 Beitritten je Minute und Adresse (429)", async () => {
+  it("ein ganzer Raum hinter einer Adresse (WLAN-NAT): 40 Beitritte in einer Minute gehen durch", async () => {
     const r = starteOderHoleRunde(db, mkQuiz(db, "lagebild"), JETZT);
-    for (let i = 0; i < 10; i++)
-      expect((await beitritt(r.beitrittCode, {})).status).toBe(200);
+    for (let i = 0; i < 40; i++) expect((await beitritt(r.beitrittCode, {})).status).toBe(200);
+    expect(db.select().from(schema.quizTeilnahmen).all()).toHaveLength(40);
+  });
+
+  it("drosselt nach BEITRITT_JE_MINUTE Beitritten je Minute und Adresse (429)", async () => {
+    expect(BEITRITT_JE_MINUTE).toBe(120);
+    const r = starteOderHoleRunde(db, mkQuiz(db, "lagebild"), JETZT);
+    for (let i = 0; i < BEITRITT_JE_MINUTE; i++) expect((await beitritt(r.beitrittCode, {})).status).toBe(200);
     expect((await beitritt(r.beitrittCode, {})).status).toBe(429);
     vi.advanceTimersByTime(60_001);
     expect((await beitritt(r.beitrittCode, {})).status).toBe(200);
+  });
+
+  it("die 201. Teilnahme → 409 voll; ein Wiederbeitritt mit Cookie zählt nicht", async () => {
+    expect(MAX_TEILNAHMEN_JE_RUNDE).toBe(200);
+    const r = starteOderHoleRunde(db, mkQuiz(db, "lagebild"), JETZT);
+    let erstes = "";
+    for (let i = 0; i < 200; i++) {
+      // Verschiedene Adressen: hier geht es um die Obergrenze, nicht um die Drossel.
+      const res = await beitritt(r.beitrittCode, {}, { "cf-connecting-ip": `10.9.${i >> 8}.${i & 255}` });
+      expect(res.status).toBe(200);
+      if (i === 0) erstes = cookieAus(res);
+    }
+    const voll = await beitritt(r.beitrittCode, {}, { "cf-connecting-ip": "10.8.0.1" });
+    expect(voll.status).toBe(409);
+    expect(await voll.json()).toEqual({ fehler: "voll" });
+    const wieder = await beitritt(r.beitrittCode, {}, { "cf-connecting-ip": "10.8.0.2", cookie: erstes });
+    expect(wieder.status).toBe(200);
+    expect(db.select().from(schema.quizTeilnahmen).all()).toHaveLength(200);
   });
 });

@@ -71,9 +71,10 @@ export async function POST(
       spitzname: typeof roh === "string" ? roh : null,
     });
     if ("fehler" in ergebnis) {
-      return ergebnis.fehler === "beendet"
-        ? fehler(404, "beendet")
-        : fehler(400, ergebnis.fehler);
+      if (ergebnis.fehler === "beendet") return fehler(404, "beendet");
+      // Obergrenze der Runde erreicht (`MAX_TEILNAHMEN_JE_RUNDE`).
+      if (ergebnis.fehler === "voll") return fehler(409, "voll");
+      return fehler(400, ergebnis.fehler);
     }
     meldeRunde(runde);
     const res = NextResponse.json(

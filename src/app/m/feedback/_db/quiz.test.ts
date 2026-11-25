@@ -348,6 +348,15 @@ describe("tritteBei", () => {
     expect(tritteBei(db, r, { token: "b", spitzname: "l".repeat(25) })).toEqual({ fehler: "spitzname_vergeben" });
   });
 
+  it("nimmt höchstens 200 Teilnahmen je Runde; ein bekanntes Token zählt nicht neu", () => {
+    const q = mkQuiz("lagebild");
+    const r = starteOderHoleRunde(db, q, JETZT);
+    for (let i = 0; i < 200; i++) expect("teilnahmeId" in tritteBei(db, r, { token: `t${i}`, spitzname: null })).toBe(true);
+    expect(tritteBei(db, r, { token: "neu", spitzname: null })).toEqual({ fehler: "voll" });
+    expect("teilnahmeId" in tritteBei(db, r, { token: "t0", spitzname: null })).toBe(true);
+    expect(rundenDaten(db, r.id).teilnahmen).toHaveLength(200);
+  });
+
   it("speichert im Lagebild keinen Spitznamen", () => {
     const q = mkQuiz("lagebild");
     const r = starteOderHoleRunde(db, q, JETZT);
