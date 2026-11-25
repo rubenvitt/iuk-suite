@@ -5,7 +5,7 @@ import type { QuizFrage } from "../_lib/quiz/fragen";
 /**
  * DER QUIZ-EDITOR (Live-Quiz, Task 8). Drei Zusagen:
  *
- * 1. Der Slidev-Schnipsel trägt die `clicks`-Zahl aus `schrittAnzahl` (Lagebild 2 je Frage,
+ * 1. Der Slidev-Schnipsel trägt `clicks` = `schrittAnzahl - 1` (Slidev zählt 0..clicks) (Lagebild 2 je Frage,
  *    Wettbewerb 3, nach der letzten 2; dazu Lobby und Schluss) und die Beamer-Adresse.
  * 2. Neben der Beamer-Adresse steht der Warntext aus Spec §5.6 wörtlich.
  * 3. Das versteckte Feld `fragen` ist das JSON der Fragen, das `pruefeFragen` versteht:
@@ -35,7 +35,7 @@ function schnipsel(): string {
 }
 
 describe("QuizEditor", () => {
-  it("Lagebild mit 3 Fragen: clicks 8 und die Beamer-Adresse im Schnipsel", async () => {
+  it("Lagebild mit 3 Fragen: clicks 7 (Schritte 0..7) und die Beamer-Adresse im Schnipsel", async () => {
     await mount(
       <QuizEditor
         quizId={1}
@@ -45,10 +45,10 @@ describe("QuizEditor", () => {
         beamerUrl={URL_BEAMER}
       />,
     );
-    expect(schnipsel()).toBe(`---\nclicks: 8\n---\n<LiveQuiz src="${URL_BEAMER}" />`);
+    expect(schnipsel()).toBe(`---\nclicks: 7\n---\n<LiveQuiz src="${URL_BEAMER}" />`);
   });
 
-  it("Wettbewerb mit 3 Fragen: clicks 10", async () => {
+  it("Wettbewerb mit 3 Fragen: clicks 9", async () => {
     await mount(
       <QuizEditor
         quizId={1}
@@ -58,7 +58,7 @@ describe("QuizEditor", () => {
         beamerUrl={URL_BEAMER}
       />,
     );
-    expect(schnipsel()).toContain("clicks: 10\n");
+    expect(schnipsel()).toContain("clicks: 9\n");
   });
 
   it("zeigt die Beamer-Adresse und den Warntext aus §5.6 wörtlich", async () => {

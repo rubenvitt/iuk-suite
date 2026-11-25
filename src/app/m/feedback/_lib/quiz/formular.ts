@@ -29,7 +29,15 @@ export const MODUS_ERKLAERUNG = {
 export const TITEL_MAX = 120;
 
 /**
- * Der Slidev-Schnipsel (Spec §5.5): eine eigene Folie mit `clicks` aus `schrittAnzahl` und der
+ * `clicks` für Slidev: `$clicks` läuft 0..clicks, die Schritte 0..schrittAnzahl-1 — Klick k ist
+ * Schritt k. Der nächste Klick nach dem Schluss blättert Slidev selbst auf die nächste Folie.
+ */
+export function slidevKlicks(schritte: number): number {
+  return schritte - 1;
+}
+
+/**
+ * Der Slidev-Schnipsel (Spec §5.5): eine eigene Folie mit `clicks` aus `slidevKlicks` und der
  * Beamer-Adresse. Hier und nicht im Editor, damit Seite und Test dieselbe Fassung lesen.
  */
 export function slidevSchnipsel(clicks: number, beamerUrl: string): string {

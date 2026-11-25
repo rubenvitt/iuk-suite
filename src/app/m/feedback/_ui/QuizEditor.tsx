@@ -14,6 +14,7 @@ import {
   MODUS_TEXT,
   QUIZ_FORM_START,
   TITEL_MAX,
+  slidevKlicks,
   slidevSchnipsel,
 } from "../_lib/quiz/formular";
 import { KopierZeile } from "./KopierZeile";
@@ -129,8 +130,8 @@ export function QuizEditor({ quizId, titel, modus, fragen, beamerUrl }: QuizEdit
   const [modusWert, setModusWert] = useState<QuizModus>(modus);
   const [state, formAction, isPending] = useActionState(speichereQuizAction, QUIZ_FORM_START);
 
-  const gespeicherteKlicks = schrittAnzahl(fragen.length, modus);
-  const entwurfKlicks = schrittAnzahl(entwurf.length, modusWert);
+  const gespeicherteKlicks = slidevKlicks(schrittAnzahl(fragen.length, modus));
+  const entwurfKlicks = slidevKlicks(schrittAnzahl(entwurf.length, modusWert));
   const serialisiert = JSON.stringify(entwurf.map(alsFrage));
 
   const aendere = (i: number, f: (e: Entwurf) => Entwurf) =>
