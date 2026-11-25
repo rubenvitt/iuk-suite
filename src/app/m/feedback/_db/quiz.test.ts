@@ -180,6 +180,32 @@ describe("setzeSchritt", () => {
     expect(setzeSchritt(db, r.id, -3, plus(JETZT, 1)).schritt).toBe(0);
   });
 
+  it("öffnet eine Frage ohne Zeitlimit beim Zurückblättern nicht wieder", () => {
+    const q = mkQuiz();
+    const r = starteOderHoleRunde(db, q, JETZT);
+    const t = tritteBei(db, r, { token: "t1", spitzname: "Anna" });
+    if (!("teilnahmeId" in t)) throw new Error("kein Beitritt");
+    setzeSchritt(db, r.id, 4, JETZT); // Frage 1, ohne zeit_s
+    setzeSchritt(db, r.id, 5, plus(JETZT, 5_000)); // Auflösung
+    const zurueck = setzeSchritt(db, r.id, 4, plus(JETZT, 10_000));
+    expect(zurueck.schrittSeit).toBe(plus(JETZT, 10_000).getTime());
+    expect(zurueck.hoechsterSchritt).toBe(5);
+    expect(antworte(db, r, t.teilnahmeId, 1, [1], plus(JETZT, 11_000))).toBe("geschlossen");
+  });
+
+  it("Lobby → vor auf eine schon passierte Frage: geschlossen; die weiteste ist offen", () => {
+    const q = mkQuiz();
+    const r = starteOderHoleRunde(db, q, JETZT);
+    const t = tritteBei(db, r, { token: "t1", spitzname: "Anna" });
+    if (!("teilnahmeId" in t)) throw new Error("kein Beitritt");
+    setzeSchritt(db, r.id, 1, JETZT);
+    setzeSchritt(db, r.id, 4, plus(JETZT, 1_000)); // Frage 1, zum ersten Mal: offen
+    expect(antworte(db, r, t.teilnahmeId, 1, [1], plus(JETZT, 2_000))).toBe("ok");
+    setzeSchritt(db, r.id, 0, plus(JETZT, 3_000)); // Lobby
+    setzeSchritt(db, r.id, 1, plus(JETZT, 4_000)); // Frage 0 wieder, Timer frisch
+    expect(antworte(db, r, t.teilnahmeId, 0, [1], plus(JETZT, 5_000))).toBe("geschlossen");
+  });
+
   it("öffnet eine Frage mit Zeitlimit beim Zurückblättern nicht wieder", () => {
     const q = mkQuiz();
     const r = starteOderHoleRunde(db, q, JETZT);

@@ -46,3 +46,22 @@ export function phaseFuer(
   }
   return { art: "schluss" };
 }
+
+/**
+ * `phaseFuer` mit der Sperre für schon passierte Fragen: offen ist eine Frage nur auf dem
+ * weitesten je gezeigten Schritt (`quiz_runden.hoechster_schritt`). Wer zurück- und wieder
+ * vorblättert, sieht die Frage, kann sie aber nicht mehr beantworten — mit und ohne `zeit_s`.
+ * Ein eigener Wrapper, damit `phaseFuer` die reine Funktion (Schritt, Zeit) → Ansicht bleibt.
+ */
+export function phaseMitSperre(
+  schritt: number,
+  hoechsterSchritt: number,
+  fragen: QuizFrage[],
+  modus: QuizModus,
+  schrittSeit: number,
+  jetzt: number,
+): Phase {
+  const phase = phaseFuer(schritt, fragen, modus, schrittSeit, jetzt);
+  if (phase.art === "frage" && schritt < hoechsterSchritt) return { ...phase, offen: false };
+  return phase;
+}

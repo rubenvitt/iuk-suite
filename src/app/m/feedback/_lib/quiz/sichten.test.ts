@@ -13,7 +13,7 @@ const fragen: QuizFrage[] = [
 function runde(modus: "lagebild" | "wettbewerb", schritt: number, extra: Partial<QuizRundeRow> = {}): QuizRundeRow {
   return {
     id: 1, quizId: 1, eveningId: 1, beitrittCode: "ABC234", modus, fragen: JSON.stringify(fragen),
-    schritt, schrittSeit: T0, beendetAt: null, createdAt: new Date(T0), ...extra,
+    schritt, schrittSeit: T0, hoechsterSchritt: schritt, beendetAt: null, createdAt: new Date(T0), ...extra,
   };
 }
 
@@ -76,6 +76,15 @@ describe("beamerSicht", () => {
     expect(s.rangliste).toBeUndefined();
     expect(s.beendet).toBe(true);
     expect(s.beitrittCode).toBeNull();
+    // 4 von 5 Antworten der Runde sind richtig.
+    expect(s.gesamt).toEqual({ teilnehmende: 12, anteilRichtig: 0.8 });
+    expect(beamerSicht(daten("lagebild", 2), "Funk", new Date(T0)).gesamt).toBeUndefined();
+  });
+
+  it("zeigt eine schon passierte Frage als geschlossen", () => {
+    const s = beamerSicht(daten("lagebild", 1, { hoechsterSchritt: 3 }), "Funk", new Date(T0 + 1000));
+    expect(s.phase).toMatchObject({ art: "frage", index: 0, offen: false });
+    expect(s.frage?.richtig).toBeUndefined();
   });
 });
 

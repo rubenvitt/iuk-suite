@@ -17,7 +17,7 @@ import { abendAmTag, TagBelegt } from "./queries";
 import { kalendertagInZone } from "@/app/m/feedback/_lib/lifecycle";
 import { neuerBeitrittCode, neuesSecret, tokenHash } from "@/app/m/feedback/_lib/quiz/codes";
 import { pruefeFragen, type QuizFrage, type QuizModus } from "@/app/m/feedback/_lib/quiz/fragen";
-import { phaseFuer, schrittAnzahl } from "@/app/m/feedback/_lib/quiz/ablauf";
+import { phaseMitSperre, schrittAnzahl } from "@/app/m/feedback/_lib/quiz/ablauf";
 import { istRichtig, punkte } from "@/app/m/feedback/_lib/quiz/punkte";
 import type { RundenDaten } from "@/app/m/feedback/_lib/quiz/sichten";
 
@@ -237,6 +237,7 @@ export function starteOderHoleRunde(db: DB, quiz: QuizRow, jetzt: Date): QuizRun
         fragen: JSON.stringify(pruefung.fragen),
         schritt: 0,
         schrittSeit: jetzt.getTime(),
+        hoechsterSchritt: 0,
         beendetAt: null,
         createdAt: jetzt,
       })
@@ -249,10 +250,9 @@ export function starteOderHoleRunde(db: DB, quiz: QuizRow, jetzt: Date): QuizRun
  * „GEHE ZU SCHRITT n" — absolut und idempotent. Derselbe Schritt ändert nichts, auch nicht
  * `schritt_seit` (sonst liefe die Uhr einer Frage bei jedem doppelten Klick neu an).
  *
- * ZURÜCKBLÄTTERN ÖFFNET KEINE FRAGE MIT ZEITLIMIT WIEDER: landet der Schritt rückwärts auf einer
- * Frage mit `zeit_s`, wird `schritt_seit` um diese Zeit zurückgesetzt, die Frage steht also
- * gleich auf „Zeit um". Eine Frage ohne Zeitlimit hat keinen geschlossenen Zustand im Schritt;
- * sie nimmt wieder Antworten an, schon gegebene bleiben aber endgültig („doppelt").
+ * ZURÜCKBLÄTTERN ÖFFNET KEINE FRAGE WIEDER: `hoechster_schritt` merkt sich den weitesten je
+ * gezeigten Schritt, und Antworten nimmt eine Frage nur auf ihm an (`phaseMitSperre`). Das gilt
+ * mit und ohne `zeit_s`, auch für Lobby → vor auf eine schon passierte Frage.
  *
  * Eine beendete Runde bleibt, wie sie ist.
  */
@@ -266,15 +266,13 @@ export function setzeSchritt(db: DB, rundeId: number, schritt: number, jetzt: Da
     const ziel = Math.min(letzter, Math.max(0, Number.isFinite(schritt) ? Math.trunc(schritt) : 0));
     if (ziel === runde.schritt) return runde;
 
-    let seit = jetzt.getTime();
-    if (ziel < runde.schritt) {
-      const phase = phaseFuer(ziel, fragen, runde.modus, 0, 0);
-      const zeit = phase.art === "frage" ? fragen[phase.index].zeit_s : undefined;
-      if (zeit) seit -= zeit * 1000;
-    }
     return tx
       .update(quizRunden)
-      .set({ schritt: ziel, schrittSeit: seit })
+      .set({
+        schritt: ziel,
+        schrittSeit: jetzt.getTime(),
+        hoechsterSchritt: Math.max(runde.hoechsterSchritt, ziel),
+      })
       .where(eq(quizRunden.id, rundeId))
       .returning()
       .get();
@@ -388,7 +386,9 @@ export function antworte(
       return "ungueltig";
     }
     if (aktuell.beendetAt !== null) return "geschlossen";
-    const phase = phaseFuer(aktuell.schritt, fragen, aktuell.modus, aktuell.schrittSeit, jetzt.getTime());
+    const phase = phaseMitSperre(
+      aktuell.schritt, aktuell.hoechsterSchritt, fragen, aktuell.modus, aktuell.schrittSeit, jetzt.getTime(),
+    );
     if (phase.art !== "frage" || phase.index !== frageIndex || !phase.offen) return "geschlossen";
 
     const frage = fragen[frageIndex];

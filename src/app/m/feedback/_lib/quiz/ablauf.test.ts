@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { QuizFrage } from "./fragen";
-import { phaseFuer, schrittAnzahl } from "./ablauf";
+import { phaseFuer, phaseMitSperre, schrittAnzahl } from "./ablauf";
 
 const f = (zeit_s?: number): QuizFrage => ({
   text: "?", typ: "einfach", optionen: ["A", "B"], richtig: [0], zeit_s,
@@ -40,5 +40,13 @@ describe("phaseFuer", () => {
   });
   it("ohne zeit_s bleibt die Frage offen", () => {
     expect(phaseFuer(1, [f()], "lagebild", 0, 9e9)).toEqual({ art: "frage", index: 0, offen: true, endetUm: null });
+  });
+});
+
+describe("phaseMitSperre", () => {
+  it("schließt eine schon passierte Frage, auch ohne zeit_s", () => {
+    expect(phaseMitSperre(1, 2, drei, "lagebild", 0, 0)).toMatchObject({ art: "frage", index: 0, offen: false });
+    expect(phaseMitSperre(1, 1, drei, "lagebild", 0, 0)).toMatchObject({ art: "frage", index: 0, offen: true });
+    expect(phaseMitSperre(2, 5, drei, "lagebild", 0, 0)).toEqual(phaseFuer(2, drei, "lagebild", 0, 0));
   });
 });

@@ -5,7 +5,7 @@
 // erst ab der Auflösung und nie einen fremden Spitznamen. Wer hier ein Feld ergänzt, prüft
 // `sichten.test.ts` („enthält nie fremde Spitznamen").
 import type { QuizAntwortRow, QuizRundeRow, QuizTeilnahmeRow } from "@/app/m/feedback/_db/schema";
-import { phaseFuer, schrittAnzahl, type Phase } from "./ablauf";
+import { phaseMitSperre, schrittAnzahl, type Phase } from "./ablauf";
 import type { QuizFrage, QuizModus } from "./fragen";
 
 export type RundenDaten = {
@@ -35,6 +35,8 @@ export type BeamerSicht = {
     erklaerung?: string;
   };
   rangliste?: { spitzname: string; punkte: number }[];
+  /** Nur im Schluss: Beigetretene und Anteil richtiger Antworten über alle Fragen (0..1). */
+  gesamt?: { teilnehmende: number; anteilRichtig: number };
   beendet: boolean;
 };
 
@@ -54,7 +56,7 @@ export type HandySicht = {
 const RANGLISTE_LAENGE = 10;
 
 function phaseVon(runde: QuizRundeRow, fragen: QuizFrage[], jetzt: Date): Phase {
-  return phaseFuer(runde.schritt, fragen, runde.modus, runde.schrittSeit, jetzt.getTime());
+  return phaseMitSperre(runde.schritt, runde.hoechsterSchritt, fragen, runde.modus, runde.schrittSeit, jetzt.getTime());
 }
 
 /** Index der gezeigten Frage: in `frage` und `aufloesung`, sonst keiner. */
@@ -122,6 +124,14 @@ export function beamerSicht(daten: RundenDaten, titel: string, jetzt: Date): Bea
       sicht.frage.anteilRichtig = zuDieser.length === 0 ? 0 : zuDieser.filter((a) => a.richtig === 1).length / zuDieser.length;
       if (f.erklaerung !== undefined) sicht.frage.erklaerung = f.erklaerung;
     }
+  }
+
+  if (phase.art === "schluss") {
+    const alle = daten.antworten;
+    sicht.gesamt = {
+      teilnehmende: daten.teilnahmen.length,
+      anteilRichtig: alle.length === 0 ? 0 : alle.filter((a) => a.richtig === 1).length / alle.length,
+    };
   }
 
   const bis = gewertetBis(phase);

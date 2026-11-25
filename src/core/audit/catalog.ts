@@ -122,9 +122,10 @@ export const AUDIT_TABLES = {
       "unauditedColumns": {
         "columns": [
           "schritt",
-          "schritt_seit"
+          "schritt_seit",
+          "hoechster_schritt"
         ],
-        "reason": "Jeder Klick des Beamers schaltet den Schritt; Anlegen und Beenden werden auditiert."
+        "reason": "Jeder Klick des Beamers schaltet den Schritt (samt weitestem Schritt); Anlegen und Beenden werden auditiert."
       }
     },
     "quiz_teilnahmen": {

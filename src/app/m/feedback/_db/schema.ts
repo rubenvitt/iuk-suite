@@ -287,6 +287,9 @@ export const quizRunden = sqliteTable(
     fragen: text("fragen").notNull(),
     schritt: integer("schritt").notNull().default(0),
     schrittSeit: integer("schritt_seit").notNull(),
+    // Der weiteste je gezeigte Schritt. Nur auf ihm nimmt eine Frage Antworten an: zurück-
+    // und wieder vorblättern öffnet keine schon passierte Frage (`_db/quiz.ts`, `setzeSchritt`).
+    hoechsterSchritt: integer("hoechster_schritt").notNull().default(0),
     beendetAt: integer("beendet_at"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
