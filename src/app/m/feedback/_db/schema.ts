@@ -248,3 +248,87 @@ export const ehrlichNotizen = sqliteTable(
 export type EhrlichMitteilungRow = typeof ehrlichMitteilungen.$inferSelect;
 export type EhrlichNachrichtRow = typeof ehrlichNachrichten.$inferSelect;
 export type EhrlichNotizRow = typeof ehrlichNotizen.$inferSelect;
+
+/**
+ * LIVE-QUIZ. `quizze` ist die Vorlage einer Gruppe (Fragen als JSON), `quiz_runden` der
+ * Durchlauf an einem Dienstabend. Die Runde hält einen SCHNAPPSCHUSS der Fragen: wer die
+ * Vorlage ändert, während heute eine Runde läuft, ändert die laufende nicht. Löscht man die
+ * Vorlage, bleibt die Runde (`quiz_id` wird NULL); löscht man den Abend, geht sie mit.
+ * `quiz_teilnahmen`/`quiz_antworten` sind Live-Spieldaten anonymer Teilnehmender und im Audit
+ * ausgeschlossen (`core/audit/catalog.ts`).
+ */
+export const quizze = sqliteTable(
+  "quizze",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    titel: text("titel").notNull(),
+    modus: text("modus").$type<"lagebild" | "wettbewerb">().notNull(),
+    fragen: text("fragen").notNull().default("[]"),
+    moderationSecret: text("moderation_secret").notNull().unique(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [check("quizze_modus_check", sql`${t.modus} IN ('lagebild','wettbewerb')`)],
+);
+
+export const quizRunden = sqliteTable(
+  "quiz_runden",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    quizId: integer("quiz_id").references(() => quizze.id, { onDelete: "set null" }),
+    eveningId: integer("evening_id")
+      .notNull()
+      .references(() => evenings.id, { onDelete: "cascade" }),
+    beitrittCode: text("beitritt_code").notNull(),
+    modus: text("modus").$type<"lagebild" | "wettbewerb">().notNull(),
+    fragen: text("fragen").notNull(),
+    schritt: integer("schritt").notNull().default(0),
+    schrittSeit: integer("schritt_seit").notNull(),
+    beendetAt: integer("beendet_at"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [
+    index("idx_quiz_runden_code").on(t.beitrittCode, t.beendetAt),
+    index("idx_quiz_runden_quiz").on(t.quizId),
+    check("quiz_runden_modus_check", sql`${t.modus} IN ('lagebild','wettbewerb')`),
+  ],
+);
+
+export const quizTeilnahmen = sqliteTable(
+  "quiz_teilnahmen",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    rundeId: integer("runde_id")
+      .notNull()
+      .references(() => quizRunden.id, { onDelete: "cascade" }),
+    spitzname: text("spitzname"),
+    tokenHash: text("token_hash"),
+  },
+  (t) => [
+    uniqueIndex("idx_quiz_teilnahmen_token").on(t.rundeId, t.tokenHash),
+    uniqueIndex("idx_quiz_teilnahmen_spitzname").on(t.rundeId, t.spitzname),
+  ],
+);
+
+export const quizAntworten = sqliteTable(
+  "quiz_antworten",
+  {
+    teilnahmeId: integer("teilnahme_id")
+      .notNull()
+      .references(() => quizTeilnahmen.id, { onDelete: "cascade" }),
+    frageIndex: integer("frage_index").notNull(),
+    antwort: text("antwort").notNull(),
+    richtig: integer("richtig").notNull(),
+    punkte: integer("punkte").notNull(),
+    antwortzeitMs: integer("antwortzeit_ms"),
+  },
+  (t) => [primaryKey({ columns: [t.teilnahmeId, t.frageIndex] })],
+);
+
+export type QuizRow = typeof quizze.$inferSelect;
+export type QuizRundeRow = typeof quizRunden.$inferSelect;
+export type QuizTeilnahmeRow = typeof quizTeilnahmen.$inferSelect;
+export type QuizAntwortRow = typeof quizAntworten.$inferSelect;

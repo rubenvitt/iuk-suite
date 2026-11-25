@@ -27,7 +27,7 @@ describe("feedback migrations", () => {
   });
   afterAll(() => sqlite.close());
 
-  it("legt alle sechs Tabellen an", () => {
+  it("legt alle Tabellen an", () => {
     const names = sqlite
       .prepare("SELECT name FROM sqlite_master WHERE type='table'")
       .all()
@@ -39,6 +39,10 @@ describe("feedback migrations", () => {
       "responses",
       "user_groups",
       "known_users",
+      "quizze",
+      "quiz_runden",
+      "quiz_teilnahmen",
+      "quiz_antworten",
     ]) {
       expect(names).toContain(t);
     }
@@ -72,6 +76,34 @@ describe("feedback migrations", () => {
         "INSERT INTO surveys (evening_id, status, created_at) VALUES (1,'draft',0)",
       ),
     ).toThrow();
+  });
+
+  it("löscht Runden mit dem Abend, behält sie beim Löschen der Vorlage", () => {
+    sqlite.exec("INSERT INTO groups (name, slug, secret, created_at) VALUES ('Q','q','qqq12',0)");
+    const gid = (sqlite.prepare("SELECT id FROM groups WHERE slug='q'").get() as { id: number }).id;
+    sqlite.exec(`INSERT INTO evenings (group_id, date, created_at) VALUES (${gid},86400000,0)`);
+    const eid = (
+      sqlite.prepare("SELECT id FROM evenings WHERE group_id=? ").get(gid) as { id: number }
+    ).id;
+    sqlite.exec(
+      `INSERT INTO quizze (group_id, titel, modus, moderation_secret, created_at, updated_at) VALUES (${gid},'T','lagebild','sec',0,0)`,
+    );
+    const qid = (sqlite.prepare("SELECT id FROM quizze").get() as { id: number }).id;
+    sqlite.exec(
+      `INSERT INTO quiz_runden (quiz_id, evening_id, beitritt_code, modus, fragen, schritt_seit, created_at) VALUES (${qid},${eid},'ABC234','lagebild','[]',0,0)`,
+    );
+    expect(() =>
+      sqlite.exec(
+        `INSERT INTO quiz_runden (quiz_id, evening_id, beitritt_code, modus, fragen, schritt_seit, created_at) VALUES (${qid},${eid},'ABC234','bogus','[]',0,0)`,
+      ),
+    ).toThrow();
+
+    sqlite.exec("DELETE FROM quizze");
+    const row = sqlite.prepare("SELECT quiz_id FROM quiz_runden").get() as { quiz_id: number | null };
+    expect(row.quiz_id).toBeNull();
+
+    sqlite.exec(`DELETE FROM evenings WHERE id=${eid}`);
+    expect((sqlite.prepare("SELECT COUNT(*) AS c FROM quiz_runden").get() as { c: number }).c).toBe(0);
   });
 
   it("erzwingt Composite-PK auf user_groups", () => {
