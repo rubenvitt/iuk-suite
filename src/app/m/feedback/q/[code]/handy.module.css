@@ -416,3 +416,24 @@
 .ergebnisUnten {
   padding-top: 20px;
 }
+
+/* Hülle um Bild und Ansage: ohne eigenes Kästchen, `.seite` bleibt das Layout. */
+.wurzel {
+  display: contents;
+}
+/* Live-Region (`Ansage`): für Screenreader da, unsichtbar. */
+.ansage {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Die Überschrift bekommt beim Bildwechsel den Fokus (`Ansage`); sie ist kein Bedienelement. */
+.seite h1[tabindex="-1"]:focus {
+  outline: none;
+}

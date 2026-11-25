@@ -12,8 +12,13 @@ import { QuizForm, quizFarbe, quizZahl } from "@/app/m/feedback/_quiz/QuizForm";
 import z from "@/app/m/feedback/_quiz/zeichen.module.css";
 import s from "./handy.module.css";
 
-/** Pause, bevor ein ganz geschlossener Strom (Server weg, 503) neu verbunden wird. */
-const NEU_VERBINDEN_MS = 3000;
+/**
+ * Pausen, bevor ein ganz geschlossener Strom (Server weg, 503) neu verbunden wird: je Fehlversuch
+ * die nächste, danach bleibt es bei der letzten. Die erste empfangene Nachricht setzt zurück.
+ * Gestreut um ±30 %, damit ein Raum voller Handys nach einem Neustart nicht im Gleichschritt kommt.
+ */
+const NEU_VERBINDEN_MS = [3000, 6000, 12000, 30000];
+const STREUUNG = 0.3;
 /** Takt der Restzeit. Eine Viertelsekunde, damit die volle Sekunde nicht sichtbar springt. */
 const TAKT_MS = 250;
 
@@ -21,6 +26,11 @@ const farbe = quizFarbe;
 const Form = ({ i }: { i: number }) => <QuizForm i={i} className={s.form} />;
 
 const zahl = quizZahl;
+
+function pauseVor(versuch: number): number {
+  const basis = NEU_VERBINDEN_MS[Math.min(versuch, NEU_VERBINDEN_MS.length - 1)];
+  return Math.round(basis * (1 + STREUUNG * (2 * Math.random() - 1)));
+}
 
 /** Der Weg neben der Seite (`/q/ABC234` → `/q/ABC234/strom`), auch hinter dem Host-Rewrite. */
 function weg(teil: "strom" | "beitritt" | "antwort"): string {
@@ -61,6 +71,12 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
   const [beigetreten, setBeigetreten] = useState(false);
   const [spitzname, setSpitzname] = useState("");
   const aktiv = useRef(true);
+  // Nur Nachrichten der jüngsten Quelle zählen: nach dem Beitritt darf der alte Strom (noch ohne
+  // Teilnahme) die neue Sicht nicht überschreiben (`trittBei` setzt sie auf null).
+  const aktuelleQuelle = useRef<EventSource | null>(null);
+  const fehlversuche = useRef(0);
+  // Sperre gegen Doppel-Absenden: `disabled` greift erst nach dem nächsten Rendern.
+  const sendetGerade = useRef(false);
 
   useEffect(() => {
     aktiv.current = true;
@@ -75,8 +91,11 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
   useEffect(() => {
     if (beendet) return;
     const quelle = new EventSource(weg("strom"));
+    aktuelleQuelle.current = quelle;
     let wecker: ReturnType<typeof setTimeout> | undefined;
     quelle.onmessage = (e: MessageEvent<string>) => {
+      if (aktuelleQuelle.current !== quelle) return;
+      fehlversuche.current = 0;
       let neu: HandySicht;
       try {
         neu = JSON.parse(e.data) as HandySicht;
@@ -96,11 +115,13 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
     quelle.onerror = () => {
       // 2 = CLOSED: der Server hat abgelehnt (404 beendet, 503 voll) oder ist weg. Sonst
       // verbindet die EventSource selbst neu.
-      if (quelle.readyState !== 2) return;
+      if (quelle.readyState !== 2 || aktuelleQuelle.current !== quelle) return;
+      const pause = pauseVor(fehlversuche.current++);
       wecker = setTimeout(async () => {
         try {
-          const r = await fetch(weg("strom"), { headers: { accept: "text/event-stream" }, cache: "no-store" });
-          void r.body?.cancel().catch(() => {});
+          // Gibt es die Runde noch? `?pruefen=1` abonniert nichts (204/404), belegt also keinen
+          // der 200 Plätze im Verteiler, die gerade knapp sein können.
+          const r = await fetch(`${weg("strom")}?pruefen=1`, { cache: "no-store" });
           if (r.status === 404) {
             if (aktiv.current) setBeendet(true);
             return;
@@ -109,11 +130,12 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
           // offline: einfach neu versuchen
         }
         if (aktiv.current) setVerbindung((v) => v + 1);
-      }, NEU_VERBINDEN_MS);
+      }, pause);
     };
     return () => {
       clearTimeout(wecker);
       quelle.close();
+      if (aktuelleQuelle.current === quelle) aktuelleQuelle.current = null;
     };
   }, [verbindung, beendet]);
 
@@ -126,6 +148,8 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
   }, [laeuft]);
 
   const antworte = useCallback(async (frageIndex: number, gewaehlt: number[]) => {
+    if (sendetGerade.current) return;
+    sendetGerade.current = true;
     setSendet(true);
     setMeldung(null);
     try {
@@ -145,6 +169,7 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
     } catch {
       setMeldung(NICHT_GEKLAPPT);
     } finally {
+      sendetGerade.current = false;
       setSendet(false);
     }
   }, []);
@@ -161,6 +186,7 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
         body: JSON.stringify(sicht.modus === "wettbewerb" ? { spitzname } : {}),
       });
       if (r.ok) {
+        aktuelleQuelle.current = null;
         setBeigetreten(true);
         setVerbindung((v) => v + 1);
         return;
@@ -176,19 +202,30 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
   }
 
   // ── Was zu zeigen ist ─────────────────────────────────────────────────────
+  // Jedes Bild hat einen Schlüssel; wechselt er, sagt `Ansage` das neue Bild an.
+  const zeige = (schluessel: string, inhalt: ReactNode, vorspann?: string) => (
+    <div className={s.wurzel}>
+      {inhalt}
+      <Ansage schluessel={schluessel} vorspann={vorspann} />
+    </div>
+  );
+
   if (beendet || !sicht || sicht.phase.art === "schluss" || sicht.phase.art === "vorStart") {
-    return <Ende sicht={sicht} />;
+    return zeige("ende", <Ende sicht={sicht} />);
   }
   const dabei = sicht.dabei || beigetreten;
   const fragePos = sicht.frage ? `Frage ${sicht.frage.index + 1} von ${sicht.fragenAnzahl}` : sicht.titel;
   const eigenerName = sicht.spitzname ? <span className={s.rechts}>{sicht.spitzname}</span> : null;
 
   if (!dabei) {
-    return (
+    return zeige(
+      "beitritt",
       <Rahmen kopf="Dienstabend">
         <form className={s.formular} onSubmit={trittBei}>
           <span className={s.modus}>{sicht.modus === "wettbewerb" ? "Wettbewerb" : "Lagebild"}</span>
-          <h1 className={s.titel}>{sicht.titel}</h1>
+          <h1 className={s.titel} tabIndex={-1}>
+            {sicht.titel}
+          </h1>
           <p className={s.leise}>
             {sicht.fragenAnzahl === 1 ? "1 Frage" : `${sicht.fragenAnzahl} Fragen`}.{" "}
             {sicht.modus === "wettbewerb"
@@ -229,18 +266,21 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
             Mitmachen
           </button>
         </form>
-      </Rahmen>
+      </Rahmen>,
     );
   }
 
   if (sicht.phase.art === "lobby" || sicht.phase.art === "rangliste") {
     const zwischen = sicht.phase.art === "rangliste";
-    return (
+    return zeige(
+      sicht.phase.art,
       <Rahmen kopf={sicht.titel} rechts={eigenerName} zentral>
         <Siegel voll>
           <Icons8Ikone name="checkmark" groesse={44} kraeftig />
         </Siegel>
-        <h1 className={s.titel}>Du bist dabei.</h1>
+        <h1 className={s.titel} tabIndex={-1}>
+          Du bist dabei.
+        </h1>
         <p className={s.leise}>
           {zwischen
             ? "Die nächste Frage erscheint hier, sobald sie am Beamer steht."
@@ -252,18 +292,22 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
           <i />
           <i />
         </div>
-      </Rahmen>
+      </Rahmen>,
     );
   }
 
   const frage = sicht.frage;
-  if (!frage) return <Ende sicht={sicht} />;
+  if (!frage) return zeige("ende", <Ende sicht={sicht} />);
   const meinLokal = lokal?.frageIndex === frage.index ? lokal : null;
   const eigene = sicht.eigeneAntwort ?? (meinLokal && "da" in meinLokal ? meinLokal.gewaehlt : undefined);
   const da = sicht.eigeneAntwort !== undefined || (meinLokal !== null && "da" in meinLokal);
 
   if (sicht.phase.art === "aufloesung") {
-    return <Ergebnis sicht={sicht} fragePos={fragePos} rechts={eigenerName} eigene={eigene} />;
+    return zeige(
+      `aufloesung-${frage.index}`,
+      <Ergebnis sicht={sicht} fragePos={fragePos} rechts={eigenerName} eigene={eigene} />,
+      fragePos,
+    );
   }
 
   // Phase `frage`.
@@ -278,27 +322,35 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
     ) : null;
 
   if (da) {
-    return (
+    return zeige(
+      `da-${frage.index}`,
       <Rahmen kopf={fragePos} rechts={restzeit} zentral>
         <Siegel voll>
           <Icons8Ikone name="checkmark" groesse={44} kraeftig />
         </Siegel>
-        <h1 className={s.titel}>Antwort ist da.</h1>
+        <h1 className={s.titel} tabIndex={-1}>
+          Antwort ist da.
+        </h1>
         {eigene && <Gewaehlt optionen={frage.optionen} indizes={eigene} />}
         <p className={s.leise}>Ob sie stimmt, siehst du nach der Auflösung am Beamer.</p>
-      </Rahmen>
+      </Rahmen>,
+      fragePos,
     );
   }
 
   if (zu) {
-    return (
+    return zeige(
+      `zu-${frage.index}`,
       <Rahmen kopf={fragePos} zentral>
         <Siegel>
           <Icons8Ikone name="clock" groesse={44} />
         </Siegel>
-        <h1 className={s.titel}>Zeit ist um.</h1>
+        <h1 className={s.titel} tabIndex={-1}>
+          Zeit ist um.
+        </h1>
         <p className={s.leise}>Für diese Frage hast du keine Antwort abgegeben. Die nächste kommt gleich.</p>
-      </Rahmen>
+      </Rahmen>,
+      fragePos,
     );
   }
 
@@ -310,9 +362,12 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
       werte: gewaehlt.includes(i) ? gewaehlt.filter((x) => x !== i) : [...gewaehlt, i].sort((a, b) => a - b),
     });
 
-  return (
+  return zeige(
+    `frage-${frage.index}`,
     <Rahmen kopf={fragePos} rechts={restzeit}>
-      <h1 className={s.frage}>{frage.text}</h1>
+      <h1 className={s.frage} tabIndex={-1}>
+        {frage.text}
+      </h1>
       <p className={s.frageMeta}>
         <span>{mehrfach ? "Mehrere richtig, wähle alle" : "Tipp eine Antwort an"}</span>
         {mehrfach && <span>{gewaehlt.length} gewählt</span>}
@@ -353,11 +408,34 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
           Absenden
         </button>
       )}
-    </Rahmen>
+    </Rahmen>,
+    fragePos,
   );
 }
 
 // ── Bausteine ──────────────────────────────────────────────────────────────
+
+/**
+ * ANSAGE BEIM BILDWECHSEL (Screenreader): eine dauerhafte, anfangs leere Live-Region neben dem
+ * Bild, unsichtbar. Wechselt das Bild (`schluessel`), sagt sie die neue Überschrift an und setzt
+ * den Fokus darauf — die angetippte Kachel ist dann ja weg. Beim ersten Bild nicht: da liest der
+ * Screenreader die Seite ohnehin.
+ */
+function Ansage({ schluessel, vorspann }: { schluessel: string; vorspann?: string }) {
+  const region = useRef<HTMLDivElement>(null);
+  const vorher = useRef(schluessel);
+  useEffect(() => {
+    if (vorher.current === schluessel) return;
+    vorher.current = schluessel;
+    const el = region.current;
+    const h1 = el?.parentElement?.querySelector<HTMLElement>("h1");
+    if (!el || !h1) return;
+    const text = h1.textContent?.trim() ?? "";
+    el.textContent = vorspann ? `${vorspann}: ${text}` : text;
+    h1.focus();
+  }, [schluessel, vorspann]);
+  return <div ref={region} className={s.ansage} aria-live="polite" />;
+}
 
 function Rahmen({
   kopf,
@@ -444,7 +522,9 @@ function Ergebnis({
       <Siegel voll={richtig} oben>
         <Icons8Ikone name={richtig ? "checkmark" : ergebnis ? "minus" : "clock"} groesse={44} kraeftig={!!ergebnis} />
       </Siegel>
-      <p className={s.ich}>{richtig ? "Richtig." : ergebnis ? "Daneben." : "Keine Antwort."}</p>
+      <h1 className={s.ich} tabIndex={-1}>
+        {richtig ? "Richtig." : ergebnis ? "Daneben." : "Keine Antwort."}
+      </h1>
       {wettbewerb && (
         <>
           <div className={`${s.punkteGross} ${richtig ? "" : s.punkteNull}`}>
@@ -478,7 +558,9 @@ function Ergebnis({
 function Ende({ sicht }: { sicht: HandySicht | null }) {
   return (
     <Rahmen kopf={sicht?.titel ?? "Live-Quiz"} zentral>
-      <h1 className={s.titel}>Das Quiz ist beendet.</h1>
+      <h1 className={s.titel} tabIndex={-1}>
+        Das Quiz ist beendet.
+      </h1>
       <Werte sicht={sicht} ende />
       <p className={s.leise}>Danke fürs Mitmachen. Du kannst die Seite jetzt schließen.</p>
     </Rahmen>
