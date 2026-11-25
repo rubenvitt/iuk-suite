@@ -1603,7 +1603,7 @@
   "src/app/m/feedback/beamer/[secret]/beenden/route.ts#POST": {"kind": "context", "via": "POST"},
   "src/app/m/feedback/q/[code]/strom/route.ts#GET": {"kind": "excluded", "reason": "SSE-Strom des Live-Quiz (Handy): liest nur den Stand der Runde; das nachgeholte Auto-Ende abgelaufener Runden schreibt unter dem Akteur system (`_lib/quiz/stand.ts`)."},
   "src/app/m/feedback/beamer/[secret]/strom/route.ts#GET": {"kind": "excluded", "reason": "SSE-Strom des Live-Quiz (Beamer): liest nur den Stand, legt keine Runde an; das nachgeholte Auto-Ende abgelaufener Runden schreibt unter dem Akteur system (`_lib/quiz/stand.ts`)."},
-  "src/app/m/feedback/q/[code]/qr.svg/route.ts#GET": {"kind": "excluded", "reason": "Technical generated asset (QR der Lobby), not a business export; das nachgeholte Auto-Ende abgelaufener Runden schreibt unter dem Akteur system (`_lib/quiz/stand.ts`)."},
+  "src/app/m/feedback/q/[code]/qr.svg/route.ts#GET": {"kind": "excluded", "reason": "Technisch erzeugtes Bild (QR-Code der Lobby), kein fachlicher Export; nur das nachgeholte Auto-Ende abgelaufener Runden schreibt, unter dem Akteur system (`_lib/quiz/stand.ts`)."},
   "src/app/m/feedback/quiz-actions.ts#legeQuizAnAction": {"kind": "context", "via": "legeQuizAnAction"},
   "src/app/m/feedback/quiz-actions.ts#speichereQuizAction": {"kind": "context", "via": "speichereQuizAction"},
   "src/app/m/feedback/quiz-actions.ts#rotiereSecretAction": {"kind": "context", "via": "rotiereSecretAction"},

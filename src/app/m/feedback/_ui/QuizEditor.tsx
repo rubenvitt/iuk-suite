@@ -6,7 +6,7 @@ import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { SPACE } from "@/core/theme/tokens";
 import { rotiereSecretAction, speichereQuizAction } from "../quiz-actions";
 import type { QuizFrage, QuizModus } from "../_lib/quiz/fragen";
-import { MAX_FRAGEN } from "../_lib/quiz/fragen";
+import { ERKLAERUNG_MAX, MAX_FRAGEN } from "../_lib/quiz/fragen";
 import { schrittAnzahl } from "../_lib/quiz/ablauf";
 import {
   BEAMER_WARNUNG,
@@ -397,6 +397,7 @@ function FrageKarte({
         <Input.TextArea
           value={frage.erklaerung}
           autoSize={{ minRows: 1, maxRows: 4 }}
+          maxLength={ERKLAERUNG_MAX}
           onChange={(ev) => aendere((e) => ({ ...e, erklaerung: ev.target.value }))}
         />
         <span style={T.meta}>Erscheint bei der Auflösung.</span>

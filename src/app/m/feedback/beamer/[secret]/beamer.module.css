@@ -7,6 +7,10 @@
  * dieselbe Komposition. Skala (cqh): 2,6 · 3,4 · 4,6 · 6,2 · 8,4 · 12 · 22. Bei 1080 px ist die
  * kleinste Schrift 28 px.
  *
+ * NIE KÜRZEN, NIE ABSCHNEIDEN: kein `nowrap`, keine Ellipse, `overflow: hidden` nur an Bühne und
+ * Balkenspur (`Beamer.test.tsx` prüft das). Lange Texte bekommen eine kleinere Schriftstufe
+ * (`data-stufe`, Grenzen in `groessen.ts`); der längste gültige Inhalt passt so bei 1280×720.
+ *
  * Öffentliche Ansicht: kein antd, keine `--ant-*` (Falle 2). Die Variablen `--qz-*` und die
  * Farbklassen `.a`–`.d` stehen EINMAL in `_quiz/zeichen.module.css` (mit dem Handy geteilt); die
  * Wurzel trägt `.zeichen` neben `.seite`. Dunkel folgt dort `<html data-theme>`. Suite-Rot nur über
@@ -73,15 +77,16 @@
 }
 .kopfLinks {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .rechts {
   margin-left: auto;
+  min-width: 0;
+  max-width: 60%;
+  text-align: right;
   color: var(--qz-tinte);
   font-weight: 600;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .rechts small {
   font-size: inherit;
@@ -102,6 +107,15 @@
   margin: 0 0 2cqh;
   font-weight: 700;
   text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.vorstartTitel[data-stufe="1"] {
+  font-size: 8.4cqh;
+  line-height: 1.05;
+}
+.vorstartTitel[data-stufe="2"] {
+  font-size: 6.2cqh;
+  line-height: 1.1;
 }
 .vorstartText {
   font-size: 3.6cqh;
@@ -211,12 +225,24 @@
 }
 .frageText {
   flex: 1;
+  min-width: 0;
   margin: 0;
   font-size: 6.2cqh;
   line-height: 1.15;
   font-weight: 600;
   letter-spacing: -0.005em;
   text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.frageText[data-stufe="1"] {
+  font-size: 5.2cqh;
+}
+.frageText[data-stufe="2"] {
+  font-size: 4.4cqh;
+}
+.frageText[data-stufe="3"] {
+  font-size: 3.8cqh;
+  line-height: 1.2;
 }
 .ring {
   width: 17cqh;
@@ -274,14 +300,30 @@
   line-height: 1.15;
   font-weight: 600;
   min-height: 0;
-  overflow: hidden;
 }
 .kachelText {
   min-width: 0;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.kacheln[data-stufe="1"] .kachel {
+  font-size: 3.8cqh;
+}
+.kacheln[data-stufe="2"] .kachel {
+  font-size: 3.2cqh;
+  line-height: 1.18;
 }
 /* Fünf oder sechs Optionen: drei Reihen, etwas kleiner. Nicht im Mockup, das nur vier zeigt. */
-.kachelnViele .kachel {
+.kacheln.kachelnViele .kachel {
   font-size: 3.8cqh;
+}
+.kacheln.kachelnViele[data-stufe="1"] .kachel {
+  font-size: 3.2cqh;
+}
+.kacheln.kachelnViele[data-stufe="2"] .kachel {
+  font-size: 2.8cqh;
+  line-height: 1.18;
+  padding-right: 2.4cqh;
 }
 .kachelnViele .form {
   width: 7.5cqh;
@@ -357,13 +399,20 @@
   font-weight: 600;
   letter-spacing: -0.005em;
   text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.auflFrage[data-stufe="1"] {
+  font-size: 3.6cqh;
+  margin-bottom: 2.4cqh;
+}
+.auflFrage[data-stufe="2"] {
+  font-size: 3cqh;
+  line-height: 1.18;
+  margin-bottom: 2cqh;
 }
 .balken {
   display: grid;
   gap: 2.6cqh;
-}
-.balkenViele {
-  gap: 1.4cqh;
 }
 .balkenZeile {
   display: grid;
@@ -391,9 +440,49 @@
   margin-bottom: 0.8cqh;
 }
 .optText {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.balken[data-stufe="1"] .opt {
+  font-size: 3cqh;
+}
+/* Dicht: lange Optionen oder fünf/sechs Optionen — kleinere Schrift, Form, Zahl und Spur. */
+.balken[data-stufe="2"] .opt,
+.balkenViele .opt {
+  font-size: 2.6cqh;
+  line-height: 1.18;
+  margin-bottom: 0.5cqh;
+}
+.balken[data-stufe="2"],
+.balkenViele {
+  gap: 1.2cqh;
+}
+.balken[data-stufe="2"] .balkenZeile,
+.balkenViele .balkenZeile {
+  grid-template-columns: 5.5cqh 1fr 7cqh;
+}
+.balken[data-stufe="2"] .form,
+.balkenViele .form {
+  width: 5.5cqh;
+  height: 5.5cqh;
+}
+.balken[data-stufe="2"] .anz,
+.balkenViele .anz {
+  font-size: 4.6cqh;
+}
+.balken[data-stufe="2"] .balkenSpur,
+.balkenViele .balkenSpur {
+  height: 2.4cqh;
+}
+.balken[data-stufe="2"] .richtig .balkenSpur,
+.balkenViele .richtig .balkenSpur {
+  height: 3.2cqh;
+}
+.balken[data-stufe="2"] .haken,
+.balkenViele .haken {
+  width: 3.4cqh;
+  height: 3.4cqh;
 }
 .anz {
   grid-row: span 2;
@@ -473,7 +562,15 @@
   margin: auto 0 0;
   font-size: 3.4cqh;
   line-height: 1.32;
-  overflow: hidden;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.erkl[data-stufe="1"] {
+  font-size: 3cqh;
+}
+.erkl[data-stufe="2"] {
+  font-size: 2.6cqh;
+  line-height: 1.3;
 }
 .erkl strong {
   display: block;
@@ -528,9 +625,7 @@
 }
 .rangName {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .rangPunkte {
   font-family: var(--qz-ziffern);
@@ -581,9 +676,10 @@
   font-weight: 700;
   line-height: 1.1;
   margin-bottom: 0.6cqh;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+.stufeName[data-stufe="1"] {
+  font-size: 4.2cqh;
 }
 .stufePunkte {
   font-size: 3.6cqh;
@@ -612,6 +708,9 @@
 }
 .s1 .stufeName {
   font-size: 7cqh;
+}
+.s1 .stufeName[data-stufe="1"] {
+  font-size: 5.4cqh;
 }
 .s2 .sockel {
   height: 28cqh;
@@ -675,10 +774,17 @@
   margin-top: 0;
 }
 .frageZit {
+  overflow-wrap: anywhere;
   font-size: 4.6cqh;
   line-height: 1.2;
   font-weight: 600;
   margin: 1cqh 0 2.4cqh;
+}
+.frageZit[data-stufe="1"] {
+  font-size: 3.6cqh;
+}
+.frageZit[data-stufe="2"] {
+  font-size: 3cqh;
 }
 .meta {
   font-size: 3.4cqh;

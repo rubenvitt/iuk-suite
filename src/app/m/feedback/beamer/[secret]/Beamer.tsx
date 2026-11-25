@@ -18,6 +18,7 @@ import type { BeamerSicht } from "@/app/m/feedback/_lib/quiz/sichten";
 import { QuizForm, quizFarbe, quizZahl } from "@/app/m/feedback/_quiz/QuizForm";
 import z from "@/app/m/feedback/_quiz/zeichen.module.css";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { laengenStufe } from "./groessen";
 import s from "./beamer.module.css";
 
 /** Pause, bevor ein ganz geschlossener Strom (Server weg, 503) neu verbunden wird. */
@@ -28,6 +29,8 @@ const TAKT_MS = 250;
 const HINWEIS_MS = 6000;
 /** Plätze in der Zwischenrangliste (Mockup: fünf). */
 const RANGLISTE_PLAETZE = 5;
+/** So lange wartet „Wirklich beenden?“ auf den zweiten Tipp. */
+const BESTAETIGEN_MS = 4000;
 /** Umfang des Countdown-Rings (r = 44 im viewBox 100). */
 const RING_UMFANG = 2 * Math.PI * 44;
 
@@ -150,21 +153,24 @@ export function Beamer({ anfang, beitrittAdresse }: { anfang: BeamerSicht; beitr
         });
         if (r.ok) neu = (await r.json()) as BeamerSicht;
       } catch {
+        if (nr !== anfrageNr.current) return;
         letzter.current = null;
         setMeldung(NICHT_GEKLAPPT);
         return;
       } finally {
         ausstehend.current--;
       }
+      // Eine überholte Antwort (schnelles Blättern) — Erfolg wie Fehler — überschreibt den neueren
+      // Stand nicht und gibt dessen Schritt auch nicht wieder frei.
+      if (nr !== anfrageNr.current) return;
       if (neu) {
-        // Eine überholte Antwort (schnelles Blättern) überschreibt den neueren Stand nicht.
-        if (nr !== anfrageNr.current) return;
         setMeldung(null);
         uebernimm(neu);
         if (warBeendet && !neu.beendet) zeigeHinweis("Neue Runde gestartet. Der Code ist neu.");
         return;
       }
       const code = await fehlercode(r);
+      if (nr !== anfrageNr.current) return;
       if (r.status === 409 && code === "tag_belegt") return setMeldung(ABGESAGT);
       if (r.status === 409 && code === "fragen_ungueltig") return setMeldung(UNGUELTIG);
       if (r.status === 404) return setMeldung(ADRESSE_WEG);
@@ -190,7 +196,8 @@ export function Beamer({ anfang, beitrittAdresse }: { anfang: BeamerSicht; beitr
   // IFRAME (Slidev): Steuerung nur per `postMessage`, und nur, wenn es einen Parent gibt.
   useEffect(() => {
     const hoere = (e: MessageEvent) => {
-      if (!imIframeJetzt()) return;
+      // Nur der eigene Parent steuert, kein anderes Fenster (Popup, Nachbar-iframe).
+      if (!imIframeJetzt() || e.source !== window.parent) return;
       const schritt = steuerSchritt(e.data);
       if (schritt === null) return;
       // Über den letzten Schritt hinaus klemmt auch der Server; so bleiben leere Slidev-Klicks still.
@@ -208,13 +215,16 @@ export function Beamer({ anfang, beitrittAdresse }: { anfang: BeamerSicht; beitr
     window.parent.postMessage({ typ: "iuk-quiz-stand", schritt: sicht.schritt, schrittAnzahl: sicht.schrittAnzahl }, "*");
   }, [imIframe, sicht.schritt, sicht.schrittAnzahl]);
 
-  // TASTATUR, nur allein im Browser. Auf einem Knopf bleibt die Leertaste beim Knopf.
+  // TASTATUR, nur allein im Browser. Auf einem Knopf bleiben Leertaste und Enter beim Knopf (sonst
+  // klickte er UND blätterte); Pfeile und Bild auf/ab blättern auch dort — nach einem Klick auf
+  // „Weiter“ hat der Knopf den Fokus, und ein Presenter-Klicker sendet genau diese Tasten.
   useEffect(() => {
     if (imIframe !== false) return;
     const taste = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       const ziel = e.target as HTMLElement | null;
-      if (ziel?.closest?.("button, input, textarea, select, a")) return;
+      if (ziel?.closest?.("input, textarea, select")) return;
+      if ((e.key === " " || e.key === "Enter") && ziel?.closest?.("button, a")) return;
       const richtung =
         e.key === "ArrowRight" || e.key === "PageDown" || e.key === " " ? 1 : e.key === "ArrowLeft" || e.key === "PageUp" ? -1 : 0;
       if (richtung === 0) return;
@@ -234,6 +244,12 @@ export function Beamer({ anfang, beitrittAdresse }: { anfang: BeamerSicht; beitr
     return () => clearInterval(t);
   }, [laeuft]);
 
+  // „QUIZ BEENDEN“ IN ZWEI TIPPS: der erste wird zu „Wirklich beenden?“, erst der zweite beendet
+  // (macht den Code ungültig). Kein Dialog: der stähle im iframe den Fokus.
+  const [bestaetigen, setBestaetigen] = useState(false);
+  const bestaetigenWecker = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(bestaetigenWecker.current), []);
+
   async function beende(e: MouseEvent<HTMLButtonElement>) {
     // Im iframe den Fokus gleich wieder abgeben, sonst blättert Slidev nicht mehr.
     e.currentTarget.blur();
@@ -244,6 +260,13 @@ export function Beamer({ anfang, beitrittAdresse }: { anfang: BeamerSicht; beitr
         // fremde Herkunft ohne Fokusrecht: dann bleibt es beim blur
       }
     }
+    clearTimeout(bestaetigenWecker.current);
+    if (!bestaetigen) {
+      setBestaetigen(true);
+      bestaetigenWecker.current = setTimeout(() => setBestaetigen(false), BESTAETIGEN_MS);
+      return;
+    }
+    setBestaetigen(false);
     try {
       const r = await fetch(weg("beenden"), { method: "POST" });
       if (!r.ok) setMeldung(r.status === 404 ? ADRESSE_WEG : NICHT_GEKLAPPT);
@@ -281,8 +304,8 @@ export function Beamer({ anfang, beitrittAdresse }: { anfang: BeamerSicht; beitr
           </div>
         )}
         {imIframe !== null && phase.art === "schluss" && !sicht.beendet && (
-          <button type="button" className={s.beenden} onClick={(e) => void beende(e)}>
-            Quiz beenden
+          <button type="button" className={s.beenden} onClick={(e) => void beende(e)} aria-live="polite">
+            {bestaetigen ? "Wirklich beenden?" : "Quiz beenden"}
           </button>
         )}
       </div>
@@ -323,7 +346,9 @@ function Bild({
       <div className={s.innen}>
         <Kopf links="Dienstabend" />
         <div className={s.vorstart}>
-          <h1 className={s.vorstartTitel}>{sicht.titel}</h1>
+          <h1 className={s.vorstartTitel} data-stufe={laengenStufe("titel", sicht.titel)}>
+            {sicht.titel}
+          </h1>
           <p className={s.vorstartText}>
             {modus}, {fragen(sicht.fragenAnzahl)}.{allein && " Mit der Lobby bekommt das Quiz seinen Code."}
           </p>
@@ -465,7 +490,9 @@ function Frage({
         }
       />
       <div className={s.frageKopf}>
-        <h1 className={s.frageText}>{frage.text}</h1>
+        <h1 className={s.frageText} data-stufe={laengenStufe("frage", frage.text)}>
+          {frage.text}
+        </h1>
         {phase.endetUm !== null && (
           <div
             className={`${s.ring} ${offen ? "" : s.ringAus}`}
@@ -502,7 +529,11 @@ function Frage({
           </div>
         )}
       </div>
-      <div className={`${s.kacheln} ${viele ? s.kachelnViele : ""}`}>
+      <div
+        className={`${s.kacheln} ${viele ? s.kachelnViele : ""}`}
+        data-kacheln
+        data-stufe={laengenStufe("kachel", ...frage.optionen)}
+      >
         {frage.optionen.map((text, i) => (
           <div key={i} className={`${s.kachel} ${quizFarbe(i)}`} data-option={i}>
             <QuizForm i={i} className={s.form} />
@@ -544,8 +575,14 @@ function Aufloesung({ frage }: { frage: NonNullable<BeamerSicht["frage"]> }) {
       <Kopf links={`Frage ${frage.index + 1} von ${frage.anzahl}`} rechts="Auflösung" />
       <div className={s.aufl}>
         <div className={s.auflLinks}>
-          <h1 className={s.auflFrage}>{frage.text}</h1>
-          <div className={`${s.balken} ${frage.optionen.length > 4 ? s.balkenViele : ""}`}>
+          <h1 className={s.auflFrage} data-stufe={laengenStufe("aufloesung", frage.text)}>
+            {frage.text}
+          </h1>
+          <div
+            className={`${s.balken} ${frage.optionen.length > 4 ? s.balkenViele : ""}`}
+            data-balken
+            data-stufe={laengenStufe("option", ...frage.optionen)}
+          >
             {frage.optionen.map((text, i) => {
               const ist = richtig.has(i);
               const breite = frage.antworten === 0 ? 0 : (verteilung[i] ?? 0) / frage.antworten;
@@ -583,7 +620,7 @@ function Aufloesung({ frage }: { frage: NonNullable<BeamerSicht["frage"]> }) {
             {frage.antworten === 0 ? "keine Antworten" : `richtig, ${richtige} von ${frage.antworten}`}
           </div>
           {frage.erklaerung && (
-            <p className={s.erkl}>
+            <p className={s.erkl} data-erklaerung data-stufe={laengenStufe("erklaerung", frage.erklaerung)}>
               <strong>Warum</strong>
               {frage.erklaerung}
             </p>
@@ -632,8 +669,10 @@ function Podest({ sicht }: { sicht: BeamerSicht }) {
         <>
           <div className={s.podestBuehne}>
             {stufen.map((i) => (
-              <div key={i} className={`${s.stufe} ${klasse[i]}`} data-stufe={i + 1}>
-                <div className={s.stufeName}>{liste[i].spitzname}</div>
+              <div key={i} className={`${s.stufe} ${klasse[i]}`} data-podest={i + 1}>
+                <div className={s.stufeName} data-stufe={laengenStufe("name", liste[i].spitzname)}>
+                  {liste[i].spitzname}
+                </div>
                 <div className={s.stufePunkte}>{quizZahl(liste[i].punkte)} Punkte</div>
                 <div className={s.sockel}>{i + 1}</div>
               </div>
@@ -677,7 +716,7 @@ function Lagebild({ sicht }: { sicht: BeamerSicht }) {
         {g?.schwersteFrage && (
           <div className={`${s.kennzahl} ${s.schwer}`}>
             <div className={`${s.unter} ${s.unterOben}`}>Schwerste Frage</div>
-            <p className={s.frageZit}>
+            <p className={s.frageZit} data-stufe={laengenStufe("aufloesung", g.schwersteFrage.text)}>
               Frage {g.schwersteFrage.index + 1}: {g.schwersteFrage.text}
             </p>
             <p className={s.meta}>

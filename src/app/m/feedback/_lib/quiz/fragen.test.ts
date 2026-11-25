@@ -35,6 +35,10 @@ describe("pruefeFragen", () => {
     expect(pruefeFragen([{ ...gut, text: "" }]).ok).toBe(false);
     expect(pruefeFragen([{ ...gut, text: "x".repeat(301) }]).ok).toBe(false);
   });
+  it("begrenzt die Erklärung auf 400 Zeichen (der Beamer muss sie ganz zeigen)", () => {
+    expect(pruefeFragen([{ ...gut, erklaerung: "x".repeat(400) }]).ok).toBe(true);
+    expect(pruefeFragen([{ ...gut, erklaerung: "x".repeat(401) }]).ok).toBe(false);
+  });
   it("lehnt mehr als 50 Fragen ab und meldet Fehler mit Fragenummer", () => {
     expect(pruefeFragen(Array(51).fill(gut)).ok).toBe(false);
     const r = pruefeFragen([gut, { ...gut, richtig: [] }]);

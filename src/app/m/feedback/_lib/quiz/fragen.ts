@@ -15,6 +15,10 @@ export type QuizFrage = {
 };
 
 export const MAX_FRAGEN = 50;
+/** Zeichen je Fragetext, Option und Erklärung. Der Beamer passt seine Schrift daran an (`beamer/[secret]/groessen.ts`). */
+export const MAX_FRAGE = 300;
+export const MAX_OPTION = 120;
+export const ERKLAERUNG_MAX = 400;
 const WAHR_FALSCH = ["Wahr", "Falsch"];
 
 export type FragenPruefung =
@@ -35,7 +39,7 @@ function pruefeFrage(roh: unknown, nr: number, fehler: string[]): QuizFrage | nu
   const r = roh as Record<string, unknown>;
   const start = fehler.length;
 
-  if (!istZeichenkette(r.text, 1, 300)) fehler.push(vor + "Text muss 1 bis 300 Zeichen haben");
+  if (!istZeichenkette(r.text, 1, MAX_FRAGE)) fehler.push(vor + `Text muss 1 bis ${MAX_FRAGE} Zeichen haben`);
   const typ = r.typ;
   if (typ !== "einfach" && typ !== "mehrfach" && typ !== "wahrfalsch") {
     fehler.push(vor + "Typ muss einfach, mehrfach oder wahrfalsch sein");
@@ -44,8 +48,8 @@ function pruefeFrage(roh: unknown, nr: number, fehler: string[]): QuizFrage | nu
   let optionen: string[] = [];
   if (!Array.isArray(r.optionen) || r.optionen.length < 2 || r.optionen.length > 6) {
     fehler.push(vor + "2 bis 6 Optionen nötig");
-  } else if (!r.optionen.every((o) => istZeichenkette(o, 1, 120))) {
-    fehler.push(vor + "Jede Option muss 1 bis 120 Zeichen haben");
+  } else if (!r.optionen.every((o) => istZeichenkette(o, 1, MAX_OPTION))) {
+    fehler.push(vor + `Jede Option muss 1 bis ${MAX_OPTION} Zeichen haben`);
   } else {
     optionen = r.optionen as string[];
     if (typ === "wahrfalsch" && (optionen.length !== 2 || optionen[0] !== WAHR_FALSCH[0] || optionen[1] !== WAHR_FALSCH[1])) {
@@ -73,6 +77,8 @@ function pruefeFrage(roh: unknown, nr: number, fehler: string[]): QuizFrage | nu
   }
   if (r.erklaerung !== undefined && typeof r.erklaerung !== "string") {
     fehler.push(vor + "Erklärung muss Text sein");
+  } else if (typeof r.erklaerung === "string" && r.erklaerung.length > ERKLAERUNG_MAX) {
+    fehler.push(vor + `Erklärung darf höchstens ${ERKLAERUNG_MAX} Zeichen haben`);
   }
 
   if (fehler.length > start) return null;

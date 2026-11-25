@@ -74,12 +74,17 @@ const posts = () =>
 
 /** Das Fenster als iframe: `window.parent` ist ein anderes Fenster mit eigenem `postMessage`. */
 const elternPost = vi.fn();
+const elternFenster = { postMessage: elternPost, focus: () => {} } as unknown as Window;
 function alsIframe() {
-  vi.spyOn(window, "parent", "get").mockReturnValue({ postMessage: elternPost } as unknown as Window);
+  vi.spyOn(window, "parent", "get").mockReturnValue(elternFenster);
 }
-async function nachricht(daten: unknown) {
+/** Eine Nachricht, standardmäßig vom (gemockten) Parent; `quelle` setzt einen anderen Absender. */
+async function nachricht(daten: unknown, quelle: unknown = elternFenster) {
   await act(async () => {
-    window.dispatchEvent(new MessageEvent("message", { data: daten }));
+    const e = new MessageEvent("message", { data: daten });
+    // jsdom nimmt im Konstruktor nur echte Fenster als `source`.
+    Object.defineProperty(e, "source", { value: quelle });
+    window.dispatchEvent(e);
   });
   await flush();
 }
@@ -166,6 +171,25 @@ describe("Beamer: allein im Browser", () => {
     expect(posts()).toHaveLength(0);
   });
 
+  it("nach einem Klick auf „Weiter“ blättern die Pfeiltasten weiter (Fokus auf dem Knopf)", async () => {
+    await mount(<Beamer anfang={sicht({ schritt: 3 })} beitrittAdresse={ADRESSE} />);
+    const weiter = document.querySelector<HTMLButtonElement>('button[aria-label="Weiter"]')!;
+    await clickElement(weiter);
+    weiter.focus();
+    await act(async () => {
+      weiter.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    });
+    await flush();
+    expect(posts().map((p) => p.body)).toEqual([{ schritt: 4 }, { schritt: 5 }]);
+    // Leertaste und Enter bleiben beim Knopf (sonst klickte er UND blätterte).
+    await act(async () => {
+      weiter.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+      weiter.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    await flush();
+    expect(posts()).toHaveLength(2);
+  });
+
   it("kleine Knöpfe zurück/weiter in der Ecke", async () => {
     await mount(<Beamer anfang={sicht({ schritt: 3 })} beitrittAdresse={ADRESSE} />);
     await clickElement(document.querySelector<HTMLButtonElement>('button[aria-label="Weiter"]')!);
@@ -229,6 +253,34 @@ describe("Beamer: im iframe (Slidev)", () => {
     expect(elternPost).toHaveBeenLastCalledWith({ typ: "iuk-quiz-stand", schritt: 6, schrittAnzahl: 25 }, "*");
     await nachricht({ typ: "iuk-quiz", schritt: 6 });
     expect(posts()).toHaveLength(1);
+  });
+
+  it("nimmt Steuerung nur vom eigenen Parent an, nicht von anderen Fenstern", async () => {
+    alsIframe();
+    await mount(<Beamer anfang={sicht()} beitrittAdresse={ADRESSE} />);
+    await nachricht({ typ: "iuk-quiz", schritt: 3 }, { postMessage: () => {} });
+    await nachricht({ typ: "iuk-quiz", schritt: 3 }, null);
+    expect(posts()).toHaveLength(0);
+    await nachricht({ typ: "iuk-quiz", schritt: 3 });
+    expect(posts()).toHaveLength(1);
+  });
+
+  it("eine überholte Fehlerantwort zeigt keine Meldung über dem neueren Stand", async () => {
+    alsIframe();
+    let erste!: (r: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((r) => (erste = r)));
+    fetchMock.mockImplementationOnce(() => antwortMit(200, sicht({ schritt: 4 })));
+    await mount(<Beamer anfang={sicht()} beitrittAdresse={ADRESSE} />);
+    await nachricht({ typ: "iuk-quiz", schritt: 3 });
+    await nachricht({ typ: "iuk-quiz", schritt: 4 });
+    await act(async () => {
+      erste(new Response(JSON.stringify({ fehler: "zu_viele" }), { status: 429 }));
+    });
+    await flush();
+    expect(exists('[role="status"]')).toBe(false);
+    // Der überholte Fehler gibt den Schritt auch nicht wieder frei: 4 geht nicht noch einmal hinaus.
+    await nachricht({ typ: "iuk-quiz", schritt: 4 });
+    expect(posts()).toHaveLength(2);
   });
 
   it("ignoriert fremde und kaputte Nachrichten", async () => {
@@ -343,9 +395,27 @@ describe("Beamer: Phasen", () => {
     expect(text()).toContain("8 Fragen, 214 Antworten");
     expect(text()).toContain("Frage 5: Wer meldet?");
     expect(text()).toContain("38 %");
+    // Zwei Tipps: der erste fragt nach, erst der zweite beendet (kein Dialog, kein Fokusklau).
     await clickElement(knopf("Quiz beenden")!);
     await flush();
+    expect(posts()).toEqual([]);
+    expect(knopf("Wirklich beenden?")).toBeDefined();
+    await clickElement(knopf("Wirklich beenden?")!);
+    await flush();
     expect(posts()).toEqual([{ url: "/beamer/geheim/beenden", body: null }]);
+  });
+
+  it("„Wirklich beenden?“ fällt nach ein paar Sekunden zurück", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await mount(<Beamer anfang={sicht({ phase: { art: "schluss" }, schritt: 24, rangliste: [] })} beitrittAdresse={ADRESSE} />);
+    await clickElement(knopf("Quiz beenden")!);
+    expect(knopf("Wirklich beenden?")).toBeDefined();
+    await act(async () => {
+      vi.advanceTimersByTime(4500);
+    });
+    expect(knopf("Quiz beenden")).toBeDefined();
+    expect(knopf("Wirklich")).toBeUndefined();
+    expect(posts()).toEqual([]);
   });
 
   it("Schluss Wettbewerb: Podest 2–1–3 und „Quiz beenden“", async () => {
@@ -359,7 +429,7 @@ describe("Beamer: Phasen", () => {
         beitrittAdresse={ADRESSE}
       />,
     );
-    expect(queryAll("[data-stufe]").map((e) => e.getAttribute("data-stufe"))).toEqual(["2", "1", "3"]);
+    expect(queryAll("[data-podest]").map((e) => e.getAttribute("data-podest"))).toEqual(["2", "1", "3"]);
     expect(text()).toContain("Pilot 7");
     expect(knopf("Quiz beenden")).toBeDefined();
   });
@@ -369,8 +439,64 @@ describe("Beamer: Phasen", () => {
   });
 });
 
+describe("Beamer: lange Texte (nie kürzen, kleiner setzen)", () => {
+  const lang = (n: number, z = "Wort ") => z.repeat(Math.ceil(n / z.length)).slice(0, n);
+  const sechs = Array.from({ length: 6 }, (_, i) => lang(120, `Option${i} `));
+
+  it("Frage: der längste gültige Fragetext und sechs lange Optionen bekommen die kleinste Stufe", async () => {
+    await mount(
+      <Beamer
+        anfang={frage({ frage: { index: 0, anzahl: 8, text: lang(300), typ: "einfach", optionen: sechs, antworten: 0, zeitS: 30 } })}
+        beitrittAdresse={ADRESSE}
+      />,
+    );
+    expect(document.querySelector("h1")?.getAttribute("data-stufe")).toBe("3");
+    expect(document.querySelector("[data-kacheln]")?.getAttribute("data-stufe")).toBe("2");
+    // Der Text steht vollständig im DOM.
+    expect(text()).toContain(sechs[5]);
+  });
+
+  it("kurze Texte behalten die Mockup-Größe", async () => {
+    await mount(<Beamer anfang={frage()} beitrittAdresse={ADRESSE} />);
+    expect(document.querySelector("h1")?.getAttribute("data-stufe")).toBe("0");
+    expect(document.querySelector("[data-kacheln]")?.getAttribute("data-stufe")).toBe("0");
+  });
+
+  it("Auflösung: Frage, Optionen und Erklärung werden gestuft", async () => {
+    await mount(
+      <Beamer
+        anfang={sicht({
+          phase: { art: "aufloesung", index: 0 },
+          frage: { index: 0, anzahl: 8, text: lang(300), typ: "einfach", optionen: sechs, antworten: 6, verteilung: [1, 1, 1, 1, 1, 1], richtig: [0], anteilRichtig: 1 / 6, erklaerung: lang(400) },
+        })}
+        beitrittAdresse={ADRESSE}
+      />,
+    );
+    expect(document.querySelector("h1")?.getAttribute("data-stufe")).toBe("2");
+    expect(document.querySelector("[data-balken]")?.getAttribute("data-stufe")).toBe("2");
+    expect(document.querySelector("[data-erklaerung]")?.getAttribute("data-stufe")).toBe("2");
+  });
+
+  it("vor dem Start: ein langer Titel wird kleiner", async () => {
+    await mount(<Beamer anfang={sicht({ phase: { art: "vorStart" }, titel: lang(120) })} beitrittAdresse={ADRESSE} />);
+    expect(document.querySelector("h1")?.getAttribute("data-stufe")).toBe("2");
+  });
+});
+
 describe("beamer.module.css", () => {
   const css = readFileSync(join(__dirname, "beamer.module.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  it("kürzt und beschneidet keinen Text: kein nowrap, keine Ellipse, `overflow: hidden` nur an Bühne und Balkenspur", () => {
+    const regeln = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
+    expect(css).not.toMatch(/text-overflow|nowrap|line-clamp/);
+    const erlaubt = new Set([".seite", ".buehne", ".balkenSpur"]);
+    const beschneidend = regeln.filter((r) => /overflow\s*:\s*(hidden|clip)/.test(r.body)).map((r) => r.sel);
+    expect(beschneidend.filter((sel) => !erlaubt.has(sel))).toEqual([]);
+    for (const sel of [".kachelText", ".optText", ".erkl", ".frageText", ".auflFrage"]) {
+      const regel = regeln.find((r) => r.sel.split(",").map((x) => x.trim()).includes(sel));
+      expect(regel?.body, sel).toMatch(/overflow-wrap:\s*anywhere/);
+    }
+  });
+
   it("kennt kein antd, keine `--ant-*`, kein `prefers-color-scheme`", () => {
     expect(css).not.toMatch(/--ant-|\.ant-/);
     expect(css).not.toContain("prefers-color-scheme");
