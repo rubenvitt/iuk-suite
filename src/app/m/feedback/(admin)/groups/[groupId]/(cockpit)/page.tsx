@@ -17,7 +17,7 @@ import { T } from "../../../../_ui/typo";
 import { formatDatumKurz, heuteInZone, tagInZone } from "../../../../_ui/datum";
 import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../../../../_lib/noten";
 import { Notenpille } from "../../../../_ui/Noten";
-import { listeQuizze, rundenDesAbends } from "../../../../_db/quiz";
+import { listeQuizze, rundenDerAbende } from "../../../../_db/quiz";
 import { Lagekarte } from "../../../../_ui/Lagekarte";
 import { Teilnahme, teilnahmeUrlAus } from "../../../../_ui/Teilnahme";
 import { Verlauf, type VerlaufZeile } from "../../../../_ui/Verlauf";
@@ -151,6 +151,8 @@ export default async function Cockpit({
    * läuft also gar nicht — die Zone entfällt weiter unten vollständig.
    */
   const quizTitel = new Map(listeQuizze(db, id).map((q) => [q.id, q.titel]));
+  // Eine Abfrage für alle Abende des Verlaufs, nicht eine je Zeile.
+  const quizRundenJeAbend = rundenDerAbende(db, zustand.verlauf.map((abend) => abend.evening.id));
   const verlaufZeilen: VerlaufZeile[] = zustand.verlauf.map((abend) => {
     const stats = abend.survey ? abendStats(db, abend.survey) : null;
     return {
@@ -169,7 +171,7 @@ export default async function Cockpit({
       // Ohne diese Marke waere ein abgesagter Abend von einem nachgetragenen
       // nicht zu unterscheiden: beide haben keine Umfrage und keine Note.
       abgesagt: abend.evening.status === "cancelled",
-      quizRunden: rundenDesAbends(db, abend.evening.id).map((r) => ({
+      quizRunden: (quizRundenJeAbend.get(abend.evening.id) ?? []).map((r) => ({
         id: r.id,
         titel: (r.quizId !== null && quizTitel.get(r.quizId)) || "Quiz",
       })),

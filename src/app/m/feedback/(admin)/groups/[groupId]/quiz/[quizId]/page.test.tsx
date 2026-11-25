@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { insertGroup } from "@/app/m/feedback/_db/queries";
 import { legeQuizAn } from "@/app/m/feedback/_db/quiz";
 import { frischeDb, FRAGEN, type TestDb } from "@/app/m/feedback/_lib/quiz/test-hilfen";
@@ -11,13 +12,24 @@ const { guardPageMock } = vi.hoisted(() => ({ guardPageMock: vi.fn() }));
 vi.mock("@/app/m/feedback/_lib/guardPage", () => ({ guardPage: guardPageMock }));
 vi.mock("@/app/m/feedback/_db/client", () => ({ getDb: () => db }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "feedback.localtest.me" }) }));
+// Die Client-Insel wird nicht gerendert, nur ihre Props gelesen (gesucht per Elementtyp).
+vi.mock("@/app/m/feedback/_ui/QuizEditor", () => ({ QuizEditor: () => null }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
 }));
 
+import { QuizEditor } from "@/app/m/feedback/_ui/QuizEditor";
 import QuizBearbeiten from "./page";
+
+/** Die Props des ersten Elements vom Typ `typ` im Baum — unabhängig davon, wo es steht. */
+function propsVon(knoten: ReactNode, typ: unknown): Record<string, unknown> | undefined {
+  if (Array.isArray(knoten)) return knoten.map((k) => propsVon(k, typ)).find(Boolean);
+  if (!isValidElement(knoten)) return undefined;
+  const el = knoten as ReactElement<{ children?: ReactNode } & Record<string, unknown>>;
+  return el.type === typ ? el.props : propsVon(el.props.children, typ);
+}
 
 let db: TestDb;
 
@@ -62,8 +74,8 @@ describe("Editor-Seite", () => {
   it("eigenes Quiz: rendert den Editor mit der Beamer-Adresse", async () => {
     const g = gruppe("g");
     const quiz = legeQuizAn(db, { groupId: g.id, titel: "Funk", modus: "lagebild", fragen: FRAGEN, jetzt: new Date() });
-    const el = (await aufruf(g.id, quiz.id)) as { props: { children: { props: Record<string, unknown> }[] } };
-    const editor = el.props.children[1]!.props;
+    const editor = propsVon(await aufruf(g.id, quiz.id), QuizEditor)!;
+    expect(editor).toBeDefined();
     expect(editor.quizId).toBe(quiz.id);
     expect(editor.beamerUrl).toBe(`http://feedback.localtest.me/beamer/${quiz.moderationSecret}`);
   });

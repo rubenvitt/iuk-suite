@@ -6,7 +6,7 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
 import * as schema from "@/app/m/feedback/_db/schema";
 import { insertGroup } from "@/app/m/feedback/_db/queries";
-import { antworte, legeQuizAn, setzeSchritt, starteOderHoleRunde, tritteBei } from "@/app/m/feedback/_db/quiz";
+import { antworte, beendeRunde, legeQuizAn, setzeSchritt, starteOderHoleRunde, tritteBei } from "@/app/m/feedback/_db/quiz";
 
 /**
  * AUSWERTUNG EINER QUIZRUNDE: der Guard kommt aus der Datenbank (Runde → Abend → Gruppe),
@@ -74,6 +74,20 @@ describe("Quiz-Auswertung (Seite)", () => {
     expect(h).toContain("quiz-rangliste");
     expect(h).toContain("Anna");
     expect(h).toContain("läuft noch");
+  });
+
+  it("offene Runde: „läuft noch“ und „Rangliste bisher“; beendet: beides weg, „Rangliste“", async () => {
+    const g = gruppe("bereitschaft");
+    const r = runde(g.id, "wettbewerb");
+    alsLeitung("bereitschaft");
+    const offen = await html(args(g.id, r.eveningId, r.id));
+    expect(offen).toContain("läuft noch");
+    expect(offen).toContain("Rangliste bisher");
+    beendeRunde(db, r.id, new Date(JETZT.getTime() + 60_000));
+    const beendet = await html(args(g.id, r.eveningId, r.id));
+    expect(beendet).not.toContain("läuft noch");
+    expect(beendet).not.toContain("Rangliste bisher");
+    expect(beendet).toContain("Rangliste");
   });
 
   it("zeigt im Lagebild keine Rangliste", async () => {

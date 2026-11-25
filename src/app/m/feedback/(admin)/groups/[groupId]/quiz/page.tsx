@@ -4,6 +4,7 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getGroup } from "@/app/m/feedback/_db/queries";
 import { heutigeRunde, listeQuizze } from "@/app/m/feedback/_db/quiz";
 import { guardPage } from "@/app/m/feedback/_lib/guardPage";
+import { holeAutoEndeNach } from "@/app/m/feedback/_lib/quiz/stand";
 import { QuizListe, type QuizZeile } from "@/app/m/feedback/_ui/QuizListe";
 
 /**
@@ -12,8 +13,8 @@ import { QuizListe, type QuizZeile } from "@/app/m/feedback/_ui/QuizListe";
  * (Falle 9). Keine `loading.tsx` über diesem Segment, `notFound()` ist also ein echter 404
  * (Falle 23).
  *
- * Reiner Lesezugriff: „Heute" zeigt die jüngste Runde von heute, das Auto-Ende holen die
- * Quizwege und die Actions nach.
+ * „Heute" zeigt die jüngste Runde von heute. Vorher holt die Seite das Auto-Ende nach wie die
+ * Quizwege (`holeAutoEndeNach`), sonst stünde eine abgelaufene Runde hier noch auf „läuft".
  */
 export default async function QuizSeite({ params }: { params: Promise<{ groupId: string }> }) {
   const id = Number((await params).groupId);
@@ -22,6 +23,7 @@ export default async function QuizSeite({ params }: { params: Promise<{ groupId:
   if (!group) notFound();
 
   const jetzt = new Date();
+  holeAutoEndeNach(db, jetzt);
   const zeilen: QuizZeile[] = listeQuizze(db, id).map((q) => {
     const runde = heutigeRunde(db, q.id, jetzt);
     return {
