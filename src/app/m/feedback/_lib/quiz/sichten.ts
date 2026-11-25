@@ -44,11 +44,21 @@ export type HandySicht = {
   titel: string;
   modus: QuizModus;
   phase: Phase;
+  /** Serverzeit der Sicht (ms). Das Handy rechnet die Restzeit gegen diese Uhr, nicht gegen die eigene. */
+  jetzt: number;
+  /** Die Person hat in dieser Runde eine Teilnahme (Cookie). */
+  dabei: boolean;
+  /** Fragen der Runde („Frage 3 von 8“). */
+  fragenAnzahl: number;
+  /** Nur der EIGENE Spitzname, nur im Wettbewerb. */
+  spitzname?: string;
   frage?: { index: number; text: string; typ: QuizFrage["typ"]; optionen: string[] };
   eigeneAntwort?: number[];
   eigenesErgebnis?: { richtig: boolean; punkte: number };
   richtig?: number[];
   platz?: number;
+  /** Nur im Wettbewerb und nur zusammen mit `platz` („Platz von 31“). */
+  teilnehmende?: number;
   punkteGesamt?: number;
   beendet: boolean;
 };
@@ -160,7 +170,16 @@ export function handySicht(daten: RundenDaten, titel: string, teilnahmeId: numbe
   const fragen = JSON.parse(runde.fragen) as QuizFrage[];
   const phase = phaseVon(runde, fragen, jetzt);
   const eigene = teilnahmeId === null ? undefined : daten.teilnahmen.find((t) => t.id === teilnahmeId);
-  const sicht: HandySicht = { titel, modus: runde.modus, phase, beendet: runde.beendetAt !== null };
+  const sicht: HandySicht = {
+    titel,
+    modus: runde.modus,
+    phase,
+    jetzt: jetzt.getTime(),
+    dabei: eigene !== undefined,
+    fragenAnzahl: fragen.length,
+    beendet: runde.beendetAt !== null,
+  };
+  if (runde.modus === "wettbewerb" && eigene?.spitzname) sicht.spitzname = eigene.spitzname;
 
   const index = frageIndex(phase);
   if (index !== null) {
@@ -181,6 +200,7 @@ export function handySicht(daten: RundenDaten, titel: string, teilnahmeId: numbe
     sicht.punkteGesamt = meine;
     // Gleichstand teilt sich den Platz (1, 1, 3); Namen anderer fließen nicht ein.
     sicht.platz = 1 + [...summe.values()].filter((p) => p > meine).length;
+    sicht.teilnehmende = daten.teilnahmen.length;
   }
   return sicht;
 }

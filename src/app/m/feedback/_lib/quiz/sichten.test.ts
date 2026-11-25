@@ -128,6 +128,29 @@ describe("handySicht", () => {
   });
 });
 
+describe("handySicht: Felder für die Handy-Ansicht", () => {
+  it("trägt die Serverzeit, ob die Person dabei ist, und die Fragenzahl", () => {
+    const s = handySicht(daten("wettbewerb", 1), "Funk", 2, new Date(T0 + 1234));
+    expect(s.jetzt).toBe(T0 + 1234);
+    expect(s.dabei).toBe(true);
+    expect(s.fragenAnzahl).toBe(2);
+    expect(s.spitzname).toBe("Bert");
+    const ohne = handySicht(daten("wettbewerb", 0), "Funk", null, new Date(T0));
+    expect(ohne.dabei).toBe(false);
+    expect(ohne.spitzname).toBeUndefined();
+    expect(ohne.fragenAnzahl).toBe(2);
+  });
+
+  it("nennt im Wettbewerb neben dem Platz die Zahl der Teilnehmenden, im Lagebild nichts davon", () => {
+    const w = handySicht(daten("wettbewerb", 2), "Funk", 3, new Date(T0));
+    expect(w.teilnehmende).toBe(12);
+    const l = handySicht(daten("lagebild", 2), "Funk", 1, new Date(T0));
+    expect(l.teilnehmende).toBeUndefined();
+    expect(l.spitzname).toBeUndefined();
+    expect(l.dabei).toBe(true);
+  });
+});
+
 describe("vorStartSicht", () => {
   it("zeigt nur Titel und Schrittzahl, keinen Code und keine Frage", () => {
     const s = vorStartSicht("Funk", "wettbewerb", JSON.stringify(fragen));

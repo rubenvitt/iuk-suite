@@ -1,0 +1,467 @@
+/*
+ * Die Handy-Ansicht des Live-Quiz — „Schilderwald“ (docs/design/feedback-live-quiz.md,
+ * Mockup docs/design/mockups/live-quiz.html, Abschnitt „Handy“). Werte wortgenau aus dem
+ * freigegebenen Mockup; die Kontraste sind dort gemessen (live-quiz-notizen.md).
+ *
+ * Öffentliche Ansicht: kein antd, keine `--ant-*` (Falle 2). Die Variablen hängen an `.seite`,
+ * nicht an `:root` — ein CSS-Modul kann `:root` nicht scopen. Dunkel folgt `<html data-theme>`
+ * (Cookie der Suite), NICHT `prefers-color-scheme`.
+ *
+ * Suite-Rot steht genau einmal hier: in `--qz-marke` (Fahne und Wortzeichen hell). Nie auf einer
+ * Antwortfläche, nie für „falsch“ (Falle 3). `Handy.test.tsx` zählt nach.
+ */
+.seite {
+  --qz-grund: #f5f6f8;
+  --qz-flaeche: #ffffff;
+  --qz-tinte: #16181a;
+  --qz-tinte-auf: #ffffff;
+  --qz-gedaempft: #5c6168;
+  --qz-linie: #dde0e5;
+  --qz-linie-stark: #c4c8cf;
+  --qz-spur: #e9ebef;
+  --qz-marke: #c8000f;
+  --qz-wortzeichen: var(--qz-marke);
+
+  /* Antwortfarben. Form trägt mit (▲ ● ■ ◆), Position ist fest. */
+  --qz-a: #1e4fc2;
+  --qz-a-text: #ffffff;
+  --qz-b: #f2b705;
+  --qz-b-text: #16181a;
+  --qz-c: #00707a;
+  --qz-c-text: #ffffff;
+  --qz-d: #7a2e8c;
+  --qz-d-text: #ffffff;
+
+  --qz-schrift: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+  --qz-ziffern: var(--font-barlow-condensed), var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+
+  color-scheme: light;
+  position: relative;
+  min-height: 100dvh;
+  background: var(--qz-grund);
+  color: var(--qz-tinte);
+  font-family: var(--qz-schrift);
+  font-variant-numeric: tabular-nums lining-nums;
+  -webkit-font-smoothing: antialiased;
+  line-height: normal;
+}
+
+:root[data-theme="dark"] .seite {
+  --qz-grund: #101214;
+  --qz-flaeche: #1b1e22;
+  --qz-tinte: #ece9e2;
+  --qz-tinte-auf: #101214;
+  --qz-gedaempft: #9aa0a6;
+  --qz-linie: #2c3035;
+  --qz-linie-stark: #3a3f45;
+  --qz-spur: #262a30;
+  /* tokens.ts `rotAufDunkel`, 5,32:1 — die Fahne bleibt Suite-Rot. */
+  --qz-wortzeichen: #e45a66;
+
+  --qz-a: #7fa6ff;
+  --qz-a-text: #101214;
+  --qz-b: #f5c542;
+  --qz-b-text: #101214;
+  --qz-c: #4fc6c9;
+  --qz-c-text: #101214;
+  --qz-d: #d09be2;
+  --qz-d-text: #101214;
+  color-scheme: dark;
+}
+
+.seite *,
+.seite *::before,
+.seite *::after {
+  box-sizing: border-box;
+}
+
+/* Fahne */
+.seite::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--qz-marke);
+}
+
+.handy {
+  max-width: 480px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.kopf {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 22px 20px 14px;
+  font-size: 13px;
+  color: var(--qz-gedaempft);
+  font-weight: 500;
+}
+.wortzeichen {
+  color: var(--qz-wortzeichen);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.kopfTitel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rechts {
+  margin-left: auto;
+  color: var(--qz-tinte);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.inhalt {
+  flex: 1;
+  padding: 8px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.zentral {
+  justify-content: center;
+}
+
+.titel {
+  font-size: 28px;
+  line-height: 1.1;
+  margin: 0 0 12px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+.leise {
+  color: var(--qz-gedaempft);
+  font-size: 15px;
+  line-height: 1.45;
+  margin: 0 0 16px;
+}
+.ohneAbstand {
+  margin: 0;
+}
+
+.modus {
+  align-self: flex-start;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 99px;
+  border: 1px solid var(--qz-linie-stark);
+  margin-bottom: 14px;
+}
+
+/* --- Frage --- */
+.frage {
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+  margin: 4px 0 6px;
+  text-wrap: pretty;
+}
+.frageMeta {
+  font-size: 13px;
+  color: var(--qz-gedaempft);
+  font-weight: 600;
+  margin: 0 0 14px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.liste {
+  display: grid;
+  gap: 10px;
+  flex: 1;
+  grid-auto-rows: minmax(88px, 1fr);
+}
+.kompakt {
+  grid-auto-rows: minmax(80px, auto);
+  flex: none;
+}
+
+.a { --k: var(--qz-a); --kt: var(--qz-a-text); }
+.b { --k: var(--qz-b); --kt: var(--qz-b-text); }
+.c { --k: var(--qz-c); --kt: var(--qz-c-text); }
+.d { --k: var(--qz-d); --kt: var(--qz-d-text); }
+
+.kachel {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  background: var(--k);
+  color: var(--kt);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px 12px 12px;
+  font: 600 18px/1.25 var(--qz-schrift);
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+.kachel:focus-visible {
+  outline: 3px solid var(--qz-tinte);
+  outline-offset: 3px;
+}
+.kachel:disabled {
+  cursor: progress;
+}
+.kachel[aria-pressed="true"] {
+  box-shadow: 0 0 0 3px var(--qz-grund), 0 0 0 6px var(--qz-tinte);
+}
+
+/* Formschild: Plakette in der Schriftfarbe der Kachel, Form in Kachelfarbe — so hat die Form
+   denselben Kontrast wie der Text (Bernstein hell: Tinte). */
+.form {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--kt);
+  display: grid;
+  place-items: center;
+}
+.form svg {
+  width: 55%;
+  height: 55%;
+  fill: var(--k);
+}
+
+/* Ankreuzfeld der Mehrfachauswahl: gewählt = Häkchen + Tintenring (zwei Zeichen, kein Farbwechsel). */
+.wahl {
+  margin-left: auto;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 2.5px solid currentColor;
+  display: grid;
+  place-items: center;
+}
+.wahl svg {
+  visibility: hidden;
+}
+.kachel[aria-pressed="true"] .wahl {
+  background: var(--kt);
+}
+.kachel[aria-pressed="true"] .wahl svg {
+  visibility: visible;
+  color: var(--k);
+}
+
+.knopf {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  text-align: center;
+  height: 56px;
+  border-radius: 12px;
+  background: var(--qz-tinte);
+  color: var(--qz-tinte-auf);
+  font: 700 18px/56px var(--qz-schrift);
+  margin-top: 16px;
+  width: 100%;
+}
+.knopf:focus-visible {
+  outline: 3px solid var(--qz-tinte);
+  outline-offset: 3px;
+}
+.knopf:disabled {
+  cursor: default;
+  background: var(--qz-linie-stark);
+  color: var(--qz-gedaempft);
+}
+.unten {
+  margin-top: auto;
+}
+
+/* --- Beitritt --- */
+.formular {
+  display: contents;
+}
+.feldLabel {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 8px 0 6px;
+  display: block;
+}
+/* 18px: iOS zoomt bei Fokus unter 16px. */
+.feld {
+  font: 500 18px/1 var(--qz-schrift);
+  height: 56px;
+  width: 100%;
+  padding: 0 16px;
+  border: 1.5px solid var(--qz-linie-stark);
+  border-radius: 12px;
+  background: var(--qz-flaeche);
+  color: var(--qz-tinte);
+}
+.feld:focus-visible {
+  outline: 3px solid var(--qz-tinte);
+  outline-offset: 2px;
+}
+.feldHinweis {
+  margin-top: 8px;
+}
+.zusage {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--qz-flaeche);
+  border: 1px solid var(--qz-linie);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+/* Fehler ohne Rot: Text plus 3px linke Kante in Tinte (docs/design/README.md, Regel 3). */
+.meldung {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--qz-tinte);
+  background: var(--qz-flaeche);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* --- Siegel, Ergebnis --- */
+.siegel {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+  border: 3px solid var(--qz-tinte);
+  color: var(--qz-tinte);
+  flex: none;
+}
+.siegelVoll {
+  background: var(--qz-tinte);
+  color: var(--qz-tinte-auf);
+}
+.siegelOben {
+  margin-top: 24px;
+}
+
+.gewaehlt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+  border-radius: 12px;
+  background: var(--k);
+  color: var(--kt);
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.25;
+  margin: 0 0 10px;
+}
+.gewaehlt .form {
+  width: 38px;
+  height: 38px;
+}
+.gewaehltListe {
+  margin-bottom: 10px;
+}
+
+.ich {
+  font-family: var(--qz-ziffern);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1;
+  margin: 0 0 18px;
+}
+.punkteGross {
+  font-family: var(--qz-ziffern);
+  font-weight: 700;
+  font-size: 64px;
+  line-height: 0.9;
+  margin: 4px 0 6px;
+}
+.punkteNull {
+  color: var(--qz-gedaempft);
+}
+.werte {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 20px;
+}
+.werteEnde {
+  margin: 8px 0 20px;
+}
+.werte > div {
+  background: var(--qz-flaeche);
+  border: 1px solid var(--qz-linie);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.werte b {
+  display: block;
+  font-family: var(--qz-ziffern);
+  font-size: 40px;
+  line-height: 1;
+  font-weight: 700;
+}
+.werte span {
+  font-size: 13px;
+  color: var(--qz-gedaempft);
+  font-weight: 600;
+}
+.richtigWar {
+  font-size: 13px;
+  color: var(--qz-gedaempft);
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.wartePunkte {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0 0;
+}
+.wartePunkte i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--qz-tinte);
+  animation: puls 1.6s ease-in-out infinite;
+}
+.wartePunkte i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.wartePunkte i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes puls {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wartePunkte i {
+    animation: none;
+  }
+}
+
+/* Zwei Optionen (Wahr/Falsch): keine halbschirmhohen Kacheln. Nicht im Mockup, das nur vier zeigt. */
+.zwei {
+  grid-auto-rows: minmax(120px, 160px);
+  flex: none;
+}
+/* Abstand nach den Werten, wenn `margin-top: auto` bei vollem Bild auf 0 fällt. */
+.ergebnisUnten {
+  padding-top: 20px;
+}
