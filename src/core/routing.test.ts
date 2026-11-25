@@ -134,6 +134,17 @@ describe("resolveHost + decideRoute — die Strecke, die in Produktion brach", (
     expect(d).toMatchObject({ action: "rewrite", target: "/m/feedback/f/abc/danke", moduleKey: "feedback" });
   });
 
+  it("Live-Quiz: Handy- und Beamer-Wege gehen ohne Anmeldung ins Modul (requiresAuth: false)", () => {
+    for (const pfad of ["/q/ABC234/strom", "/q/ABC234/beitritt", "/beamer/geheim/strom", "/beamer/geheim/schritt"]) {
+      expect(decide({ host: "feedback.localtest.me" }, pfad, null)).toEqual({
+        action: "rewrite",
+        target: `/m/feedback${pfad}`,
+        moduleKey: "feedback",
+      });
+      expect(decide({ host: "feedback.localtest.me" }, `/m/feedback${pfad}`, null).action).toBe("next");
+    }
+  });
+
   it("ohne x-forwarded-host bleibt es beim bisherigen Verhalten", () => {
     expect(decide({ host: "iuk-ue.de" }, "/", [])).toMatchObject({
       action: "rewrite",

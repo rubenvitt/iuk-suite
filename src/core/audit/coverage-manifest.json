@@ -1596,5 +1596,11 @@
   "src/app/m/verpflegung/o/[ortId]/route.ts#GET": {
     "kind": "excluded",
     "reason": "Leitet ein gescanntes Ortsetikett auf das Telefon um; liest und schreibt nichts."
-  }
+  },
+  "src/app/m/feedback/q/[code]/beitritt/route.ts#POST": {"kind": "context", "via": "POST"},
+  "src/app/m/feedback/q/[code]/antwort/route.ts#POST": {"kind": "context", "via": "POST"},
+  "src/app/m/feedback/beamer/[secret]/schritt/route.ts#POST": {"kind": "context", "via": "POST"},
+  "src/app/m/feedback/beamer/[secret]/beenden/route.ts#POST": {"kind": "context", "via": "POST"},
+  "src/app/m/feedback/q/[code]/strom/route.ts#GET": {"kind": "excluded", "reason": "SSE-Strom des Live-Quiz (Handy): liest nur den Stand der Runde; das nachgeholte Auto-Ende abgelaufener Runden schreibt unter dem Akteur system (`_lib/quiz/stand.ts`)."},
+  "src/app/m/feedback/beamer/[secret]/strom/route.ts#GET": {"kind": "excluded", "reason": "SSE-Strom des Live-Quiz (Beamer): liest nur den Stand, legt keine Runde an; das nachgeholte Auto-Ende abgelaufener Runden schreibt unter dem Akteur system (`_lib/quiz/stand.ts`)."}
 }

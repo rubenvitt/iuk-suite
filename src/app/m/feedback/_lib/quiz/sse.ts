@@ -1,6 +1,8 @@
 import { abonniere } from "./verteiler";
 
 export const HERZSCHLAG_MS = 15_000;
+/** So viele ungelesene Ereignisse (samt Herzschlag) darf ein Strom vor sich herschieben. */
+const WARTESCHLANGE = 8;
 
 const KOPFZEILEN = {
   "Content-Type": "text/event-stream; charset=utf-8",
@@ -26,67 +28,77 @@ export function sseAntwort(
   const abmelden = abonniere(rundeId, () => senden());
   if (!abmelden) return new Response(null, { status: 503 });
 
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      let offen = true;
-      let herzschlag: ReturnType<typeof setInterval> | null = null;
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      start(controller) {
+        let offen = true;
+        let herzschlag: ReturnType<typeof setInterval> | null = null;
 
-      const schliessen = () => {
-        if (!offen) return;
-        offen = false;
-        if (herzschlag) clearInterval(herzschlag);
-        abmelden();
-        signal.removeEventListener("abort", schliessen);
-        try {
-          controller.close();
-        } catch {
-          // schon geschlossen/abgebrochen
-        }
-      };
-      aufraeumen = () => {
-        if (!offen) return;
-        offen = false;
-        if (herzschlag) clearInterval(herzschlag);
-        abmelden();
-        signal.removeEventListener("abort", schliessen);
-      };
-
-      const schreibe = (text: string) => {
-        try {
-          controller.enqueue(enc.encode(text));
-        } catch {
+        aufraeumen = () => {
+          if (!offen) return;
+          offen = false;
+          if (herzschlag) clearInterval(herzschlag);
+          abmelden();
+          signal.removeEventListener("abort", schliessen);
+        };
+        function schliessen() {
+          if (!offen) return;
           aufraeumen();
+          try {
+            controller.close();
+          } catch {
+            // schon geschlossen/abgebrochen
+          }
         }
-      };
 
-      const sende = () => {
-        if (!offen) return;
-        try {
-          const s = sicht();
-          if (s === null) {
-            schreibe("event: ende\ndata: {}\n\n");
+        const schreibe = (text: string) => {
+          try {
+            controller.enqueue(enc.encode(text));
+          } catch {
+            aufraeumen();
+          }
+        };
+
+        const sende = () => {
+          if (!offen) return;
+          // LANGSAMER LESER: die Warteschlange ist voll, der Client kommt nicht nach. Weiter
+          // einreihen hieße Speicher für einen, der veraltete Stände liest. Schließen: `EventSource`
+          // verbindet neu, und das erste Ereignis danach ist ohnehin der volle Stand.
+          if (controller.desiredSize !== null && controller.desiredSize <= 0) {
             schliessen();
             return;
           }
-          schreibe(`data: ${JSON.stringify(s)}\n\n`);
-        } catch {
-          schliessen();
-        }
-      };
-      senden = sende;
+          try {
+            const s = sicht();
+            if (s === null) {
+              schreibe("event: ende\ndata: {}\n\n");
+              schliessen();
+              return;
+            }
+            schreibe(`data: ${JSON.stringify(s)}\n\n`);
+          } catch (fehler) {
+            // Einmal je Strom: danach ist er zu.
+            console.error(`[feedback][quiz] Sicht der Runde ${rundeId} fehlgeschlagen:`, fehler);
+            schliessen();
+          }
+        };
+        senden = sende;
 
-      if (signal.aborted) {
-        schliessen();
-        return;
-      }
-      signal.addEventListener("abort", schliessen);
-      herzschlag = setInterval(() => schreibe(": ping\n\n"), HERZSCHLAG_MS);
-      sende();
+        if (signal.aborted) {
+          schliessen();
+          return;
+        }
+        signal.addEventListener("abort", schliessen);
+        herzschlag = setInterval(() => schreibe(": ping\n\n"), HERZSCHLAG_MS);
+        sende();
+      },
+      cancel() {
+        aufraeumen();
+      },
     },
-    cancel() {
-      aufraeumen();
-    },
-  });
+    // Ein paar Ereignisse Luft, bevor ein Leser als „kommt nicht nach" gilt (`sende`).
+    new CountQueuingStrategy({ highWaterMark: WARTESCHLANGE }),
+  );
 
   return new Response(stream, { headers: KOPFZEILEN });
 }

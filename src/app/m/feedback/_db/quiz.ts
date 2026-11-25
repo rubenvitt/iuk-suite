@@ -286,6 +286,24 @@ export function setzeSchritt(db: DB, rundeId: number, schritt: number, jetzt: Da
   });
 }
 
+/**
+ * DIE RUNDE, DIE DER BEAMER HEUTE ZEIGT: die jüngste Runde dieses Quiz am heutigen Abend, offen
+ * oder schon beendet (dann steht auf dem Beamer „beendet", und der nächste Klick legt eine neue
+ * an, §5.3). Eine offene ist immer die jüngste, denn eine neue entsteht nur ohne offene
+ * (`starteOderHoleRunde`). Reiner Lesezugriff: das Auto-Ende holt der Aufrufer nach.
+ */
+export function heutigeRunde(db: DB, quizId: number, jetzt: Date): QuizRundeRow | undefined {
+  const heute = tagDesAbends(heutigesAbenddatum(jetzt));
+  return db
+    .select({ runde: quizRunden, datum: evenings.date })
+    .from(quizRunden)
+    .innerJoin(evenings, eq(evenings.id, quizRunden.eveningId))
+    .where(eq(quizRunden.quizId, quizId))
+    .orderBy(desc(quizRunden.id))
+    .all()
+    .find((r) => tagDesAbends(r.datum) === heute)?.runde;
+}
+
 /** Endgültig: `beendet_at`, alle `token_hash` NULL, der Beitrittscode gilt nicht mehr. */
 export function beendeRunde(db: DB, rundeId: number, jetzt: Date): void {
   db.transaction((tx) => beende(tx, [rundeId], jetzt));
@@ -299,6 +317,19 @@ export function offeneRundePerCode(db: DB, code: string, jetzt: Date): QuizRunde
     .from(quizRunden)
     .where(and(eq(quizRunden.beitrittCode, code.trim().toUpperCase()), isNull(quizRunden.beendetAt)))
     .get();
+}
+
+/**
+ * Die Teilnahme zum Cookie-Wert in DIESER Runde, sonst `null`. Nach dem Ende ist `token_hash`
+ * NULL, ein altes Cookie findet dann nichts mehr.
+ */
+export function teilnahmePerToken(db: DB, rundeId: number, token: string): number | null {
+  const t = db
+    .select({ id: quizTeilnahmen.id })
+    .from(quizTeilnahmen)
+    .where(and(eq(quizTeilnahmen.rundeId, rundeId), eq(quizTeilnahmen.tokenHash, tokenHash(token))))
+    .get();
+  return t?.id ?? null;
 }
 
 // ── Teilnahme und Antworten ─────────────────────────────────────────────────
@@ -426,6 +457,25 @@ export function antworte(
 /** In einer Transaktion gelesen: Runde, Teilnahmen und Antworten passen zueinander. */
 export function rundenDaten(db: DB, rundeId: number): RundenDaten {
   return db.transaction((tx) => leseRundenDaten(tx, rundeId));
+}
+
+/** Ohne Vorlage (gelöscht) zeigt die Runde diesen Titel; ihr Schnappschuss lebt weiter. */
+const ERSATZTITEL = "Quiz";
+
+/**
+ * Daten und Titel einer Runde in einer Transaktion, `null` für eine Runde, die es nicht (mehr)
+ * gibt — der Strom endet dann, statt zu werfen. Quelle des Stands in `_lib/quiz/stand.ts`.
+ */
+export function rundenStand(db: DB, rundeId: number): { daten: RundenDaten; titel: string } | null {
+  return db.transaction((tx) => {
+    const runde = holeRunde(tx, rundeId);
+    if (!runde) return null;
+    const titel =
+      runde.quizId === null
+        ? undefined
+        : tx.select({ titel: quizze.titel }).from(quizze).where(eq(quizze.id, runde.quizId)).get()?.titel;
+    return { daten: leseRundenDaten(tx, rundeId), titel: titel ?? ERSATZTITEL };
+  });
 }
 
 function leseRundenDaten(db: DB, rundeId: number): RundenDaten {

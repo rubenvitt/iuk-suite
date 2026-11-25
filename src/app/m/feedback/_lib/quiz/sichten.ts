@@ -179,3 +179,27 @@ export function handySicht(daten: RundenDaten, titel: string, teilnahmeId: numbe
   }
   return sicht;
 }
+
+/**
+ * Beamer ohne Runde von heute: Titel und „Lobby öffnen". Das Laden schreibt nichts (§5.3), die
+ * Runde entsteht erst mit dem ersten Schritt. `fragenJson` ist die Vorlage (`quizze.fragen`).
+ */
+export function vorStartSicht(titel: string, modus: QuizModus, fragenJson: string): BeamerSicht {
+  let anzahl = 0;
+  try {
+    const f: unknown = JSON.parse(fragenJson);
+    if (Array.isArray(f)) anzahl = f.length;
+  } catch {
+    // Eine kaputte Vorlage startet ohnehin nicht (`starteOderHoleRunde`); hier zählt sie als leer.
+  }
+  return {
+    titel,
+    modus,
+    phase: { art: "vorStart" },
+    schritt: 0,
+    schrittAnzahl: schrittAnzahl(anzahl, modus),
+    beitrittCode: null,
+    teilnehmende: 0,
+    beendet: false,
+  };
+}

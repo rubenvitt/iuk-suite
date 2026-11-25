@@ -20,6 +20,9 @@ import {
   tritteBei,
   antworte,
   rundenDaten,
+  heutigeRunde,
+  teilnahmePerToken,
+  rundenStand,
 } from "./quiz";
 import { tokenHash } from "@/app/m/feedback/_lib/quiz/codes";
 import { beamerSicht } from "@/app/m/feedback/_lib/quiz/sichten";
@@ -400,5 +403,52 @@ describe("beendeAbgelaufene und offeneRundePerCode", () => {
     const b = starteOderHoleRunde(db, q, plus(frueh, 7 * STD));
     expect(b.id).not.toBe(a.id);
     expect(rundenDaten(db, a.id).runde.beendetAt).not.toBeNull();
+  });
+});
+
+describe("heutigeRunde, teilnahmePerToken, rundenStand", () => {
+  it("liefert ohne Runde nichts und schreibt nichts", () => {
+    const q = mkQuiz();
+    expect(heutigeRunde(db, q.id, JETZT)).toBeUndefined();
+    expect(db.select().from(schema.quizRunden).all()).toEqual([]);
+    expect(db.select().from(schema.evenings).all()).toEqual([]);
+  });
+
+  it("liefert die offene Runde von heute, nach dem Beenden die beendete, nie die von gestern", () => {
+    const q = mkQuiz();
+    const gestern = new Date("2026-11-24T18:00:00Z");
+    const alt = starteOderHoleRunde(db, q, gestern);
+    beendeRunde(db, alt.id, gestern);
+    expect(heutigeRunde(db, q.id, JETZT)).toBeUndefined();
+    const r = starteOderHoleRunde(db, q, JETZT);
+    expect(heutigeRunde(db, q.id, JETZT)?.id).toBe(r.id);
+    beendeRunde(db, r.id, JETZT);
+    const beendet = heutigeRunde(db, q.id, JETZT);
+    expect(beendet?.id).toBe(r.id);
+    expect(beendet?.beendetAt).not.toBeNull();
+    const neu = starteOderHoleRunde(db, q, plus(JETZT, MIN));
+    expect(heutigeRunde(db, q.id, plus(JETZT, MIN))?.id).toBe(neu.id);
+  });
+
+  it("findet die Teilnahme nur mit dem Token dieser Runde", () => {
+    const q = mkQuiz();
+    const r = starteOderHoleRunde(db, q, JETZT);
+    const t = tritteBei(db, r, { token: "tok", spitzname: "Anna" });
+    expect("teilnahmeId" in t && teilnahmePerToken(db, r.id, "tok")).toBe("teilnahmeId" in t ? t.teilnahmeId : -1);
+    expect(teilnahmePerToken(db, r.id, "anders")).toBeNull();
+    expect(teilnahmePerToken(db, r.id + 1, "tok")).toBeNull();
+    beendeRunde(db, r.id, JETZT);
+    expect(teilnahmePerToken(db, r.id, "tok")).toBeNull();
+  });
+
+  it("rundenStand: Daten samt Titel, null für eine unbekannte Runde, Ersatztitel ohne Vorlage", () => {
+    const q = mkQuiz();
+    const r = starteOderHoleRunde(db, q, JETZT);
+    const s = rundenStand(db, r.id);
+    expect(s?.titel).toBe("Funk");
+    expect(s?.daten.runde.id).toBe(r.id);
+    expect(rundenStand(db, r.id + 99)).toBeNull();
+    loescheQuiz(db, q.id);
+    expect(rundenStand(db, r.id)?.titel).toBe("Quiz");
   });
 });

@@ -21,3 +21,8 @@ export function neuerBeitrittCode(): string {
 export function tokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
+
+/** Teilnahme-Token fürs Cookie: 32 Byte als base64url. In der Datenbank steht nur `tokenHash`. */
+export function neuesToken(): string {
+  return randomBytes(32).toString("base64url");
+}

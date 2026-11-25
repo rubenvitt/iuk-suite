@@ -108,4 +108,58 @@ describe("sseAntwort", () => {
     expect(res.body).toBeNull();
     abm.forEach((a) => a());
   });
+
+  it("löscht den Eintrag der Runde im globalThis-Speicher nach dem letzten Abmelden", async () => {
+    const speicher = () => (globalThis as { __iukQuizVerteiler?: Map<number, unknown> }).__iukQuizVerteiler;
+    const a = new AbortController();
+    const b = new AbortController();
+    sseAntwort(a.signal, 18, () => ({}));
+    sseAntwort(b.signal, 18, () => ({}));
+    expect(speicher()?.has(18)).toBe(true);
+    a.abort();
+    expect(speicher()?.has(18)).toBe(true);
+    b.abort();
+    expect(speicher()?.has(18)).toBe(false);
+  });
+
+  it("schließt einen Strom, dessen Leser nicht nachkommt — er verbindet neu und bekommt den vollen Stand", async () => {
+    const ac = new AbortController();
+    let n = 0;
+    const res = sseAntwort(ac.signal, 19, () => ({ n: ++n }));
+    const r = res.body!.getReader();
+    // Niemand liest: die Warteschlange läuft voll, bis der Strom aufgibt.
+    for (let i = 0; i < 20; i++) {
+      melde(19);
+      vi.advanceTimersByTime(250);
+    }
+    expect(anzahlAbonnenten(19)).toBe(0);
+    const gelesen: string[] = [];
+    for (;;) {
+      const { text, done } = await lies(r);
+      if (done) break;
+      gelesen.push(text);
+    }
+    expect(gelesen.length).toBeLessThan(20);
+    expect(gelesen[0]).toBe('data: {"n":1}\n\n');
+  });
+
+  it("protokolliert einmal, wenn sicht wirft", async () => {
+    const fehler = vi.spyOn(console, "error").mockImplementation(() => {});
+    const ac = new AbortController();
+    let wirf = false;
+    const res = sseAntwort(ac.signal, 20, () => {
+      if (wirf) throw new Error("db weg");
+      return {};
+    });
+    const r = res.body!.getReader();
+    await lies(r);
+    wirf = true;
+    melde(20);
+    vi.advanceTimersByTime(250);
+    melde(20);
+    vi.advanceTimersByTime(250);
+    expect((await lies(r)).done).toBe(true);
+    expect(fehler).toHaveBeenCalledTimes(1);
+    fehler.mockRestore();
+  });
 });

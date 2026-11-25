@@ -1,4 +1,5 @@
 import { getDb } from "../../_db/client";
+import { quizAutoEndeBeimStart } from "../quiz/autoEnde";
 import { loescheAbgelaufene, tagVon } from "./daten";
 
 /**
@@ -23,6 +24,8 @@ export function ehrlichAufraeumen(jetzt = Date.now()): number {
 export function starteFeedbackHintergrund(): void {
   if (gestartet) return;
   gestartet = true;
+  // Live-Quiz: Abgelaufene Runden sofort beenden (§5.3), nicht erst beim ersten Zugriff.
+  quizAutoEndeBeimStart();
   const erst = setTimeout(() => {
     ehrlichAufraeumen();
     setInterval(() => ehrlichAufraeumen(), TAKT_MS).unref?.();

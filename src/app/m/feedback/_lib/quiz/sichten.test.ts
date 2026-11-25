@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { QuizAntwortRow, QuizRundeRow, QuizTeilnahmeRow } from "@/app/m/feedback/_db/schema";
 import type { QuizFrage } from "./fragen";
-import { beamerSicht, handySicht, type RundenDaten } from "./sichten";
+import { beamerSicht, handySicht, vorStartSicht, type RundenDaten } from "./sichten";
 
 const T0 = 1_000_000;
 
@@ -125,5 +125,25 @@ describe("handySicht", () => {
     expect(ohne.eigenesErgebnis).toBeUndefined();
     expect(ohne.eigeneAntwort).toBeUndefined();
     expect(ohne.platz).toBeUndefined();
+  });
+});
+
+describe("vorStartSicht", () => {
+  it("zeigt nur Titel und Schrittzahl, keinen Code und keine Frage", () => {
+    const s = vorStartSicht("Funk", "wettbewerb", JSON.stringify(fragen));
+    expect(s).toEqual({
+      titel: "Funk",
+      modus: "wettbewerb",
+      phase: { art: "vorStart" },
+      schritt: 0,
+      schrittAnzahl: 7,
+      beitrittCode: null,
+      teilnehmende: 0,
+      beendet: false,
+    });
+  });
+
+  it("verträgt eine kaputte Vorlage (0 Fragen)", () => {
+    expect(vorStartSicht("X", "lagebild", "kein json").schrittAnzahl).toBe(2);
   });
 });
