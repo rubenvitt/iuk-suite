@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { HandySicht } from "@/app/m/feedback/_lib/quiz/sichten";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { QuizForm, quizFarbe, quizZahl } from "@/app/m/feedback/_quiz/QuizForm";
+import z from "@/app/m/feedback/_quiz/zeichen.module.css";
 import s from "./handy.module.css";
 
 /** Pause, bevor ein ganz geschlossener Strom (Server weg, 503) neu verbunden wird. */
@@ -15,29 +17,10 @@ const NEU_VERBINDEN_MS = 3000;
 /** Takt der Restzeit. Eine Viertelsekunde, damit die volle Sekunde nicht sichtbar springt. */
 const TAKT_MS = 250;
 
-/** Farbe und Form je Position, wie am Beamer. Optionen 5 und 6 wiederholen 1 und 2. */
-const FARBEN = [s.a, s.b, s.c, s.d];
-const FORMEN: { name: string; svg: ReactNode }[] = [
-  { name: "dreieck", svg: <path d="M50 8 96 90H4z" /> },
-  { name: "kreis", svg: <circle cx="50" cy="50" r="44" /> },
-  { name: "quadrat", svg: <rect x="10" y="10" width="80" height="80" rx="4" /> },
-  { name: "raute", svg: <path d="M50 2 98 50 50 98 2 50z" /> },
-];
-const farbe = (i: number) => FARBEN[i % 4];
+const farbe = quizFarbe;
+const Form = ({ i }: { i: number }) => <QuizForm i={i} className={s.form} />;
 
-function Form({ i }: { i: number }) {
-  const f = FORMEN[i % 4];
-  return (
-    <span className={s.form} data-form={f.name} aria-hidden>
-      <svg viewBox="0 0 100 100">{f.svg}</svg>
-    </span>
-  );
-}
-
-/** „2 455“: Tausender mit schmalem Leerzeichen, wie im Mockup. */
-function zahl(n: number): string {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-}
+const zahl = quizZahl;
 
 /** Der Weg neben der Seite (`/q/ABC234` → `/q/ABC234/strom`), auch hinter dem Host-Rewrite. */
 function weg(teil: "strom" | "beitritt" | "antwort"): string {
@@ -388,7 +371,7 @@ function Rahmen({
   children: ReactNode;
 }) {
   return (
-    <div className={s.seite}>
+    <div className={`${z.zeichen} ${s.seite}`}>
       <div className={s.handy}>
         <header className={s.kopf}>
           <span className={s.wortzeichen}>IDA</span>

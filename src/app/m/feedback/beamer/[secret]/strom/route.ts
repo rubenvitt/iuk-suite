@@ -33,6 +33,6 @@ export async function GET(
     const stand = runde ? leseStand(db, runde.id) : null;
     return stand
       ? beamerSicht(stand.daten, q.titel, jetzt)
-      : vorStartSicht(q.titel, q.modus, q.fragen);
+      : vorStartSicht(q.titel, q.modus, q.fragen, jetzt);
   });
 }

@@ -327,12 +327,12 @@ describe("handy.module.css", () => {
   it("kennt kein antd und keine `--ant-*`-Variablen (Falle 2)", () => {
     expect(css).not.toMatch(/--ant-|\.ant-/);
   });
-  it("hängt Dunkel an `data-theme`, nicht an `prefers-color-scheme`", () => {
-    expect(css).toContain(':root[data-theme="dark"]');
+  it("kennt kein `prefers-color-scheme`; Farben und Dunkel kommen aus `_quiz/zeichen.module.css`", () => {
     expect(css).not.toContain("prefers-color-scheme");
+    expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
   });
-  it("Suite-Rot nur für die Fahne", () => {
-    expect(css.match(/#c8000f/gi)).toHaveLength(1);
+  it("Suite-Rot nur für die Fahne (über `--qz-marke`)", () => {
+    expect(css).not.toMatch(/#c8000f/i);
   });
   it("Bewegung nur ohne `prefers-reduced-motion`", () => {
     expect(css).toContain("prefers-reduced-motion");

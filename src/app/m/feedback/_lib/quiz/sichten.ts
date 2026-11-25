@@ -18,6 +18,10 @@ export type BeamerSicht = {
   titel: string;
   modus: QuizModus;
   phase: Phase;
+  /** Serverzeit der Sicht (ms). Der Countdown-Ring rechnet gegen diese Uhr, nicht gegen die eigene. */
+  jetzt: number;
+  /** Fragen der Runde (bzw. der Vorlage vor dem Start). */
+  fragenAnzahl: number;
   schritt: number;
   schrittAnzahl: number;
   beitrittCode: string | null;
@@ -29,14 +33,29 @@ export type BeamerSicht = {
     typ: QuizFrage["typ"];
     optionen: string[];
     antworten: number;
+    /** Antwortzeit in Sekunden (für den Countdown-Ring); fehlt ohne Zeitlimit. */
+    zeitS?: number;
     verteilung?: number[];
     richtig?: number[];
     anteilRichtig?: number;
     erklaerung?: string;
   };
-  rangliste?: { spitzname: string; punkte: number }[];
-  /** Nur im Schluss: Beigetretene und Anteil richtiger Antworten über alle Fragen (0..1). */
-  gesamt?: { teilnehmende: number; anteilRichtig: number };
+  /**
+   * `bewegung` nur in einer Zwischenrangliste ab der zweiten: Plätze gewonnen (+) oder verloren (−)
+   * gegenüber der Rangliste nach der vorigen Frage; `"neu"`, wer bis dahin keine Antwort hatte.
+   */
+  rangliste?: { spitzname: string; punkte: number; bewegung?: number | "neu" }[];
+  /**
+   * Nur im Schluss: Beigetretene und Anteil richtiger Antworten über alle Fragen (0..1), dazu die
+   * Frage mit dem kleinsten Anteil richtig (Gesprächsanlass; fehlt ohne Antworten).
+   */
+  gesamt?: {
+    teilnehmende: number;
+    /** Abgegebene Antworten über alle Fragen. */
+    antworten: number;
+    anteilRichtig: number;
+    schwersteFrage?: { index: number; text: string; anteilRichtig: number };
+  };
   beendet: boolean;
 };
 
@@ -105,6 +124,38 @@ export function verteilungVon(frage: QuizFrage, antworten: QuizAntwortRow[]): nu
   return verteilung;
 }
 
+type Teilnahme = QuizTeilnahmeRow & { spitzname: string };
+const mitName = (t: QuizTeilnahmeRow): t is Teilnahme => t.spitzname !== null;
+
+/** Alle Spitznamen nach Punkten bis Frage `bis`, bei Gleichstand nach Name. */
+function reihung(daten: RundenDaten, teilnahmen: Teilnahme[], bis: number) {
+  const summe = summen(daten, bis);
+  return teilnahmen
+    .map((t) => ({ id: t.id, spitzname: t.spitzname, punkte: summe.get(t.id) ?? 0 }))
+    .sort((a, b) => b.punkte - a.punkte || a.spitzname.localeCompare(b.spitzname, "de"));
+}
+
+/**
+ * Plätze in der Rangliste nach Frage `bis`. Gezählt wird nur, wer bis dahin geantwortet hat —
+ * wer erst später eingestiegen ist (oder bisher nie geantwortet hat), ist in der nächsten „neu“.
+ */
+function plaetzeNach(daten: RundenDaten, teilnahmen: Teilnahme[], bis: number): Map<number, number> {
+  const gespielt = new Set(daten.antworten.filter((a) => a.frageIndex <= bis).map((a) => a.teilnahmeId));
+  const vorher = reihung(daten, teilnahmen.filter((t) => gespielt.has(t.id)), bis);
+  return new Map(vorher.map((r, i) => [r.id, i + 1]));
+}
+
+function schwersteFrage(fragen: QuizFrage[], antworten: QuizAntwortRow[]) {
+  let schwerste: { index: number; text: string; anteilRichtig: number } | undefined;
+  fragen.forEach((f, index) => {
+    const zuDieser = antworten.filter((a) => a.frageIndex === index);
+    if (zuDieser.length === 0) return;
+    const anteil = zuDieser.filter((a) => a.richtig === 1).length / zuDieser.length;
+    if (!schwerste || anteil < schwerste.anteilRichtig) schwerste = { index, text: f.text, anteilRichtig: anteil };
+  });
+  return schwerste;
+}
+
 export function beamerSicht(daten: RundenDaten, titel: string, jetzt: Date): BeamerSicht {
   const { runde } = daten;
   const fragen = JSON.parse(runde.fragen) as QuizFrage[];
@@ -114,6 +165,8 @@ export function beamerSicht(daten: RundenDaten, titel: string, jetzt: Date): Bea
     titel,
     modus: runde.modus,
     phase,
+    jetzt: jetzt.getTime(),
+    fragenAnzahl: fragen.length,
     schritt: runde.schritt,
     schrittAnzahl: schrittAnzahl(fragen.length, runde.modus),
     beitrittCode: beendet ? null : runde.beitrittCode,
@@ -133,6 +186,7 @@ export function beamerSicht(daten: RundenDaten, titel: string, jetzt: Date): Bea
       optionen: f.optionen,
       antworten: zuDieser.length,
     };
+    if (f.zeit_s) sicht.frage.zeitS = f.zeit_s;
     if (phase.art === "aufloesung") {
       sicht.frage.verteilung = verteilungVon(f, zuDieser);
       sicht.frage.richtig = f.richtig;
@@ -145,18 +199,25 @@ export function beamerSicht(daten: RundenDaten, titel: string, jetzt: Date): Bea
     const alle = daten.antworten;
     sicht.gesamt = {
       teilnehmende: daten.teilnahmen.length,
+      antworten: alle.length,
       anteilRichtig: alle.length === 0 ? 0 : alle.filter((a) => a.richtig === 1).length / alle.length,
     };
+    const schwerste = schwersteFrage(fragen, alle);
+    if (schwerste) sicht.gesamt.schwersteFrage = schwerste;
   }
 
   const bis = gewertetBis(phase);
   if (runde.modus === "wettbewerb" && bis !== null && phase.art !== "aufloesung") {
-    const summe = summen(daten, bis);
-    sicht.rangliste = daten.teilnahmen
-      .filter((t): t is QuizTeilnahmeRow & { spitzname: string } => t.spitzname !== null)
-      .map((t) => ({ spitzname: t.spitzname, punkte: summe.get(t.id) ?? 0 }))
-      .sort((a, b) => b.punkte - a.punkte || a.spitzname.localeCompare(b.spitzname, "de"))
-      .slice(0, RANGLISTE_LAENGE);
+    const benannte = daten.teilnahmen.filter(mitName);
+    const vorher =
+      phase.art === "rangliste" && phase.nachIndex > 0 ? plaetzeNach(daten, benannte, phase.nachIndex - 1) : null;
+    sicht.rangliste = reihung(daten, benannte, bis)
+      .slice(0, RANGLISTE_LAENGE)
+      .map(({ id, spitzname, punkte }, i) => {
+        if (!vorher) return { spitzname, punkte };
+        const alt = vorher.get(id);
+        return { spitzname, punkte, bewegung: alt === undefined ? ("neu" as const) : alt - (i + 1) };
+      });
   }
   return sicht;
 }
@@ -209,7 +270,7 @@ export function handySicht(daten: RundenDaten, titel: string, teilnahmeId: numbe
  * Beamer ohne Runde von heute: Titel und „Lobby öffnen". Das Laden schreibt nichts (§5.3), die
  * Runde entsteht erst mit dem ersten Schritt. `fragenJson` ist die Vorlage (`quizze.fragen`).
  */
-export function vorStartSicht(titel: string, modus: QuizModus, fragenJson: string): BeamerSicht {
+export function vorStartSicht(titel: string, modus: QuizModus, fragenJson: string, jetzt: Date): BeamerSicht {
   let anzahl = 0;
   try {
     const f: unknown = JSON.parse(fragenJson);
@@ -221,6 +282,8 @@ export function vorStartSicht(titel: string, modus: QuizModus, fragenJson: strin
     titel,
     modus,
     phase: { art: "vorStart" },
+    jetzt: jetzt.getTime(),
+    fragenAnzahl: anzahl,
     schritt: 0,
     schrittAnzahl: schrittAnzahl(anzahl, modus),
     beitrittCode: null,

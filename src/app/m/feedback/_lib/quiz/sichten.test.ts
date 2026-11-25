@@ -77,7 +77,12 @@ describe("beamerSicht", () => {
     expect(s.beendet).toBe(true);
     expect(s.beitrittCode).toBeNull();
     // 4 von 5 Antworten der Runde sind richtig.
-    expect(s.gesamt).toEqual({ teilnehmende: 12, anteilRichtig: 0.8 });
+    expect(s.gesamt).toEqual({
+      teilnehmende: 12,
+      antworten: 5,
+      anteilRichtig: 0.8,
+      schwersteFrage: { index: 0, text: "Erste?", anteilRichtig: 0.75 },
+    });
     expect(beamerSicht(daten("lagebild", 2), "Funk", new Date(T0)).gesamt).toBeUndefined();
   });
 
@@ -153,11 +158,13 @@ describe("handySicht: Felder für die Handy-Ansicht", () => {
 
 describe("vorStartSicht", () => {
   it("zeigt nur Titel und Schrittzahl, keinen Code und keine Frage", () => {
-    const s = vorStartSicht("Funk", "wettbewerb", JSON.stringify(fragen));
+    const s = vorStartSicht("Funk", "wettbewerb", JSON.stringify(fragen), new Date(T0));
     expect(s).toEqual({
       titel: "Funk",
       modus: "wettbewerb",
       phase: { art: "vorStart" },
+      jetzt: T0,
+      fragenAnzahl: 2,
       schritt: 0,
       schrittAnzahl: 7,
       beitrittCode: null,
@@ -167,6 +174,72 @@ describe("vorStartSicht", () => {
   });
 
   it("verträgt eine kaputte Vorlage (0 Fragen)", () => {
-    expect(vorStartSicht("X", "lagebild", "kein json").schrittAnzahl).toBe(2);
+    expect(vorStartSicht("X", "lagebild", "kein json", new Date(T0)).schrittAnzahl).toBe(2);
+  });
+});
+
+describe("beamerSicht: Felder für die Beamer-Ansicht", () => {
+  const drei: QuizFrage[] = [
+    { text: "Eins?", typ: "einfach", optionen: ["A", "B"], richtig: [0] },
+    { text: "Zwei?", typ: "einfach", optionen: ["A", "B"], richtig: [0] },
+    { text: "Drei?", typ: "einfach", optionen: ["A", "B"], richtig: [0] },
+  ];
+  const vier = teilnahmen.slice(0, 4); // Anna, Bert, Cora, Dora
+  const dreiDaten = (schritt: number, liste: QuizAntwortRow[]): RundenDaten => ({
+    runde: runde("wettbewerb", schritt, { fragen: JSON.stringify(drei) }),
+    teilnahmen: vier,
+    antworten: liste,
+  });
+  // Nach Frage 0: Anna 900, Bert 800, Cora 0 (falsch); Dora hat noch nicht gespielt.
+  // Nach Frage 1: Bert 1800, Anna 900, Dora 950, Cora 0.
+  const liste = [
+    antwort(1, 0, [0], true, 900),
+    antwort(2, 0, [0], true, 800),
+    antwort(3, 0, [1], false, 0),
+    antwort(2, 1, [0], true, 1000),
+    antwort(4, 1, [0], true, 950),
+    antwort(1, 1, [1], false, 0),
+    antwort(3, 1, [1], false, 0),
+  ];
+
+  it("nennt Fragenzahl, Zeitlimit der Frage und im Schluss die Zahl aller Antworten", () => {
+    const f = beamerSicht(daten("wettbewerb", 1), "Funk", new Date(T0));
+    expect(f.fragenAnzahl).toBe(2);
+    expect(f.frage?.zeitS).toBe(20);
+    expect(beamerSicht(daten("wettbewerb", 4), "Funk", new Date(T0)).frage?.zeitS).toBeUndefined();
+    expect(beamerSicht(daten("lagebild", 5), "Funk", new Date(T0)).gesamt?.antworten).toBe(5);
+    expect(vorStartSicht("Funk", "wettbewerb", JSON.stringify(fragen), new Date(T0)).fragenAnzahl).toBe(2);
+  });
+
+  it("trägt die Serverzeit (Countdown gegen die Serveruhr), auch vor dem Start", () => {
+    expect(beamerSicht(daten("wettbewerb", 1), "Funk", new Date(T0 + 1234)).jetzt).toBe(T0 + 1234);
+    expect(vorStartSicht("Funk", "wettbewerb", "[]", new Date(T0 + 5)).jetzt).toBe(T0 + 5);
+  });
+
+  it("erste Rangliste ohne Bewegung (es gibt keine vorige)", () => {
+    const s = beamerSicht(dreiDaten(3, liste), "Funk", new Date(T0)); // Rangliste nach Frage 0
+    expect(s.phase).toEqual({ art: "rangliste", nachIndex: 0 });
+    for (const r of s.rangliste!) expect(r.bewegung).toBeUndefined();
+  });
+
+  it("Bewegung gegen die Rangliste nach der vorigen Frage; wer da noch nicht gespielt hatte, ist neu", () => {
+    const s = beamerSicht(dreiDaten(6, liste), "Funk", new Date(T0)); // Rangliste nach Frage 1
+    expect(s.phase).toEqual({ art: "rangliste", nachIndex: 1 });
+    expect(s.rangliste).toEqual([
+      { spitzname: "Bert", punkte: 1800, bewegung: 1 },
+      { spitzname: "Dora", punkte: 950, bewegung: "neu" },
+      { spitzname: "Anna", punkte: 900, bewegung: -2 },
+      { spitzname: "Cora", punkte: 0, bewegung: -1 },
+    ]);
+  });
+
+  it("Schluss: die schwerste Frage (kleinster Anteil richtig, bei Gleichstand die frühere)", () => {
+    // Frage 0: 2 von 3 richtig, Frage 1: 2 von 4, Frage 2: keine Antworten (zählt nicht).
+    const s = beamerSicht(dreiDaten(9, liste), "Funk", new Date(T0));
+    expect(s.phase.art).toBe("schluss");
+    expect(s.gesamt?.schwersteFrage).toEqual({ index: 1, text: "Zwei?", anteilRichtig: 0.5 });
+    const gleich = [antwort(1, 0, [1], false, 0), antwort(1, 1, [1], false, 0)];
+    expect(beamerSicht(dreiDaten(9, gleich), "Funk", new Date(T0)).gesamt?.schwersteFrage?.index).toBe(0);
+    expect(beamerSicht(dreiDaten(9, []), "Funk", new Date(T0)).gesamt?.schwersteFrage).toBeUndefined();
   });
 });

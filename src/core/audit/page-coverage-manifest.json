@@ -374,5 +374,9 @@
   "src/app/m/feedback/k/page.tsx#notFound:!istEhrlichEinstieg(kopf):1": {
     "kind": "excluded",
     "reason": "Host check for the public entry page: the page exists only on its own entry host and is anonymous by design; not an authorization decision."
+  },
+  "src/app/m/feedback/beamer/[secret]/page.tsx#notFound:!quiz:1": {
+    "kind": "excluded",
+    "reason": "Unknown or rotated moderation secret on the public quiz beamer: the secret is the capability, an absent row is not an authorization decision against a person."
   }
 }

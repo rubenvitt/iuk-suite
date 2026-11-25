@@ -15,6 +15,7 @@ import { cssFunde, inlineFunde, zentrierteSeiten } from "./zentrierung";
 const AUSNAHMEN: { praefix: string; grund: string }[] = [
   { praefix: "src/app/m/feedback/f/", grund: "öffentlicher Abendzettel, ohne Shell" },
   { praefix: "src/app/m/feedback/k/", grund: "öffentlicher Kioskzugang zum Abendzettel, ohne Shell" },
+  { praefix: "src/app/m/feedback/q/", grund: "Live-Quiz am Telefon (öffentlich, per QR), ohne Shell" },
   { praefix: "src/app/m/lagerbuch/page.tsx", grund: "Helfer-Startseite am Telefon, ohne Shell" },
   { praefix: "src/app/m/lagerbuch/a/", grund: "Helferweg am Telefon, ohne Shell" },
   { praefix: "src/app/m/lagerbuch/auffuellen/", grund: "Helferweg am Telefon, ohne Shell" },

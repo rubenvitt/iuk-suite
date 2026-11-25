@@ -3,39 +3,14 @@
  * Mockup docs/design/mockups/live-quiz.html, Abschnitt „Handy“). Werte wortgenau aus dem
  * freigegebenen Mockup; die Kontraste sind dort gemessen (live-quiz-notizen.md).
  *
- * Öffentliche Ansicht: kein antd, keine `--ant-*` (Falle 2). Die Variablen hängen an `.seite`,
- * nicht an `:root` — ein CSS-Modul kann `:root` nicht scopen. Dunkel folgt `<html data-theme>`
- * (Cookie der Suite), NICHT `prefers-color-scheme`.
+ * Öffentliche Ansicht: kein antd, keine `--ant-*` (Falle 2). Die Variablen `--qz-*` und die
+ * Farbklassen `.a`–`.d` stehen EINMAL in `_quiz/zeichen.module.css` (mit dem Beamer geteilt);
+ * die Wurzel trägt `.zeichen` neben `.seite`. Dunkel folgt dort `<html data-theme>`.
  *
- * Suite-Rot steht genau einmal hier: in `--qz-marke` (Fahne und Wortzeichen hell). Nie auf einer
+ * Suite-Rot steht hier nicht: nur in `--qz-marke` (Fahne und Wortzeichen hell). Nie auf einer
  * Antwortfläche, nie für „falsch“ (Falle 3). `Handy.test.tsx` zählt nach.
  */
 .seite {
-  --qz-grund: #f5f6f8;
-  --qz-flaeche: #ffffff;
-  --qz-tinte: #16181a;
-  --qz-tinte-auf: #ffffff;
-  --qz-gedaempft: #5c6168;
-  --qz-linie: #dde0e5;
-  --qz-linie-stark: #c4c8cf;
-  --qz-spur: #e9ebef;
-  --qz-marke: #c8000f;
-  --qz-wortzeichen: var(--qz-marke);
-
-  /* Antwortfarben. Form trägt mit (▲ ● ■ ◆), Position ist fest. */
-  --qz-a: #1e4fc2;
-  --qz-a-text: #ffffff;
-  --qz-b: #f2b705;
-  --qz-b-text: #16181a;
-  --qz-c: #00707a;
-  --qz-c-text: #ffffff;
-  --qz-d: #7a2e8c;
-  --qz-d-text: #ffffff;
-
-  --qz-schrift: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
-  --qz-ziffern: var(--font-barlow-condensed), var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
-
-  color-scheme: light;
   position: relative;
   min-height: 100dvh;
   background: var(--qz-grund);
@@ -44,29 +19,6 @@
   font-variant-numeric: tabular-nums lining-nums;
   -webkit-font-smoothing: antialiased;
   line-height: normal;
-}
-
-:root[data-theme="dark"] .seite {
-  --qz-grund: #101214;
-  --qz-flaeche: #1b1e22;
-  --qz-tinte: #ece9e2;
-  --qz-tinte-auf: #101214;
-  --qz-gedaempft: #9aa0a6;
-  --qz-linie: #2c3035;
-  --qz-linie-stark: #3a3f45;
-  --qz-spur: #262a30;
-  /* tokens.ts `rotAufDunkel`, 5,32:1 — die Fahne bleibt Suite-Rot. */
-  --qz-wortzeichen: #e45a66;
-
-  --qz-a: #7fa6ff;
-  --qz-a-text: #101214;
-  --qz-b: #f5c542;
-  --qz-b-text: #101214;
-  --qz-c: #4fc6c9;
-  --qz-c-text: #101214;
-  --qz-d: #d09be2;
-  --qz-d-text: #101214;
-  color-scheme: dark;
 }
 
 .seite *,
@@ -186,11 +138,6 @@
   grid-auto-rows: minmax(80px, auto);
   flex: none;
 }
-
-.a { --k: var(--qz-a); --kt: var(--qz-a-text); }
-.b { --k: var(--qz-b); --kt: var(--qz-b-text); }
-.c { --k: var(--qz-c); --kt: var(--qz-c-text); }
-.d { --k: var(--qz-d); --kt: var(--qz-d-text); }
 
 .kachel {
   all: unset;
