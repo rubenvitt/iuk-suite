@@ -35,6 +35,10 @@
   --qz-c-text: #ffffff;
   --qz-d: #7a2e8c;
   --qz-d-text: #ffffff;
+  --qz-e: #8a5a19;
+  --qz-e-text: #ffffff;
+  --qz-f: #4b5563;
+  --qz-f-text: #ffffff;
 
   --qz-schrift: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
   --qz-ziffern: var(--font-barlow-condensed), var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
@@ -62,11 +66,18 @@
   --qz-c-text: #101214;
   --qz-d: #d09be2;
   --qz-d-text: #101214;
+  --qz-e: #d9a66b;
+  --qz-e-text: #101214;
+  --qz-f: #aab4c3;
+  --qz-f-text: #101214;
   color-scheme: dark;
 }
 
-/* Farbe je Position: `--k` Fläche, `--kt` Schrift darauf. Optionen 5 und 6 wiederholen 1 und 2. */
+/* Farbe je Position: `--k` Fläche, `--kt` Schrift darauf. Sechs Paare, eines je Option (eine Frage
+   hat höchstens sechs): ▲ Kobalt · ● Bernstein · ■ Petrol · ◆ Pflaume · ★ Braun · ✚ Schiefer. */
 .a { --k: var(--qz-a); --kt: var(--qz-a-text); }
 .b { --k: var(--qz-b); --kt: var(--qz-b-text); }
 .c { --k: var(--qz-c); --kt: var(--qz-c-text); }
 .d { --k: var(--qz-d); --kt: var(--qz-d-text); }
+.e { --k: var(--qz-e); --kt: var(--qz-e-text); }
+.f { --k: var(--qz-f); --kt: var(--qz-f-text); }

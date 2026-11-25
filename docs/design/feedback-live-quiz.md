@@ -17,7 +17,7 @@ das Quiz liest nur diese Variablen, es kommt kein Request dazu.
 
 - **Verwandtschaft zum Abendzettel:** 3px-Fahne oben und Wortzeichen „IDA“ sind die einzigen roten
   Stellen. Primäraktion ist Tinte (Falle 3).
-- **Antwortfarben tragen nie allein:** jede Option hat Form (▲ ● ■ ◆) und feste Position, auf Beamer und
+- **Antwortfarben tragen nie allein:** jede Option hat Form (▲ ● ■ ◆ ★ ✚) und feste Position, auf Beamer und
   Handy gleich. Wer oben links ▲ sieht, tippt oben links ▲. Kein Rot (Marke) und kein Grün (läse sich
   als „richtig“).
 - **Formschild:** eine Plakette in der Schriftfarbe der Kachel, die Form darin in Kachelfarbe. So hat die
@@ -51,10 +51,27 @@ nicht an `:root` — ein CSS-Modul kann `:root` nicht scopen. Dunkel über `:roo
 | `--qz-b` / `--qz-b-text` | `#f2b705` / `#16181a` | `#f5c542` / `#101214` | ● Bernstein |
 | `--qz-c` / `--qz-c-text` | `#00707a` / `#ffffff` | `#4fc6c9` / `#101214` | ■ Petrol |
 | `--qz-d` / `--qz-d-text` | `#7a2e8c` / `#ffffff` | `#d09be2` / `#101214` | ◆ Pflaume |
+| `--qz-e` / `--qz-e-text` | `#8a5a19` / `#ffffff` | `#d9a66b` / `#101214` | ★ Braun |
+| `--qz-f` / `--qz-f-text` | `#4b5563` / `#ffffff` | `#aab4c3` / `#101214` | ✚ Schiefer |
 
 Kontraste (gemessen, Notizen): Kacheltext hell 5,84–9,79 : 1, dunkel 7,87–11,57 : 1; Tinte auf Grund
-16,46 bzw. 15,48 : 1. Optionen 5 und 6 (eine Frage darf sechs haben) wiederholen Farbe und Form von 1 und
-2; ihre Position unterscheidet sie.
+16,46 bzw. 15,48 : 1.
+
+**Optionen 5 und 6** (eine Frage darf sechs haben; Nachtrag Review Task 7, 25.11.2026): bis dahin
+wiederholten sie Form und Farbe von 1 und 2 — „Antwort 5“ sah dann aus wie „Antwort 1“, und das Paar aus
+Form und Farbe ist genau das, wonach getippt wird. Jetzt hat jede Option ihr eigenes Paar: ★ Braun und
+✚ Schiefer. Kein Rot (Marke), kein Grün („richtig“); Braun ist dunkler und matter als Bernstein, Schiefer
+grau-blau und viel heller bzw. dunkler als Kobalt. Gemessen (WCAG-Formel):
+
+| Paar | Hell: Text auf Kachel | Dunkel: Text auf Kachel | Kachel gegen Grund hell / dunkel |
+|---|---|---|---|
+| ★ Braun `#8a5a19` / `#d9a66b` | 5,90 : 1 (Weiß) | 8,60 : 1 (`#101214`) | 5,46 / 8,60 : 1 |
+| ✚ Schiefer `#4b5563` / `#aab4c3` | 7,56 : 1 (Weiß) | 8,96 : 1 (`#101214`) | 6,99 / 8,96 : 1 |
+
+Kacheltext damit über alle sechs Paare hell 5,84–9,79 : 1, dunkel 7,87–11,57 : 1 (AA). Stern und Kreuz
+sind auch klein von ▲ ● ■ ◆ verschieden (Spitzen bzw. rechte Winkel nach außen). Quelle beider Ansichten:
+`_quiz/zeichen.module.css` und `_quiz/QuizForm.tsx`; `_quiz/QuizForm.test.tsx` verlangt sechs
+verschiedene Formen und Farbklassen.
 
 ## Handy
 
