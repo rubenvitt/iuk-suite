@@ -280,6 +280,18 @@ describe("decideRoute — Einstiegshost (IDA-340)", () => {
       expect(antwortKoepfeFuer(p), p).toBeNull();
     }
   });
+  it("Live-Quiz-Ströme: `no-store, no-transform`, damit kein Zwischenhändler das SSE puffert", () => {
+    for (const p of ["/m/feedback/q/ABC234/strom", "/m/feedback/beamer/geheim/strom"]) {
+      expect(antwortKoepfeFuer(p), p).toEqual({
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer",
+        "cache-control": "no-store, no-transform",
+      });
+    }
+    for (const p of ["/m/feedback/q/ABC234", "/m/feedback/q/ABC234/antwort", "/m/feedback/beamer/geheim/schritt", "/m/feedback/q/strom"]) {
+      expect(antwortKoepfeFuer(p)?.["cache-control"], p).toBe("no-store");
+    }
+  });
 });
 
 // LLH-1194: Lifeline Hub holt Personal mit eigenem Schlüssel ab; die Route prüft ihn selbst. Genau ein Pfad.

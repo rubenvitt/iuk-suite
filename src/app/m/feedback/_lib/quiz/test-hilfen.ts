@@ -1,5 +1,6 @@
-// Gemeinsame Vorrichtung der Route-Tests des Live-Quiz: frische In-Memory-Datenbank, ein Quiz,
-// Anfragen bauen, SSE lesen. Nur für Tests (kein Produktivcode importiert diese Datei).
+// NUR FÜR TESTS: gemeinsame Vorrichtung der Route-Tests des Live-Quiz (frische In-Memory-Datenbank,
+// ein Quiz, Anfragen bauen, SSE lesen). Kein Produktionsmodul importiert diese Datei;
+// `test-hilfen.wache.test.ts` riegelt das ab.
 import { registerAuditFunctions } from "@/core/audit/context";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";

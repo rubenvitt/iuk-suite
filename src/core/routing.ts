@@ -1,4 +1,12 @@
-import { moduleForHost, getModule, findModule, canAccess, einstiegFuerHost, VERTRAULICHE_ANSICHTEN } from "@/core/registry";
+import {
+  moduleForHost,
+  getModule,
+  findModule,
+  canAccess,
+  einstiegFuerHost,
+  VERTRAULICHE_ANSICHTEN,
+  VERTRAULICHE_STROEME,
+} from "@/core/registry";
 
 export type RouteDecision =
   | { action: "next" }
@@ -141,6 +149,12 @@ export const VERTRAULICHE_KOEPFE: Readonly<Record<string, string>> = {
   "referrer-policy": "no-referrer",
   "cache-control": "no-store",
 };
+/** Für einen Strom (`VERTRAULICHE_STROEME`): `no-transform` bleibt, sonst puffert ein Zwischenhändler. */
+export const VERTRAULICHE_STROM_KOEPFE: Readonly<Record<string, string>> = {
+  ...VERTRAULICHE_KOEPFE,
+  "cache-control": "no-store, no-transform",
+};
 export function antwortKoepfeFuer(internerPfad: string): Readonly<Record<string, string>> | null {
-  return VERTRAULICH.some((m) => m.test(internerPfad)) ? VERTRAULICHE_KOEPFE : null;
+  if (!VERTRAULICH.some((m) => m.test(internerPfad))) return null;
+  return VERTRAULICHE_STROEME.some((m) => m.test(internerPfad)) ? VERTRAULICHE_STROM_KOEPFE : VERTRAULICHE_KOEPFE;
 }

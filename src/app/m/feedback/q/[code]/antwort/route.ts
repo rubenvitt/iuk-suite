@@ -1,6 +1,7 @@
 // EINE ANTWORT (Handy). Maßgeblich ist die Serverzeit: nach Ablauf von `zeit_s` oder nach der
 // Auflösung ist die Frage zu (409 `geschlossen`, Review Focus 4).
 import { withAuditContext } from "@/core/audit/server";
+import { clientIpAus } from "@/core/ratelimit";
 import { getDb } from "@/app/m/feedback/_db/client";
 import {
   antworte,
@@ -8,7 +9,7 @@ import {
   teilnahmePerToken,
 } from "@/app/m/feedback/_db/quiz";
 import { tokenHash } from "@/app/m/feedback/_lib/quiz/codes";
-import { antwortGrenze } from "@/app/m/feedback/_lib/quiz/grenzen";
+import { antwortGrenze, beitrittGrenze } from "@/app/m/feedback/_lib/quiz/grenzen";
 import {
   CODE_MAX,
   cookieWert,
@@ -67,7 +68,12 @@ export async function POST(
     holeAutoEndeNach(db, jetzt);
     const runde =
       code.length <= CODE_MAX ? offeneRundePerCode(db, code, jetzt) : undefined;
-    if (!runde) return fehler(404, "unbekannt");
+    if (!runde) {
+      // Wie beim Beitritt: ein Fehlgriff zählt gegen die Adresse (kein Code-Orakel).
+      return beitrittGrenze.check(clientIpAus(req.headers))
+        ? fehler(404, "unbekannt")
+        : fehler(429, "zu_viele");
+    }
     const token = cookieWert(req, quizCookie(runde.id));
     if (!token) return fehler(401, "keine_teilnahme");
     if (!antwortGrenze.check(tokenHash(token))) return fehler(429, "zu_viele");

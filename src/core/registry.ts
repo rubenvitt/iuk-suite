@@ -426,6 +426,14 @@ export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[
 ];
 
 /**
+ * STRÖME UNTER DEN VERTRAULICHEN ANSICHTEN (Server-Sent Events): ihr `cache-control` ist
+ * `no-store, no-transform`. Der Proxy überschreibt den Kopf des Route Handlers; ohne
+ * `no-transform` dürfte ein Zwischenhändler den Strom puffern oder komprimieren, und Ereignisse
+ * kämen gebündelt oder gar nicht an. Nur Pfade, die auch in `VERTRAULICHE_ANSICHTEN` stehen.
+ */
+export const VERTRAULICHE_STROEME: readonly RegExp[] = [/^\/m\/feedback\/(q|beamer)\/[^/]+\/strom\/?$/];
+
+/**
  * DIE FACHLICHEN BEREICHE DER APPS (IDA-338): nach ihnen ordnet „Alle Apps & Dienste“ die Apps,
  * sobald jemand so viele Einträge sieht, dass die flache Liste nicht mehr trägt
  * (`VIELE_EINTRAEGE_AB` in `core/shell/launcherAuswahl.ts`). Die Reihenfolge der Bereiche ist die

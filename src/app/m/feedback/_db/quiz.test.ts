@@ -23,7 +23,7 @@ import {
   heutigeRunde,
   teilnahmePerToken,
   rundenStand,
-  rundenDesAbends,
+  rundenDerAbende,
 } from "./quiz";
 import { tokenHash } from "@/app/m/feedback/_lib/quiz/codes";
 import { beamerSicht } from "@/app/m/feedback/_lib/quiz/sichten";
@@ -440,6 +440,21 @@ describe("heutigeRunde, teilnahmePerToken, rundenStand", () => {
     expect(heutigeRunde(db, q.id, plus(JETZT, MIN))?.id).toBe(neu.id);
   });
 
+  it("grenzt den Tag in der Suite-Zone ab: ein importierter Abend mit Zeitanteil zählt, der morgige nicht", () => {
+    const q = mkQuiz();
+    // 00:30 Berlin am 25. steht als 23:30 UTC am 24. in der Datenbank (`_lib/lifecycle.ts`).
+    const importiert = insertEvening(db, {
+      groupId: q.groupId, date: new Date("2026-11-24T23:30:00Z"), topic: null, notes: null,
+      participantCount: null, createdAt: new Date(0), status: "held",
+    });
+    const r = starteOderHoleRunde(db, q, JETZT);
+    expect(r.eveningId).toBe(importiert.id);
+    expect(heutigeRunde(db, q.id, JETZT)?.id).toBe(r.id);
+    // Am 26. (Berlin) ist die Runde von gestern nicht „heute".
+    expect(heutigeRunde(db, q.id, new Date("2026-11-25T23:30:00Z"))).toBeUndefined();
+    expect(heutigeRunde(db, q.id, new Date("2026-11-25T22:59:00Z"))?.id).toBe(r.id);
+  });
+
   it("findet die Teilnahme nur mit dem Token dieser Runde", () => {
     const q = mkQuiz();
     const r = starteOderHoleRunde(db, q, JETZT);
@@ -463,14 +478,31 @@ describe("heutigeRunde, teilnahmePerToken, rundenStand", () => {
   });
 });
 
-describe("rundenDesAbends", () => {
+describe("rundenDerAbende", () => {
   it("liefert die Runden genau dieses Abends, älteste zuerst", () => {
     const q1 = mkQuiz();
     const q2 = legeQuizAn(db, { groupId: q1.groupId, titel: "Zwei", modus: "lagebild", fragen: [frage()], jetzt: JETZT });
     const a = starteOderHoleRunde(db, q1, JETZT);
     beendeRunde(db, a.id, plus(JETZT, MIN));
     const b = starteOderHoleRunde(db, q2, plus(JETZT, 2 * MIN));
-    expect(rundenDesAbends(db, a.eveningId).map((r) => r.id)).toEqual([a.id, b.id]);
-    expect(rundenDesAbends(db, a.eveningId + 99)).toEqual([]);
+    const jeAbend = rundenDerAbende(db, [a.eveningId, a.eveningId + 99]);
+    expect(jeAbend.get(a.eveningId)?.map((r) => r.id)).toEqual([a.id, b.id]);
+    expect(jeAbend.get(a.eveningId + 99)).toBeUndefined();
+    expect(rundenDerAbende(db, []).size).toBe(0);
+  });
+
+  it("liest mehrere Abende in einer Abfrage und ordnet je Abend zu", () => {
+    const q = mkQuiz();
+    const gestern = new Date("2026-11-24T18:00:00Z");
+    const alt = starteOderHoleRunde(db, q, gestern);
+    beendeRunde(db, alt.id, gestern);
+    const heute = starteOderHoleRunde(db, q, JETZT);
+    expect(alt.eveningId).not.toBe(heute.eveningId);
+    const abfragen: string[] = [];
+    const leser = drizzle(sqlite, { schema, logger: { logQuery: (q) => abfragen.push(q) } });
+    const jeAbend = rundenDerAbende(leser, [alt.eveningId, heute.eveningId]);
+    expect(abfragen).toHaveLength(1);
+    expect(jeAbend.get(alt.eveningId)?.map((r) => r.id)).toEqual([alt.id]);
+    expect(jeAbend.get(heute.eveningId)?.map((r) => r.id)).toEqual([heute.id]);
   });
 });

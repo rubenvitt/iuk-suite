@@ -9,7 +9,7 @@
 // Der Speicher hängt wie der Verteiler an globalThis: Route Handler können in getrennten Bündeln
 // laufen, und das Verwerfen nach einem Schreiben in `antwort` muss den Speicher von `strom` treffen.
 import { auditSystem } from "@/core/audit/server";
-import { beendeAbgelaufene, rundenStand } from "@/app/m/feedback/_db/quiz";
+import { beendeAbgelaufeneRunden, rundenStand } from "@/app/m/feedback/_db/quiz";
 import { melde } from "./verteiler";
 
 /** Kürzer als die Bündelung (200 ms): zwischen zwei Auslösungen liest der Strom immer neu. */
@@ -23,7 +23,10 @@ type Db = Parameters<typeof rundenStand>[0];
 export type Stand = NonNullable<ReturnType<typeof rundenStand>>;
 type Speicher = Map<number, { bis: number; stand: Stand | null }>;
 
-const g = globalThis as typeof globalThis & { __iukQuizStand?: Speicher };
+const g = globalThis as typeof globalThis & {
+  __iukQuizStand?: Speicher;
+  __iukQuizZeitende?: Map<number, ReturnType<typeof setTimeout>>;
+};
 
 function speicher(): Speicher {
   return (g.__iukQuizStand ??= new Map());
@@ -68,23 +71,31 @@ export function meldeRunde(runde: { id: number; quizId: number | null }): void {
  * Uhr beschlossen, nicht die Person, die zufällig gerade lädt.
  */
 export function holeAutoEndeNach(db: Db, jetzt: Date): number[] {
-  const ids = auditSystem(() => beendeAbgelaufene(db, jetzt));
-  for (const id of ids) {
-    speicher().delete(id);
-    meldeRunde({ id, quizId: leseStand(db, id)?.daten.runde.quizId ?? null });
-  }
-  return ids;
+  // Die Quiz-Kennung kommt aus derselben Abfrage, kein zweites Lesen je Runde.
+  const runden = auditSystem(() => beendeAbgelaufeneRunden(db, jetzt));
+  for (const runde of runden) meldeRunde(runde);
+  return runden.map((r) => r.id);
 }
 
 /**
  * „ZEIT UM" OHNE SCHREIBEN: nach Ablauf von `zeit_s` ändert sich die Sicht, aber nichts in der
  * Datenbank, also meldet auch niemand. Dieser Wecker meldet die Runde einmal kurz danach.
+ *
+ * EIN WECKER JE RUNDE: ein neuer ersetzt den alten (der Beamer blättert, zwei Tabs senden
+ * denselben Schritt). Die Liste hängt an globalThis wie der Stand, damit `schritt` aus jedem
+ * Bündel denselben Wecker trifft.
  */
 export function planeZeitende(
   runde: { id: number; quizId: number | null },
   endetUm: number,
 ): void {
+  const wecker = (g.__iukQuizZeitende ??= new Map());
+  clearTimeout(wecker.get(runde.id));
   const warte = Math.max(0, endetUm - Date.now()) + ZEITENDE_NACHLAUF_MS;
-  const t = setTimeout(() => meldeRunde(runde), warte);
+  const t = setTimeout(() => {
+    if (wecker.get(runde.id) === t) wecker.delete(runde.id);
+    meldeRunde(runde);
+  }, warte);
   t.unref?.();
+  wecker.set(runde.id, t);
 }

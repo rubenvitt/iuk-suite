@@ -1,7 +1,7 @@
 // LIVE-QUIZ: alle Abfragen und Schreibwege. Reine Datenbankschicht — kein Push, keine Sitzung.
 // `jetzt` kommt immer als Parameter (Serverzeit des Aufrufers); `schritt_seit` und `beendet_at`
 // sind Millisekunden.
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import {
@@ -15,6 +15,7 @@ import {
 } from "./schema";
 import { abendAmTag, TagBelegt } from "./queries";
 import { kalendertagInZone } from "@/app/m/feedback/_lib/lifecycle";
+import { tagesGrenzenInZone } from "@/core/zeit";
 import { neuerBeitrittCode, neuesSecret, tokenHash } from "@/app/m/feedback/_lib/quiz/codes";
 import { pruefeFragen, type QuizFrage, type QuizModus } from "@/app/m/feedback/_lib/quiz/fragen";
 import { phaseMitSperre, schrittAnzahl } from "@/app/m/feedback/_lib/quiz/ablauf";
@@ -151,19 +152,28 @@ function beende(db: DB, ids: number[], jetzt: Date): void {
  * eine Runde an einem künftigen Abend gibt es nicht, und an einem vergangenen endet sie hier.
  */
 export function beendeAbgelaufene(db: DB, jetzt: Date): number[] {
+  return beendeAbgelaufeneRunden(db, jetzt).map((r) => r.id);
+}
+
+/** Wie `beendeAbgelaufene`, mit der Quiz-Kennung je Runde (zum Melden, `holeAutoEndeNach`). */
+export function beendeAbgelaufeneRunden(db: DB, jetzt: Date): { id: number; quizId: number | null }[] {
   return db.transaction((tx) => {
     const heute = tagDesAbends(heutigesAbenddatum(jetzt));
-    const ids = tx
-      .select({ id: quizRunden.id, schrittSeit: quizRunden.schrittSeit, datum: evenings.date })
+    const runden = tx
+      .select({ id: quizRunden.id, quizId: quizRunden.quizId, schrittSeit: quizRunden.schrittSeit, datum: evenings.date })
       .from(quizRunden)
       .innerJoin(evenings, eq(evenings.id, quizRunden.eveningId))
       .where(isNull(quizRunden.beendetAt))
       .all()
       .filter((r) => tagDesAbends(r.datum) < heute || jetzt.getTime() - r.schrittSeit >= AUTO_ENDE_MS)
-      .map((r) => r.id)
-      .sort((a, b) => a - b);
-    beende(tx, ids, jetzt);
-    return ids;
+      .map((r) => ({ id: r.id, quizId: r.quizId }))
+      .sort((a, b) => a.id - b.id);
+    beende(
+      tx,
+      runden.map((r) => r.id),
+      jetzt,
+    );
+    return runden;
   });
 }
 
@@ -300,15 +310,17 @@ export function setzeSchritt(db: DB, rundeId: number, schritt: number, jetzt: Da
  * (`starteOderHoleRunde`). Reiner Lesezugriff: das Auto-Ende holt der Aufrufer nach.
  */
 export function heutigeRunde(db: DB, quizId: number, jetzt: Date): QuizRundeRow | undefined {
-  const heute = tagDesAbends(heutigesAbenddatum(jetzt));
+  // Der Tag als Spanne in SQL, nicht die ganze Historie in JS: `tagDesAbends(datum) === heute`
+  // heißt genau, dass `datum` in den Grenzen von `heute` in der Suite-Zone liegt.
+  const { von, bis } = tagesGrenzenInZone(tagDesAbends(heutigesAbenddatum(jetzt)));
   return db
-    .select({ runde: quizRunden, datum: evenings.date })
+    .select({ runde: quizRunden })
     .from(quizRunden)
     .innerJoin(evenings, eq(evenings.id, quizRunden.eveningId))
-    .where(eq(quizRunden.quizId, quizId))
+    .where(and(eq(quizRunden.quizId, quizId), gte(evenings.date, new Date(von)), lt(evenings.date, new Date(bis + 1))))
     .orderBy(desc(quizRunden.id))
-    .all()
-    .find((r) => tagDesAbends(r.datum) === heute)?.runde;
+    .limit(1)
+    .get()?.runde;
 }
 
 /** Endgültig: `beendet_at`, alle `token_hash` NULL, der Beitrittscode gilt nicht mehr. */
@@ -372,7 +384,7 @@ export function tritteBei(
       .where(and(eq(quizTeilnahmen.rundeId, aktuell.id), eq(quizTeilnahmen.tokenHash, hash)))
       .get();
     if (vorhanden) return { teilnahmeId: vorhanden.id };
-    const anzahl = tx.select({ id: quizTeilnahmen.id }).from(quizTeilnahmen).where(eq(quizTeilnahmen.rundeId, aktuell.id)).all().length;
+    const anzahl = tx.select({ n: count() }).from(quizTeilnahmen).where(eq(quizTeilnahmen.rundeId, aktuell.id)).get()?.n ?? 0;
     if (anzahl >= MAX_TEILNAHMEN_JE_RUNDE) return { fehler: "voll" as const };
 
     let spitzname: string | null = null;
@@ -468,14 +480,18 @@ export function rundenDaten(db: DB, rundeId: number): RundenDaten {
   return db.transaction((tx) => leseRundenDaten(tx, rundeId));
 }
 
-/** Alle Runden eines Abends, älteste zuerst (Auswertung, Cockpit-Verweis). */
-export function rundenDesAbends(db: DB, eveningId: number): QuizRundeRow[] {
-  return db
+/** Die Runden mehrerer Abende in EINER Abfrage, je Abend älteste zuerst (Cockpit-Verlauf). */
+export function rundenDerAbende(db: DB, eveningIds: readonly number[]): Map<number, QuizRundeRow[]> {
+  const jeAbend = new Map<number, QuizRundeRow[]>();
+  if (eveningIds.length === 0) return jeAbend;
+  const runden = db
     .select()
     .from(quizRunden)
-    .where(eq(quizRunden.eveningId, eveningId))
+    .where(inArray(quizRunden.eveningId, [...new Set(eveningIds)]))
     .orderBy(asc(quizRunden.createdAt), asc(quizRunden.id))
     .all();
+  for (const r of runden) jeAbend.set(r.eveningId, [...(jeAbend.get(r.eveningId) ?? []), r]);
+  return jeAbend;
 }
 
 /** Ohne Vorlage (gelöscht) zeigt die Runde diesen Titel; ihr Schnappschuss lebt weiter. */

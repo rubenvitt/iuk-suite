@@ -16,6 +16,8 @@ import {
   type TestDb,
 } from "@/app/m/feedback/_lib/quiz/test-hilfen";
 import { meldeRunde } from "@/app/m/feedback/_lib/quiz/stand";
+import { BEITRITT_JE_MINUTE } from "@/app/m/feedback/_lib/quiz/grenzen";
+import { anzahlAbonnenten } from "@/app/m/feedback/_lib/quiz/verteiler";
 import type Database from "better-sqlite3";
 import type { HandySicht } from "@/app/m/feedback/_lib/quiz/sichten";
 
@@ -32,11 +34,16 @@ afterEach(() => {
   sqlite.close();
 });
 
-async function strom(code: string, cookie?: string) {
+let ip = 0;
+async function strom(code: string, cookie?: string, extra: { ip?: string; suche?: string } = {}) {
   const { GET } = await import("./route");
   const ac = new AbortController();
   const res = await GET(
-    get(`/q/${code}/strom`, cookie ? { cookie } : {}, ac.signal),
+    get(
+      `/q/${code}/strom${extra.suche ?? ""}`,
+      { "cf-connecting-ip": extra.ip ?? `10.1.0.${++ip & 255}`, ...(cookie ? { cookie } : {}) },
+      ac.signal,
+    ),
     params({ code }),
   );
   return { res, ac };
@@ -96,5 +103,22 @@ describe("GET q/[code]/strom", () => {
       "event: ende\ndata: {}\n\n",
     );
     expect(await naechstesEreignis(leser)).toBeNull();
+  });
+
+  it("Code-Orakel: ein unbekannter Code zählt gegen die Beitrittsgrenze der Adresse (429)", async () => {
+    for (let i = 0; i < BEITRITT_JE_MINUTE; i++)
+      expect((await strom("ZZZZZZ", undefined, { ip: "10.2.0.1" })).res.status).toBe(404);
+    expect((await strom("ZZZZZZ", undefined, { ip: "10.2.0.1" })).res.status).toBe(429);
+    expect((await strom("ZZZZZZ", undefined, { ip: "10.2.0.2" })).res.status).toBe(404);
+  });
+
+  it("`?pruefen=1` antwortet ohne Abo: 204 für eine offene Runde, 404 sonst", async () => {
+    const r = starteOderHoleRunde(db, mkQuiz(db), JETZT);
+    const offen = await strom(r.beitrittCode, undefined, { suche: "?pruefen=1" });
+    expect(offen.res.status).toBe(204);
+    expect(offen.res.body).toBeNull();
+    expect(anzahlAbonnenten(r.id)).toBe(0);
+    beendeRunde(db, r.id, JETZT);
+    expect((await strom(r.beitrittCode, undefined, { suche: "?pruefen=1" })).res.status).toBe(404);
   });
 });

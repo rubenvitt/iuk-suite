@@ -1,6 +1,11 @@
 // SSE-STROM DES HANDYS. Erst der volle Stand, dann bei jeder Meldung (§5.4). Die Teilnahme kommt
 // aus dem Cookie beim Verbinden: wer erst danach beitritt, verbindet neu. Das Handy sieht die
 // Lösung erst ab der Auflösung (`handySicht`). Schreibt nichts außer dem nachgeholten Auto-Ende.
+//
+// `?pruefen=1` abonniert nichts: 204, solange die Runde offen ist, sonst 404. So fragt das Handy
+// nach einem geschlossenen Strom, ob es die Runde noch gibt, ohne einen Platz im Verteiler zu
+// belegen (`Handy.tsx`).
+import { clientIpAus } from "@/core/ratelimit";
 import { getDb } from "@/app/m/feedback/_db/client";
 import {
   offeneRundePerCode,
@@ -12,6 +17,7 @@ import {
   fehler,
   quizCookie,
 } from "@/app/m/feedback/_lib/quiz/http";
+import { beitrittGrenze } from "@/app/m/feedback/_lib/quiz/grenzen";
 import { handySicht } from "@/app/m/feedback/_lib/quiz/sichten";
 import { sseAntwort } from "@/app/m/feedback/_lib/quiz/sse";
 import { holeAutoEndeNach, leseStand } from "@/app/m/feedback/_lib/quiz/stand";
@@ -26,7 +32,15 @@ export async function GET(
   holeAutoEndeNach(db, jetzt);
   const runde =
     code.length <= CODE_MAX ? offeneRundePerCode(db, code, jetzt) : undefined;
-  if (!runde) return fehler(404, "unbekannt");
+  if (!runde) {
+    // Wie beim Beitritt: ein Fehlgriff zählt gegen die Adresse, sonst wäre der Strom ein Orakel
+    // zum Durchprobieren von Codes.
+    return beitrittGrenze.check(clientIpAus(req.headers))
+      ? fehler(404, "unbekannt")
+      : fehler(429, "zu_viele");
+  }
+  if (new URL(req.url).searchParams.has("pruefen"))
+    return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   const token = cookieWert(req, quizCookie(runde.id));
   const teilnahmeId = token ? teilnahmePerToken(db, runde.id, token) : null;
 

@@ -13,6 +13,7 @@ import {
   post,
   type TestDb,
 } from "@/app/m/feedback/_lib/quiz/test-hilfen";
+import { BEITRITT_JE_MINUTE } from "@/app/m/feedback/_lib/quiz/grenzen";
 import type Database from "better-sqlite3";
 
 let sqlite: Database.Database;
@@ -37,10 +38,13 @@ function laufendeFrage() {
   return { r, cookie: `iuk-quiz-${r.id}=${token}` };
 }
 
-async function antwort(code: string, body: unknown, cookie?: string) {
+async function antwort(code: string, body: unknown, cookie?: string, ip?: string) {
   const { POST } = await import("./route");
   return POST(
-    post(`/q/${code}/antwort`, body, cookie ? { cookie } : {}),
+    post(`/q/${code}/antwort`, body, {
+      ...(cookie ? { cookie } : {}),
+      ...(ip ? { "cf-connecting-ip": ip } : {}),
+    }),
     params({ code }),
   );
 }
@@ -149,5 +153,13 @@ describe("POST q/[code]/antwort", () => {
       (await antwort(r.beitrittCode, { frageIndex: 1, gewaehlt: [0] }, cookie))
         .status,
     ).toBe(429);
+  });
+
+  it("Code-Orakel: ein unbekannter Code zählt gegen die Beitrittsgrenze der Adresse (429)", async () => {
+    const body = { frageIndex: 0, gewaehlt: [1] };
+    for (let i = 0; i < BEITRITT_JE_MINUTE; i++)
+      expect((await antwort("ZZZZZZ", body, undefined, "10.3.0.1")).status).toBe(404);
+    expect((await antwort("ZZZZZZ", body, undefined, "10.3.0.1")).status).toBe(429);
+    expect((await antwort("ZZZZZZ", body, undefined, "10.3.0.2")).status).toBe(404);
   });
 });

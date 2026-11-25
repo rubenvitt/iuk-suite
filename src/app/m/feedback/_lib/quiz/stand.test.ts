@@ -152,6 +152,18 @@ describe("holeAutoEndeNach", () => {
     expect(JSON.parse(actor)).toEqual({ kind: "system" });
     b();
   });
+
+  it("liest die beendeten Runden nicht ein zweites Mal (die Quiz-Kennung kommt mit)", () => {
+    const { q, r } = mkRunde();
+    const kanal = vi.fn();
+    const b = abonniere(quizKanal(q.id), kanal)!;
+    spion.mockClear();
+    expect(holeAutoEndeNach(db, new Date(JETZT.getTime() + 7 * 3_600_000))).toEqual([r.id]);
+    expect(spion).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(250);
+    expect(kanal).toHaveBeenCalledTimes(1);
+    b();
+  });
 });
 
 describe("planeZeitende", () => {
@@ -163,6 +175,21 @@ describe("planeZeitende", () => {
     vi.advanceTimersByTime(9_900);
     expect(h).not.toHaveBeenCalled();
     vi.advanceTimersByTime(400);
+    expect(h).toHaveBeenCalledTimes(1);
+    a();
+  });
+
+  it("ein Wecker je Runde: ein neuer ersetzt den alten, statt sich zu stapeln", () => {
+    const { r } = mkRunde();
+    const h = vi.fn();
+    const a = abonniere(r.id, h)!;
+    planeZeitende(r, JETZT.getTime() + 10_000);
+    planeZeitende(r, JETZT.getTime() + 12_000);
+    vi.advanceTimersByTime(11_000);
+    expect(h).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(2_000);
+    expect(h).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(60_000);
     expect(h).toHaveBeenCalledTimes(1);
     a();
   });
