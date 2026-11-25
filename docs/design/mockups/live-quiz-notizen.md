@@ -1,0 +1,16 @@
+# Live-Quiz: Notizen zum Mockup (`live-quiz.html`)
+
+Richtung **„Schilderwald“**: Beamer und Handy lesen sich wie Beschilderung, nicht wie eine Spielshow. Barlow ist aus der Autobahnbeschilderung abgeleitet, also für das Lesen aus der Entfernung gemacht. Die Suite registriert Barlow und Barlow Condensed schon in `app/layout.tsx`; im Bau kommt also kein Request dazu. Das Mockup holt die Schriften nur bei Google, weil es außerhalb von Next läuft. Die Verwandtschaft zum Abendzettel tragen die 3px-Fahne und das Wortzeichen „IDA“ (die einzigen Rot-Stellen), die Tinte als Primäraktion und der Hell/Dunkel-Wechsel über `data-theme`.
+
+- **Antwortfarben** (Form ▲ ● ■ ◆ und feste Position tragen mit): hell Kobalt `#1e4fc2`, Bernstein `#f2b705`, Petrol `#00707a`, Pflaume `#7a2e8c`; dunkel `#7fa6ff`, `#f5c542`, `#4fc6c9`, `#d09be2`. Kein Rot und kein Grün: Rot ist Marke, und Grün läse sich als „richtig“.
+- **Text auf den Kacheln** (gemessen, WCAG-Formel): hell 7,11 / 9,79 (Tinte auf Bernstein) / 5,84 / 8,09 : 1; dunkel (Text `#101214`) 7,87 / 11,57 / 9,17 / 8,46 : 1. Alle über AA 4,5, die Hälfte über AAA 7.
+- **Formschild** in der Schriftfarbe der Kachel, die Form in Kachelfarbe. Damit hat die Form denselben Kontrast wie der Text. Ein weißes Schild auf Bernstein ergäbe nur 1,82 : 1.
+- **Zeit um**: Die Kacheln werden entsättigt (`saturate(.25)`), nicht ausgeblendet. Der Text bleibt bei 6,89–9,51 : 1 (hell) bzw. 7,59–11,05 : 1 (dunkel). Mit `opacity` war er dunkel kaum lesbar.
+- **Auflösung**: Die richtige Option hat einen satten, dickeren Balken, ✓, fetten Text und einen Tintenring um die Form. Falsche Optionen sind nur getönt, nie rot. Die getönten Balken haben einen Rand mit mindestens 3,12 : 1 gegen die Spur (Bernstein hell, das Minimum), sonst 7,5–9,8 : 1. Der Optionstext steht über dem Balken in Tinte, nie auf der Füllung.
+- **Grundtöne**: Tinte auf Grund 16,46 : 1 (hell `#16181a`/`#f5f6f8`) und 15,48 : 1 (dunkel `#ece9e2`/`#101214`). Gedämpfter Text 5,77 bzw. 7,11 : 1. Das Wortzeichen dunkel nimmt `rotAufDunkel` `#e45a66` (5,32 : 1).
+- **Beamer-Skala** in `cqh` (Prozent der Bildhöhe, damit das Slidev-iframe dieselbe Komposition zeigt): 2,6 · 3,4 · 4,6 · 6,2 · 8,4 · 12 · 22. Bei 1080p ist die kleinste Stufe 28px; der Fragetext hat 67px, auf 3 m Bildbreite rund 10 cm Zeilenhöhe.
+- **Handy-Skala** in px: 13 · 15 · 18 · 20 (Frage) · 28 · 40 · 64. Antwortkacheln sind mindestens 88px hoch, Knöpfe 56px (keine Shell). Das Eingabefeld hat 18px, damit iOS beim Fokus nicht zoomt.
+- **Barlow Condensed 700** nur für Ziffern und den Code: Zahlen sollen groß wirken, ohne Breite zu kosten. Fließtext ist Barlow 500/600, Überschriften Barlow 700. Alles ist linksbündig wie auf einem Schild, nur das Podest ist mittig.
+- **Ein Blickfang je Bild**: In der Lobby die sechs Code-Schilder (abtippbar aus der letzten Reihe), in der Frage das 2×2-Feld, in der Auflösung die Prozentzahl. Bewegung gibt es nur beim Puls „dabei“ und beim Warten. Bei `prefers-reduced-motion` ist sie aus.
+
+**Offen vor dem Bau:** `BeamerSicht` hat heute weder die Platzbewegung der Rangliste (↑2) noch die „schwerste Frage“ im Lagebild-Schluss. Beide sind im Mockup gezeigt und brauchen ein Feld in `sichten.ts`, sonst fallen sie weg.
