@@ -202,16 +202,17 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
   }
 
   // ── Was zu zeigen ist ─────────────────────────────────────────────────────
-  // Jedes Bild hat einen Schlüssel; wechselt er, sagt `Ansage` das neue Bild an.
-  const zeige = (schluessel: string, inhalt: ReactNode, vorspann?: string) => (
+  // Jedes Bild hat einen Schlüssel; wechselt er, sagt `Ansage` kurz an, wo man ist („Frage 3 von 8“,
+  // „Auflösung“, „Ergebnis“). Die Überschrift selbst liest der Screenreader über den Fokus.
+  const zeige = (schluessel: string, inhalt: ReactNode, ansage: string) => (
     <div className={s.wurzel}>
       {inhalt}
-      <Ansage schluessel={schluessel} vorspann={vorspann} />
+      <Ansage schluessel={schluessel} ansage={ansage} />
     </div>
   );
 
   if (beendet || !sicht || sicht.phase.art === "schluss" || sicht.phase.art === "vorStart") {
-    return zeige("ende", <Ende sicht={sicht} />);
+    return zeige("ende", <Ende sicht={sicht} />, "Ergebnis");
   }
   const dabei = sicht.dabei || beigetreten;
   const fragePos = sicht.frage ? `Frage ${sicht.frage.index + 1} von ${sicht.fragenAnzahl}` : sicht.titel;
@@ -267,6 +268,7 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
           </button>
         </form>
       </Rahmen>,
+      "Mitmachen",
     );
   }
 
@@ -293,11 +295,12 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
           <i />
         </div>
       </Rahmen>,
+      zwischen ? "Zwischenstand" : "Lobby",
     );
   }
 
   const frage = sicht.frage;
-  if (!frage) return zeige("ende", <Ende sicht={sicht} />);
+  if (!frage) return zeige("ende", <Ende sicht={sicht} />, "Ergebnis");
   const meinLokal = lokal?.frageIndex === frage.index ? lokal : null;
   const eigene = sicht.eigeneAntwort ?? (meinLokal && "da" in meinLokal ? meinLokal.gewaehlt : undefined);
   const da = sicht.eigeneAntwort !== undefined || (meinLokal !== null && "da" in meinLokal);
@@ -306,7 +309,7 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
     return zeige(
       `aufloesung-${frage.index}`,
       <Ergebnis sicht={sicht} fragePos={fragePos} rechts={eigenerName} eigene={eigene} />,
-      fragePos,
+      "Auflösung",
     );
   }
 
@@ -417,11 +420,12 @@ export function Handy({ anfang }: { anfang: HandySicht | null }) {
 
 /**
  * ANSAGE BEIM BILDWECHSEL (Screenreader): eine dauerhafte, anfangs leere Live-Region neben dem
- * Bild, unsichtbar. Wechselt das Bild (`schluessel`), sagt sie die neue Überschrift an und setzt
- * den Fokus darauf — die angetippte Kachel ist dann ja weg. Beim ersten Bild nicht: da liest der
- * Screenreader die Seite ohnehin.
+ * Bild, unsichtbar. Wechselt das Bild (`schluessel`), sagt sie nur den kurzen Ort an (`ansage`) und
+ * setzt den Fokus auf die neue Überschrift — die angetippte Kachel ist dann ja weg, und die
+ * Überschrift liest der Screenreader beim Fokus. Stünde sie auch in der Region, käme sie doppelt.
+ * Beim ersten Bild nicht: da liest der Screenreader die Seite ohnehin.
  */
-function Ansage({ schluessel, vorspann }: { schluessel: string; vorspann?: string }) {
+function Ansage({ schluessel, ansage }: { schluessel: string; ansage: string }) {
   const region = useRef<HTMLDivElement>(null);
   const vorher = useRef(schluessel);
   useEffect(() => {
@@ -430,10 +434,9 @@ function Ansage({ schluessel, vorspann }: { schluessel: string; vorspann?: strin
     const el = region.current;
     const h1 = el?.parentElement?.querySelector<HTMLElement>("h1");
     if (!el || !h1) return;
-    const text = h1.textContent?.trim() ?? "";
-    el.textContent = vorspann ? `${vorspann}: ${text}` : text;
+    el.textContent = ansage;
     h1.focus();
-  }, [schluessel, vorspann]);
+  }, [schluessel, ansage]);
   return <div ref={region} className={s.ansage} aria-live="polite" />;
 }
 

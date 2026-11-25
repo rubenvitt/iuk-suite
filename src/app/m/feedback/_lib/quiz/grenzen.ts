@@ -14,6 +14,14 @@ export const BEITRITT_JE_MINUTE = 120;
 export const MAX_TEILNAHMEN_JE_RUNDE = 200;
 
 export const beitrittGrenze = new RateLimiter({ windowMs: MINUTE_MS, max: BEITRITT_JE_MINUTE });
+/**
+ * Fehlgriffe auf Strom und Antwort (unbekannter oder beendeter Code, HTTP 404) je Minute und Adresse.
+ * EIGENER Zähler, nicht `beitrittGrenze`: ein Raum, der nach einem verpassten `ende` mit 40 Handys
+ * weiter nachfragt, darf den Beitritt zur nächsten Runde hinter derselben Adresse nie aushungern.
+ * Hoch genug für dieses Nachfragen, niedrig genug gegen Durchprobieren (32^6 Codes).
+ */
+export const PROBE_JE_MINUTE = 600;
+export const probeGrenze = new RateLimiter({ windowMs: MINUTE_MS, max: PROBE_JE_MINUTE });
 /** Antwort: 60 je Minute und Token (geführt als Hash, nie das Token selbst). */
 export const antwortGrenze = new RateLimiter({ windowMs: MINUTE_MS, max: 60 });
 /** Steuerung (Schritt, Beenden): 120 je Minute und Moderations-Secret (als Hash). */

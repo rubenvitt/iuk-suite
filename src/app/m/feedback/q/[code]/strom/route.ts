@@ -17,7 +17,7 @@ import {
   fehler,
   quizCookie,
 } from "@/app/m/feedback/_lib/quiz/http";
-import { beitrittGrenze } from "@/app/m/feedback/_lib/quiz/grenzen";
+import { probeGrenze } from "@/app/m/feedback/_lib/quiz/grenzen";
 import { handySicht } from "@/app/m/feedback/_lib/quiz/sichten";
 import { sseAntwort } from "@/app/m/feedback/_lib/quiz/sse";
 import { holeAutoEndeNach, leseStand } from "@/app/m/feedback/_lib/quiz/stand";
@@ -33,9 +33,9 @@ export async function GET(
   const runde =
     code.length <= CODE_MAX ? offeneRundePerCode(db, code, jetzt) : undefined;
   if (!runde) {
-    // Wie beim Beitritt: ein Fehlgriff zählt gegen die Adresse, sonst wäre der Strom ein Orakel
-    // zum Durchprobieren von Codes.
-    return beitrittGrenze.check(clientIpAus(req.headers))
+    // Ein Fehlgriff zählt gegen die Adresse (`probeGrenze`, eigener Zähler neben dem Beitritt),
+    // sonst wäre der Strom ein Orakel zum Durchprobieren von Codes.
+    return probeGrenze.check(clientIpAus(req.headers))
       ? fehler(404, "unbekannt")
       : fehler(429, "zu_viele");
   }

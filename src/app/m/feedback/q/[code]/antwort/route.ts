@@ -9,7 +9,7 @@ import {
   teilnahmePerToken,
 } from "@/app/m/feedback/_db/quiz";
 import { tokenHash } from "@/app/m/feedback/_lib/quiz/codes";
-import { antwortGrenze, beitrittGrenze } from "@/app/m/feedback/_lib/quiz/grenzen";
+import { antwortGrenze, probeGrenze } from "@/app/m/feedback/_lib/quiz/grenzen";
 import {
   CODE_MAX,
   cookieWert,
@@ -69,8 +69,8 @@ export async function POST(
     const runde =
       code.length <= CODE_MAX ? offeneRundePerCode(db, code, jetzt) : undefined;
     if (!runde) {
-      // Wie beim Beitritt: ein Fehlgriff zählt gegen die Adresse (kein Code-Orakel).
-      return beitrittGrenze.check(clientIpAus(req.headers))
+      // Ein Fehlgriff zählt gegen die Adresse (`probeGrenze`, kein Code-Orakel).
+      return probeGrenze.check(clientIpAus(req.headers))
         ? fehler(404, "unbekannt")
         : fehler(429, "zu_viele");
     }

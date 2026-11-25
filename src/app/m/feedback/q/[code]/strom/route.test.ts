@@ -13,10 +13,11 @@ import {
   mkQuiz,
   naechstesEreignis,
   params,
+  post,
   type TestDb,
 } from "@/app/m/feedback/_lib/quiz/test-hilfen";
 import { meldeRunde } from "@/app/m/feedback/_lib/quiz/stand";
-import { BEITRITT_JE_MINUTE } from "@/app/m/feedback/_lib/quiz/grenzen";
+import { PROBE_JE_MINUTE } from "@/app/m/feedback/_lib/quiz/grenzen";
 import { anzahlAbonnenten } from "@/app/m/feedback/_lib/quiz/verteiler";
 import type Database from "better-sqlite3";
 import type { HandySicht } from "@/app/m/feedback/_lib/quiz/sichten";
@@ -105,11 +106,28 @@ describe("GET q/[code]/strom", () => {
     expect(await naechstesEreignis(leser)).toBeNull();
   });
 
-  it("Code-Orakel: ein unbekannter Code zählt gegen die Beitrittsgrenze der Adresse (429)", async () => {
-    for (let i = 0; i < BEITRITT_JE_MINUTE; i++)
+  it("Code-Orakel: ein unbekannter Code zählt gegen die Probegrenze der Adresse (429)", async () => {
+    expect(PROBE_JE_MINUTE).toBe(600);
+    for (let i = 0; i < PROBE_JE_MINUTE; i++)
       expect((await strom("ZZZZZZ", undefined, { ip: "10.2.0.1" })).res.status).toBe(404);
     expect((await strom("ZZZZZZ", undefined, { ip: "10.2.0.1" })).res.status).toBe(429);
     expect((await strom("ZZZZZZ", undefined, { ip: "10.2.0.2" })).res.status).toBe(404);
+  });
+
+  it("ein Raum fragt nach einem verpassten Ende weiter nach: 100 Fehlgriffe, danach gehen 40 Beitritte durch", async () => {
+    const alt = starteOderHoleRunde(db, mkQuiz(db, "lagebild"), JETZT);
+    beendeRunde(db, alt.id, JETZT);
+    const nat = "10.4.0.1";
+    for (let i = 0; i < 100; i++) {
+      const suche = i % 2 === 0 ? "?pruefen=1" : "";
+      expect((await strom(alt.beitrittCode, undefined, { ip: nat, suche })).res.status).toBe(404);
+    }
+    const neu = starteOderHoleRunde(db, mkQuiz(db, "lagebild"), JETZT);
+    const { POST } = await import("../beitritt/route");
+    for (let i = 0; i < 40; i++) {
+      const res = await POST(post(`/q/${neu.beitrittCode}/beitritt`, {}, { "cf-connecting-ip": nat }), params({ code: neu.beitrittCode }));
+      expect(res.status).toBe(200);
+    }
   });
 
   it("`?pruefen=1` antwortet ohne Abo: 204 für eine offene Runde, 404 sonst", async () => {

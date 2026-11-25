@@ -459,21 +459,24 @@ describe("Handy: Ansage und Fokus", () => {
     expect(renderToStaticMarkup(<Handy anfang={sicht()} />)).toMatch(/<div[^>]*aria-live="polite"[^>]*><\/div>/);
   });
 
-  it("sagt beim Phasenwechsel das neue Bild an und setzt den Fokus auf die neue Überschrift", async () => {
+  it("sagt beim Phasenwechsel nur den kurzen Ort an; die Überschrift kommt über den Fokus, nicht doppelt", async () => {
     await mount(<Handy anfang={sicht({ phase: { art: "lobby" }, frage: undefined })} />);
     const r = region();
     await letzteQuelle().sende(sicht());
     expect(region()).toBe(r); // dieselbe Region, nicht neu eingehängt
-    expect(r!.textContent).toBe("Frage 3 von 8: Was macht die Drohne?");
+    expect(r!.textContent).toBe("Frage 3 von 8");
     expect(document.activeElement?.tagName).toBe("H1");
     expect(document.activeElement?.textContent).toBe("Was macht die Drohne?");
     await letzteQuelle().sende(
       sicht({ phase: { art: "aufloesung", index: 2 }, eigeneAntwort: [3], richtig: [1], eigenesErgebnis: { richtig: false, punkte: 0 } }),
     );
-    expect(r!.textContent).toBe("Frage 3 von 8: Daneben.");
+    expect(r!.textContent).toBe("Auflösung");
     expect(document.activeElement?.textContent).toBe("Daneben.");
     await letzteQuelle().ende();
-    expect(r!.textContent).toBe("Das Quiz ist beendet.");
+    expect(r!.textContent).toBe("Ergebnis");
+    expect(document.activeElement?.tagName).toBe("H1");
+    // Die Region wiederholt die fokussierte Überschrift nie.
+    expect(r!.textContent).not.toContain(document.activeElement!.textContent!);
   });
 
   it("derselbe Stand noch einmal sagt nichts an und nimmt keinen Fokus", async () => {
