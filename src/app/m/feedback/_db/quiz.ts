@@ -468,6 +468,16 @@ export function rundenDaten(db: DB, rundeId: number): RundenDaten {
   return db.transaction((tx) => leseRundenDaten(tx, rundeId));
 }
 
+/** Alle Runden eines Abends, älteste zuerst (Auswertung, Cockpit-Verweis). */
+export function rundenDesAbends(db: DB, eveningId: number): QuizRundeRow[] {
+  return db
+    .select()
+    .from(quizRunden)
+    .where(eq(quizRunden.eveningId, eveningId))
+    .orderBy(asc(quizRunden.createdAt), asc(quizRunden.id))
+    .all();
+}
+
 /** Ohne Vorlage (gelöscht) zeigt die Runde diesen Titel; ihr Schnappschuss lebt weiter. */
 const ERSATZTITEL = "Quiz";
 

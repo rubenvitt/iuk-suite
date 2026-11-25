@@ -76,7 +76,7 @@ function gewertetBis(phase: Phase): number | null {
   return null;
 }
 
-function summen(daten: RundenDaten, bis: number): Map<number, number> {
+export function summen(daten: RundenDaten, bis: number): Map<number, number> {
   const summe = new Map<number, number>(daten.teilnahmen.map((t) => [t.id, 0]));
   for (const a of daten.antworten) {
     if (a.frageIndex <= bis && summe.has(a.teilnahmeId)) {
@@ -86,7 +86,14 @@ function summen(daten: RundenDaten, bis: number): Map<number, number> {
   return summe;
 }
 
-const auswahl = (a: QuizAntwortRow): number[] => JSON.parse(a.antwort) as number[];
+export const auswahl = (a: QuizAntwortRow): number[] => JSON.parse(a.antwort) as number[];
+
+/** Wie oft jede Option gewählt wurde (Mehrfachauswahl zählt jede gewählte Option). */
+export function verteilungVon(frage: QuizFrage, antworten: QuizAntwortRow[]): number[] {
+  const verteilung = frage.optionen.map(() => 0);
+  for (const a of antworten) for (const i of auswahl(a)) if (i in verteilung) verteilung[i]++;
+  return verteilung;
+}
 
 export function beamerSicht(daten: RundenDaten, titel: string, jetzt: Date): BeamerSicht {
   const { runde } = daten;
@@ -117,9 +124,7 @@ export function beamerSicht(daten: RundenDaten, titel: string, jetzt: Date): Bea
       antworten: zuDieser.length,
     };
     if (phase.art === "aufloesung") {
-      const verteilung = f.optionen.map(() => 0);
-      for (const a of zuDieser) for (const i of auswahl(a)) if (i in verteilung) verteilung[i]++;
-      sicht.frage.verteilung = verteilung;
+      sicht.frage.verteilung = verteilungVon(f, zuDieser);
       sicht.frage.richtig = f.richtig;
       sicht.frage.anteilRichtig = zuDieser.length === 0 ? 0 : zuDieser.filter((a) => a.richtig === 1).length / zuDieser.length;
       if (f.erklaerung !== undefined) sicht.frage.erklaerung = f.erklaerung;

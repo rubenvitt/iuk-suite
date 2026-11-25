@@ -23,6 +23,7 @@ import {
   heutigeRunde,
   teilnahmePerToken,
   rundenStand,
+  rundenDesAbends,
 } from "./quiz";
 import { tokenHash } from "@/app/m/feedback/_lib/quiz/codes";
 import { beamerSicht } from "@/app/m/feedback/_lib/quiz/sichten";
@@ -459,5 +460,17 @@ describe("heutigeRunde, teilnahmePerToken, rundenStand", () => {
     expect(rundenStand(db, r.id + 99)).toBeNull();
     loescheQuiz(db, q.id);
     expect(rundenStand(db, r.id)?.titel).toBe("Quiz");
+  });
+});
+
+describe("rundenDesAbends", () => {
+  it("liefert die Runden genau dieses Abends, älteste zuerst", () => {
+    const q1 = mkQuiz();
+    const q2 = legeQuizAn(db, { groupId: q1.groupId, titel: "Zwei", modus: "lagebild", fragen: [frage()], jetzt: JETZT });
+    const a = starteOderHoleRunde(db, q1, JETZT);
+    beendeRunde(db, a.id, plus(JETZT, MIN));
+    const b = starteOderHoleRunde(db, q2, plus(JETZT, 2 * MIN));
+    expect(rundenDesAbends(db, a.eveningId).map((r) => r.id)).toEqual([a.id, b.id]);
+    expect(rundenDesAbends(db, a.eveningId + 99)).toEqual([]);
   });
 });
