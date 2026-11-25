@@ -53,6 +53,7 @@ import schichtenImVorausPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/sch
 import schichtplanAustausch from "@/app/m/portal/_lib/neuigkeiten/notizen/schichtplan/2026-11-08-austausch-mit-lifeline-hub";
 import planungZuVeranstaltungUndEinsatz from "@/app/m/portal/_lib/neuigkeiten/notizen/schichtplan/2026-11-25-planung-zu-veranstaltung-und-einsatz";
 import veranstaltungenPflegen from "@/app/m/portal/_lib/neuigkeiten/notizen/veranstaltungen/2026-11-25-veranstaltungen-pflegen";
+import abrufDurchLifelineHub from "@/app/m/portal/_lib/neuigkeiten/notizen/veranstaltungen/2026-11-25-abruf-durch-lifeline-hub";
 import gemeinschaftUndBar from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-01-gemeinschaft-und-bar";
 import gemeinschaftBarQrPlakat from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-03-bar-qr-plakat";
 import gemeinschaftMietvertragDigital from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-04-mietvertrag-digital";
@@ -230,6 +231,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   schichtenImVorausPlanen,
   planungZuVeranstaltungUndEinsatz,
   veranstaltungenPflegen,
+  abrufDurchLifelineHub,
   schichtplanAustausch,
   gemeinschaftUndBar,
   gemeinschaftBarQrPlakat,

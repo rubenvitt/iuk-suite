@@ -41,13 +41,18 @@ export function resolveHost(headers: Headers): string {
 }
 
 /**
- * ABRUF OHNE LOGIN (LLH-1194): Lifeline Hub holt Personal mit einem eigenen Schlüssel aus dem Helfer-Modul. Das
- * Modul bleibt `requiresAuth: true`; durch geht nur GENAU dieser eine Pfad, und die Route prüft den Schlüssel
- * und den Host selbst (`helfer/api/stammdaten/route.ts`). Kein Präfix-Vergleich: jeder Nachbarpfad bleibt
- * hinter dem Login, und auch der interne Pfad geht nur auf dem Helfer-Host durch (`routing.test.ts`, „Abruf
- * ohne Login“). Wer `x-forwarded-host` fälschen kann, kommt bis zur Schlüsselprüfung — der Schlüssel ist die Grenze.
+ * ABRUF OHNE LOGIN: Lifeline Hub holt mit einem eigenen Schlüssel Personal aus dem Helfer-Modul (LLH-1194) und
+ * Veranstaltungen aus dem Modul Veranstaltungen (LLH-2097). Die Module bleiben `requiresAuth: true`; durch geht je
+ * Modul nur GENAU dieser eine Pfad, und die Route prüft den Schlüssel und den Host selbst
+ * (`helfer/api/stammdaten/route.ts`, `veranstaltungen/api/abruf/route.ts`). Kein Präfix-Vergleich: jeder
+ * Nachbarpfad bleibt hinter dem Login, und auch der interne Pfad geht nur auf dem Host seines Moduls durch
+ * (`routing.test.ts`, „Abruf ohne Login“). Wer `x-forwarded-host` fälschen kann, kommt bis zur Schlüsselprüfung —
+ * der Schlüssel ist die Grenze.
  */
-export const ABRUF_OHNE_LOGIN = { modul: "helfer", pfad: "/api/stammdaten" } as const;
+export const ABRUF_OHNE_LOGIN = [
+  { modul: "helfer", pfad: "/api/stammdaten" },
+  { modul: "veranstaltungen", pfad: "/api/abruf" },
+] as const;
 
 export function decideRoute(input: {
   host: string;
@@ -68,10 +73,10 @@ export function decideRoute(input: {
 
   if (pathname === "/api/audit/browser") return { action: "next" };
 
-  const aufAbrufHost = moduleForHost(host)?.key === ABRUF_OHNE_LOGIN.modul;
-  if (aufAbrufHost && pathname === `/m/${ABRUF_OHNE_LOGIN.modul}${ABRUF_OHNE_LOGIN.pfad}`) return { action: "next" };
-  if (aufAbrufHost && pathname === ABRUF_OHNE_LOGIN.pfad) {
-    return { action: "rewrite", target: `/m/${ABRUF_OHNE_LOGIN.modul}${ABRUF_OHNE_LOGIN.pfad}`, moduleKey: ABRUF_OHNE_LOGIN.modul };
+  const abruf = ABRUF_OHNE_LOGIN.find((a) => a.modul === moduleForHost(host)?.key);
+  if (abruf && pathname === `/m/${abruf.modul}${abruf.pfad}`) return { action: "next" };
+  if (abruf && pathname === abruf.pfad) {
+    return { action: "rewrite", target: `/m/${abruf.modul}${abruf.pfad}`, moduleKey: abruf.modul };
   }
 
   if (PASSTHROUGH.some((p) => pathname === p || pathname.startsWith(p + "/"))) {

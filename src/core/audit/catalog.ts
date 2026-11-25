@@ -931,6 +931,18 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "veranstaltung_zugang": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "zuletzt_abgeholt_am"
+        ],
+        "reason": "Technische Kontaktzeit: Lifeline Hub holt regelmäßig ab, das ist keine fachliche Änderung am Zugang."
+      }
     }
   },
   "konto": {

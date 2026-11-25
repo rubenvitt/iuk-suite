@@ -54,3 +54,8 @@ export async function requireVeranstaltungenAktion(admin = false): Promise<Viewe
   return viewer;
 }
 
+
+/** Anzeigename für Protokolle; fällt auf die Kennung zurück, nie auf die E-Mail. */
+export function anzeigeName(viewer: Viewer): string {
+  return (viewer.name?.trim() || viewer.id).slice(0, 120);
+}

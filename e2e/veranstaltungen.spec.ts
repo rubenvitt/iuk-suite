@@ -70,3 +70,45 @@ test("Veranstaltung anlegen und eine Planung mit Hub-Einsatz daran hängen", asy
   await expect(page.getByText(`Veranstaltung: ${name}`)).toBeVisible();
   await expect(page.getByRole("link", { name: "Einsatz öffnen" })).toHaveAttribute("href", "https://hub.example.org/einsaetze/42");
 });
+
+test("Abruf-Zugang anlegen, Lifeline Hub holt ab, widerrufen (LLH-2097)", async ({ page, playwright }) => {
+  await devLogin(page, { host: VA, groups: "veranstaltungen-nutzer,veranstaltungen-admin", callbackPath: "/" });
+  await page.goto(url(VA, "/"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+
+  await klickeWennRuhig(page.getByRole("button", { name: "Abruf-Zugänge" }));
+  const flyin = page.getByRole("dialog");
+  const bezeichnung = `Hub e2e ${Date.now().toString(36)}`;
+  await flyin.getByLabel("Neuer Zugang").fill(bezeichnung);
+  await flyin.getByRole("button", { name: "Zugang anlegen" }).click();
+  const neu = page.getByTestId("neuer-zugang");
+  await expect(neu).toContainText(url(VA, ""));
+  const schluessel = (await neu.locator("pre").nth(1).textContent())?.trim() ?? "";
+  expect(schluessel).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+  // Ohne Sitzung, wie Lifeline Hub (Falle 10: erst ein Warmlauf).
+  const anonym = await playwright.request.newContext();
+  await anonym.get(url(VA, "/api/abruf"));
+  const ok = await anonym.get(url(VA, "/api/abruf"), { headers: { authorization: `Bearer ${schluessel}` } });
+  expect(ok.status()).toBe(200);
+  const antwort = await ok.json();
+  expect(antwort.fassung).toBe(1);
+  expect(Array.isArray(antwort.veranstaltungen)).toBe(true);
+  expect((await anonym.get(url(VA, "/api/abruf"))).status()).toBe(401);
+
+  await page.getByTestId("neuer-zugang-fertig").click();
+  await flyin.getByRole("button", { name: `Zugang widerrufen: ${bezeichnung}` }).click();
+  await page.getByRole("button", { name: "Widerrufen", exact: true }).last().click();
+  await expect(flyin.getByRole("button", { name: `Zugang widerrufen: ${bezeichnung}` })).toHaveCount(0);
+  expect((await anonym.get(url(VA, "/api/abruf"), { headers: { authorization: `Bearer ${schluessel}` } })).status()).toBe(401);
+  await anonym.dispose();
+});
+
+test("ohne Admin-Gruppe keine Abruf-Zugänge", async ({ page }) => {
+  await devLogin(page, { host: VA, groups: "veranstaltungen-nutzer", callbackPath: "/" });
+  await page.goto(url(VA, "/"));
+  await warteAufGestreamteInhalte(page);
+  await expect(page.getByRole("button", { name: "Neue Veranstaltung" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Abruf-Zugänge" })).toHaveCount(0);
+});
