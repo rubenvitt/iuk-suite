@@ -56,7 +56,7 @@ export type HandySicht = {
 const RANGLISTE_LAENGE = 10;
 
 function phaseVon(runde: QuizRundeRow, fragen: QuizFrage[], jetzt: Date): Phase {
-  return phaseMitSperre(runde.schritt, runde.hoechsterSchritt, fragen, runde.modus, runde.schrittSeit, jetzt.getTime());
+  return phaseMitSperre(runde, fragen, runde.modus, jetzt.getTime());
 }
 
 /** Index der gezeigten Frage: in `frage` und `aufloesung`, sonst keiner. */

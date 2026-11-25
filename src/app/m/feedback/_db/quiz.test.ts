@@ -22,6 +22,7 @@ import {
   rundenDaten,
 } from "./quiz";
 import { tokenHash } from "@/app/m/feedback/_lib/quiz/codes";
+import { beamerSicht } from "@/app/m/feedback/_lib/quiz/sichten";
 import type { QuizFrage } from "@/app/m/feedback/_lib/quiz/fragen";
 
 type DB = ReturnType<typeof drizzle<typeof schema>>;
@@ -204,6 +205,33 @@ describe("setzeSchritt", () => {
     setzeSchritt(db, r.id, 0, plus(JETZT, 3_000)); // Lobby
     setzeSchritt(db, r.id, 1, plus(JETZT, 4_000)); // Frage 0 wieder, Timer frisch
     expect(antworte(db, r, t.teilnahmeId, 0, [1], plus(JETZT, 5_000))).toBe("geschlossen");
+  });
+
+  it("abgelaufener Timer der weitesten Frage: zurück und wieder vor → geschlossen", () => {
+    const q = mkQuiz();
+    const r = starteOderHoleRunde(db, q, JETZT);
+    const t = tritteBei(db, r, { token: "t1", spitzname: "Anna" });
+    if (!("teilnahmeId" in t)) throw new Error("kein Beitritt");
+    setzeSchritt(db, r.id, 1, JETZT); // Frage 0, 20 s
+    setzeSchritt(db, r.id, 0, plus(JETZT, 26_000));
+    setzeSchritt(db, r.id, 1, plus(JETZT, 27_000));
+    expect(antworte(db, r, t.teilnahmeId, 0, [1], plus(JETZT, 28_000))).toBe("geschlossen");
+  });
+
+  it("laufender Timer: zurück und wieder vor verlängert ihn nicht", () => {
+    const q = mkQuiz();
+    const r = starteOderHoleRunde(db, q, JETZT);
+    const t = tritteBei(db, r, { token: "t1", spitzname: "Anna" });
+    if (!("teilnahmeId" in t)) throw new Error("kein Beitritt");
+    setzeSchritt(db, r.id, 1, JETZT); // Frage 0, 20 s
+    setzeSchritt(db, r.id, 0, plus(JETZT, 5_000));
+    setzeSchritt(db, r.id, 1, plus(JETZT, 10_000));
+    const sicht = beamerSicht(rundenDaten(db, r.id), "Funk", plus(JETZT, 11_000));
+    expect(sicht.phase).toMatchObject({ art: "frage", offen: true, endetUm: plus(JETZT, 20_000).getTime() });
+    expect(antworte(db, r, t.teilnahmeId, 0, [1], plus(JETZT, 21_000))).toBe("geschlossen");
+    expect(antworte(db, r, t.teilnahmeId, 0, [1], plus(JETZT, 15_000))).toBe("ok");
+    // Die Antwortzeit zählt ab dem ersten Zeigen der Frage.
+    expect(rundenDaten(db, r.id).antworten[0].antwortzeitMs).toBe(15_000);
   });
 
   it("öffnet eine Frage mit Zeitlimit beim Zurückblättern nicht wieder", () => {

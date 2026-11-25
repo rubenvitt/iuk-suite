@@ -139,6 +139,9 @@ function beende(db: DB, ids: number[], jetzt: Date): void {
  * AUTO-ENDE ohne Hintergrunddienst: jeder Quizweg holt es nach. Eine offene Runde endet, wenn
  * der Kalendertag ihres Abends (`tagDesAbends`) vor dem heutigen liegt (Suite-Zone) oder der
  * letzte Schritt mindestens 6 h her ist — was früher kommt.
+ *
+ * Verlässt sich darauf, dass eine Runde nur am heutigen Abend entsteht (`starteOderHoleRunde`):
+ * eine Runde an einem künftigen Abend gibt es nicht, und an einem vergangenen endet sie hier.
  */
 export function beendeAbgelaufene(db: DB, jetzt: Date): number[] {
   return db.transaction((tx) => {
@@ -238,6 +241,7 @@ export function starteOderHoleRunde(db: DB, quiz: QuizRow, jetzt: Date): QuizRun
         schritt: 0,
         schrittSeit: jetzt.getTime(),
         hoechsterSchritt: 0,
+        hoechsterSeit: jetzt.getTime(),
         beendetAt: null,
         createdAt: jetzt,
       })
@@ -252,7 +256,9 @@ export function starteOderHoleRunde(db: DB, quiz: QuizRow, jetzt: Date): QuizRun
  *
  * ZURÜCKBLÄTTERN ÖFFNET KEINE FRAGE WIEDER: `hoechster_schritt` merkt sich den weitesten je
  * gezeigten Schritt, und Antworten nimmt eine Frage nur auf ihm an (`phaseMitSperre`). Das gilt
- * mit und ohne `zeit_s`, auch für Lobby → vor auf eine schon passierte Frage.
+ * mit und ohne `zeit_s`, auch für Lobby → vor auf eine schon passierte Frage. `hoechster_seit`
+ * hält fest, wann der weiteste Schritt zuerst erreicht wurde; Timer und Antwortzeit der offenen
+ * Frage zählen ab dort, zurück und wieder vor verlängert also nichts.
  *
  * Eine beendete Runde bleibt, wie sie ist.
  */
@@ -271,7 +277,8 @@ export function setzeSchritt(db: DB, rundeId: number, schritt: number, jetzt: Da
       .set({
         schritt: ziel,
         schrittSeit: jetzt.getTime(),
-        hoechsterSchritt: Math.max(runde.hoechsterSchritt, ziel),
+        // Nur ein NEUER weitester Schritt setzt die Uhr der offenen Frage (`phaseMitSperre`).
+        ...(ziel > runde.hoechsterSchritt ? { hoechsterSchritt: ziel, hoechsterSeit: jetzt.getTime() } : {}),
       })
       .where(eq(quizRunden.id, rundeId))
       .returning()
@@ -386,9 +393,7 @@ export function antworte(
       return "ungueltig";
     }
     if (aktuell.beendetAt !== null) return "geschlossen";
-    const phase = phaseMitSperre(
-      aktuell.schritt, aktuell.hoechsterSchritt, fragen, aktuell.modus, aktuell.schrittSeit, jetzt.getTime(),
-    );
+    const phase = phaseMitSperre(aktuell, fragen, aktuell.modus, jetzt.getTime());
     if (phase.art !== "frage" || phase.index !== frageIndex || !phase.offen) return "geschlossen";
 
     const frage = fragen[frageIndex];
@@ -401,7 +406,8 @@ export function antworte(
     if (schon) return "doppelt";
 
     const antwortzeitMs =
-      aktuell.modus === "wettbewerb" ? Math.max(0, jetzt.getTime() - aktuell.schrittSeit) : null;
+      // Ab dem ersten Zeigen der Frage (`hoechster_seit`): offen ist sie nur auf dem weitesten Schritt.
+      aktuell.modus === "wettbewerb" ? Math.max(0, jetzt.getTime() - aktuell.hoechsterSeit) : null;
     const p = punkte(frage, gewaehlt, antwortzeitMs);
     tx.insert(quizAntworten)
       .values({
@@ -417,7 +423,12 @@ export function antworte(
   });
 }
 
+/** In einer Transaktion gelesen: Runde, Teilnahmen und Antworten passen zueinander. */
 export function rundenDaten(db: DB, rundeId: number): RundenDaten {
+  return db.transaction((tx) => leseRundenDaten(tx, rundeId));
+}
+
+function leseRundenDaten(db: DB, rundeId: number): RundenDaten {
   const runde = holeRunde(db, rundeId);
   if (!runde) throw new Error(`Runde ${rundeId} gibt es nicht`);
   const teilnahmen = db

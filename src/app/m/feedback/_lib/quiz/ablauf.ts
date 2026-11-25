@@ -47,21 +47,29 @@ export function phaseFuer(
   return { art: "schluss" };
 }
 
+/** Die Felder einer Runde, die `phaseMitSperre` braucht (passt auf `QuizRundeRow`). */
+export type SchrittStand = {
+  schritt: number;
+  schrittSeit: number;
+  hoechsterSchritt: number;
+  hoechsterSeit: number;
+};
+
 /**
  * `phaseFuer` mit der Sperre für schon passierte Fragen: offen ist eine Frage nur auf dem
  * weitesten je gezeigten Schritt (`quiz_runden.hoechster_schritt`). Wer zurück- und wieder
  * vorblättert, sieht die Frage, kann sie aber nicht mehr beantworten — mit und ohne `zeit_s`.
+ *
+ * Auf dem weitesten Schritt zählt die Uhr ab `hoechsterSeit`, dem ERSTEN Erreichen, nicht ab
+ * `schrittSeit`: sonst startete zurück und wieder vor einen abgelaufenen Timer neu bzw.
+ * verlängerte einen laufenden.
+ *
  * Ein eigener Wrapper, damit `phaseFuer` die reine Funktion (Schritt, Zeit) → Ansicht bleibt.
  */
-export function phaseMitSperre(
-  schritt: number,
-  hoechsterSchritt: number,
-  fragen: QuizFrage[],
-  modus: QuizModus,
-  schrittSeit: number,
-  jetzt: number,
-): Phase {
-  const phase = phaseFuer(schritt, fragen, modus, schrittSeit, jetzt);
-  if (phase.art === "frage" && schritt < hoechsterSchritt) return { ...phase, offen: false };
+export function phaseMitSperre(stand: SchrittStand, fragen: QuizFrage[], modus: QuizModus, jetzt: number): Phase {
+  const weitester = stand.schritt >= stand.hoechsterSchritt;
+  const seit = weitester ? stand.hoechsterSeit : stand.schrittSeit;
+  const phase = phaseFuer(stand.schritt, fragen, modus, seit, jetzt);
+  if (phase.art === "frage" && !weitester) return { ...phase, offen: false };
   return phase;
 }

@@ -44,9 +44,19 @@ describe("phaseFuer", () => {
 });
 
 describe("phaseMitSperre", () => {
+  const stand = (schritt: number, hoechsterSchritt: number, schrittSeit = 0, hoechsterSeit = 0) =>
+    ({ schritt, hoechsterSchritt, schrittSeit, hoechsterSeit });
   it("schließt eine schon passierte Frage, auch ohne zeit_s", () => {
-    expect(phaseMitSperre(1, 2, drei, "lagebild", 0, 0)).toMatchObject({ art: "frage", index: 0, offen: false });
-    expect(phaseMitSperre(1, 1, drei, "lagebild", 0, 0)).toMatchObject({ art: "frage", index: 0, offen: true });
-    expect(phaseMitSperre(2, 5, drei, "lagebild", 0, 0)).toEqual(phaseFuer(2, drei, "lagebild", 0, 0));
+    expect(phaseMitSperre(stand(1, 2), drei, "lagebild", 0)).toMatchObject({ art: "frage", index: 0, offen: false });
+    expect(phaseMitSperre(stand(1, 1), drei, "lagebild", 0)).toMatchObject({ art: "frage", index: 0, offen: true });
+    expect(phaseMitSperre(stand(2, 5), drei, "lagebild", 0)).toEqual(phaseFuer(2, drei, "lagebild", 0, 0));
+  });
+  it("misst die Zeit auf dem weitesten Schritt ab dem ersten Erreichen", () => {
+    const mitZeit = [f(20)];
+    // Erst bei 0 erreicht, nach Zurück und Vor bei 30 000 erneut gezeigt: Zeit ist um.
+    expect(phaseMitSperre(stand(1, 1, 30_000, 0), mitZeit, "lagebild", 30_500))
+      .toEqual({ art: "frage", index: 0, offen: false, endetUm: 20_000 });
+    expect(phaseMitSperre(stand(1, 1, 10_000, 0), mitZeit, "lagebild", 15_000))
+      .toEqual({ art: "frage", index: 0, offen: true, endetUm: 20_000 });
   });
 });

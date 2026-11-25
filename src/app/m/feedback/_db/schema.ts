@@ -290,6 +290,9 @@ export const quizRunden = sqliteTable(
     // Der weiteste je gezeigte Schritt. Nur auf ihm nimmt eine Frage Antworten an: zurück-
     // und wieder vorblättern öffnet keine schon passierte Frage (`_db/quiz.ts`, `setzeSchritt`).
     hoechsterSchritt: integer("hoechster_schritt").notNull().default(0),
+    // Wann der weiteste Schritt ZUERST erreicht wurde (ms). Daran hängen Timer und Antwortzeit
+    // der offenen Frage; zurück- und wieder vorblättern verlängert sie nicht.
+    hoechsterSeit: integer("hoechster_seit").notNull().default(0),
     beendetAt: integer("beendet_at"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },

@@ -13,7 +13,7 @@ const fragen: QuizFrage[] = [
 function runde(modus: "lagebild" | "wettbewerb", schritt: number, extra: Partial<QuizRundeRow> = {}): QuizRundeRow {
   return {
     id: 1, quizId: 1, eveningId: 1, beitrittCode: "ABC234", modus, fragen: JSON.stringify(fragen),
-    schritt, schrittSeit: T0, hoechsterSchritt: schritt, beendetAt: null, createdAt: new Date(T0), ...extra,
+    schritt, schrittSeit: T0, hoechsterSchritt: schritt, hoechsterSeit: T0, beendetAt: null, createdAt: new Date(T0), ...extra,
   };
 }
 

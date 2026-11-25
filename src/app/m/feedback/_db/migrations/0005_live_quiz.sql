@@ -3,7 +3,7 @@
 -- `quizze` ist die Vorlage, `quiz_runden` der Durchlauf an einem Abend mit Schnappschuss der
 -- Fragen. Vorlage löschen: `quiz_id` wird NULL, die Runde bleibt. Abend löschen: die Runde geht mit.
 -- Audit: `quizze` und `quiz_runden` gewöhnlich (der Update-Trigger lässt `schritt`,
--- `schritt_seit` und `hoechster_schritt` aus, jeder Klick des Beamers schaltet den Schritt). `quiz_teilnahmen` und
+-- `schritt_seit`, `hoechster_schritt` und `hoechster_seit` aus, jeder Klick des Beamers schaltet den Schritt). `quiz_teilnahmen` und
 -- `quiz_antworten` sind ausgeschlossen (Live-Spieldaten anonymer Teilnehmender), ohne Trigger.
 CREATE TABLE `quizze` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -30,6 +30,7 @@ CREATE TABLE `quiz_runden` (
 	`schritt` integer DEFAULT 0 NOT NULL,
 	`schritt_seit` integer NOT NULL,
 	`hoechster_schritt` integer DEFAULT 0 NOT NULL,
+	`hoechster_seit` integer DEFAULT 0 NOT NULL,
 	`beendet_at` integer,
 	`created_at` integer NOT NULL,
 	FOREIGN KEY (`quiz_id`) REFERENCES `quizze`(`id`) ON UPDATE no action ON DELETE set null,

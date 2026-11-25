@@ -123,7 +123,8 @@ export const AUDIT_TABLES = {
         "columns": [
           "schritt",
           "schritt_seit",
-          "hoechster_schritt"
+          "hoechster_schritt",
+          "hoechster_seit"
         ],
         "reason": "Jeder Klick des Beamers schaltet den Schritt (samt weitestem Schritt); Anlegen und Beenden werden auditiert."
       }
