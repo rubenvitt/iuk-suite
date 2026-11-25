@@ -1,4 +1,4 @@
-import { Locator, Page, Response, expect } from "@playwright/test"; import { E2E_PORT, E2E_PORTS } from "./helpers/ports"; export { E2E_PORT, E2E_PORTS }; import { E2E_VORGEBAUT } from "./helpers/server";
+import { FrameLocator, Frame, Locator, Page, Response, expect } from "@playwright/test"; import { E2E_PORT, E2E_PORTS } from "./helpers/ports"; export { E2E_PORT, E2E_PORTS }; import { E2E_VORGEBAUT } from "./helpers/server";
 
 export async function devLogin(
   page: Page,
@@ -488,9 +488,11 @@ export async function warumNicht200(antwort: Response | null): Promise<string> {
  * mode), eine Zählung doppelt so viele, eine Breitenmessung Nullen. Unter
  * `next dev` war das Fenster von der Übersetzungszeit verdeckt.
  *
- * Ohne gestreamten Inhalt ist die Probe sofort wahr.
+ * Ohne gestreamten Inhalt ist die Probe sofort wahr. Steht der Inhalt in einem iframe, den
+ * `FrameLocator` (oder `Frame`) übergeben: die Container liegen im Dokument des Rahmens, nicht im
+ * Elternfenster.
  */
-export async function warteAufGestreamteInhalte(page: Page): Promise<void> {
+export async function warteAufGestreamteInhalte(page: Page | Frame | FrameLocator): Promise<void> {
   await expect(
     page.locator('div[hidden][id^="S:"]'),
     "React hat gestreamte Suspense-Inhalte noch nicht eingesetzt",

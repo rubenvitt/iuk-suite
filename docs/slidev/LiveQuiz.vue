@@ -35,7 +35,7 @@ function hoere(e: MessageEvent) {
   if (!d || d.typ !== 'iuk-quiz-stand' || typeof d.schrittAnzahl !== 'number') return
   const erstes = schrittAnzahl.value === null
   schrittAnzahl.value = d.schrittAnzahl
-  // Das erste „Stand“ heißt: der Beamer hört jetzt zu. Erst dann gilt unser Schritt.
+  // Das erste „Stand“ (auch nach einem Neuladen des iframe, `@load` setzt zurück) heißt: der Beamer hört jetzt zu. Erst dann gilt unser Schritt.
   if (erstes) sende()
 }
 
@@ -80,7 +80,7 @@ const warnung = computed(() => {
       referrerpolicy="no-referrer"
       title="Live-Quiz"
       @focus="fokusZurueck"
-      @pointerdown.capture="() => setTimeout(fokusZurueck, 0)"
+      @load="schrittAnzahl = null; sende()"
     />
     <p v-if="warnung" class="iuk-quiz-warnung" role="status">{{ warnung }}</p>
   </div>

@@ -35,6 +35,5 @@ Hat sie jemand Unbefugtes gesehen, erzeuge in der Verwaltung eine neue Adresse.
 - **Die Tasten blättern nicht mehr:** Der Fokus liegt im Quiz. Klick einmal neben die Folie, die
   Komponente holt den Fokus sonst selbst zurück.
 - **Die Klicks passen nicht:** Hast du das Quiz nach dem Bau der Präsentation geändert, zeigt die
-  Folie (im Präsentermodus und im Dev-Server) ein gelbes Feld „Quiz hat jetzt N Schritte, clicks im
-  Frontmatter auf N−1 setzen“. Kopiere den Schnipsel neu oder passe `clicks` an.
+  Folie (im Präsentermodus und im Dev-Server) ein gelbes Feld „Quiz hat jetzt N Schritte — clicks im Frontmatter auf N−1 setzen“. Kopiere den Schnipsel neu oder passe `clicks` an.
 - **Leere Folie:** Die Adresse gilt nicht mehr (Secret erneuert). Hol die neue aus der Verwaltung.
