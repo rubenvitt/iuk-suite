@@ -123,6 +123,22 @@
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
   },
+  "src/app/m/feedback/(admin)/groups/[groupId]/quiz/page.tsx#notFound:!group:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/quiz/[quizId]/page.tsx#notFound:!quiz:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/quiz/[quizId]/page.tsx#notFound:quiz.groupId !== groupId:1": {
+    "kind": "excluded",
+    "reason": "Canonical parent-ID URL mismatch; does not establish denied ownership. Actual group guard separately resolves database membership from the quiz row."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/quiz/[quizId]/page.tsx#notFound:!group:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
   "src/app/m/feedback/(admin)/page.tsx#redirect:ziel !== null:1": {
     "kind": "excluded",
     "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."

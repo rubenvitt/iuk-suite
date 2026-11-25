@@ -109,6 +109,12 @@ export function listeQuizze(db: DB, groupId: number): QuizRow[] {
   return db.select().from(quizze).where(eq(quizze.groupId, groupId)).orderBy(asc(quizze.titel), asc(quizze.id)).all();
 }
 
+/** Für die Verwaltung: die Gruppe des Quiz kommt aus dieser Zeile, nie aus der URL (IDOR). */
+export function quizPerId(db: DB, id: number): QuizRow | undefined {
+  if (!Number.isInteger(id) || id <= 0) return undefined;
+  return db.select().from(quizze).where(eq(quizze.id, id)).get();
+}
+
 export function quizPerSecret(db: DB, secret: string): QuizRow | undefined {
   return db.select().from(quizze).where(eq(quizze.moderationSecret, secret)).get();
 }

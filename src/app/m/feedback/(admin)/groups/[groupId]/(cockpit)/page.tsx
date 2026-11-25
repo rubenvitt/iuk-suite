@@ -234,6 +234,12 @@ export default async function Cockpit({
           titel={group.name}
           beschreibung={kontextzeile(abendZahl, letzteNoten)}
           zurueck={einstiegLeitetZurueck ? undefined : { titel: "Gruppen", href: "/m/feedback" }}
+          // Live-Quiz der Gruppe: ein leiser Textknopf wie „Trend" (der Primärknopf ist die Lagekarte).
+          aktionen={
+            <Button type="text" href={`/m/feedback/groups/${id}/quiz`} className="fb-block-mobil">
+              Quiz
+            </Button>
+          }
         />
       </div>
       <div
