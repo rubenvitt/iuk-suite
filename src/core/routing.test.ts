@@ -287,3 +287,21 @@ describe("Abruf ohne Login (helfer/api/stammdaten)", () => {
     expect(decideRoute({ host: "alpha.localtest.me", pathname: "/api/stammdaten", groups: null }).action).toBe("login");
   });
 });
+
+describe("Abruf ohne Login (veranstaltungen/api/abruf, LLH-2097)", () => {
+  const host = "veranstaltungen.localtest.me:3100";
+  it("auf dem Veranstaltungen-Host wird /api/abruf ohne Sitzung zur Route umgeschrieben", () => {
+    expect(decideRoute({ host, pathname: "/api/abruf", groups: null })).toEqual({ action: "rewrite", target: "/m/veranstaltungen/api/abruf", moduleKey: "veranstaltungen" });
+  });
+  it("der interne Pfad geht ohne Sitzung durch", () => {
+    expect(decideRoute({ host, pathname: "/m/veranstaltungen/api/abruf", groups: null })).toEqual({ action: "next" });
+  });
+  it.each(["/api/abruf/x", "/api/abrufx", "/api/stammdaten", "/", "/m/veranstaltungen", "/m/veranstaltungen/api/abruf/x"])("%s bleibt hinter dem Login", (pathname) => {
+    expect(decideRoute({ host, pathname, groups: null }).action).toBe("login");
+  });
+  it("der Abruf-Pfad eines Moduls gilt nicht auf dem Host des anderen", () => {
+    expect(decideRoute({ host: "helfer.localtest.me:3100", pathname: "/api/abruf", groups: null }).action).toBe("login");
+    expect(decideRoute({ host: "helfer.localtest.me:3100", pathname: "/m/veranstaltungen/api/abruf", groups: null }).action).toBe("login");
+    expect(decideRoute({ host: "portal.localtest.me:3100", pathname: "/m/veranstaltungen/api/abruf", groups: null }).action).toBe("login");
+  });
+});

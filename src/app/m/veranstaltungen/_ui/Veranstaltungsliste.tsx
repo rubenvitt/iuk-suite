@@ -7,7 +7,9 @@ import { zeitspanne } from "@/app/m/schichtplan/_lib/zeit";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { flyinBreite } from "@/core/theme/flyin";
+import type { ZugangDTO } from "../_lib/schluessel";
 import { ART_TITEL, STATUS_TITEL, type VeranstaltungDTO } from "../_lib/typen";
+import { AbrufZugaenge } from "./AbrufZugaenge";
 import { VeranstaltungFormular } from "./VeranstaltungFormular";
 import { useTokensAmBody } from "./useTokensAmBody";
 import s from "./veranstaltungen.module.css";
@@ -29,10 +31,13 @@ function Karte({ v, onAendern }: { v: VeranstaltungDTO; onAendern: () => void })
 }
 
 /** Die Übersicht: kommende und laufende Veranstaltungen zuerst, vergangene darunter (jüngste zuerst). */
-export function Veranstaltungsliste({ liste, darfLoeschen, jetzt }: { liste: VeranstaltungDTO[]; darfLoeschen: boolean; jetzt: number }) {
+export function Veranstaltungsliste({ liste, darfLoeschen, zugaenge, jetzt }: {
+  liste: VeranstaltungDTO[]; darfLoeschen: boolean; zugaenge: ZugangDTO[] | null; jetzt: number;
+}) {
   const router = useRouter();
   useTokensAmBody();
   const [offen, setOffen] = useState<Offen>(null);
+  const [abruf, setAbruf] = useState(false);
   const kommend = liste.filter((v) => v.bis >= jetzt);
   const vergangen = liste.filter((v) => v.bis < jetzt).reverse();
   const fertig = () => { setOffen(null); router.refresh(); };
@@ -46,7 +51,12 @@ export function Veranstaltungsliste({ liste, darfLoeschen, jetzt }: { liste: Ver
     <div className={s.modul}>
       <Seitenkopf
         titel="Veranstaltungen"
-        aktionen={<Button type="primary" onClick={() => setOffen({ art: "neu" })} icon={<Icons8Ikone name="plus" groesse={16} />}>Neue Veranstaltung</Button>}
+        aktionen={(
+          <>
+            {zugaenge ? <Button onClick={() => setAbruf(true)} icon={<Icons8Ikone name="key" groesse={16} />}>Abruf-Zugänge</Button> : null}
+            <Button type="primary" onClick={() => setOffen({ art: "neu" })} icon={<Icons8Ikone name="plus" groesse={16} />}>Neue Veranstaltung</Button>
+          </>
+        )}
       />
       {liste.length === 0 ? <Card><span className={s.neben}>Noch keine Veranstaltung.</span></Card> : null}
       {kommend.length ? abschnitt("Kommend", kommend) : null}
@@ -55,6 +65,12 @@ export function Veranstaltungsliste({ liste, darfLoeschen, jetzt }: { liste: Ver
         title={offen?.art === "aendern" ? "Veranstaltung ändern" : "Neue Veranstaltung"}>
         {offen ? <VeranstaltungFormular key={offen.art === "aendern" ? offen.v.id : "neu"} veranstaltung={offen.art === "aendern" ? offen.v : null} darfLoeschen={darfLoeschen} onFertig={fertig} /> : null}
       </Drawer>
+      {zugaenge ? (
+        <Drawer open={abruf} onClose={() => setAbruf(false)} size={flyinBreite(560)} destroyOnHidden autoFocus={false} focusable={{ focusTriggerAfterClose: false }}
+          title="Abruf durch Lifeline Hub">
+          {abruf ? <AbrufZugaenge liste={zugaenge} /> : null}
+        </Drawer>
+      ) : null}
     </div>
   );
 }
