@@ -79,7 +79,7 @@ export const MODULES: ModuleDef[] = [
   // requiredGroupsFor()/adminGroupsFor(), nicht diese Felder direkt.
   // `kummerkasten-leser` (IDA-314): die Vertrauenspersonen von „Ehrlich gesagt" betreten das Modul, sehen aber
   // ohne Zuordnung keine Gruppe — die Dienstabende bleiben bei `user_groups`/`fachgruppen` (`_lib/access.ts`).
-  { key: "feedback", title: "Feedback", icon: "comment", shell: "full",
+  { key: "feedback", title: "Dienstabend", icon: "comment", shell: "full",
     requiresAuth: false, requiredGroups: ["feedback-nutzer", "feedback-admin", "kummerkasten-leser"],
     adminGroups: ["feedback-admin"], prodHosts: [], showInSwitcher: true,
     switcherGroupSources: ["access", "admin"] },

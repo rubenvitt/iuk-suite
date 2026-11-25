@@ -5,7 +5,9 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
 import * as schema from "@/app/m/feedback/_db/schema";
 import { seedFeedback } from "./seed";
-import { seedLokalFeedback } from "./seedLokal";
+import { BEISPIELQUIZ_SECRET, seedLokalFeedback } from "./seedLokal";
+import { listeQuizze, quizPerSecret } from "@/app/m/feedback/_db/quiz";
+import { pruefeFragen, type QuizFrage } from "@/app/m/feedback/_lib/quiz/fragen";
 import {
   listGroups,
   getGroupBySlug,
@@ -287,5 +289,27 @@ describe("seedLokalFeedback", () => {
     // "Demo" und "Demo Jugend" gibt es genau einmal — aus dem Boot-Seed.
     expect(namen.filter((n) => n === "Demo")).toHaveLength(1);
     expect(namen.filter((n) => n === "Demo Jugend")).toHaveLength(1);
+  });
+
+  it("legt das Beispielquiz „UAV-Notfallverfahren“ mit festem Secret an, einmal", async () => {
+    await seedLokalFeedback(db);
+    const quiz = quizPerSecret(db, BEISPIELQUIZ_SECRET)!;
+    expect(quiz).toBeDefined();
+    expect(quiz.titel).toBe("UAV-Notfallverfahren");
+    expect(quiz.modus).toBe("wettbewerb");
+    expect(quiz.groupId).toBe(getGroupBySlug(db, NORD_SLUG)!.id);
+
+    const fragen = JSON.parse(quiz.fragen) as QuizFrage[];
+    expect(pruefeFragen(fragen).ok).toBe(true);
+    expect(fragen).toHaveLength(5);
+    const typen = fragen.map((f) => f.typ);
+    expect(typen).toContain("mehrfach");
+    expect(typen).toContain("wahrfalsch");
+    expect(typen).toContain("einfach");
+    expect(fragen.some((f) => f.zeit_s !== undefined)).toBe(true);
+    expect(fragen.some((f) => f.zeit_s === undefined)).toBe(true);
+
+    await seedLokalFeedback(db);
+    expect(listeQuizze(db, quiz.groupId)).toHaveLength(1);
   });
 });

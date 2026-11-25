@@ -11,7 +11,7 @@ Neues benennt, das in einem zweiten Modul auftaucht, trägt es hier ein.
 ## Anrede
 
 - **„du"** auf allem, was Helferinnen und Helfer benutzen: Helferwege per Code oder QR, Telefonseiten,
-  Feedback-Abende, Kommunikationspläne, Drohnentraining, Gemeinschaft, Bar-Anfrage, Verwaltung.
+  Dienstabende (Feedback und Quiz), Kommunikationspläne, Drohnentraining, Gemeinschaft, Bar-Anfrage, Verwaltung.
 - **„Sie"** nur im Modul **Dateien** auf den öffentlichen Seiten (Freigabe- und Abgabelinks). Sie gehen
   auch an Außenstehende: Behörden, andere Organisationen, Veranstalter. Das ist eine bewusste Ausnahme.
 - Innerhalb einer Seite nie gemischt. Eine Meldung, die auf beiden Arten von Seiten erscheinen kann,
@@ -74,12 +74,30 @@ Je Modul höchstens **eine** Bedeutung. Wo etwas anderes passiert, steht das Ver
 
 | Modul | Wort |
 |---|---|
-| Feedback: einen Abend für Rückmeldungen öffnen | **Umfrage starten** |
+| Dienstabend: einen Abend für Rückmeldungen öffnen | **Umfrage starten** |
 | Kummerkasten: Antwort an die meldende Person | **Antwort senden** |
 | Aufgaben: fertig gemeldete Arbeit abnehmen | **Freigeben** (die eine Bedeutung im Modul) |
 | Helfer: für das Einsatztagebuch | **Bereitstellen** / **nicht mehr bereitstellen** |
 | Dateien: Link für andere | **Freigabe** (das Ding), **Freigabe anlegen** |
 | Zugangscodes | **Entsperren** |
+
+## Dienstabend
+
+Das Modul heißt **Dienstabend** (bis November 2026 „Feedback"). Darin stehen zwei Dinge, die nicht
+dasselbe Wort bekommen:
+
+| Wo | Wort |
+|---|---|
+| Das Modul (App-Umschalter, Portal-Kachel, Kopfzeile) | **Dienstabend** |
+| Der Rückmeldebogen nach dem Abend | **Feedback** (Aktionen **Umfrage starten**, **Feedback beenden**) |
+| Die Fragerunde während des Abends | **Quiz** (Mehrzahl **Quizze**; die öffentliche Seite heißt **Live-Quiz**) |
+| Quiz-Art mit Spitznamen und Rangliste | **Wettbewerb** |
+| Quiz-Art ohne Namen, nur die Verteilung | **Lagebild** |
+| Die Ansicht für Leinwand oder Bildschirm im Raum | **Beamer** (**Beamer-Adresse**) |
+| Warteraum vor der ersten Frage | **Lobby** (Knopf **Lobby öffnen**) |
+
+Nicht: „Feedback" für das Modul, „Umfrage" für das Quiz, „Präsentation" oder „Leinwand" für den
+Beamer, „anonym" als Name der Quiz-Art (anonym ist eine Eigenschaft des Lagebilds, kein Name).
 
 ## Technikwörter
 

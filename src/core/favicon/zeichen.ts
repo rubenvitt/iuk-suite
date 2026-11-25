@@ -102,7 +102,7 @@ const QR = modulZeichen(
 
 /** Sprechblase mit zwei Zeilen. */
 const FEEDBACK = modulZeichen(
-  "Feedback",
+  "Dienstabend",
   `<path class="t" fill-rule="evenodd" d="M10 26h28a6 6 0 0 1 6 6v16a6 6 0 0 1-6 6H22l-10 8v-8h-2a6 6 0 0 1-6-6V32a6 6 0 0 1 6-6Zm2 9v4h24v-4Zm0 8v4h16v-4Z"/>`,
 );
 
