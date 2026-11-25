@@ -45,3 +45,13 @@
   outline: 2px solid var(--iuk-marke);
   outline-offset: 2px;
 }
+
+/* Zugang für Lifeline Hub (LLH-1194): der Schlüssel einmal, zum Markieren und Kopieren. */
+.schluessel {
+  font-family: var(--font-mono);
+  word-break: break-all;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.gedaempft { color: var(--iuk-gedaempft); }

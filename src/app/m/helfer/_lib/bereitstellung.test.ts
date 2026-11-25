@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { planeAbgleich, wendeAbgleichAn } from "./abgleich";
-import { bereitgestellteHelfer, helferFuerSchichtplanung } from "./bereitstellung";
+import { bereitgestellteHelfer, helferFuerLifeline, helferFuerSchichtplanung } from "./bereitstellung";
 import { listeHelfer, setzeFreigabe } from "./daten";
 import { STANDARD_FILTER } from "./filter";
 import { testDb } from "./testDb";
@@ -63,6 +63,41 @@ describe("helferFuerSchichtplanung — der zweite Empfänger", () => {
     const db = testDb();
     wende(db, "demo");
     expect(helferFuerSchichtplanung(db).helfer.map((h) => h.hiorgId)).toEqual([null, null]);
+  });
+});
+
+describe("helferFuerLifeline — der dritte Empfänger (LLH-1194)", () => {
+  function mit(db: ReturnType<typeof testDb>, quelle: "demo" | "hiorg", qualifikationen: { liste: string; name: string; kurz: string }[]) {
+    const personen = [{ quellId: "q1", vorname: "Jana", nachname: "Albers", status: "aktiv", gesperrt: false, austritt: null, gruppen: ["Bereitschaft"], qualifikationen, fahrerlaubnis: ["B"] }];
+    wendeAbgleichAn(db, planeAbgleich({ personen, unlesbar: 0 }, [], STANDARD_FILTER, "2026-11-25", quelle), { neueFreigeben: true, von: { name: "T", sub: "t" } });
+  }
+
+  it("genau Kennung, Name und Qualifikationsnamen; die Kennung ist die eigene, nie die aus HiOrg", () => {
+    const db = testDb();
+    mit(db, "hiorg", [{ liste: "med", name: "Sanitätshelfer", kurz: "SanH" }, { liste: "x", name: "Sanitätshelfer", kurz: "SH" }, { liste: "y", name: "Arzt", kurz: "A" }]);
+    const { personal } = helferFuerLifeline(db);
+    expect(personal).toHaveLength(1);
+    expect(Object.keys(personal[0]).sort()).toEqual(["kennung", "name", "qualifikationen"]);
+    expect(personal[0].name).toBe("Albers, Jana");
+    expect(personal[0].qualifikationen).toEqual(["Arzt", "Sanitätshelfer"]);
+    expect(personal[0].kennung).toBe(listeHelfer(db)[0].id);
+    expect(personal[0].kennung).not.toBe("q1");
+  });
+
+  it("ohne Qualifikationen eine leere Liste", () => {
+    const db = testDb();
+    mit(db, "hiorg", []);
+    expect(helferFuerLifeline(db).personal[0].qualifikationen).toEqual([]);
+  });
+
+  it("nur Freigegebene, keine Demo-Helfer", () => {
+    const db = testDb();
+    wende(db, "hiorg");
+    setzeFreigabe(db, [listeHelfer(db)[0].id], false);
+    expect(helferFuerLifeline(db).personal.map((p) => p.kennung)).toEqual([listeHelfer(db)[1].id]);
+    const demo = testDb();
+    wende(demo, "demo");
+    expect(helferFuerLifeline(demo).personal).toEqual([]);
   });
 });
 
