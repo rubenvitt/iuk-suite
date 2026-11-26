@@ -25,6 +25,7 @@ import {
 } from "./_db/queries";
 import {
   computeClosesAt,
+  kalendertagInZone,
   nextStatusOnAccess,
   DEFAULT_CLOSE_AFTER_HOURS,
   type SurveyStatus,
@@ -1275,6 +1276,86 @@ describe("freigebenAction: aus dem Termin wird ein Dienstabend", () => {
     expect(getEvening(db, fremd.evening.id)!.status).toBe("planned");
     expect(getSurveyByEvening(db, fremd.evening.id)).toBeUndefined();
     expect(activeSurveyForGroup(db, fremd.group.id)).toBeUndefined();
+  });
+});
+
+/**
+ * ERST DAS LIVE-QUIZ, DANN DIE UMFRAGE — die Reihenfolge eines echten Abends. Das Quiz setzt
+ * den Abend von heute auf `held` (`starteOderHoleRunde`); beide Wege, die das Cockpit für die
+ * Umfrage anbietet, müssen ihn danach übernehmen statt abzuweisen.
+ */
+describe("Quiz, dann Umfrage: Starten und Freigeben übernehmen den Quizabend", () => {
+  async function quizHeute(slug: string, geplant: boolean) {
+    const { legeQuizAn, starteOderHoleRunde } = await import("./_db/quiz");
+    const group = insertGroup(db, { name: slug, slug, secret: "abc12", closeAfterHours: null, createdAt: new Date() });
+    const jetzt = new Date();
+    const heute = new Date(`${kalendertagInZone(jetzt)}T00:00:00Z`);
+    const termin = geplant
+      ? insertEvening(db, {
+          groupId: group.id, date: heute, topic: "Kartenkunde", notes: null,
+          participantCount: null, status: "planned", createdAt: new Date(),
+        })
+      : null;
+    const quiz = legeQuizAn(db, {
+      groupId: group.id, titel: "Funk", modus: "lagebild", jetzt,
+      fragen: [{ text: "Wie viel?", typ: "einfach", optionen: ["A", "B"], richtig: [0] }],
+    });
+    const runde = starteOderHoleRunde(db, quiz, jetzt);
+    alsGruppenleitung(slug);
+    return { group, termin, runde, iso: kalendertagInZone(jetzt) };
+  }
+  function startForm(groupId: number, date: string): FormData {
+    const f = new FormData();
+    f.set("groupId", String(groupId));
+    f.set("date", date);
+    f.set("topic", "");
+    f.set("participantCount", "9");
+    return f;
+  }
+
+  it.each([
+    ["ohne Abend", false],
+    ["mit geplantem Abend", true],
+  ] as const)("Umfrage starten nach dem Quiz (%s) startet am Quizabend", async (_name, geplant) => {
+    const { startFeedbackAction } = await loadActions();
+    const { group, runde, iso } = await quizHeute("bereitschaft", geplant);
+    expect(getEvening(db, runde.eveningId)!.status).toBe("held");
+
+    const ergebnis = await startFeedbackAction(FORM_START, startForm(group.id, iso));
+
+    expect(ergebnis).toEqual({ ok: true });
+    expect(listEvenings(db, group.id)).toHaveLength(1);
+    const laufend = activeSurveyForGroup(db, group.id)!;
+    expect(laufend.evening.id).toBe(runde.eveningId);
+    expect(laufend.evening.participantCount).toBe(9);
+    if (geplant) expect(laufend.evening.topic).toBe("Kartenkunde");
+  });
+
+  it("Freigeben nach dem Quiz (veraltete Seite mit dem Termin) startet die Umfrage", async () => {
+    const { freigebenAction } = await loadActions();
+    const { group, termin, runde } = await quizHeute("bereitschaft", true);
+    expect(runde.eveningId).toBe(termin!.id);
+
+    const f = new FormData();
+    f.set("eveningId", String(termin!.id));
+    await freigebenAction(f);
+
+    expect(activeSurveyForGroup(db, group.id)!.evening.id).toBe(termin!.id);
+    expect(getEvening(db, termin!.id)!.status).toBe("held");
+  });
+
+  it("Freigeben eines gelaufenen Abends ohne Umfrage und ohne Quizrunde wirft weiter", async () => {
+    const { freigebenAction } = await loadActions();
+    const group = insertGroup(db, { name: "B", slug: "bereitschaft", secret: "abc12", closeAfterHours: null, createdAt: new Date() });
+    const eve = insertEvening(db, {
+      groupId: group.id, date: todayMidnightUtc(), topic: null, notes: null,
+      participantCount: null, status: "held", createdAt: new Date(),
+    });
+    alsGruppenleitung("bereitschaft");
+    const f = new FormData();
+    f.set("eveningId", String(eve.id));
+    await expect(freigebenAction(f)).rejects.toThrow("nur für geplante Abende");
+    expect(getSurveyByEvening(db, eve.id)).toBeUndefined();
   });
 });
 

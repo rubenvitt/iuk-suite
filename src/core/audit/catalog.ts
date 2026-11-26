@@ -107,6 +107,35 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "quizze": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "quiz_runden": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "schritt",
+          "schritt_seit",
+          "hoechster_schritt",
+          "hoechster_seit"
+        ],
+        "reason": "Jeder Klick des Beamers schaltet den Schritt (samt weitestem Schritt); Anlegen und Beenden werden auditiert."
+      }
+    },
+    "quiz_teilnahmen": {
+      "mode": "excluded",
+      "reason": "Live-Spieldaten anonymer Teilnehmender, Hunderte Zeilen je Abend; ein Audit-Eintrag je Antwort brächte Zeitstempel je Person ins Protokoll."
+    },
+    "quiz_antworten": {
+      "mode": "excluded",
+      "reason": "Live-Spieldaten anonymer Teilnehmender, Hunderte Zeilen je Abend; ein Audit-Eintrag je Antwort brächte Zeitstempel je Person ins Protokoll."
     }
   },
   "files": {

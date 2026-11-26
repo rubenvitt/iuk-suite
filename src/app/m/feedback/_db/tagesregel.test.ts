@@ -37,10 +37,14 @@ const ERLAUBT = [
   "src/app/m/feedback/_db/queries.ts › planEvenings › insert",
   "src/app/m/feedback/_db/queries.ts › trageAbendNach › insert",
   "src/app/m/feedback/_db/queries.ts › updateEvening › update",
+  // Live-Quiz: legt den heutigen Abend an, wenn `abendAmTag` keinen findet.
+  "src/app/m/feedback/_db/quiz.ts › starteOderHoleRunde › insert",
   // Ändern kein Datum: sie setzen Lage, Thema, Notizen, Teilnehmerzahl.
   "src/app/m/feedback/_db/queries.ts › createAndStartSurvey › update",
   "src/app/m/feedback/_db/queries.ts › gibAbendFrei › update",
   "src/app/m/feedback/_db/queries.ts › setEveningStatus › update",
+  // Live-Quiz: setzt einen geplanten Abend von heute auf `held`.
+  "src/app/m/feedback/_db/quiz.ts › starteOderHoleRunde › update",
   // Die ungeprüfte Einfügefunktion und wer sie benutzt. Beides legt Bestand
   // an, der Import zusätzlich den Altbestand, der Doppeltage tragen darf —
   // er meldet sie nach dem Lauf (`berichtDoppelteTage`).

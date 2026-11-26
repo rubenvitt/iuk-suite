@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live-Quiz Mockups</title>
+<!--
+  Schriften: Barlow und Barlow Condensed. Die Suite registriert beide schon in
+  src/app/layout.tsx über next/font (selbst gehostet, kein Request an Google zur
+  Laufzeit). Nur dieses statische Mockup holt sie bei Google, weil es außerhalb
+  von Next läuft. Fällt der Abruf aus, steht system-ui da — das Mockup verliert
+  dann Ton, nicht Inhalt.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   Variablen des Quiz. Im Bau hängen sie an der Wurzel des CSS-Moduls, nicht an
+   :root (ein CSS-Modul kann :root nicht scopen). Im Mockup stehen sie auf :root.
+   ========================================================================== */
+:root, [data-theme="light"] {
+  --qz-grund: #f5f6f8;        /* Seite / Beamer-Grund */
+  --qz-flaeche: #ffffff;      /* Tafeln, Handy-Karten */
+  --qz-tinte: #16181a;        /* Text, Primäraktion, Fokus */
+  --qz-tinte-auf: #ffffff;    /* Text auf Tinte */
+  --qz-gedaempft: #5c6168;    /* Sekundärtext */
+  --qz-linie: #dde0e5;
+  --qz-linie-stark: #c4c8cf;
+  --qz-spur: #e9ebef;         /* leere Balken- und Ringspur */
+  --qz-marke: #c8000f;        /* Suite-Rot: Fahne + Wortzeichen, sonst nirgends */
+
+  /* Antwortfarben. Form trägt mit (▲ ● ■ ◆), Position ist fest. */
+  --qz-a: #1e4fc2;  --qz-a-text: #ffffff;   /* ▲ Kobalt   7,11:1 */
+  --qz-b: #f2b705;  --qz-b-text: #16181a;   /* ● Bernstein 9,79:1 */
+  --qz-c: #00707a;  --qz-c-text: #ffffff;   /* ■ Petrol   5,84:1 */
+  --qz-d: #7a2e8c;  --qz-d-text: #ffffff;   /* ◆ Pflaume  8,09:1 */
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --qz-grund: #101214;
+  --qz-flaeche: #1b1e22;
+  --qz-tinte: #ece9e2;
+  --qz-tinte-auf: #101214;
+  --qz-gedaempft: #9aa0a6;
+  --qz-linie: #2c3035;
+  --qz-linie-stark: #3a3f45;
+  --qz-spur: #262a30;
+  --qz-marke: #c8000f;
+
+  --qz-a: #7fa6ff;  --qz-a-text: #101214;   /* 7,87:1 */
+  --qz-b: #f5c542;  --qz-b-text: #101214;   /* 11,57:1 */
+  --qz-c: #4fc6c9;  --qz-c-text: #101214;   /* 9,17:1 */
+  --qz-d: #d09be2;  --qz-d-text: #101214;   /* 8,46:1 */
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--qz-grund); }
+body {
+  margin: 0;
+  font-family: "Barlow", ui-sans-serif, system-ui, sans-serif;
+  color: var(--qz-tinte);
+  background: var(--qz-grund);
+  font-variant-numeric: tabular-nums lining-nums;
+  -webkit-font-smoothing: antialiased;
+}
+.cond { font-family: "Barlow Condensed", "Barlow", ui-sans-serif, system-ui, sans-serif; }
+
+/* ---------- Mockup-Bogen (nicht Teil des Entwurfs) ---------- */
+.bogen-kopf {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px 32px;
+  background: color-mix(in srgb, var(--qz-grund) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--qz-linie);
+}
+.bogen-kopf h1 { margin: 0; font-size: 20px; font-weight: 700; }
+.bogen-kopf p { margin: 0; color: var(--qz-gedaempft); font-size: 15px; flex: 1 1 320px; }
+.umschalter {
+  font: 600 15px/1 "Barlow", system-ui, sans-serif;
+  height: 44px; padding: 0 18px; border-radius: 8px;
+  border: 1px solid var(--qz-linie-stark);
+  background: var(--qz-flaeche); color: var(--qz-tinte); cursor: pointer;
+}
+.umschalter:focus-visible, button:focus-visible, input:focus-visible {
+  outline: 3px solid var(--qz-tinte); outline-offset: 2px;
+}
+.abschnitt { padding: 32px; }
+.abschnitt > h2 { font-size: 28px; margin: 0 0 4px; }
+.abschnitt > p { margin: 0 0 24px; color: var(--qz-gedaempft); max-width: 72ch; font-size: 16px; line-height: 1.5; }
+.raster-beamer { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 760px), 1fr)); gap: 40px 32px; }
+.raster-handy { display: grid; grid-template-columns: repeat(auto-fill, 360px); gap: 40px 32px; }
+figure { margin: 0; }
+figcaption { margin-top: 10px; font-size: 15px; line-height: 1.45; color: var(--qz-gedaempft); max-width: 64ch; }
+figcaption b { color: var(--qz-tinte); font-weight: 600; }
+
+/* ==========================================================================
+   BEAMER — eine 16:9-Fläche, alle Maße in cqh, damit sie im Slidev-iframe wie
+   im Vollbild dieselbe Komposition hat. 1cqh ≈ 1 % der Bildhöhe.
+   Skala (cqh): 2,6 · 3,4 · 4,6 · 6,2 · 8,4 · 12 · 22
+   ========================================================================== */
+.bm {
+  width: 100%; aspect-ratio: 16 / 9;
+  container-type: size;
+  position: relative; overflow: hidden;
+  background: var(--qz-grund);
+  border: 1px solid var(--qz-linie);
+  border-radius: 6px;
+}
+.bm-innen {
+  position: absolute; inset: 0;
+  padding: 6cqh 6.5cqh 5cqh;
+  display: flex; flex-direction: column;
+}
+.bm::before { /* Fahne */
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 0.7cqh; background: var(--qz-marke);
+}
+.bm-kopf {
+  display: flex; align-items: baseline; gap: 2.4cqh;
+  font-size: 2.6cqh; color: var(--qz-gedaempft); font-weight: 500;
+}
+.wortzeichen { color: var(--qz-marke); font-weight: 700; letter-spacing: .1em; }
+[data-theme="dark"] .wortzeichen { color: #e45a66; } /* tokens.ts `rotAufDunkel`, 5,32:1 */
+.bm-kopf .rechts { margin-left: auto; color: var(--qz-tinte); font-weight: 600; }
+.bm-kopf .rechts small { font-size: inherit; color: var(--qz-gedaempft); font-weight: 500; }
+
+/* --- Lobby --- */
+.lobby { flex: 1; display: grid; grid-template-columns: auto 1fr; gap: 7cqh; align-items: center; }
+.qr {
+  height: 62cqh; aspect-ratio: 1; background: #fff; padding: 3cqh; border-radius: 1.4cqh;
+  box-shadow: 0 0 0 1px var(--qz-linie);
+}
+.qr svg { width: 100%; height: 100%; display: block; }
+.lobby h2 { margin: 0 0 1.5cqh; font-size: 8.4cqh; line-height: 1; font-weight: 700; }
+.lobby .hinweis { font-size: 4.6cqh; line-height: 1.25; margin: 0 0 4cqh; max-width: 30ch; }
+.lobby .hinweis b { font-weight: 700; }
+.code { display: flex; gap: 1.4cqh; margin-bottom: 5cqh; }
+.code span {
+  font-family: "Barlow Condensed", "Barlow", system-ui, sans-serif;
+  font-weight: 700; font-size: 15cqh; line-height: 1;
+  width: 13.5cqh; height: 19cqh; display: grid; place-items: center;
+  background: var(--qz-flaeche); border: 0.45cqh solid var(--qz-tinte); border-radius: 1.4cqh;
+}
+.dabei { display: flex; align-items: baseline; gap: 1.6cqh; font-size: 4.6cqh; font-weight: 600; }
+.dabei .zahl { font-family: "Barlow Condensed", system-ui, sans-serif; font-size: 12cqh; line-height: .9; font-weight: 700; }
+.puls { width: 2.2cqh; height: 2.2cqh; border-radius: 50%; background: var(--qz-tinte); align-self: center; animation: puls 2.4s ease-in-out infinite; }
+@keyframes puls { 50% { opacity: .25; } }
+
+/* --- Frage --- */
+.frage-kopf { display: flex; align-items: center; gap: 3cqh; margin: 3.5cqh 0 2.5cqh; }
+.frage-text {
+  flex: 1; margin: 0; font-size: 6.2cqh; line-height: 1.15; font-weight: 600; letter-spacing: -.005em;
+  text-wrap: balance;
+}
+.ring { width: 17cqh; height: 17cqh; position: relative; flex: none; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring .spur { stroke: var(--qz-spur); }
+.ring .rest { stroke: var(--qz-tinte); stroke-linecap: round; }
+.ring b {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: "Barlow Condensed", system-ui, sans-serif; font-weight: 700; font-size: 7.4cqh;
+}
+.ring.aus b { font-size: 3.2cqh; font-family: "Barlow", system-ui, sans-serif; font-weight: 700; text-align: center; line-height: 1.05; }
+.kacheln { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2cqh; }
+.kachel {
+  --k: var(--qz-a); --kt: var(--qz-a-text);
+  background: var(--k); color: var(--kt);
+  border-radius: 1.6cqh; display: flex; align-items: center; gap: 3cqh;
+  padding: 0 4cqh 0 2.4cqh; font-size: 4.6cqh; line-height: 1.15; font-weight: 600;
+}
+.kachel.b, .balken-zeile.b, .hk.b { --k: var(--qz-b); --kt: var(--qz-b-text); }
+.kachel.c, .balken-zeile.c, .hk.c { --k: var(--qz-c); --kt: var(--qz-c-text); }
+.kachel.d, .balken-zeile.d, .hk.d { --k: var(--qz-d); --kt: var(--qz-d-text); }
+.form { /* Formschild: Plakette in der Schriftfarbe der Kachel, Form in Kachelfarbe —
+          so hat die Form immer denselben Kontrast wie der Text (Bernstein hell: Tinte) */
+  flex: none; width: 10cqh; height: 10cqh; border-radius: 50%;
+  background: var(--kt); display: grid; place-items: center;
+}
+.form svg { width: 55%; height: 55%; fill: var(--k); }
+.zu .kachel { filter: saturate(.25); }  /* Zeit um: Kacheln verlieren Farbe, nicht Helligkeit, Textkontrast bleibt */
+.fuss { display: flex; align-items: baseline; justify-content: space-between; margin-top: 2.4cqh; font-size: 3.4cqh; color: var(--qz-gedaempft); font-weight: 500; }
+.fuss b { color: var(--qz-tinte); font-weight: 700; font-size: 4.6cqh; }
+.zu-schild {
+  font-weight: 700; color: var(--qz-tinte); font-size: 4.6cqh;
+  display: inline-flex; align-items: center; gap: 1.4cqh;
+}
+
+/* --- Auflösung --- */
+.aufl { flex: 1; display: grid; grid-template-columns: 1fr 52cqh; gap: 6cqh; margin-top: 3cqh; min-height: 0; }
+.aufl .frage-text { font-size: 4.6cqh; max-width: none; margin-bottom: 3cqh; flex: none; }
+.balken { display: grid; gap: 2.6cqh; }
+.balken-zeile { --k: var(--qz-a); --kt: var(--qz-a-text); display: grid; grid-template-columns: 7cqh 1fr 10cqh; align-items: center; column-gap: 2.4cqh; }
+.balken-zeile .form { width: 7cqh; height: 7cqh; background: var(--k); grid-row: span 2; }
+.balken-zeile .form svg { fill: var(--kt); }
+.balken-zeile .opt {
+  font-size: 3.6cqh; line-height: 1.15; font-weight: 500; display: flex; align-items: center; gap: 1.2cqh;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: .8cqh;
+}
+.balken-zeile .anz { grid-row: span 2; font-family: "Barlow Condensed", system-ui, sans-serif; font-weight: 700; font-size: 6.2cqh; text-align: right; color: var(--qz-gedaempft); }
+.balken-spur { height: 3.4cqh; border-radius: .8cqh; background: var(--qz-spur); overflow: hidden; }
+.balken-spur i { /* falsche Optionen: nur Tönung der Antwortfarbe */
+  display: block; height: 100%; width: var(--w); border-radius: inherit;
+  background: color-mix(in srgb, var(--k) 38%, var(--qz-spur));
+  /* Rand zieht die Länge auf ≥ 3:1 gegen die Spur (WCAG 1.4.11), auch für Bernstein hell */
+  box-shadow: inset 0 0 0 .3cqh color-mix(in srgb, var(--k) 65%, var(--qz-tinte));
+}
+.balken-zeile.richtig .opt { font-weight: 700; }
+.balken-zeile.richtig .balken-spur { height: 4.4cqh; }
+.balken-zeile.richtig .balken-spur i { background: var(--k); }
+.balken-zeile.richtig .anz { color: var(--qz-tinte); }
+.balken-zeile.richtig .form { box-shadow: 0 0 0 .5cqh var(--qz-grund), 0 0 0 1cqh var(--qz-tinte); }
+.haken {
+  width: 4.4cqh; height: 4.4cqh; border-radius: 50%; background: var(--qz-tinte); color: var(--qz-tinte-auf);
+  display: inline-grid; place-items: center; flex: none;
+}
+.haken svg { width: 66%; height: 66%; }
+.seite-rechts { border-left: 1px solid var(--qz-linie); padding-left: 5cqh; display: flex; flex-direction: column; }
+.gross { font-family: "Barlow Condensed", system-ui, sans-serif; font-weight: 700; font-size: 22cqh; line-height: .85; letter-spacing: -.01em; }
+.gross small { font-size: .5em; }
+.unter { font-size: 3.4cqh; font-weight: 600; margin-top: 1.4cqh; }
+.erkl { margin-top: auto; font-size: 3.4cqh; line-height: 1.32; }
+.erkl strong { display: block; font-size: 2.6cqh; color: var(--qz-gedaempft); font-weight: 600; margin-bottom: .6cqh; }
+
+/* --- Rangliste --- */
+.rang-titel { font-size: 8.4cqh; margin: 4cqh 0 3cqh; font-weight: 700; line-height: 1; }
+.rang { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.6cqh; }
+.rang li {
+  display: grid; grid-template-columns: 10cqh 1fr auto 14cqh; align-items: center; gap: 3cqh;
+  background: var(--qz-flaeche); border: 1px solid var(--qz-linie); border-radius: 1.4cqh;
+  height: 11cqh; padding: 0 3cqh 0 2cqh; font-size: 5.4cqh; font-weight: 600;
+}
+.rang li:first-child { background: var(--qz-tinte); color: var(--qz-tinte-auf); border-color: var(--qz-tinte); }
+.rang .platz { font-family: "Barlow Condensed", system-ui, sans-serif; font-weight: 700; font-size: 7cqh; text-align: center; }
+.rang .pkt { font-family: "Barlow Condensed", system-ui, sans-serif; font-weight: 700; font-size: 6.2cqh; }
+.rang .zug { font-size: 3.4cqh; font-weight: 600; display: flex; align-items: center; gap: .8cqh; justify-content: flex-end; color: var(--qz-gedaempft); }
+.rang li:first-child .zug { color: inherit; opacity: .8; }
+.zug svg { width: 3cqh; height: 3cqh; }
+
+/* --- Podest --- */
+.podest-buehne { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3cqh; align-items: end; margin-top: 2cqh; max-width: 150cqh; width: 100%; align-self: center; }
+.stufe { display: flex; flex-direction: column; align-items: stretch; text-align: center; }
+.stufe .name { font-size: 5.4cqh; font-weight: 700; line-height: 1.1; margin-bottom: .6cqh; }
+.stufe .pkt { font-size: 3.6cqh; color: var(--qz-gedaempft); font-weight: 600; margin-bottom: 2cqh; }
+.sockel {
+  border-radius: 1.6cqh 1.6cqh 0 0; display: grid; place-items: start center; padding-top: 2cqh;
+  font-family: "Barlow Condensed", system-ui, sans-serif; font-weight: 700; font-size: 14cqh; line-height: 1;
+  background: var(--qz-flaeche); border: 1px solid var(--qz-linie-stark); border-bottom: 0;
+}
+.s1 .sockel { height: 40cqh; background: var(--qz-tinte); color: var(--qz-tinte-auf); border-color: var(--qz-tinte); }
+.s1 .name { font-size: 7cqh; }
+.s2 .sockel { height: 28cqh; }
+.s3 .sockel { height: 20cqh; }
+.boden { height: .5cqh; background: var(--qz-tinte); max-width: 150cqh; width: 100%; align-self: center; }
+.danach { display: flex; gap: 5cqh; justify-content: center; margin-top: 2.4cqh; font-size: 3.4cqh; color: var(--qz-gedaempft); font-weight: 500; }
+.danach b { color: var(--qz-tinte); font-weight: 600; }
+.knopf-bm {
+  position: absolute; right: 6.5cqh; bottom: 4.6cqh;
+  font: 600 2.6cqh/1 "Barlow", system-ui, sans-serif; height: 6cqh; padding: 0 2.6cqh; border-radius: 1cqh;
+  border: 1px solid var(--qz-linie-stark); background: var(--qz-flaeche); color: var(--qz-tinte);
+}
+
+/* --- Lagebild-Schluss --- */
+.lage { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 5cqh; align-items: start; margin-top: 6cqh; }
+.kennzahl { border-top: .6cqh solid var(--qz-tinte); padding-top: 3cqh; }
+.kennzahl .gross { font-size: 20cqh; }
+.kennzahl .unter { font-size: 4cqh; }
+.schwer .frage-zit { font-size: 4.6cqh; line-height: 1.2; font-weight: 600; margin: 1cqh 0 2.4cqh; }
+.schwer .meta { font-size: 3.4cqh; color: var(--qz-gedaempft); font-weight: 500; }
+.schwer .meta b { color: var(--qz-tinte); }
+.lage-titel { font-size: 8.4cqh; margin: 4cqh 0 0; font-weight: 700; line-height: 1; }
+.lage-unter { font-size: 3.6cqh; color: var(--qz-gedaempft); margin: 1.6cqh 0 0; font-weight: 500; }
+
+/* --- vor Start --- */
+.vorstart { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.vorstart h2 { font-size: 12cqh; line-height: 1; margin: 0 0 2cqh; font-weight: 700; }
+.vorstart p { font-size: 3.6cqh; color: var(--qz-gedaempft); margin: 0 0 5cqh; }
+.vorstart button {
+  align-self: flex-start; font: 700 4cqh/1 "Barlow", system-ui, sans-serif; height: 10cqh; padding: 0 5cqh;
+  border-radius: 1.2cqh; border: 0; background: var(--qz-tinte); color: var(--qz-tinte-auf);
+}
+
+/* ==========================================================================
+   HANDY — 360 × 780, Maße in px. Skala: 13 · 15 · 18 · 22 · 28 · 40
+   Tapflächen: Antwortkachel ≥ 88, Knopf 56 (Bediendichte ohne Shell).
+   ========================================================================== */
+.hy {
+  width: 360px; height: 780px; position: relative; overflow: hidden;
+  background: var(--qz-grund); border: 1px solid var(--qz-linie-stark); border-radius: 28px;
+  display: flex; flex-direction: column;
+}
+.hy::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--qz-marke); }
+.hy-kopf {
+  display: flex; align-items: baseline; gap: 10px; padding: 22px 20px 14px;
+  font-size: 13px; color: var(--qz-gedaempft); font-weight: 500;
+}
+.hy-kopf .wortzeichen { font-size: 13px; }
+.hy-kopf .rechts { margin-left: auto; color: var(--qz-tinte); font-weight: 600; }
+.hy-inhalt { flex: 1; padding: 8px 20px 24px; display: flex; flex-direction: column; min-height: 0; }
+.hy h2 { font-size: 28px; line-height: 1.1; margin: 0 0 12px; font-weight: 700; letter-spacing: -.005em; text-wrap: balance; }
+.hy :where(p) { font-size: 18px; line-height: 1.4; margin: 0 0 16px; }
+.hy .leise { color: var(--qz-gedaempft); font-size: 15px; line-height: 1.45; }
+.hy-frage { font-size: 20px; line-height: 1.3; font-weight: 600; margin: 4px 0 6px; text-wrap: pretty; }
+.hy-frage-meta { font-size: 13px; color: var(--qz-gedaempft); font-weight: 600; margin: 0 0 14px; display: flex; justify-content: space-between; }
+.hk-liste { display: grid; gap: 10px; flex: 1; grid-auto-rows: minmax(88px, 1fr); }
+.hk {
+  --k: var(--qz-a); --kt: var(--qz-a-text);
+  all: unset; box-sizing: border-box; cursor: pointer;
+  background: var(--k); color: var(--kt); border-radius: 14px;
+  display: flex; align-items: center; gap: 14px; padding: 12px 16px 12px 12px;
+  font: 600 18px/1.25 "Barlow", system-ui, sans-serif;
+  position: relative;
+}
+.hk:focus-visible { outline: 3px solid var(--qz-tinte); outline-offset: 3px; }
+.hk .form { width: 48px; height: 48px; }
+.hk-mehr .hk { box-shadow: inset 0 0 0 0 transparent; }
+.hk .wahl { /* Ankreuzfeld der Mehrfachauswahl */
+  margin-left: auto; flex: none; width: 30px; height: 30px; border-radius: 8px;
+  border: 2.5px solid currentColor; display: grid; place-items: center;
+}
+.hk .wahl svg { width: 20px; height: 20px; visibility: hidden; }
+.hk[aria-pressed="true"] .wahl { background: var(--kt); }
+.hk[aria-pressed="true"] .wahl svg { visibility: visible; color: var(--k); }
+.hk[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--qz-grund), 0 0 0 6px var(--qz-tinte); }
+.hk-liste.kompakt { grid-auto-rows: minmax(80px, auto); flex: none; }
+.knopf {
+  all: unset; box-sizing: border-box; cursor: pointer; text-align: center;
+  height: 56px; border-radius: 12px; background: var(--qz-tinte); color: var(--qz-tinte-auf);
+  font: 700 18px/56px "Barlow", system-ui, sans-serif; margin-top: 16px; width: 100%;
+}
+.knopf:focus-visible { outline: 3px solid var(--qz-tinte); outline-offset: 3px; }
+.feld-label { font-size: 15px; font-weight: 600; margin: 8px 0 6px; display: block; }
+.feld {
+  font: 500 18px/1 "Barlow", system-ui, sans-serif; height: 56px; width: 100%; padding: 0 16px;
+  border: 1.5px solid var(--qz-linie-stark); border-radius: 12px; background: var(--qz-flaeche); color: var(--qz-tinte);
+}
+.zusage {
+  display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 12px;
+  background: var(--qz-flaeche); border: 1px solid var(--qz-linie); font-size: 16px; font-weight: 600; line-height: 1.35;
+}
+.zusage svg { width: 24px; height: 24px; flex: none; }
+.unten { margin-top: auto; }
+.modus { align-self: flex-start; display: inline-block; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--qz-linie-stark); margin-bottom: 14px; }
+.zentral { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.siegel {
+  width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 20px;
+  border: 3px solid var(--qz-tinte);
+}
+.siegel svg { width: 44px; height: 44px; }
+.siegel.voll { background: var(--qz-tinte); color: var(--qz-tinte-auf); }
+.gewaehlt-klein { display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 10px; border-radius: 12px; background: var(--k); color: var(--kt); font-weight: 600; font-size: 16px; line-height: 1.25; margin-bottom: 20px; }
+.gewaehlt-klein .form { width: 38px; height: 38px; }
+.punkte-gross { font-family: "Barlow Condensed", system-ui, sans-serif; font-weight: 700; font-size: 64px; line-height: .9; margin: 4px 0 6px; }
+.werte { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.werte div { background: var(--qz-flaeche); border: 1px solid var(--qz-linie); border-radius: 12px; padding: 12px 14px; }
+.werte b { display: block; font-family: "Barlow Condensed", system-ui, sans-serif; font-size: 40px; line-height: 1; font-weight: 700; }
+.werte span { font-size: 13px; color: var(--qz-gedaempft); font-weight: 600; }
+.warte-punkte { display: flex; gap: 8px; margin: 20px 0 0; }
+.warte-punkte i { width: 10px; height: 10px; border-radius: 50%; background: var(--qz-tinte); animation: puls 1.6s ease-in-out infinite; }
+.warte-punkte i:nth-child(2) { animation-delay: .2s; } .warte-punkte i:nth-child(3) { animation-delay: .4s; }
+.ich { font-family: "Barlow Condensed", system-ui, sans-serif; font-weight: 700; font-size: 40px; line-height: 1; margin: 0 0 18px; }
+.richtig-war { font-size: 13px; color: var(--qz-gedaempft); font-weight: 600; margin: 0 0 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .puls, .warte-punkte i { animation: none; }
+}
+@media (max-width: 700px) {
+  .abschnitt { padding: 24px 16px; }
+  .bogen-kopf { padding: 12px 16px; }
+  .raster-handy { grid-template-columns: 1fr; justify-items: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- Formen, einmal definiert -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="f-a" viewBox="0 0 100 100"><path d="M50 8 96 90H4z"/></symbol>
+    <symbol id="f-b" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44"/></symbol>
+    <symbol id="f-c" viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" rx="4"/></symbol>
+    <symbol id="f-d" viewBox="0 0 100 100"><path d="M50 2 98 50 50 98 2 50z"/></symbol>
+    <symbol id="i-haken" viewBox="0 0 24 24"><path d="M4.5 12.5 9.5 17.5 19.5 6.5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-hoch" viewBox="0 0 24 24"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-runter" viewBox="0 0 24 24"><path d="M12 5v14M5.5 12.5 12 19l6.5-6.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-gleich" viewBox="0 0 24 24"><path d="M6 12h12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-schloss" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-uhr" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="bogen-kopf">
+  <h1>Live-Quiz: Beamer und Handy</h1>
+  <p>Mockup zur Freigabe. Inhalt: Dienstabend „Notfallverfahren UAV“, Frage 3 von 8. Alle Zustände auf einer Seite.</p>
+  <button class="umschalter" type="button" id="umschalter" aria-pressed="false">Dunkel zeigen</button>
+</header>
+
+<!-- ======================= BEAMER ======================= -->
+<section class="abschnitt">
+  <h2>Beamer</h2>
+  <p>16:9, alle Maße relativ zur Bildhöhe: im Slidev-iframe und im Vollbild dieselbe Komposition. Kleinste Schrift 2,6 % der Bildhöhe (bei 1080 px: 28 px), Fragetext 6,2 %, Antworten 4,6 %.</p>
+  <div class="raster-beamer">
+
+    <figure>
+      <div class="bm"><div class="bm-innen">
+        <div class="bm-kopf"><span class="wortzeichen">IDA</span><span>Dienstabend</span><span class="rechts">Notfallverfahren UAV</span></div>
+        <div class="lobby">
+          <div class="qr" data-qr></div>
+          <div>
+            <h2>Mach mit</h2>
+            <p class="hinweis">QR scannen oder Code auf <b>feedback.drk-ida.de/q</b> eingeben</p>
+            <div class="code" aria-label="Code K 7 Q 2 M X"><span>K</span><span>7</span><span>Q</span><span>2</span><span>M</span><span>X</span></div>
+            <div class="dabei"><span class="puls" aria-hidden="true"></span><span class="zahl">31</span><span>dabei</span></div>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>Lobby.</b> Der Code steht in sechs Schildern, damit ihn auch die hinterste Reihe Zeichen für Zeichen abtippen kann (kein 0/O, 1/I im Alphabet). Die Zahl zählt live mit.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="bm"><div class="bm-innen">
+        <div class="bm-kopf"><span class="wortzeichen">IDA</span><span>Frage 3 von 8</span><span class="rechts">K7Q2MX <small>auf feedback.drk-ida.de/q</small></span></div>
+        <div class="frage-kopf">
+          <p class="frage-text">Die Drohne verliert die Funkverbindung. Was macht sie, wenn Return-to-Home eingestellt ist?</p>
+          <div class="ring" role="timer" aria-label="noch 14 Sekunden">
+            <svg viewBox="0 0 100 100"><circle class="spur" cx="50" cy="50" r="44" fill="none" stroke-width="9"/><circle class="rest" cx="50" cy="50" r="44" fill="none" stroke-width="9" stroke-dasharray="276.5" stroke-dashoffset="129"/></svg>
+            <b>14</b>
+          </div>
+        </div>
+        <div class="kacheln">
+          <div class="kachel a"><span class="form"><svg><use href="#f-a"/></svg></span>Sie landet sofort an Ort und Stelle</div>
+          <div class="kachel b"><span class="form"><svg><use href="#f-b"/></svg></span>Sie steigt auf RTH-Höhe und fliegt zum Startpunkt</div>
+          <div class="kachel c"><span class="form"><svg><use href="#f-c"/></svg></span>Sie schwebt auf der Stelle, bis der Akku leer ist</div>
+          <div class="kachel d"><span class="form"><svg><use href="#f-d"/></svg></span>Sie fliegt zum Handy des Piloten</div>
+        </div>
+        <div class="fuss"><span><b>12</b> Antworten von 31</span><span>Eine Antwort ist richtig</span></div>
+      </div></div>
+      <figcaption><b>Frage offen.</b> Countdown als Ring in Tinte, die Zahl darin ist die eigentliche Information. Der Code bleibt oben rechts, falls jemand später kommt.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="bm"><div class="bm-innen zu">
+        <div class="bm-kopf"><span class="wortzeichen">IDA</span><span>Frage 3 von 8</span><span class="rechts">K7Q2MX <small>auf feedback.drk-ida.de/q</small></span></div>
+        <div class="frage-kopf">
+          <p class="frage-text">Die Drohne verliert die Funkverbindung. Was macht sie, wenn Return-to-Home eingestellt ist?</p>
+          <div class="ring aus" role="timer" aria-label="Zeit ist um">
+            <svg viewBox="0 0 100 100"><circle class="spur" cx="50" cy="50" r="44" fill="none" stroke-width="9"/></svg>
+            <b>Zeit<br>um</b>
+          </div>
+        </div>
+        <div class="kacheln">
+          <div class="kachel a"><span class="form"><svg><use href="#f-a"/></svg></span>Sie landet sofort an Ort und Stelle</div>
+          <div class="kachel b"><span class="form"><svg><use href="#f-b"/></svg></span>Sie steigt auf RTH-Höhe und fliegt zum Startpunkt</div>
+          <div class="kachel c"><span class="form"><svg><use href="#f-c"/></svg></span>Sie schwebt auf der Stelle, bis der Akku leer ist</div>
+          <div class="kachel d"><span class="form"><svg><use href="#f-d"/></svg></span>Sie fliegt zum Handy des Piloten</div>
+        </div>
+        <div class="fuss"><span class="zu-schild"><svg width="1em" height="1em"><use href="#i-schloss"/></svg>Abstimmung geschlossen</span><span><b>31</b> Antworten</span></div>
+      </div></div>
+      <figcaption><b>Zeit um.</b> Gleiches Bild, Kacheln treten zurück, keine Lösung. Die Auflösung kommt mit dem nächsten Klick.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="bm"><div class="bm-innen">
+        <div class="bm-kopf"><span class="wortzeichen">IDA</span><span>Frage 3 von 8</span><span class="rechts">Auflösung</span></div>
+        <div class="aufl">
+          <div style="display:flex;flex-direction:column;min-height:0">
+            <p class="frage-text">Die Drohne verliert die Funkverbindung. Was macht sie, wenn Return-to-Home eingestellt ist?</p>
+            <div class="balken">
+              <div class="balken-zeile a"><span class="form"><svg><use href="#f-a"/></svg></span><span class="opt">Sie landet sofort an Ort und Stelle</span><span class="anz">3</span><div class="balken-spur"><i style="--w:10%"></i></div></div>
+              <div class="balken-zeile b richtig"><span class="form"><svg><use href="#f-b"/></svg></span><span class="opt"><span class="haken"><svg><use href="#i-haken"/></svg></span>Sie steigt auf RTH-Höhe und fliegt zum Startpunkt</span><span class="anz">21</span><div class="balken-spur"><i style="--w:68%"></i></div></div>
+              <div class="balken-zeile c"><span class="form"><svg><use href="#f-c"/></svg></span><span class="opt">Sie schwebt auf der Stelle, bis der Akku leer ist</span><span class="anz">2</span><div class="balken-spur"><i style="--w:6%"></i></div></div>
+              <div class="balken-zeile d"><span class="form"><svg><use href="#f-d"/></svg></span><span class="opt">Sie fliegt zum Handy des Piloten</span><span class="anz">5</span><div class="balken-spur"><i style="--w:16%"></i></div></div>
+            </div>
+          </div>
+          <div class="seite-rechts">
+            <div class="gross">68<small>%</small></div>
+            <div class="unter">richtig, 21 von 31</div>
+            <p class="erkl"><strong>Warum</strong>Bei Verbindungsverlust steigt die Drohne auf die eingestellte RTH-Höhe und fliegt zum Startpunkt. Deshalb vor dem Start die RTH-Höhe über das höchste Hindernis setzen.</p>
+          </div>
+        </div>
+      </div></div>
+      <figcaption><b>Auflösung.</b> Die richtige Option hat den satten, dickeren Balken, ✓ vor dem fett gesetzten Text und einen Tintenring um die Form; die übrigen Balken sind nur getönt. Der Text steht immer über dem Balken, in Tinte. Falsch wird nicht eingefärbt, schon gar nicht rot. Bei Mehrfachauswahl tragen mehrere Zeilen das Zeichen.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="bm"><div class="bm-innen">
+        <div class="bm-kopf"><span class="wortzeichen">IDA</span><span>Nach Frage 3 von 8</span><span class="rechts">31 dabei</span></div>
+        <h2 class="rang-titel">Zwischenstand</h2>
+        <ol class="rang">
+          <li><span class="platz">1</span><span>Funkfuchs</span><span class="zug"><svg><use href="#i-hoch"/></svg>2</span><span class="pkt">2 840</span></li>
+          <li><span class="platz">2</span><span>Kerstin_B</span><span class="zug"><svg><use href="#i-runter"/></svg>1</span><span class="pkt">2 790</span></li>
+          <li><span class="platz">3</span><span>Hummel</span><span class="zug"><svg><use href="#i-runter"/></svg>1</span><span class="pkt">2 610</span></li>
+          <li><span class="platz">4</span><span>Pilot 7</span><span class="zug"><svg><use href="#i-gleich"/></svg></span><span class="pkt">2 455</span></li>
+          <li><span class="platz">5</span><span>Nordlicht</span><span class="zug"><svg><use href="#i-hoch"/></svg>3</span><span class="pkt">2 210</span></li>
+        </ol>
+      </div></div>
+      <figcaption><b>Zwischenrangliste (Wettbewerb).</b> Fünf Plätze, Platz 1 in Tinte. Die Bewegung seit der letzten Rangliste steht als Pfeil mit Zahl, ohne Farbe. Pfeile statt ▲, damit nichts mit der Antwortform verwechselt wird.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="bm"><div class="bm-innen">
+        <div class="bm-kopf"><span class="wortzeichen">IDA</span><span>Notfallverfahren UAV</span><span class="rechts">8 Fragen, 31 dabei</span></div>
+        <div class="podest-buehne">
+          <div class="stufe s2"><div class="name">Kerstin_B</div><div class="pkt">6 920 Punkte</div><div class="sockel">2</div></div>
+          <div class="stufe s1"><div class="name">Funkfuchs</div><div class="pkt">7 315 Punkte</div><div class="sockel">1</div></div>
+          <div class="stufe s3"><div class="name">Hummel</div><div class="pkt">6 480 Punkte</div><div class="sockel">3</div></div>
+        </div>
+        <div class="boden"></div>
+        <div class="danach"><span><b>4</b> Pilot 7, 6 105</span><span><b>5</b> Nordlicht, 5 990</span></div>
+        <button class="knopf-bm" type="button">Quiz beenden</button>
+      </div></div>
+      <figcaption><b>Schluss, Wettbewerb.</b> Podest 2–1–3, Platz 4 und 5 darunter. „Quiz beenden“ nur allein im Browser und klein in der Ecke: wer es drückt, macht den Code ungültig.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="bm"><div class="bm-innen">
+        <div class="bm-kopf"><span class="wortzeichen">IDA</span><span>Notfallverfahren UAV</span><span class="rechts">Lagebild, anonym</span></div>
+        <h2 class="lage-titel">So steht die Gruppe</h2>
+        <p class="lage-unter">8 Fragen, 214 Antworten</p>
+        <div class="lage">
+          <div class="kennzahl"><div class="gross">31</div><div class="unter">haben mitgemacht</div></div>
+          <div class="kennzahl"><div class="gross">74<small>%</small></div><div class="unter">der Antworten richtig</div></div>
+          <div class="kennzahl schwer">
+            <div class="unter" style="margin-top:0">Schwerste Frage</div>
+            <p class="frage-zit">Frage 5: Wer übernimmt bei einem Notfall im Team die Meldung an die Leitstelle?</p>
+            <p class="meta"><b>38 %</b> richtig</p>
+          </div>
+        </div>
+        <button class="knopf-bm" type="button">Quiz beenden</button>
+      </div></div>
+      <figcaption><b>Schluss, Lagebild.</b> Drei Zahlen, keine Namen. Die schwerste Frage ist der Gesprächsanlass für den Ausbilder.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="bm"><div class="bm-innen">
+        <div class="bm-kopf"><span class="wortzeichen">IDA</span><span>Dienstabend</span></div>
+        <div class="vorstart">
+          <h2>Notfallverfahren UAV</h2>
+          <p>Wettbewerb, 8 Fragen. Mit der Lobby bekommt das Quiz seinen Code.</p>
+          <button type="button">Lobby öffnen</button>
+        </div>
+      </div></div>
+      <figcaption><b>Vor dem Start (nur allein im Browser).</b> Das Laden schreibt nichts; die Runde entsteht erst mit „Lobby öffnen“ bzw. dem Slidev-Klick.</figcaption>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ======================= HANDY ======================= -->
+<section class="abschnitt">
+  <h2>Handy</h2>
+  <p>360 × 780 in Originalgröße. Antwortkacheln mindestens 88 px hoch, Knöpfe 56 px, kein Eingabefeld unter 18 px. Gleiche Farben, Formen und Positionen wie am Beamer: wer oben links ▲ sieht, tippt oben links ▲.</p>
+  <div class="raster-handy">
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Dienstabend</span></div>
+        <div class="hy-inhalt">
+          <span class="modus">Wettbewerb</span>
+          <h2>Notfallverfahren UAV</h2>
+          <p class="leise">8 Fragen. Für jede richtige Antwort gibt es Punkte, schnelle Antworten bringen mehr.</p>
+          <label class="feld-label" for="sp">Dein Spitzname</label>
+          <input class="feld" id="sp" value="Hummel" maxlength="20" autocomplete="off">
+          <p class="leise" style="margin-top:8px">Steht am Beamer in der Rangliste.</p>
+          <button class="knopf unten" type="button">Mitmachen</button>
+        </div>
+      </div>
+      <figcaption><b>Beitritt, Wettbewerb.</b></figcaption>
+    </figure>
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Dienstabend</span></div>
+        <div class="hy-inhalt">
+          <span class="modus">Lagebild</span>
+          <h2>Notfallverfahren UAV</h2>
+          <p class="leise">8 Fragen. Am Beamer siehst du, wie die Gruppe geantwortet hat.</p>
+          <div class="zusage"><svg><use href="#i-schloss"/></svg>Anonym — kein Name, keine Uhrzeit.</div>
+          <button class="knopf unten" type="button">Mitmachen</button>
+        </div>
+      </div>
+      <figcaption><b>Beitritt, Lagebild.</b> Die Zusage steht als eigene Fläche, nicht als Fußnote.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Notfallverfahren UAV</span><span class="rechts">Hummel</span></div>
+        <div class="hy-inhalt zentral">
+          <div class="siegel voll"><svg><use href="#i-haken"/></svg></div>
+          <h2>Du bist dabei.</h2>
+          <p class="leise">Die Frage erscheint hier, sobald sie am Beamer steht. Lass die Seite offen.</p>
+          <div class="warte-punkte" aria-hidden="true"><i></i><i></i><i></i></div>
+        </div>
+      </div>
+      <figcaption><b>Warten auf Frage.</b> Gilt auch zwischen den Fragen (Auflösung und Rangliste am Beamer, dann eigenes Ergebnis hier).</figcaption>
+    </figure>
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Frage 3 von 8</span><span class="rechts">noch 14 s</span></div>
+        <div class="hy-inhalt">
+          <p class="hy-frage">Die Drohne verliert die Funkverbindung. Was macht sie, wenn Return-to-Home eingestellt ist?</p>
+          <p class="hy-frage-meta"><span>Tipp eine Antwort an</span></p>
+          <div class="hk-liste">
+            <button class="hk a" type="button"><span class="form"><svg><use href="#f-a"/></svg></span>Sie landet sofort an Ort und Stelle</button>
+            <button class="hk b" type="button"><span class="form"><svg><use href="#f-b"/></svg></span>Sie steigt auf RTH-Höhe und fliegt zum Startpunkt</button>
+            <button class="hk c" type="button"><span class="form"><svg><use href="#f-c"/></svg></span>Sie schwebt auf der Stelle, bis der Akku leer ist</button>
+            <button class="hk d" type="button"><span class="form"><svg><use href="#f-d"/></svg></span>Sie fliegt zum Handy des Piloten</button>
+          </div>
+        </div>
+      </div>
+      <figcaption><b>Frage.</b> Ein Tipp sendet sofort. Der Text steht mit auf der Kachel, wer nicht hochschauen will, muss nicht.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Frage 6 von 8</span><span class="rechts">noch 22 s</span></div>
+        <div class="hy-inhalt">
+          <p class="hy-frage">Welche Call-outs gehören zum Notfallverfahren bei Motorausfall?</p>
+          <p class="hy-frage-meta"><span>Mehrere richtig, wähle alle</span><span>2 gewählt</span></p>
+          <div class="hk-liste kompakt hk-mehr">
+            <button class="hk a" type="button" aria-pressed="true"><span class="form"><svg><use href="#f-a"/></svg></span>„Notfall, Notfall, Notfall“<span class="wahl"><svg><use href="#i-haken"/></svg></span></button>
+            <button class="hk b" type="button" aria-pressed="false"><span class="form"><svg><use href="#f-b"/></svg></span>„Akku tauschen“<span class="wahl"><svg><use href="#i-haken"/></svg></span></button>
+            <button class="hk c" type="button" aria-pressed="true"><span class="form"><svg><use href="#f-c"/></svg></span>„Landeplatz frei“<span class="wahl"><svg><use href="#i-haken"/></svg></span></button>
+            <button class="hk d" type="button" aria-pressed="false"><span class="form"><svg><use href="#f-d"/></svg></span>„Kamera aus“<span class="wahl"><svg><use href="#i-haken"/></svg></span></button>
+          </div>
+          <button class="knopf unten" type="button">Absenden</button>
+        </div>
+      </div>
+      <figcaption><b>Mehrfachauswahl.</b> Gewählt = Häkchen im Kästchen plus Tintenring um die Kachel (zwei Zeichen, kein Farbwechsel). Gezählt wird erst mit „Absenden“.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Frage 3 von 8</span><span class="rechts">noch 9 s</span></div>
+        <div class="hy-inhalt zentral">
+          <div class="siegel voll"><svg><use href="#i-haken"/></svg></div>
+          <h2>Antwort ist da.</h2>
+          <div class="gewaehlt-klein" style="--k:var(--qz-b);--kt:var(--qz-b-text)"><span class="form"><svg><use href="#f-b"/></svg></span>Sie steigt auf RTH-Höhe und fliegt zum Startpunkt</div>
+          <p class="leise">Ob sie stimmt, siehst du nach der Auflösung am Beamer.</p>
+        </div>
+      </div>
+      <figcaption><b>Antwort ist da.</b> Die eigene Wahl bleibt sichtbar, damit niemand zweifelt, ob der Tipp angekommen ist.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Frage 3 von 8</span></div>
+        <div class="hy-inhalt zentral">
+          <div class="siegel"><svg><use href="#i-uhr"/></svg></div>
+          <h2>Zeit ist um.</h2>
+          <p class="leise">Für diese Frage hast du keine Antwort abgegeben. Die nächste kommt gleich.</p>
+        </div>
+      </div>
+      <figcaption><b>Zeit ist um.</b> Ohne eigene Antwort. Mit Antwort steht hier „Antwort ist da.“ weiter, nur ohne Restzeit.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Frage 3 von 8</span><span class="rechts">Hummel</span></div>
+        <div class="hy-inhalt">
+          <div class="siegel voll" style="margin-top:24px"><svg><use href="#i-haken"/></svg></div>
+          <p class="ich">Richtig.</p>
+          <div class="punkte-gross">+812</div>
+          <p class="leise" style="margin:0">Punkte für diese Frage</p>
+          <div class="werte">
+            <div><b>3.</b><span>Platz von 31</span></div>
+            <div><b>2 455</b><span>Punkte gesamt</span></div>
+          </div>
+          <div class="unten">
+            <p class="richtig-war">Deine Antwort</p>
+            <div class="gewaehlt-klein" style="--k:var(--qz-b);--kt:var(--qz-b-text);margin:0"><span class="form"><svg><use href="#f-b"/></svg></span>Sie steigt auf RTH-Höhe und fliegt zum Startpunkt</div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b>Eigenes Ergebnis, Wettbewerb, richtig.</b> Siegel voll in Tinte.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Frage 3 von 8</span><span class="rechts">Hummel</span></div>
+        <div class="hy-inhalt">
+          <div class="siegel" style="margin-top:24px"><svg style="color:var(--qz-tinte)"><use href="#i-gleich"/></svg></div>
+          <p class="ich">Daneben.</p>
+          <div class="punkte-gross" style="color:var(--qz-gedaempft)">0</div>
+          <p class="leise" style="margin:0">Punkte für diese Frage</p>
+          <div class="werte">
+            <div><b>7.</b><span>Platz von 31</span></div>
+            <div><b>1 643</b><span>Punkte gesamt</span></div>
+          </div>
+          <div class="unten">
+            <p class="richtig-war">Richtig war</p>
+            <div class="gewaehlt-klein" style="--k:var(--qz-b);--kt:var(--qz-b-text);margin:0 0 10px"><span class="form"><svg><use href="#f-b"/></svg></span>Sie steigt auf RTH-Höhe und fliegt zum Startpunkt</div>
+            <p class="richtig-war">Deine Antwort</p>
+            <div class="gewaehlt-klein" style="--k:var(--qz-d);--kt:var(--qz-d-text);margin:0"><span class="form"><svg><use href="#f-d"/></svg></span>Sie fliegt zum Handy des Piloten</div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b>Eigenes Ergebnis, daneben.</b> Leerer Ring statt rotem Kreuz; die richtige Antwort steht zuerst. Im Lagebild ohne Punkte und Platz.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="hy">
+        <div class="hy-kopf"><span class="wortzeichen">IDA</span><span>Notfallverfahren UAV</span></div>
+        <div class="hy-inhalt zentral">
+          <h2>Das Quiz ist beendet.</h2>
+          <div class="werte" style="margin:8px 0 20px">
+            <div><b>3.</b><span>Platz von 31</span></div>
+            <div><b>6 480</b><span>Punkte gesamt</span></div>
+          </div>
+          <p class="leise">Danke fürs Mitmachen. Du kannst die Seite jetzt schließen.</p>
+        </div>
+      </div>
+      <figcaption><b>Quiz beendet.</b> Auch die Seite für einen ungültigen Code (dann ohne Platz und Punkte).</figcaption>
+    </figure>
+
+  </div>
+</section>
+
+<script>
+// Umschalter für das Mockup; im Bau setzt die Suite data-theme per Cookie.
+(function () {
+  var b = document.getElementById("umschalter");
+  b.addEventListener("click", function () {
+    var dunkel = document.documentElement.dataset.theme !== "dark";
+    document.documentElement.dataset.theme = dunkel ? "dark" : "light";
+    b.textContent = dunkel ? "Hell zeigen" : "Dunkel zeigen";
+    b.setAttribute("aria-pressed", String(dunkel));
+  });
+  var q = new URLSearchParams(location.search).get("theme");
+  if (q === "dark") b.click();
+
+  // QR-Platzhalter: 29×29 Module mit Suchmustern, deterministisch, kein echter Code.
+  var n = 29, s = 7, seed = 7, cells = "";
+  function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+  function finder(x, y) {
+    return '<rect x="' + x + '" y="' + y + '" width="7" height="7"/><rect x="' + (x + 1) + '" y="' + (y + 1) + '" width="5" height="5" fill="#fff"/><rect x="' + (x + 2) + '" y="' + (y + 2) + '" width="3" height="3"/>';
+  }
+  for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+    var imFinder = (x < 8 && y < 8) || (x > n - 9 && y < 8) || (x < 8 && y > n - 9);
+    if (!imFinder && rnd() > 0.52) cells += '<rect x="' + x + '" y="' + y + '" width="1" height="1"/>';
+  }
+  var svg = '<svg viewBox="0 0 ' + n + ' ' + n + '" shape-rendering="crispEdges" fill="#16181a" role="img" aria-label="QR-Code (Platzhalter)">' + cells + finder(0, 0) + finder(n - s, 0) + finder(0, n - s) + "</svg>";
+  document.querySelectorAll("[data-qr]").forEach(function (el) { el.innerHTML = svg; });
+})();
+</script>
+</body>
+</html>

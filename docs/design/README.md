@@ -7,6 +7,7 @@ daneben:
 |---|---|
 | `feedback-oeffentliche-ansicht.md` | Der Entwurf „Der Abendzettel" — Referenz für **öffentliche, login-freie Ansichten** (mobile-first, eigenständig gestaltet, ohne antd) |
 | `feedback-admin.md` | Der Entwurf „Die Lagekarte" — Referenz für **Admin-Arbeitsseiten** (antd, Suite-Chrome, Zustandsführung) |
+| `feedback-live-quiz.md` | Live-Quiz „Schilderwald“ — Beamer und Handy, Variablen `--qz-*`, Mockup in `mockups/live-quiz.html` |
 | `wortliste.md` | **Ein Wort je Sache** über alle Module, Anrede („du"/„Sie"), verbotene Technikwörter |
 
 Beide entstanden aus Konkurrenzentwürfen mit unabhängiger Jury; sie enthalten Begründungen, nicht nur

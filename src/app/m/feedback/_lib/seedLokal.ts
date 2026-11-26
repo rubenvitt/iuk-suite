@@ -16,6 +16,10 @@ import {
   insertUserGroup,
   upsertKnownUser,
 } from "@/app/m/feedback/_db/queries";
+import { legeQuizAn, quizPerSecret } from "@/app/m/feedback/_db/quiz";
+import { quizze } from "@/app/m/feedback/_db/schema";
+import type { QuizFrage } from "@/app/m/feedback/_lib/quiz/fragen";
+import { eq } from "drizzle-orm";
 import { STANDARD_QUESTIONS } from "@/app/m/feedback/_lib/questions";
 import { buildToken } from "@/app/m/feedback/_lib/token";
 import {
@@ -512,6 +516,7 @@ export async function seedLokalFeedback(
   });
 
   zeilen.push(...seedEhrlichGesagt(db, jetzt));
+  zeilen.push(...seedBeispielquiz(db, jetzt));
 
   zeilen.push(
     `feedback: eingeschränkte Sicht — Dev-Login mit email=${NORD_DEV_EMAIL} und groups=feedback-nutzer sieht NUR diese beiden Gruppen.`,
@@ -550,5 +555,77 @@ function seedEhrlichGesagt(db: BetterSQLite3Database<typeof schema>, jetzt: Date
   return [
     `feedback: „Ehrlich gesagt" — 5 Mitteilungen angelegt. Einwurf: ${adresse} · Abholen mit ${beantwortet.code ?? EHRLICH_DEMO_CODE}`,
     "feedback: „Ehrlich gesagt“ lesen — Dev-Login mit groups=kummerkasten-leser, dann /ehrlich-gesagt.",
+  ];
+}
+
+/**
+ * Festes Moderations-Secret des Beispielquiz — NUR lokal, damit die Beamer-Adresse in Slidev-Folien und
+ * Notizen stehen bleiben kann. Echte Quizze bekommen 32 Byte Zufall (`neuesSecret`).
+ */
+export const BEISPIELQUIZ_SECRET = "lokal-quiz-uav";
+export const BEISPIELQUIZ_TITEL = "UAV-Notfallverfahren";
+
+/** Fünf Fragen, alle drei Fragetypen, einige mit Zeitlimit. Inhaltlich allgemein, keine Vorschriften. */
+export const BEISPIELQUIZ_FRAGEN: QuizFrage[] = [
+  {
+    text: "Die Funkverbindung zur Drohne bricht ab. Was ist die übliche Failsafe-Einstellung?",
+    typ: "einfach",
+    optionen: ["Sofort an Ort und Stelle landen", "Automatisch zum Startpunkt zurückfliegen (RTH)", "In der Luft schweben, bis der Akku leer ist", "Auf größte Höhe steigen"],
+    richtig: [1],
+    zeit_s: 20,
+    erklaerung: "Die Rückkehr zum Startpunkt ist Standard. Sie funktioniert nur mit gültigem Heimatpunkt und passender Rückkehrhöhe.",
+  },
+  {
+    text: "Fällt das GPS aus, wechselt die Drohne in den ATTI-Modus. Sie hält dann ihre Position nicht mehr selbst und treibt mit dem Wind.",
+    typ: "wahrfalsch",
+    optionen: ["Wahr", "Falsch"],
+    richtig: [0],
+    zeit_s: 15,
+    erklaerung: "Im ATTI-Modus hält die Drohne nur die Höhe. Ruhig gegensteuern und auf Sicht zurückholen.",
+  },
+  {
+    text: "Der Akku meldet kritischen Ladestand, die Drohne ist weit weg vom Startpunkt. Was ist richtig?",
+    typ: "mehrfach",
+    optionen: ["Einen sicheren Landeplatz in der Nähe anfliegen und landen", "Beobachter und Einsatzleitung über die Notlandung informieren", "Die Warnung wegdrücken und den Auftrag zu Ende fliegen", "Höher steigen, um schneller zurückzukommen"],
+    richtig: [0, 1],
+    zeit_s: 30,
+  },
+  {
+    text: "Was gehört vor eine Notlandung in der Nähe von Personen?",
+    typ: "einfach",
+    optionen: ["Eine laute, klare Ansage: Notlandung, wo und in welche Richtung", "Keine Ansage, um niemanden zu beunruhigen", "Erst nach der Landung ein Funkspruch an die Leitstelle"],
+    richtig: [0],
+    erklaerung: "Wer die Ansage hört, kann ausweichen. Danach die Einsatzleitung informieren.",
+  },
+  {
+    text: "Worauf stellst du vor dem Start die Rückkehrhöhe (RTH-Höhe) ein?",
+    typ: "einfach",
+    optionen: ["Über das höchste Hindernis im Einsatzgebiet", "Immer auf 20 Meter", "So niedrig wie möglich, um Akku zu sparen"],
+    richtig: [0],
+    zeit_s: 20,
+  },
+];
+
+/**
+ * Beispielquiz für die lokale Arbeit (Live-Quiz): Wettbewerb in „Bereitschaft Nord". Gate ist das feste Secret —
+ * wer das Quiz lokal geändert oder gelöscht hat, bekommt es nur im zweiten Fall neu.
+ */
+function seedBeispielquiz(db: BetterSQLite3Database<typeof schema>, jetzt: Date): string[] {
+  const beamer = `http://feedback.localtest.me:3000/beamer/${BEISPIELQUIZ_SECRET}`;
+  if (quizPerSecret(db, BEISPIELQUIZ_SECRET)) {
+    return [`feedback: Beispielquiz „${BEISPIELQUIZ_TITEL}“ war schon da — übersprungen. Beamer: ${beamer}`];
+  }
+  const gruppe = getGroupBySlug(db, NORD_SLUG);
+  if (!gruppe) return [`feedback: Gruppe ${NORD_SLUG} fehlt — Beispielquiz übersprungen.`];
+  const quiz = legeQuizAn(db, {
+    groupId: gruppe.id,
+    titel: BEISPIELQUIZ_TITEL,
+    modus: "wettbewerb",
+    fragen: BEISPIELQUIZ_FRAGEN,
+    jetzt,
+  });
+  db.update(quizze).set({ moderationSecret: BEISPIELQUIZ_SECRET }).where(eq(quizze.id, quiz.id)).run();
+  return [
+    `feedback: Beispielquiz „${BEISPIELQUIZ_TITEL}“ (Wettbewerb, ${BEISPIELQUIZ_FRAGEN.length} Fragen) angelegt — Beamer: ${beamer} · Verwaltung: /groups/${gruppe.id}/quiz/${quiz.id}`,
   ];
 }

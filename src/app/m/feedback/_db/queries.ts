@@ -8,6 +8,7 @@ import {
   responses,
   userGroups,
   knownUsers,
+  quizRunden,
   type GroupRow,
   type EveningRow,
   type SurveyRow,
@@ -277,6 +278,23 @@ export class TagBelegt extends Error {
     super(`Die Gruppe hat am ${kalendertagInZone(abend.date)} schon einen Dienstabend`);
     this.name = "TagBelegt";
   }
+}
+
+/**
+ * EIN ABEND, DEN NUR DAS LIVE-QUIZ AUF `held` GESETZT HAT: gelaufen, ohne Umfrage, aber mit
+ * mindestens einer Quizrunde (`starteOderHoleRunde`, `_db/quiz.ts`). Die Runde ist das
+ * Kennzeichen, das ihn von einem nachgetragenen Abend ohne Erhebung unterscheidet — der hat
+ * keine, und an ihm darf keine Umfrage entstehen (Tagesregel, DRK-429).
+ *
+ * Der Alltag ist genau diese Reihenfolge: das Quiz läuft im Vortrag, das Feedback am Schluss.
+ * „Umfrage starten" (`createAndStartSurvey`) und „Freigeben" (`freigebenAction`) übernehmen
+ * einen solchen Abend deshalb wie einen geplanten. Der Aufrufer fragt in DERSELBEN Transaktion,
+ * in der er schreibt.
+ */
+export function istQuizAbendOhneUmfrage(db: DB, eve: EveningRow): boolean {
+  if (eve.status !== "held") return false;
+  if (db.select({ id: surveys.id }).from(surveys).where(eq(surveys.eveningId, eve.id)).get()) return false;
+  return db.select({ id: quizRunden.id }).from(quizRunden).where(eq(quizRunden.eveningId, eve.id)).get() !== undefined;
 }
 
 /**
@@ -586,8 +604,10 @@ function gibAbendFrei(tx: DB, eve: EveningRow, closeAfterHours: number, now: Dat
  *   Donnerstag drückt die Leitung „Umfrage für heute starten" statt
  *   „Freigeben". Ein Thema aus dem Formular ersetzt das geplante, ein leeres
  *   lässt es stehen — wer beim Start nichts einträgt, meint das geplante.
- * * Ein GELAUFENER oder ABGESAGTER wirft `TagBelegt`. Zwei Erhebungen für
- *   einen Abend sind genau der Datenfehler, den die Regel verhindert, und ein
+ * * Ein GELAUFENER, an dem bisher nur das Live-Quiz lief (`istQuizAbendOhneUmfrage`),
+ *   wird ebenso übernommen: Quiz im Vortrag, Feedback am Schluss ist der Normalfall.
+ * * Jeder andere GELAUFENE oder ein ABGESAGTER wirft `TagBelegt`. Zwei Erhebungen
+ *   für einen Abend sind genau der Datenfehler, den die Regel verhindert, und ein
  *   abgesagter Abend wird wieder angesetzt statt ersetzt.
  */
 export function createAndStartSurvey(
@@ -604,7 +624,9 @@ export function createAndStartSurvey(
 ): { eveningId: number; surveyId: number; uebernommen: boolean } {
   return db.transaction((tx) => {
     const belegt = abendAmTag(tx, input.groupId, input.date);
-    if (belegt && belegt.status !== "planned") throw new TagBelegt(belegt);
+    if (belegt && belegt.status !== "planned" && !istQuizAbendOhneUmfrage(tx, belegt)) {
+      throw new TagBelegt(belegt);
+    }
     if (belegt) {
       const vorhanden = tx.select().from(surveys).where(eq(surveys.eveningId, belegt.id)).get();
       tx.update(evenings)

@@ -597,6 +597,44 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
  * unwiderruflicher Loeschdialog mit einer geschaetzten Zahl waere die schlimmste
  * Stelle des Moduls fuer eine Behauptung.
  */
+/**
+ * ERST DAS QUIZ, DANN DIE UMFRAGE: das Quiz setzt den Abend von heute auf `held`, ohne Umfrage.
+ * Die Lagekarte muss danach „Umfrage für heute starten" anbieten (Belegung B), und der Start
+ * muss auf genau diesem Abend landen (`istQuizAbendOhneUmfrage`, `_db/queries.ts`).
+ */
+describe("Lagekarte nach einem Live-Quiz von heute", () => {
+  it("bietet „Umfrage starten“ an, und der Start landet auf dem Quizabend", async () => {
+    const { legeQuizAn, starteOderHoleRunde } = await import("../../../../_db/quiz");
+    const { createAndStartSurvey, listEvenings } = await import("../../../../_db/queries");
+    const { kalendertagInZone } = await import("../../../../_lib/lifecycle");
+    const jetzt = new Date();
+    const heute = kalendertagInZone(jetzt);
+    insertEvening(db, {
+      groupId: 1, date: tag(heute), topic: "Kartenkunde", notes: null,
+      participantCount: null, status: "planned", createdAt: new Date(0),
+    });
+    const quiz = legeQuizAn(db, {
+      groupId: 1, titel: "Funk", modus: "lagebild", jetzt,
+      fragen: [{ text: "Wie viel?", typ: "einfach", optionen: ["A", "B"], richtig: [0] }],
+    });
+    const runde = starteOderHoleRunde(db, quiz, jetzt);
+
+    const vorher = await zeichne();
+    expect(vorher.textContent).toContain("Umfrage für heute starten");
+    expect(vorher.querySelector<HTMLInputElement>("input[name='date']")?.value).toBe(heute);
+    expect([...vorher.querySelectorAll("button")].some((b) => b.textContent?.trim() === "Umfrage starten")).toBe(true);
+
+    // Was `startFeedbackAction` mit diesem Formular tut.
+    createAndStartSurvey(db, {
+      groupId: 1, date: tag(heute), topic: null, notes: null, participants: 9, closeAfterHours: 48, now: jetzt,
+    });
+    expect(listEvenings(db, 1).map((e) => e.id)).toEqual([runde.eveningId]);
+    const nachher = await zeichne();
+    expect(nachher.textContent).not.toContain("Umfrage für heute starten");
+    expect(nachher.textContent).toContain("Kartenkunde");
+  });
+});
+
 describe("Zone e — Einstellungen haengt an der Seite (§2.6)", () => {
   it("steht eingeklappt auf der Seite — der Inhalt entsteht erst beim Aufklappen", async () => {
     abend("2026-07-22", [2, 3]);

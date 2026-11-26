@@ -63,6 +63,8 @@ import gemeinschaftZusageRueckgaengig from "@/app/m/portal/_lib/neuigkeiten/noti
 import feedbackEhrlichGesagt from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-03-ehrlich-gesagt";
 import feedbackEhrlichGesagtAdresse from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-04-ehrlich-gesagt-adresse";
 import feedbackUmfrageStarten from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-10-umfrage-starten";
+import feedbackLiveQuiz from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-26-live-quiz";
+import feedbackDienstabend from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-26-dienstabend";
 import wartungGeraetewartung from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-03-geraetewartung";
 import wartungMaterialkisten from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-materialkisten";
 import wartungUnterlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-04-unterlagen";
@@ -242,6 +244,8 @@ const NOTIZEN: readonly Releasenotiz[] = [
   feedbackEhrlichGesagt,
   feedbackEhrlichGesagtAdresse,
   feedbackUmfrageStarten,
+  feedbackLiveQuiz,
+  feedbackDienstabend,
   wartungGeraetewartung,
   wartungMaterialkisten,
   wartungUnterlagen,

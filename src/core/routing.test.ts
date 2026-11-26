@@ -134,6 +134,17 @@ describe("resolveHost + decideRoute — die Strecke, die in Produktion brach", (
     expect(d).toMatchObject({ action: "rewrite", target: "/m/feedback/f/abc/danke", moduleKey: "feedback" });
   });
 
+  it("Live-Quiz: Handy- und Beamer-Wege gehen ohne Anmeldung ins Modul (requiresAuth: false)", () => {
+    for (const pfad of ["/q/ABC234/strom", "/q/ABC234/beitritt", "/beamer/geheim/strom", "/beamer/geheim/schritt"]) {
+      expect(decide({ host: "feedback.localtest.me" }, pfad, null)).toEqual({
+        action: "rewrite",
+        target: `/m/feedback${pfad}`,
+        moduleKey: "feedback",
+      });
+      expect(decide({ host: "feedback.localtest.me" }, `/m/feedback${pfad}`, null).action).toBe("next");
+    }
+  });
+
   it("ohne x-forwarded-host bleibt es beim bisherigen Verhalten", () => {
     expect(decide({ host: "iuk-ue.de" }, "/", [])).toMatchObject({
       action: "rewrite",
@@ -261,6 +272,25 @@ describe("decideRoute — Einstiegshost (IDA-340)", () => {
   it("die Einwurfwurzel ist eine vertrauliche Ansicht", () => {
     expect(antwortKoepfeFuer("/m/feedback/k")).not.toBeNull();
     expect(antwortKoepfeFuer("/m/feedback/kxyz")).toBeNull();
+    // Live-Quiz: Beitrittscode bzw. Moderations-Secret im Pfad.
+    for (const p of ["/m/feedback/q/ABC234", "/m/feedback/q/ABC234/strom", "/m/feedback/beamer/geheim", "/m/feedback/beamer/geheim/schritt"]) {
+      expect(antwortKoepfeFuer(p), p).not.toBeNull();
+    }
+    for (const p of ["/m/feedback/q", "/m/feedback/q/", "/m/feedback/beamer/", "/m/feedback/quiz/x", "/m/feedback/groups/1/quiz"]) {
+      expect(antwortKoepfeFuer(p), p).toBeNull();
+    }
+  });
+  it("Live-Quiz-Ströme: `no-store, no-transform`, damit kein Zwischenhändler das SSE puffert", () => {
+    for (const p of ["/m/feedback/q/ABC234/strom", "/m/feedback/beamer/geheim/strom"]) {
+      expect(antwortKoepfeFuer(p), p).toEqual({
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer",
+        "cache-control": "no-store, no-transform",
+      });
+    }
+    for (const p of ["/m/feedback/q/ABC234", "/m/feedback/q/ABC234/antwort", "/m/feedback/beamer/geheim/schritt", "/m/feedback/q/strom"]) {
+      expect(antwortKoepfeFuer(p)?.["cache-control"], p).toBe("no-store");
+    }
   });
 });
 

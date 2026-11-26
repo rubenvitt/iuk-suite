@@ -79,7 +79,7 @@ export const MODULES: ModuleDef[] = [
   // requiredGroupsFor()/adminGroupsFor(), nicht diese Felder direkt.
   // `kummerkasten-leser` (IDA-314): die Vertrauenspersonen von „Ehrlich gesagt" betreten das Modul, sehen aber
   // ohne Zuordnung keine Gruppe — die Dienstabende bleiben bei `user_groups`/`fachgruppen` (`_lib/access.ts`).
-  { key: "feedback", title: "Feedback", icon: "comment", shell: "full",
+  { key: "feedback", title: "Dienstabend", icon: "comment", shell: "full",
     requiresAuth: false, requiredGroups: ["feedback-nutzer", "feedback-admin", "kummerkasten-leser"],
     adminGroups: ["feedback-admin"], prodHosts: [], showInSwitcher: true,
     switcherGroupSources: ["access", "admin"] },
@@ -421,7 +421,17 @@ export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[
   { modul: "gemeinschaft", muster: /^\/m\/gemeinschaft\/(mein|status)\/[^/]/ },
   // feedback (IDA-314): Einwurf und Abholen von „Ehrlich gesagt" — das Secret steht im Pfad, die Antwort hinter dem Code.
   { modul: "feedback", muster: /^\/m\/feedback\/k(\/|$)/ },
+  // feedback, Live-Quiz: Beitrittscode (Handy) bzw. Moderations-Secret (Beamer) im Pfad — no-store, noindex, no-referrer.
+  { modul: "feedback", muster: /^\/m\/feedback\/(q|beamer)\/[^/]/ },
 ];
+
+/**
+ * STRÖME UNTER DEN VERTRAULICHEN ANSICHTEN (Server-Sent Events): ihr `cache-control` ist
+ * `no-store, no-transform`. Der Proxy überschreibt den Kopf des Route Handlers; ohne
+ * `no-transform` dürfte ein Zwischenhändler den Strom puffern oder komprimieren, und Ereignisse
+ * kämen gebündelt oder gar nicht an. Nur Pfade, die auch in `VERTRAULICHE_ANSICHTEN` stehen.
+ */
+export const VERTRAULICHE_STROEME: readonly RegExp[] = [/^\/m\/feedback\/(q|beamer)\/[^/]+\/strom\/?$/];
 
 /**
  * DIE FACHLICHEN BEREICHE DER APPS (IDA-338): nach ihnen ordnet „Alle Apps & Dienste“ die Apps,

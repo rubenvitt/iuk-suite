@@ -96,6 +96,8 @@ export type VerlaufZeile = {
    * Abend nicht zu unterscheiden — beide tragen keine Umfrage und keine Note.
    */
   abgesagt: boolean;
+  /** Live-Quiz-Runden dieses Abends (Auswertung unter `evenings/…/quiz/<id>`); leer oder fehlend: keine. */
+  quizRunden?: { id: number; titel: string }[];
 };
 
 export type VerlaufProps = {
@@ -401,12 +403,16 @@ function VerlaufTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZ
           sorter: nachText<VerlaufZeile>((z) => z.thema),
           // Leer → „—" in `--fb-muted`, NIE „(ohne Thema)": die Klammerform
           // liest sich als Fehlermeldung ueber den Abend.
-          render: (_, z) =>
-            z.thema ? (
-              <span style={T.body}>{z.thema}</span>
-            ) : (
-              <span style={{ ...T.body, color: "var(--fb-muted)" }}>—</span>
-            ),
+          render: (_, z) => (
+            <>
+              {z.thema ? (
+                <span style={T.body}>{z.thema}</span>
+              ) : (
+                <span style={{ ...T.body, color: "var(--fb-muted)" }}>—</span>
+              )}
+              <QuizVerweise groupId={groupId} zeile={z} />
+            </>
+          ),
         },
         {
           title: "Rücklauf",
@@ -537,13 +543,21 @@ function VerlaufTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZ
  */
 function Abendblock({ groupId, zeile: z }: { groupId: number; zeile: VerlaufZeile }) {
   return (
+    <div style={{ borderTop: "1px solid var(--fb-split)" }}>
+      <AbendblockZeile groupId={groupId} zeile={z} />
+      <QuizVerweise groupId={groupId} zeile={z} />
+    </div>
+  );
+}
+
+function AbendblockZeile({ groupId, zeile: z }: { groupId: number; zeile: VerlaufZeile }) {
+  return (
     <div
       data-testid="verlauf-block"
       style={{
         display: "flex",
         alignItems: "center",
         gap: SPACE.sm,
-        borderTop: "1px solid var(--fb-split)",
       }}
     >
       <Zeilenziel
@@ -606,6 +620,29 @@ function Abendblock({ groupId, zeile: z }: { groupId: number; zeile: VerlaufZeil
 // ---------------------------------------------------------------------------
 // Bauteile der Zeile
 // ---------------------------------------------------------------------------
+
+/**
+ * „Quiz-Auswertung: <Titel>" je Runde des Abends. Ein GESCHWISTER der Zeilenlinks, nie darin
+ * (ein `<a>` im `<a>` ist ungültig); ohne Runde rendert nichts.
+ */
+function QuizVerweise({ groupId, zeile }: { groupId: number; zeile: VerlaufZeile }) {
+  if (!zeile.quizRunden?.length) return null;
+  return (
+    <span style={{ display: "flex", flexDirection: "column", gap: SPACE.xs, padding: `${SPACE.xs}px 0` }}>
+      {zeile.quizRunden.map((r) => (
+        <Link
+          key={r.id}
+          data-testid="quiz-verweis"
+          className="fb-fokus"
+          style={T.meta}
+          href={`/m/feedback/groups/${groupId}/evenings/${zeile.eveningId}/quiz/${r.id}`}
+        >
+          Quiz-Auswertung: {r.titel}
+        </Link>
+      ))}
+    </span>
+  );
+}
 
 /** §4.3, wortgenau. Keine Illustration, kein zweiter Startaufruf. */
 /**

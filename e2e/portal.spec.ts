@@ -17,7 +17,7 @@ test("portal und App-Umschalter blenden Apps ohne passende Pocket-ID-Gruppe aus"
   // verdeckten App-Ebene des Menüs.
   const panel = await oeffneAlleApps(page);
   await expect(panel.getByRole("link", { name: "QR-Codes" })).toBeVisible();
-  await expect(panel.getByRole("link", { name: "Feedback" })).toHaveCount(0);
+  await expect(panel.getByRole("link", { name: "Dienstabend" })).toHaveCount(0);
   await expect(panel.getByRole("link", { name: "Dateien" })).toHaveCount(0);
   await expect(panel.getByRole("link", { name: "Lagerbuch" })).toHaveCount(0);
 });

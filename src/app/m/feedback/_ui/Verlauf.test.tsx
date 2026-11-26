@@ -944,3 +944,27 @@ describe("Verlauf — abgesagte Abende zaehlen nicht ins Notenfenster", () => {
     document.body.replaceChildren();
   });
 });
+
+describe("Verlauf — Quiz-Auswertung je Runde", () => {
+  const mitQuiz = zeile({ eveningId: 5, datum: "2026-07-22", thema: "Funk" });
+  const ohneQuiz = zeile({ eveningId: 6, datum: "2026-07-01", thema: "Ohne" });
+
+  it("verweist je Runde auf ihre Auswertung, in beiden Darstellungen", () => {
+    const wirt = zeichne([
+      { ...mitQuiz, quizRunden: [{ id: 11, titel: "Funkquiz" }, { id: 12, titel: "Erste Hilfe" }] },
+      ohneQuiz,
+    ]);
+    const hrefs = [...wirt.querySelectorAll<HTMLAnchorElement>("a[data-testid='quiz-verweis']")].map((a) =>
+      a.getAttribute("href"),
+    );
+    const soll = [11, 12].map((r) => `/m/feedback/groups/7/evenings/5/quiz/${r}`);
+    // Je Darstellung (breit + schmal) beide Runden.
+    expect(hrefs.filter((h) => h === soll[0])).toHaveLength(2);
+    expect(hrefs.filter((h) => h === soll[1])).toHaveLength(2);
+    expect(wirt.textContent).toContain("Quiz-Auswertung: Funkquiz");
+  });
+
+  it("zeigt ohne Runde keinen Verweis", () => {
+    expect(zeichne([ohneQuiz]).querySelector("[data-testid='quiz-verweis']")).toBeNull();
+  });
+});
