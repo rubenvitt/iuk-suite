@@ -33,3 +33,31 @@ export function legeTestQuizAn(
   }
   return secret;
 }
+
+/**
+ * Was die Runde mit diesem Beitrittscode gespeichert hat: Spitznamen der Teilnahmen und die
+ * Antwortzeiten. Für den Nachweis, dass ein Lagebild keinen Namen und keine Uhrzeit ablegt.
+ */
+export function gespeichertZurRunde(code: string): { spitznamen: (string | null)[]; antwortzeiten: (number | null)[] } {
+  const db = new Database(path.join(process.cwd(), ".data", "e2e", "feedback.db"), { readonly: true });
+  try {
+    db.pragma("busy_timeout = 5000");
+    const runde = db.prepare("SELECT id FROM quiz_runden WHERE beitritt_code = ? ORDER BY id DESC").get(code) as
+      | { id: number }
+      | undefined;
+    if (!runde) throw new Error(`Keine Runde mit Code ${code}`);
+    const spitznamen = (
+      db.prepare("SELECT spitzname FROM quiz_teilnahmen WHERE runde_id = ?").all(runde.id) as { spitzname: string | null }[]
+    ).map((z) => z.spitzname);
+    const antwortzeiten = (
+      db
+        .prepare(
+          "SELECT a.antwortzeit_ms AS ms FROM quiz_antworten a JOIN quiz_teilnahmen t ON t.id = a.teilnahme_id WHERE t.runde_id = ?",
+        )
+        .all(runde.id) as { ms: number | null }[]
+    ).map((z) => z.ms);
+    return { spitznamen, antwortzeiten };
+  } finally {
+    db.close();
+  }
+}
