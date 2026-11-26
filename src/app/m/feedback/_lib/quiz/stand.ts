@@ -69,6 +69,9 @@ export function meldeRunde(runde: { id: number; quizId: number | null }): void {
  * AUTO-ENDE BEIM ZUGRIFF (§5.3): beendet Abgelaufene und meldet sie, damit offene Ströme „beendet"
  * sehen. Läuft unter dem Akteur `system`, auch mitten in einer anonymen Anfrage: das Ende hat die
  * Uhr beschlossen, nicht die Person, die zufällig gerade lädt.
+ *
+ * Jeder Quizweg ruft es GENAU EINMAL, VOR dem Lesen: `offeneRundePerCode` und `starteOderHoleRunde`
+ * holen es nicht selbst nach (`autoEnde.wege.test.ts`).
  */
 export function holeAutoEndeNach(db: Db, jetzt: Date): number[] {
   // Die Quiz-Kennung kommt aus derselben Abfrage, kein zweites Lesen je Runde.

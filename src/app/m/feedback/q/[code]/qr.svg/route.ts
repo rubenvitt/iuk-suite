@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   const db = getDb();
   const jetzt = new Date();
   holeAutoEndeNach(db, jetzt);
-  const runde = code.length <= CODE_MAX ? offeneRundePerCode(db, code, jetzt) : undefined;
+  const runde = code.length <= CODE_MAX ? offeneRundePerCode(db, code) : undefined;
   if (!runde) {
     probeGrenze.check(clientIpAus(req.headers));
     return new Response("Not found", { status: 404 });

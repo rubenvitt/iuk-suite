@@ -52,7 +52,7 @@ export async function POST(
     const absender = clientIpAus(req.headers);
     holeAutoEndeNach(db, jetzt);
     const runde =
-      code.length <= CODE_MAX ? offeneRundePerCode(db, code, jetzt) : undefined;
+      code.length <= CODE_MAX ? offeneRundePerCode(db, code) : undefined;
     if (!runde) {
       // Ein Fehlgriff zählt mit: so bremst die Grenze auch das Durchprobieren von Codes.
       return beitrittGrenze.check(absender)

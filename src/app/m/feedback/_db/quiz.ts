@@ -205,10 +205,14 @@ function freierCode(db: DB): string {
  * Danach trägt der Abend `held` ohne Umfrage, aber mit Runde — „Umfrage starten" und
  * „Freigeben" übernehmen ihn deshalb (`istQuizAbendOhneUmfrage`, `_db/queries.ts`): Quiz im
  * Vortrag, Feedback am Schluss ist die Reihenfolge eines echten Abends.
+ *
+ * DAS AUTO-ENDE HOLT DER AUFRUFER NACH, VORHER und genau einmal (`holeAutoEndeNach` in
+ * `beamer/[secret]/schritt`): nur so wird ein Ende auch gemeldet, und es läuft keine zweite
+ * Schreibtransaktion je Anfrage. Ohne es fände diese Funktion eine abgelaufene Runde noch offen.
+ * `_lib/quiz/autoEnde.wege.test.ts` hält die Reihenfolge an jedem Aufrufer fest.
  */
 export function starteOderHoleRunde(db: DB, quiz: QuizRow, jetzt: Date): QuizRundeRow {
   return db.transaction((tx) => {
-    beendeAbgelaufene(tx, jetzt);
     const vorlage = tx.select().from(quizze).where(eq(quizze.id, quiz.id)).get();
     if (!vorlage) throw new Error(`Quiz ${quiz.id} gibt es nicht`);
 
@@ -332,9 +336,12 @@ export function beendeRunde(db: DB, rundeId: number, jetzt: Date): void {
   db.transaction((tx) => beende(tx, [rundeId], jetzt));
 }
 
-/** Die offene Runde zu einem Beitrittscode (Groß-/Kleinschreibung egal), nach dem Auto-Ende. */
-export function offeneRundePerCode(db: DB, code: string, jetzt: Date): QuizRundeRow | undefined {
-  beendeAbgelaufene(db, jetzt);
+/**
+ * Die offene Runde zu einem Beitrittscode (Groß-/Kleinschreibung egal). Reiner Lesezugriff: das
+ * Auto-Ende holt der Aufrufer VORHER und genau einmal nach (`holeAutoEndeNach`, jeder Weg unter
+ * `q/[code]`), wie bei `starteOderHoleRunde`.
+ */
+export function offeneRundePerCode(db: DB, code: string): QuizRundeRow | undefined {
   return db
     .select()
     .from(quizRunden)

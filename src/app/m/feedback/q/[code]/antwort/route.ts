@@ -67,7 +67,7 @@ export async function POST(
     const jetzt = new Date();
     holeAutoEndeNach(db, jetzt);
     const runde =
-      code.length <= CODE_MAX ? offeneRundePerCode(db, code, jetzt) : undefined;
+      code.length <= CODE_MAX ? offeneRundePerCode(db, code) : undefined;
     if (!runde) {
       // Ein Fehlgriff zählt gegen die Adresse (`probeGrenze`, kein Code-Orakel).
       return probeGrenze.check(clientIpAus(req.headers))

@@ -31,7 +31,7 @@ export async function GET(
   const jetzt = new Date();
   holeAutoEndeNach(db, jetzt);
   const runde =
-    code.length <= CODE_MAX ? offeneRundePerCode(db, code, jetzt) : undefined;
+    code.length <= CODE_MAX ? offeneRundePerCode(db, code) : undefined;
   if (!runde) {
     // Ein Fehlgriff zählt gegen die Adresse (`probeGrenze`, eigener Zähler neben dem Beitritt),
     // sonst wäre der Strom ein Orakel zum Durchprobieren von Codes.

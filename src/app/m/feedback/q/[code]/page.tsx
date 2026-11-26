@@ -22,7 +22,7 @@ async function sichtBeimLaden(code: string): Promise<HandySicht | null> {
   const db = getDb();
   const jetzt = new Date();
   holeAutoEndeNach(db, jetzt);
-  const runde = code.length <= CODE_MAX ? offeneRundePerCode(db, code, jetzt) : undefined;
+  const runde = code.length <= CODE_MAX ? offeneRundePerCode(db, code) : undefined;
   if (!runde) {
     probeGrenze.check(clientIpAus(await headers()));
     return null;

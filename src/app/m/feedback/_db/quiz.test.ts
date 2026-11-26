@@ -463,20 +463,25 @@ describe("beendeAbgelaufene und offeneRundePerCode", () => {
     expect(beendeAbgelaufene(db, plus(frueh, 6 * STD + MIN))).toEqual([r.id]);
   });
 
-  it("findet die offene Runde per Code, aber keine abgelaufene", () => {
+  it("findet die offene Runde per Code, nach dem Auto-Ende des Aufrufers keine abgelaufene", () => {
     const q = mkQuiz();
     const frueh = new Date("2026-11-25T08:00:00Z");
     const r = starteOderHoleRunde(db, q, frueh);
-    expect(offeneRundePerCode(db, r.beitrittCode, plus(frueh, STD))?.id).toBe(r.id);
-    expect(offeneRundePerCode(db, r.beitrittCode.toLowerCase(), plus(frueh, STD))?.id).toBe(r.id);
-    expect(offeneRundePerCode(db, r.beitrittCode, plus(frueh, 7 * STD))).toBeUndefined();
-    expect(rundenDaten(db, r.id).runde.beendetAt).not.toBeNull();
+    expect(offeneRundePerCode(db, r.beitrittCode)?.id).toBe(r.id);
+    expect(offeneRundePerCode(db, r.beitrittCode.toLowerCase())?.id).toBe(r.id);
+    beendeAbgelaufene(db, plus(frueh, 7 * STD));
+    expect(offeneRundePerCode(db, r.beitrittCode)).toBeUndefined();
   });
 
-  it("starteOderHoleRunde beendet zuerst die Abgelaufenen", () => {
+  it("offeneRundePerCode und starteOderHoleRunde holen das Auto-Ende NICHT selbst nach (das tut der Aufrufer, einmal)", () => {
     const q = mkQuiz();
     const frueh = new Date("2026-11-25T08:00:00Z");
     const a = starteOderHoleRunde(db, q, frueh);
+    expect(offeneRundePerCode(db, a.beitrittCode)?.id).toBe(a.id);
+    expect(starteOderHoleRunde(db, q, plus(frueh, 7 * STD)).id).toBe(a.id);
+    expect(rundenDaten(db, a.id).runde.beendetAt).toBeNull();
+    // Mit dem Auto-Ende davor (wie `holeAutoEndeNach` in jedem Weg) entsteht eine neue Runde.
+    beendeAbgelaufene(db, plus(frueh, 7 * STD));
     const b = starteOderHoleRunde(db, q, plus(frueh, 7 * STD));
     expect(b.id).not.toBe(a.id);
     expect(rundenDaten(db, a.id).runde.beendetAt).not.toBeNull();
