@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type Database from "better-sqlite3";
 import { beendeRunde, starteOderHoleRunde } from "@/app/m/feedback/_db/quiz";
 import { frischeDb, get, JETZT, mkQuiz, params, type TestDb } from "@/app/m/feedback/_lib/quiz/test-hilfen";
+import { PROBE_JE_MINUTE, probeGrenze } from "@/app/m/feedback/_lib/quiz/grenzen";
 
 let sqlite: Database.Database;
 let db: TestDb;
@@ -40,6 +41,19 @@ describe("GET q/[code]/qr.svg", () => {
     for (const code of ["ZZZZZZ", "X".repeat(200), r.beitrittCode]) {
       expect((await GET(get(`/q/${code}/qr.svg`, kopf), params({ code }))).status).toBe(404);
     }
+    expect(qrSvg).not.toHaveBeenCalled();
+  });
+
+  it("Code-Orakel: Fehlgriffe zählen gegen die Probegrenze, auch gesperrt bleibt es 404 (nie 429)", async () => {
+    const { GET } = await import("./route");
+    const ip = "10.9.2.1";
+    const mitIp = { ...kopf, "cf-connecting-ip": ip };
+    for (let i = 0; i < PROBE_JE_MINUTE; i++) {
+      const code = i % 2 ? "ZZZZZZ" : "X".repeat(200);
+      expect((await GET(get(`/q/${code}/qr.svg`, mitIp), params({ code }))).status).toBe(404);
+    }
+    expect(probeGrenze.istGesperrt(ip)).toBe(true);
+    expect((await GET(get("/q/ZZZZZZ/qr.svg", mitIp), params({ code: "ZZZZZZ" }))).status).toBe(404);
     expect(qrSvg).not.toHaveBeenCalled();
   });
 });
