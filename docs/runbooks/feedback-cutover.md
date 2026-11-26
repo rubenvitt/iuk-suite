@@ -209,6 +209,36 @@ und gegebenenfalls die Modul-Datenbank sichern, bevor die Alt-App wieder Antwort
 Ein erneuter Import nach dem Rollback ist idempotent (`importFeedback` überschreibt anhand der IDs) —
 er würde in der Suite abgegebene Rückmeldungen aber **nicht** in die Alt-App zurücktragen.
 
+## Live-Quiz: Server-Push hinter dem Reverse Proxy
+
+Beamer und Handys hängen während eines Quiz an Server-Sent Events: `/beamer/<secret>/strom` und
+`/q/<code>/strom` (Content-Type `text/event-stream`). Der Server schickt sofort den Stand, danach jede
+Änderung (gebündelt, höchstens alle 200 ms) und alle 15 s einen Herzschlag `: ping`. Damit das beim
+Publikum ankommt, muss jede Schicht zwischen Browser und Container (Cloudflare, Traefik, ein
+zusätzlicher nginx) zwei Dinge einhalten:
+
+- **Nicht puffern und nicht komprimieren.** Die Antwort trägt `Cache-Control: no-cache, no-transform`
+  und `X-Accel-Buffering: no`; nginx hält sich daran, sonst `proxy_buffering off;` für `…/strom`.
+  Bei Traefik keine `buffering`- und keine `compress`-Middleware auf diese Wege legen.
+- **Keine kurzen Lesetimeouts.** Ein Strom bleibt eine Stunde und länger offen. Ein Leerlauf-Timeout
+  muss über 15 s liegen (der Herzschlag), eine Höchstdauer je Antwort darf es nicht geben
+  (Traefik `respondingTimeouts.writeTimeout` auf 0 lassen, nginx `proxy_read_timeout` ≥ 60 s).
+
+**Prüfbefehl** (das Secret steht in der Verwaltung unter Quiz → Beamer-Adresse):
+```
+curl -N https://<feedback-host>/beamer/<secret>/strom
+```
+Sofort muss eine Zeile `data: {…}` erscheinen und nach spätestens 15 s `: ping`. Kommt erst nach
+Sekunden etwas oder alles auf einmal beim Abbruch, puffert eine Schicht. Dasselbe für ein Handy:
+`curl -N https://<feedback-host>/q/<code>/strom` mit dem Code aus der Lobby.
+
+**Eine Instanz.** Der Push läuft im Prozess (`_lib/quiz/verteiler.ts`): eine Antwort erreicht nur
+die Ströme, die am selben Container hängen. Die Suite darf deshalb nicht mit mehreren Replikaten
+hinter einem Lastverteiler laufen. Beim Rollout laufen alter und neuer Container einige Sekunden
+nebeneinander (`auto-rollout.md`, Schritt 5 bis 7b): in dieser Spanne kann der Beamer-Zähler
+hängen, bis der alte Container stoppt und Beamer und Handys neu verbinden. Während eines laufenden
+Quiz also nicht ausrollen.
+
 ## Was sich für die Nutzer sichtbar ändert
 
 Kurz kommunizieren, damit am nächsten Dienstabend niemand stutzt:
