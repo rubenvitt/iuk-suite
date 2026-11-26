@@ -47,6 +47,7 @@ export default async function QuizBearbeiten({
         modus={quiz.modus}
         fragen={JSON.parse(quiz.fragen) as QuizFrage[]}
         beamerUrl={beamerUrlAus(await headers(), quiz.moderationSecret)}
+        komponenteUrl={`/m/feedback/groups/${quiz.groupId}/quiz/LiveQuiz.vue`}
       />
     </Seite>
   );

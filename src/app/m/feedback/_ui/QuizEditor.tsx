@@ -42,6 +42,8 @@ export type QuizEditorProps = {
   fragen: QuizFrage[];
   /** Vollständige Beamer-Adresse, gebaut in der Seite (`_lib/quiz/adresse.ts`). */
   beamerUrl: string;
+  /** Download der Slidev-Komponente (`…/quiz/LiveQuiz.vue`); ohne sie läuft der Schnipsel nicht. */
+  komponenteUrl: string;
 };
 
 type Typ = QuizFrage["typ"];
@@ -123,7 +125,7 @@ function ohneOption(e: Entwurf, i: number): Entwurf {
   };
 }
 
-export function QuizEditor({ quizId, titel, modus, fragen, beamerUrl }: QuizEditorProps) {
+export function QuizEditor({ quizId, titel, modus, fragen, beamerUrl, komponenteUrl }: QuizEditorProps) {
   const naechsterKey = useRef(fragen.length);
   const [entwurf, setEntwurf] = useState<Entwurf[]>(() => fragen.map((f, i) => ausFrage(f, i)));
   const [titelWert, setTitelWert] = useState(titel);
@@ -157,7 +159,7 @@ export function QuizEditor({ quizId, titel, modus, fragen, beamerUrl }: QuizEdit
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xl }}>
-      <BeamerZugang quizId={quizId} beamerUrl={beamerUrl} clicks={gespeicherteKlicks} />
+      <BeamerZugang quizId={quizId} beamerUrl={beamerUrl} komponenteUrl={komponenteUrl} clicks={gespeicherteKlicks} />
       {entwurfKlicks !== gespeicherteKlicks && (
         <p style={{ ...T.meta, margin: `-${SPACE.md}px 0 0` }}>
           Du hast Fragen oder den Modus geändert. Speichere zuerst, dann stimmt die Klickzahl im Schnipsel.
@@ -407,7 +409,17 @@ function FrageKarte({
 }
 
 /** Beamer-Adresse, Warnung (§5.6), Slidev-Schnipsel (§5.5) und „Adresse neu erzeugen". */
-function BeamerZugang({ quizId, beamerUrl, clicks }: { quizId: number; beamerUrl: string; clicks: number }) {
+function BeamerZugang({
+  quizId,
+  beamerUrl,
+  komponenteUrl,
+  clicks,
+}: {
+  quizId: number;
+  beamerUrl: string;
+  komponenteUrl: string;
+  clicks: number;
+}) {
   const [laeuft, starte] = useTransition();
   const schnipsel = slidevSchnipsel(clicks, beamerUrl);
 
@@ -463,6 +475,14 @@ function BeamerZugang({ quizId, beamerUrl, clicks }: { quizId: number; beamerUrl
         </pre>
         <div>
           <KopierZeile url={schnipsel} />
+        </div>
+        <span style={T.meta}>
+          Die Folie braucht die Komponente LiveQuiz.vue im Ordner components deiner Präsentation.
+        </span>
+        <div>
+          <Button href={komponenteUrl} download="LiveQuiz.vue">
+            LiveQuiz.vue herunterladen
+          </Button>
         </div>
       </div>
     </Card>

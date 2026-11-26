@@ -43,9 +43,28 @@ describe("QuizEditor", () => {
         modus="lagebild"
         fragen={[frage("a"), frage("b"), frage("c")]}
         beamerUrl={URL_BEAMER}
+        komponenteUrl="/m/feedback/groups/1/quiz/LiveQuiz.vue"
       />,
     );
     expect(schnipsel()).toBe(`---\nclicks: 7\n---\n<LiveQuiz src="${URL_BEAMER}" />`);
+  });
+
+  it("nennt die Komponente, die die Folie braucht, und verlinkt sie zum Herunterladen", async () => {
+    await mount(
+      <QuizEditor
+        quizId={1}
+        titel="Funk"
+        modus="lagebild"
+        fragen={[frage("a")]}
+        beamerUrl={URL_BEAMER}
+        komponenteUrl="/m/feedback/groups/1/quiz/LiveQuiz.vue"
+      />,
+    );
+    const gruppe = query('[aria-label="Slidev-Schnipsel"]');
+    expect(gruppe.textContent).toContain("LiveQuiz.vue");
+    const link = gruppe.querySelector<HTMLAnchorElement>('a[href="/m/feedback/groups/1/quiz/LiveQuiz.vue"]');
+    expect(link?.textContent).toContain("LiveQuiz.vue herunterladen");
+    expect(link?.hasAttribute("download")).toBe(true);
   });
 
   it("Wettbewerb mit 3 Fragen: clicks 9", async () => {
@@ -56,13 +75,15 @@ describe("QuizEditor", () => {
         modus="wettbewerb"
         fragen={[frage("a"), frage("b"), frage("c")]}
         beamerUrl={URL_BEAMER}
+        komponenteUrl="/m/feedback/groups/1/quiz/LiveQuiz.vue"
       />,
     );
     expect(schnipsel()).toContain("clicks: 9\n");
   });
 
   it("zeigt die Beamer-Adresse und den Warntext aus §5.6 wörtlich", async () => {
-    await mount(<QuizEditor quizId={1} titel="Funk" modus="lagebild" fragen={[frage("a")]} beamerUrl={URL_BEAMER} />);
+    await mount(<QuizEditor quizId={1} titel="Funk" modus="lagebild" fragen={[frage("a")]} beamerUrl={URL_BEAMER}
+        komponenteUrl="/m/feedback/groups/1/quiz/LiveQuiz.vue" />);
     expect(document.body.textContent).toContain(URL_BEAMER);
     expect(document.body.textContent).toContain(
       "Wer die Adresse kennt, kann das Quiz steuern. Foliensätze mit dieser Adresse nicht öffentlich ablegen.",
@@ -78,6 +99,7 @@ describe("QuizEditor", () => {
         modus="lagebild"
         fragen={[frage("a", { zeit_s: 20, erklaerung: "weil" }), frage("b")]}
         beamerUrl={URL_BEAMER}
+        komponenteUrl="/m/feedback/groups/1/quiz/LiveQuiz.vue"
       />,
     );
     const feld = query<HTMLInputElement>('input[name="fragen"]');
@@ -88,7 +110,8 @@ describe("QuizEditor", () => {
   });
 
   it("„Frage hinzufügen“ hängt eine Frage an, „nach oben“ tauscht", async () => {
-    await mount(<QuizEditor quizId={1} titel="Funk" modus="lagebild" fragen={[frage("a"), frage("b")]} beamerUrl={URL_BEAMER} />);
+    await mount(<QuizEditor quizId={1} titel="Funk" modus="lagebild" fragen={[frage("a"), frage("b")]} beamerUrl={URL_BEAMER}
+        komponenteUrl="/m/feedback/groups/1/quiz/LiveQuiz.vue" />);
     const hinzu = queryAll<HTMLButtonElement>("button").find((b) => b.textContent?.includes("Frage hinzufügen"))!;
     await clickElement(hinzu);
     const fragen = () => JSON.parse(query<HTMLInputElement>('input[name="fragen"]').value) as QuizFrage[];
@@ -107,6 +130,7 @@ describe("QuizEditor", () => {
         modus="lagebild"
         fragen={[frage("a", { typ: "wahrfalsch", optionen: ["Wahr", "Falsch"], richtig: [1] })]}
         beamerUrl={URL_BEAMER}
+        komponenteUrl="/m/feedback/groups/1/quiz/LiveQuiz.vue"
       />,
     );
     const f = JSON.parse(query<HTMLInputElement>('input[name="fragen"]').value) as QuizFrage[];

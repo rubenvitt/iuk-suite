@@ -6,7 +6,8 @@ zielt auf **Slidev v53** (`useSlideContext`, `$clicks`, `$page`, `$renderContext
 
 ## Einrichten
 
-1. Kopiere `LiveQuiz.vue` in den Ordner `components/` deiner Slidev-Präsentation.
+1. Kopiere `LiveQuiz.vue` in den Ordner `components/` deiner Slidev-Präsentation. Du bekommst die Datei
+   in der Verwaltung des Quiz unter „Für Slidev“ („LiveQuiz.vue herunterladen“) oder hier aus `docs/slidev/`.
 2. Öffne in der IDA das Quiz in der Verwaltung und kopiere den Slidev-Schnipsel. Er sieht so aus:
 
    ```md
@@ -24,6 +25,8 @@ zielt auf **Slidev v53** (`useSlideContext`, `$clicks`, `$page`, `$renderContext
 Im Präsentermodus rendern beide Fenster die Folie, also können beide Schritte senden. Das ist
 unproblematisch: Schritte sind absolut („gehe zu Schritt n“), der Server nimmt denselben Schritt
 nur einmal an. Die „nächste Folie“-Vorschau und die Übersicht laden das Quiz gar nicht erst.
+Klickst du schnell hintereinander, kann der Beamer kurz einen Schritt zurückspringen und gleich wieder
+vorgehen (ein Fenster meldet noch den älteren Schritt); eine schon gezeigte Frage bleibt dabei gesperrt.
 
 ## Achtung: das Secret
 

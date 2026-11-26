@@ -11,7 +11,7 @@ const notiz: Releasenotiz = {
     absatz(
       "In deiner Gruppe legst du unter Quiz jetzt Fragen an, als Wettbewerb mit Rangliste oder als Lagebild ohne Namen. Öffne die Beamer-Adresse auf dem Bildschirm im Raum und klicke auf Lobby öffnen; alle machen per QR-Code oder Code auf dem Handy mit.",
     ),
-    absatz("Präsentierst du mit Slidev, steht im Quiz unter Für Slidev ein Schnipsel, mit dem das Quiz in deinen Folien läuft."),
+    absatz("Präsentierst du mit Slidev, findest du im Quiz unter Für Slidev einen Schnipsel und die Komponente zum Herunterladen, mit denen das Quiz in deinen Folien läuft."),
   ],
 };
 
