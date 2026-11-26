@@ -201,6 +201,10 @@ function freierCode(db: DB): string {
  * Der Abend hält die Tagesregel (`abendAmTag`, DRK-429) wie „Umfrage starten": ein geplanter
  * von heute wird übernommen und auf `held` gesetzt, ein abgesagter wirft `TagBelegt`, ein
  * gelaufener wird benutzt. Fehlt er, entsteht er auf `held`.
+ *
+ * Danach trägt der Abend `held` ohne Umfrage, aber mit Runde — „Umfrage starten" und
+ * „Freigeben" übernehmen ihn deshalb (`istQuizAbendOhneUmfrage`, `_db/queries.ts`): Quiz im
+ * Vortrag, Feedback am Schluss ist die Reihenfolge eines echten Abends.
  */
 export function starteOderHoleRunde(db: DB, quiz: QuizRow, jetzt: Date): QuizRundeRow {
   return db.transaction((tx) => {

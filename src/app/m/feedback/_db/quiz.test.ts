@@ -4,7 +4,16 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
 import * as schema from "./schema";
-import { insertGroup, insertEvening, getEvening, TagBelegt } from "./queries";
+import {
+  insertGroup,
+  insertEvening,
+  getEvening,
+  TagBelegt,
+  createAndStartSurvey,
+  trageAbendNach,
+  activeSurveyForGroup,
+  getSurveyByEvening,
+} from "./queries";
 import {
   legeQuizAn,
   aendereQuiz,
@@ -147,6 +156,64 @@ describe("starteOderHoleRunde", () => {
     const b = starteOderHoleRunde(db, q, plus(JETZT, MIN));
     expect(b.id).not.toBe(a.id);
     expect(b.eveningId).toBe(a.eveningId);
+  });
+});
+
+/**
+ * ERST DAS QUIZ, DANN DIE UMFRAGE — die Reihenfolge eines echten Abends (Quiz im Vortrag,
+ * Feedback am Schluss). Das Quiz setzt den Abend auf `held`; „Umfrage starten" muss ihn danach
+ * übernehmen, nicht mit `TagBelegt` abweisen. Die Runde ist das Kennzeichen, das ihn von einem
+ * nachgetragenen Abend ohne Erhebung unterscheidet.
+ */
+describe("Quiz, dann Umfrage starten (Tagesregel)", () => {
+  const HEUTE = new Date("2026-11-25T00:00:00Z");
+  const start = (groupId: number, topic: string | null = null) =>
+    createAndStartSurvey(db, {
+      groupId, date: HEUTE, topic, notes: null, participants: 12, closeAfterHours: 48, now: JETZT,
+    });
+  const abende = () => sqlite.prepare("SELECT COUNT(*) AS c FROM evenings").get();
+
+  it("ohne Abend: die Umfrage startet am Abend des Quiz", () => {
+    const q = mkQuiz();
+    const r = starteOderHoleRunde(db, q, JETZT);
+    const s = start(q.groupId, "Funk");
+    expect(s).toMatchObject({ eveningId: r.eveningId, uebernommen: true });
+    expect(abende()).toEqual({ c: 1 });
+    const laufend = activeSurveyForGroup(db, q.groupId)!;
+    expect(laufend.evening.id).toBe(r.eveningId);
+    expect(laufend.evening).toMatchObject({ status: "held", topic: "Funk", participantCount: 12 });
+  });
+
+  it("geplanter Abend: das Quiz übernimmt ihn, die Umfrage danach auch", () => {
+    const q = mkQuiz();
+    const eve = insertEvening(db, {
+      groupId: q.groupId, date: HEUTE, topic: "Kartenkunde", notes: null,
+      participantCount: null, createdAt: new Date(0), status: "planned",
+    });
+    starteOderHoleRunde(db, q, JETZT);
+    expect(start(q.groupId).eveningId).toBe(eve.id);
+    expect(abende()).toEqual({ c: 1 });
+    expect(getEvening(db, eve.id)!.topic).toBe("Kartenkunde");
+    expect(getSurveyByEvening(db, eve.id)!.status).toBe("active");
+  });
+
+  it("ein gelaufener Abend ohne Umfrage und ohne Quizrunde wirft weiter TagBelegt", () => {
+    const q = mkQuiz();
+    trageAbendNach(db, {
+      groupId: q.groupId, date: HEUTE, topic: null, notes: null, participantCount: null, createdAt: new Date(0),
+    });
+    expect(() => start(q.groupId)).toThrow(TagBelegt);
+    expect(activeSurveyForGroup(db, q.groupId)).toBeUndefined();
+  });
+
+  it("erst die Umfrage, dann das Quiz: die Runde hängt am Abend mit Umfrage; ein zweiter Start wirft", () => {
+    const q = mkQuiz();
+    const s = start(q.groupId);
+    const r = starteOderHoleRunde(db, q, plus(JETZT, MIN));
+    expect(r.eveningId).toBe(s.eveningId);
+    expect(activeSurveyForGroup(db, q.groupId)!.survey.id).toBe(s.surveyId);
+    expect(() => start(q.groupId)).toThrow(TagBelegt);
+    expect(abende()).toEqual({ c: 1 });
   });
 });
 

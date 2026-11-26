@@ -23,6 +23,7 @@ import {
   setEveningStatus,
   planEvenings,
   releaseSurveyForEvening,
+  istQuizAbendOhneUmfrage,
   setSurveyStatus,
   activateSurvey,
   createAndStartSurvey,
@@ -625,7 +626,11 @@ export async function freigebenAction(formData: FormData): Promise<void> {
     // Datum, an dem sie niemand sucht. Der Altbestands-Weg für einen Entwurf an
     // einem gelaufenen Abend bleibt `activateSurveyAction` — der legt keine
     // Umfrage an, sondern startet eine, die es schon gibt.
-    if (eve.status !== "planned") throw new Error("Eine Umfrage lässt sich nur für geplante Abende starten");
+    // Ausnahme: ein Abend, an dem heute nur das Live-Quiz lief (`istQuizAbendOhneUmfrage`) —
+    // das Quiz hat den Termin auf `held` gesetzt, die Seite zeigt aber noch „Umfrage starten".
+    if (eve.status !== "planned" && !istQuizAbendOhneUmfrage(db, eve)) {
+      throw new Error("Eine Umfrage lässt sich nur für geplante Abende starten");
+    }
     const group = getGroup(db, eve.groupId)!;
     const survey = getSurveyByEvening(db, eveningId);
     const hours = survey?.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
